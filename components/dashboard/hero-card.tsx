@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { IconPlus } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -21,9 +22,11 @@ function HeroCard() {
         </CardDescription>
       </CardHeader>
       <CardFooter>
-        <Button className="w-full">
-          <IconPlus data-icon="inline-start" />
-          Mulai Audit Baru
+        <Button asChild className="w-full">
+          <Link href="/audit/start">
+            <IconPlus data-icon="inline-start" />
+            Mulai Audit Baru
+          </Link>
         </Button>
       </CardFooter>
     </Card>

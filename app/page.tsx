@@ -1,51 +1,41 @@
-import {
-  AuditListSection,
-  type AuditItem,
-} from "@/components/dashboard/audit-list-section"
-import { HeroCard } from "@/components/dashboard/hero-card"
-import { SummaryCards } from "@/components/dashboard/summary-cards"
-import { Header } from "@/components/header"
+import Link from "next/link"
+import { IconArrowRight, IconLayoutRows } from "@tabler/icons-react"
 
-const auditItems: AuditItem[] = [
-  {
-    id: "A-0123",
-    site: "Toko Sudirman City",
-    location: "Sudirman Central",
-    intensity: "12.4",
-    unit: "kWh/m²/bln",
-    relativeTime: "3 hari lalu",
-    status: "hemat",
-  },
-  {
-    id: "A-0124",
-    site: "Toko Menteng Raya",
-    location: "Menteng Office",
-    intensity: "10.8",
-    unit: "kWh/m²/bln",
-    relativeTime: "5 hari lalu",
-    status: "hemat",
-  },
-  {
-    id: "A-0125",
-    site: "Toko Kemang Walk",
-    location: "Kemang Hub",
-    intensity: "14.1",
-    unit: "kWh/m²/bln",
-    relativeTime: "1 minggu lalu",
-    status: "boros",
-  },
-]
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 export default function Page() {
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-8">
-      <Header variant="dashboard" />
-
-      <section className="flex flex-col gap-5">
-        <HeroCard />
-        <SummaryCards />
-        <AuditListSection items={auditItems} />
-      </section>
+    <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col justify-center bg-background px-4 py-8">
+      <Card className="bg-linear-to-br from-primary/16 via-background to-background">
+        <CardHeader className="items-center text-center">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+            <IconLayoutRows className="size-6" />
+          </div>
+          <CardTitle className="text-2xl">SPARTA Energy</CardTitle>
+          <CardDescription>
+            Sistem audit energi untuk memantau efisiensi toko, menemukan sumber
+            pemborosan, dan menghasilkan insight tindakan.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          <Button asChild className="w-full">
+            <Link href="/dashboard">
+              Masuk Dashboard
+              <IconArrowRight data-icon="inline-end" />
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/login">Ke Halaman Login</Link>
+          </Button>
+        </CardContent>
+      </Card>
     </main>
   )
 }
