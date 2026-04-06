@@ -8,7 +8,9 @@ import {
   IconCircle,
 } from "@tabler/icons-react"
 import * as React from "react"
+import Link from "next/link"
 
+import { AuditStep2Detail } from "./step2-detail"
 import { Header } from "@/components/header"
 import { AuditStepIndicator } from "@/components/audit/step-indicator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -24,6 +26,10 @@ type AreaItem = {
   id: string
   name: string
   status: AreaStatus
+}
+
+type AuditStep2Props = {
+  selectedArea?: string | null
 }
 
 const areaItems: AreaItem[] = [
@@ -45,46 +51,57 @@ function Step2AreaCard({ item }: { item: AreaItem }) {
   const isDone = item.status === "done"
 
   return (
-    <Card
-      className={cn(
-        "gap-4 py-4 transition-transform active:translate-y-px",
-        isDone ? "bg-card" : "bg-muted/35"
-      )}
-    >
-      <CardContent className="space-y-3">
-        <div className="flex items-start justify-between">
-          <div
-            className={cn(
-              "flex size-10 items-center justify-center rounded-xl text-xs font-bold",
-              isDone
-                ? "bg-primary/15 text-primary"
-                : "bg-muted text-muted-foreground"
+    <Link href={`/audit/start?step=2&area=${item.id}`} className="block">
+      <Card
+        className={cn(
+          "gap-4 py-4 transition-transform active:translate-y-px",
+          isDone ? "bg-card" : "bg-muted/35"
+        )}
+      >
+        <CardContent className="space-y-3">
+          <div className="flex items-start justify-between">
+            <div
+              className={cn(
+                "flex size-10 items-center justify-center rounded-xl text-xs font-bold",
+                isDone
+                  ? "bg-primary/15 text-primary"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {item.id}
+            </div>
+
+            {isDone ? (
+              <IconCheck className="size-5 text-emerald-600" />
+            ) : (
+              <IconCircle className="size-5 text-muted-foreground/60" />
             )}
-          >
-            {item.id}
           </div>
 
-          {isDone ? (
-            <IconCheck className="size-5 text-emerald-600" />
-          ) : (
-            <IconCircle className="size-5 text-muted-foreground/60" />
-          )}
-        </div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-foreground">
+              {item.name}
+            </h3>
 
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-foreground">{item.name}</h3>
-
-          <p className="text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-            {isDone ? "Selesai" : "Belum diisi"}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+            <p className="text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+              {isDone ? "Selesai" : "Belum diisi"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   )
 }
 
-export function AuditStep2() {
+export function AuditStep2({ selectedArea }: AuditStep2Props) {
   const canContinue = completedAreas === totalAreas
+
+  if (selectedArea) {
+    const areaName =
+      areaItems.find((item) => item.id === selectedArea)?.name ?? "Area"
+
+    return <AuditStep2Detail areaName={areaName} />
+  }
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
@@ -97,7 +114,7 @@ export function AuditStep2() {
 
       <main className="flex flex-col gap-6">
         <section className="space-y-4">
-          <AuditStepIndicator currentStep={2} label="Step 2: Data Equipment" />
+          <AuditStepIndicator currentStep={2} label="Step 2: Input Equipment" />
 
           <Card className="bg-muted/40 py-5">
             <CardHeader className="pb-3">

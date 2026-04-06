@@ -2,10 +2,11 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { IconArrowRight, IconClock, IconInfoCircle } from "@tabler/icons-react"
+import { IconArrowRight, IconInfoCircle } from "@tabler/icons-react"
 
 import { Header } from "@/components/header"
 import { AuditStepIndicator } from "@/components/audit/step-indicator"
+import { TimeRangeCards } from "@/components/audit/time-range-cards"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -23,9 +24,6 @@ export function AuditStep1() {
   const [openTime, setOpenTime] = React.useState("07:00")
   const [closeTime, setCloseTime] = React.useState("22:00")
 
-  const openTimeInputRef = React.useRef<HTMLInputElement | null>(null)
-  const closeTimeInputRef = React.useRef<HTMLInputElement | null>(null)
-
   const displayOpenTime = is24Hours ? "00:00" : openTime
   const displayCloseTime = is24Hours ? "24:00" : closeTime
 
@@ -37,25 +35,6 @@ export function AuditStep1() {
       setCloseTime((prev) => prev || "22:00")
     }
   }, [])
-
-  const openTimePicker = React.useCallback(
-    (ref: React.RefObject<HTMLInputElement | null>) => {
-      const input = ref.current
-
-      if (!input) {
-        return
-      }
-
-      if (typeof input.showPicker === "function") {
-        input.showPicker()
-        return
-      }
-
-      input.focus()
-      input.click()
-    },
-    []
-  )
 
   const handleNext = React.useCallback(() => {
     router.push("/audit/start?step=2")
@@ -201,61 +180,14 @@ export function AuditStep1() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <Card>
-                <CardContent>
-                  <button
-                    type="button"
-                    className="flex w-full flex-col gap-1 text-left"
-                    onClick={() => openTimePicker(openTimeInputRef)}
-                  >
-                    <p className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                      Jam Buka
-                    </p>
-                    <p className="flex items-center gap-1 text-sm font-semibold text-primary">
-                      <IconClock className="size-4" />
-                      {displayOpenTime}
-                    </p>
-                  </button>
-                  <input
-                    ref={openTimeInputRef}
-                    type="time"
-                    value={openTime}
-                    onChange={(event) => setOpenTime(event.target.value)}
-                    className="absolute size-px opacity-0"
-                    tabIndex={-1}
-                    aria-hidden
-                  />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent>
-                  <button
-                    type="button"
-                    className="flex w-full flex-col gap-1 text-left"
-                    onClick={() => openTimePicker(closeTimeInputRef)}
-                  >
-                    <p className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                      Jam Tutup
-                    </p>
-                    <p className="flex items-center gap-1 text-sm font-semibold text-primary">
-                      <IconClock className="size-4" />
-                      {displayCloseTime}
-                    </p>
-                  </button>
-                  <input
-                    ref={closeTimeInputRef}
-                    type="time"
-                    value={closeTime}
-                    onChange={(event) => setCloseTime(event.target.value)}
-                    className="absolute size-px opacity-0"
-                    tabIndex={-1}
-                    aria-hidden
-                  />
-                </CardContent>
-              </Card>
-            </div>
+            <TimeRangeCards
+              startLabel="Jam Buka"
+              endLabel="Jam Tutup"
+              startValue={displayOpenTime}
+              endValue={displayCloseTime}
+              onStartChange={setOpenTime}
+              onEndChange={setCloseTime}
+            />
           )}
         </section>
       </main>

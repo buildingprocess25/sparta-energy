@@ -10,9 +10,10 @@ export default function AuditStartPage() {
   const searchParams = useSearchParams()
   const step = searchParams.get("step") || "1"
   const stepNum = parseInt(step, 10)
+  const selectedArea = searchParams.get("area")
 
   if (stepNum === 2) {
-    return <AuditStep2 />
+    return <AuditStep2 selectedArea={selectedArea} />
   }
 
   return <AuditStep1 />
