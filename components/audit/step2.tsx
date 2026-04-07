@@ -3,8 +3,8 @@
 import {
   IconAlertTriangle,
   IconArrowRight,
-  IconBolt,
-  IconCheck,
+  IconBuildingWarehouse,
+  IconCircleCheck,
   IconCircle,
 } from "@tabler/icons-react"
 import * as React from "react"
@@ -55,7 +55,7 @@ function Step2AreaCard({ item }: { item: AreaItem }) {
       <Card
         className={cn(
           "gap-4 py-4 transition-transform active:translate-y-px",
-          isDone ? "bg-card" : "bg-muted/35"
+          isDone ? "bg-card" : "bg-muted"
         )}
       >
         <CardContent className="space-y-3">
@@ -68,11 +68,11 @@ function Step2AreaCard({ item }: { item: AreaItem }) {
                   : "bg-muted text-muted-foreground"
               )}
             >
-              {item.id}
+              <IconBuildingWarehouse className="size-5" />
             </div>
 
             {isDone ? (
-              <IconCheck className="size-5 text-emerald-600" />
+              <IconCircleCheck className="size-5 text-emerald-600" />
             ) : (
               <IconCircle className="size-5 text-muted-foreground/60" />
             )}
@@ -150,29 +150,15 @@ export function AuditStep2({ selectedArea }: AuditStep2Props) {
             <Step2AreaCard key={item.name} item={item} />
           ))}
         </section>
-
-        <Card className="overflow-hidden border-dashed bg-linear-to-r from-muted/55 to-muted/25 py-0">
-          <CardContent className="flex h-28 items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs tracking-wide text-muted-foreground uppercase">
-                Insight
-              </p>
-              <p className="text-sm font-semibold text-primary">
-                Lengkapi semua area untuk lanjut ke History kWh
-              </p>
-            </div>
-            <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <IconBolt className="size-5" />
-            </span>
-          </CardContent>
-        </Card>
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border/60 bg-background/90 p-4 backdrop-blur">
         <div className="w-full max-w-sm">
-          <Button className="h-11 w-full" disabled={!canContinue}>
-            Lanjut ke History kWh
-            <IconArrowRight data-icon="inline-end" />
+          <Button className="h-11 w-full" asChild>
+            <Link href="/audit/start?step=3">
+              Lanjut ke History kWh
+              <IconArrowRight data-icon="inline-end" />
+            </Link>
           </Button>
         </div>
       </div>

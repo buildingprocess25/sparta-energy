@@ -40,7 +40,7 @@ Aplikasi ini berfungsi sebagai decision support system, bukan sekadar input data
 
 5. Input History kWh (PLN)
 
-- Data tagihan listrik 12 bulan.
+- Data tagihan listrik 12 bulan(user 2) dan 1 bulan(user 1).
 - Dipakai untuk validasi dengan real usage.
 
 6. Kalkulasi Otomatis

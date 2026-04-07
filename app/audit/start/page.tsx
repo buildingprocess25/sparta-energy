@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 
 import { AuditStep1 } from "@/components/audit/step1"
 import { AuditStep2 } from "@/components/audit/step2"
+import { AuditStep3 } from "@/components/audit/step3"
 
 export default function AuditStartPage() {
   const searchParams = useSearchParams()
@@ -14,6 +15,10 @@ export default function AuditStartPage() {
 
   if (stepNum === 2) {
     return <AuditStep2 selectedArea={selectedArea} />
+  }
+
+  if (stepNum === 3) {
+    return <AuditStep3 />
   }
 
   return <AuditStep1 />

@@ -7,7 +7,6 @@ import {
   IconCheck,
   IconChevronRight,
   IconCircle,
-  IconDotsVertical,
   IconEdit,
   IconInfoCircle,
   IconMinus,
@@ -17,14 +16,11 @@ import {
 
 import { Header } from "@/components/header"
 import { TimeRangeCards } from "@/components/audit/time-range-cards"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import {
   Drawer,
   DrawerClose,
   DrawerContent,
-  DrawerDescription,
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
@@ -159,7 +155,7 @@ export function AuditStep2Detail({
   const defaultEquipment =
     equipmentItems.find((item) => item.selected) ?? equipmentItems[0]
 
-  const [isConfigOpen, setIsConfigOpen] = React.useState(true)
+  const [isConfigOpen, setIsConfigOpen] = React.useState(false)
   const [activeEquipmentName, setActiveEquipmentName] = React.useState(
     defaultEquipment.name
   )
@@ -200,7 +196,8 @@ export function AuditStep2Detail({
       <main className="flex flex-col gap-6">
         <section className="space-y-4">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Pilih equipment yang ADA di toko ini untuk diatur detailnya.
+            Pilih atau tambahkan equipment yang ada di toko ini untuk diatur
+            konfigurasinya.
           </p>
         </section>
 

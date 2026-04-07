@@ -15,7 +15,7 @@ export default function Page() {
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col justify-center bg-background px-4 py-8">
       <Card className="bg-linear-to-br from-primary/16 via-background to-background">
-        <CardHeader className="items-center text-center">
+        <CardHeader className="flex flex-col items-center text-center">
           <Logo className="scale-95" />
           <CardTitle className="text-2xl">SPARTA Energy</CardTitle>
           <CardDescription>
