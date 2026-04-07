@@ -94,7 +94,7 @@ function Step2AreaCard({ item }: { item: AreaItem }) {
 }
 
 export function AuditStep2({ selectedArea }: AuditStep2Props) {
-  const canContinue = completedAreas === totalAreas
+  // const canContinue = completedAreas === totalAreas
 
   if (selectedArea) {
     const areaName =
