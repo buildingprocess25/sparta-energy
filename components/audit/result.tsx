@@ -146,7 +146,7 @@ export function AuditResult() {
 
             <div>
               <p className="text-[10px] tracking-[0.18em] text-primary-foreground/70 uppercase">
-                Status Audit
+                Hasil Audit:
               </p>
               <h2 className="text-3xl font-black tracking-tight">
                 {statusLabel}
@@ -156,7 +156,7 @@ export function AuditResult() {
             <div className="grid grid-cols-2 gap-3 border-t border-white/20 pt-4">
               <div>
                 <p className="text-[10px] text-primary-foreground/70 uppercase">
-                  Actual
+                  RATA-RATA AKTUAL
                 </p>
                 <p className="text-base font-bold">
                   {mockAuditResult.actualKwhPerM2.toFixed(1)} kWh/m2
@@ -172,7 +172,7 @@ export function AuditResult() {
               </div>
               <div>
                 <p className="text-[10px] text-primary-foreground/70 uppercase">
-                  Standard
+                  RATA-RATA STANDAR
                 </p>
                 <p className="text-base font-bold opacity-85">
                   {mockAuditResult.standardKwhPerM2.toFixed(1)} kWh/m2
@@ -324,7 +324,7 @@ export function AuditResult() {
               </span>
             </div>
             <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3">
-              <span className="text-sm">Standard (STD)</span>
+              <span className="text-sm">Standar</span>
               <span className="font-bold">
                 {mockAuditResult.standardKwhPerM2.toFixed(1)} kWh/m2
               </span>

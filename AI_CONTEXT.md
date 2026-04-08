@@ -14,6 +14,22 @@ Tujuan utama:
 
 Aplikasi ini berfungsi sebagai decision support system, bukan sekadar input data.
 
+## Target Users and Access Model
+
+Ada 2 role user utama:
+
+1. user1 (utama)
+
+- Hanya bisa melakukan audit untuk 1 toko miliknya.
+- History dan reports hanya menampilkan data toko tersebut.
+- Fokus pada eksekusi audit operasional dan tindak lanjut lokal.
+
+2. user2
+
+- Bisa melakukan audit untuk semua toko.
+- History dan reports menampilkan data lintas toko dan lintas cabang.
+- Fokus pada monitoring jaringan toko, benchmarking, dan prioritas intervensi.
+
 ## End-to-End User Flow
 
 1. Login
