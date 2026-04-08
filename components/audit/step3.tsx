@@ -21,15 +21,15 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
-type UserRole = "user1" | "user2"
+type UserRole = "user" | "admin"
 
-const getMockUserRole = (): UserRole => "user2"
+const getMockUserRole = (): UserRole => "user"
 const mockUserRole = getMockUserRole()
 const mockStore = {
   code: "ID-99281",
   name: "Alfamart Cibubur Raya",
   year: 2025,
-  isBeanspot: false,
+  isBeanspot: true,
 }
 
 const mockMonthlyRows = [
@@ -48,7 +48,7 @@ const mockMonthlyRows = [
 ]
 
 const visibleRows =
-  mockUserRole === "user1"
+  mockUserRole === "user"
     ? [mockMonthlyRows[mockMonthlyRows.length - 1]]
     : mockMonthlyRows
 
@@ -176,7 +176,7 @@ export function AuditStep3() {
                     ))}
                   </TableBody>
 
-                  {mockUserRole === "user2" ? (
+                  {mockUserRole === "admin" ? (
                     <TableFooter>
                       <TableRow>
                         <TableCell className="text-xs font-bold">

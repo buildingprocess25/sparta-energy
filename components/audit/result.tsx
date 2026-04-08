@@ -1,6 +1,11 @@
 "use client"
 
-import { IconEdit, IconFileDownload } from "@tabler/icons-react"
+import {
+  IconEdit,
+  IconFileDownload,
+  IconLeaf,
+  IconAlertTriangle,
+} from "@tabler/icons-react"
 import {
   Bar,
   BarChart,
@@ -24,15 +29,31 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
+import { cn } from "@/lib/utils"
 
-const mockAuditResult = {
-  storeCode: "ALF-0123",
-  storeName: "Alfamart Cibubur Raya",
-  standardKwhPerM2: 15.0,
-  actualKwhPerM2: 12.4,
-  equipmentEstimateKwhPerM2: 11.8,
-  totalMonthlyKwh: 4398,
-  totalDailyKwh: 146.6,
+type UserRole = "user" | "admin"
+
+const getMockUserRole = (): UserRole => "admin"
+const mockUserRole = getMockUserRole()
+const mockStore = {
+  code: "ALF-0123",
+  name: "Alfamart Cibubur Raya",
+  reportMonth: "Desember",
+}
+
+const mockAuditResultByRole = {
+  user: {
+    standardKwhPerM2: 13.2,
+    equipmentEstimateKwhPerM2: 11.9,
+    totalMonthlyKwh: 2600,
+    totalDailyKwh: 86.7,
+  },
+  admin: {
+    standardKwhPerM2: 15.0,
+    equipmentEstimateKwhPerM2: 11.8,
+    totalMonthlyKwh: 4398,
+    totalDailyKwh: 146.6,
+  },
 }
 
 const mockMonthlyEfficiency = [
@@ -118,15 +139,26 @@ const areaChartConfig = {
 const numberFormat = new Intl.NumberFormat("id-ID")
 
 export function AuditResult() {
-  const savingsKwh =
-    mockAuditResult.standardKwhPerM2 - mockAuditResult.actualKwhPerM2
-  const efficiencyRatio =
-    (mockAuditResult.actualKwhPerM2 / mockAuditResult.standardKwhPerM2) * 100
-  const statusLabel = savingsKwh >= 0 ? "TOKO HEMAT" : "TOKO BOROS"
+  const visibleMonthlyEfficiency =
+    mockUserRole === "user"
+      ? [mockMonthlyEfficiency[mockMonthlyEfficiency.length - 1]]
+      : mockMonthlyEfficiency
+
+  const summary = mockAuditResultByRole[mockUserRole]
+  const actualKwhPerM2 =
+    visibleMonthlyEfficiency.reduce((total, row) => total + row.actual, 0) /
+    visibleMonthlyEfficiency.length
+  const savingsKwh = summary.standardKwhPerM2 - actualKwhPerM2
+  const efficiencyRatio = (actualKwhPerM2 / summary.standardKwhPerM2) * 100
+  const isSingleMonth = mockUserRole === "user"
   const totalAreaMonthlyKwh = mockAreaBreakdown.reduce(
     (total, item) => total + item.monthlyKwh,
     0
   )
+
+  const isHemat = savingsKwh >= 0
+  const statusLabel = isHemat ? "TOKO HEMAT" : "TOKO BOROS"
+  const StatusIcon = isHemat ? IconLeaf : IconAlertTriangle
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-36">
@@ -138,52 +170,67 @@ export function AuditResult() {
       />
 
       <main className="space-y-4">
-        <Card className="overflow-hidden border-0 bg-linear-to-br from-primary to-primary/80 text-primary-foreground">
-          <CardContent className="space-y-4">
-            <Badge className="rounded-full bg-white/15 text-primary-foreground hover:bg-white/15">
-              {mockAuditResult.storeName} · {mockAuditResult.storeCode}
+        <Card
+          className={cn(
+            "relative overflow-hidden border-0 text-white shadow-lg",
+            isHemat
+              ? "bg-linear-to-br from-primary to-primary/80 shadow-primary/20"
+              : "bg-linear-to-br from-[#d85a53] to-[#c54b45] text-white shadow-[#d85a53]/20"
+          )}
+        >
+          <StatusIcon className="absolute -top-4 -right-4 size-36 opacity-15" />
+
+          <CardContent className="relative z-10 space-y-4 pt-6">
+            <Badge className="rounded-full bg-white/20 text-white hover:bg-white/20">
+              {mockStore.name} · {mockStore.code}
             </Badge>
 
             <div>
-              <p className="text-[10px] tracking-[0.18em] text-primary-foreground/70 uppercase">
+              <p className="text-[10px] tracking-[0.18em] text-white/80 uppercase">
                 Hasil Audit:
               </p>
-              <h2 className="text-3xl font-black tracking-tight">
-                {statusLabel}
-              </h2>
+              <div className="flex items-center gap-2">
+                <StatusIcon className="size-8" />
+                <h2 className="text-3xl font-black tracking-tight">
+                  {statusLabel}
+                </h2>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 border-t border-white/20 pt-4">
               <div>
-                <p className="text-[10px] text-primary-foreground/70 uppercase">
-                  RATA-RATA AKTUAL
+                <p className="text-[10px] text-white/80 uppercase">
+                  {isSingleMonth ? "AKTUAL BULAN INI" : "RATA-RATA AKTUAL"}
                 </p>
                 <p className="text-base font-bold">
-                  {mockAuditResult.actualKwhPerM2.toFixed(1)} kWh/m2
+                  {actualKwhPerM2.toFixed(1)} kWh/m²
                 </p>
               </div>
               <div>
-                <p className="text-[10px] text-primary-foreground/70 uppercase">
-                  Efisiensi
-                </p>
+                <p className="text-[10px] text-white/80 uppercase">Efisiensi</p>
                 <p className="text-base font-bold">
                   {efficiencyRatio.toFixed(1)}%
                 </p>
               </div>
               <div>
-                <p className="text-[10px] text-primary-foreground/70 uppercase">
-                  RATA-RATA STANDAR
+                <p className="text-[10px] text-white/80 uppercase">
+                  {isSingleMonth ? "STANDAR BULAN INI" : "RATA-RATA STANDAR"}
                 </p>
                 <p className="text-base font-bold opacity-85">
-                  {mockAuditResult.standardKwhPerM2.toFixed(1)} kWh/m2
+                  {summary.standardKwhPerM2.toFixed(1)} kWh/m²
                 </p>
               </div>
               <div>
-                <p className="text-[10px] text-primary-foreground/70 uppercase">
-                  Hemat
+                <p className="text-[10px] text-white/80 uppercase">
+                  {isHemat ? "Hemat" : "Berlebih"}
                 </p>
-                <p className="text-base font-bold text-emerald-200">
-                  {Math.abs(savingsKwh).toFixed(1)} kWh/m2
+                <p
+                  className={cn(
+                    "text-base font-bold",
+                    isHemat ? "text-emerald-100" : "text-rose-100"
+                  )}
+                >
+                  {Math.abs(savingsKwh).toFixed(1)} kWh/m²
                 </p>
               </div>
             </div>
@@ -192,7 +239,11 @@ export function AuditResult() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Trend Efisiensi 12 Bulan</CardTitle>
+            <CardTitle className="text-sm">
+              {isSingleMonth
+                ? `Efisiensi Bulan ${mockStore.reportMonth}`
+                : "Trend Efisiensi 12 Bulan"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <ChartContainer
@@ -201,7 +252,7 @@ export function AuditResult() {
             >
               <BarChart
                 accessibilityLayer
-                data={mockMonthlyEfficiency}
+                data={visibleMonthlyEfficiency}
                 barGap={4}
               >
                 <CartesianGrid vertical={false} />
@@ -257,7 +308,7 @@ export function AuditResult() {
                 />
 
                 <Bar dataKey="actual" fill="var(--color-actual)" radius={4}>
-                  {mockMonthlyEfficiency.map((item) => (
+                  {visibleMonthlyEfficiency.map((item) => (
                     <Cell
                       key={item.month}
                       fill={
@@ -303,6 +354,12 @@ export function AuditResult() {
                 Standar
               </span>
             </div>
+
+            <p className="text-center text-[11px] text-muted-foreground">
+              {isSingleMonth
+                ? "Mode user: menampilkan evaluasi 1 bulan terakhir."
+                : "Mode admin: menampilkan tren 12 bulan."}
+            </p>
           </CardContent>
         </Card>
 
@@ -314,19 +371,19 @@ export function AuditResult() {
             <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3">
               <span className="text-sm">Equipment Est.</span>
               <span className="font-bold">
-                {mockAuditResult.equipmentEstimateKwhPerM2.toFixed(1)} kWh/m2
+                {summary.equipmentEstimateKwhPerM2.toFixed(1)} kWh/m²
               </span>
             </div>
             <div className="flex items-center justify-between rounded-xl bg-primary p-3 text-primary-foreground">
               <span className="text-sm">PLN Actual</span>
               <span className="font-bold">
-                {mockAuditResult.actualKwhPerM2.toFixed(1)} kWh/m2
+                {actualKwhPerM2.toFixed(1)} kWh/m²
               </span>
             </div>
             <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3">
               <span className="text-sm">Standar</span>
               <span className="font-bold">
-                {mockAuditResult.standardKwhPerM2.toFixed(1)} kWh/m2
+                {summary.standardKwhPerM2.toFixed(1)} kWh/m²
               </span>
             </div>
           </CardContent>
@@ -453,7 +510,7 @@ export function AuditResult() {
                 Total Bulanan
               </p>
               <p className="text-sm font-bold text-primary">
-                {numberFormat.format(mockAuditResult.totalMonthlyKwh)} kWh
+                {numberFormat.format(summary.totalMonthlyKwh)} kWh
               </p>
             </CardContent>
           </Card>
@@ -463,7 +520,7 @@ export function AuditResult() {
                 Total Harian
               </p>
               <p className="text-sm font-bold text-primary">
-                {mockAuditResult.totalDailyKwh.toFixed(1)} kWh
+                {summary.totalDailyKwh.toFixed(1)} kWh
               </p>
             </CardContent>
           </Card>
@@ -473,7 +530,7 @@ export function AuditResult() {
                 Rasio Luas
               </p>
               <p className="text-sm font-bold text-emerald-700">
-                {mockAuditResult.actualKwhPerM2.toFixed(1)} kWh/m2
+                {actualKwhPerM2.toFixed(1)} kWh/m²
               </p>
             </CardContent>
           </Card>

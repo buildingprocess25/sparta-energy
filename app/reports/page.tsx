@@ -26,7 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-type UserRole = "user1" | "user2"
+type UserRole = "user" | "admin"
 type AuditStatus = "hemat" | "boros"
 
 type StoreTrend = {
@@ -57,7 +57,7 @@ type StorePerformance = {
   status: AuditStatus
 }
 
-const getMockUserRole = (): UserRole => "user2"
+const getMockUserRole = (): UserRole => "user"
 const mockUserRole = getMockUserRole()
 
 const storeTrend: StoreTrend[] = [
@@ -77,10 +77,30 @@ const storeAreaBreakdown: AreaBreakdown[] = [
 ]
 
 const branchPerformance: BranchPerformance[] = [
-  { branch: "Jakarta Timur", auditedStores: 7, efficientStores: 5, averageIntensity: 12.7 },
-  { branch: "Depok", auditedStores: 5, efficientStores: 3, averageIntensity: 13.4 },
-  { branch: "Bekasi", auditedStores: 6, efficientStores: 5, averageIntensity: 12.2 },
-  { branch: "Bogor", auditedStores: 6, efficientStores: 4, averageIntensity: 13.1 },
+  {
+    branch: "Jakarta Timur",
+    auditedStores: 7,
+    efficientStores: 5,
+    averageIntensity: 12.7,
+  },
+  {
+    branch: "Depok",
+    auditedStores: 5,
+    efficientStores: 3,
+    averageIntensity: 13.4,
+  },
+  {
+    branch: "Bekasi",
+    auditedStores: 6,
+    efficientStores: 5,
+    averageIntensity: 12.2,
+  },
+  {
+    branch: "Bogor",
+    auditedStores: 6,
+    efficientStores: 4,
+    averageIntensity: 13.1,
+  },
 ]
 
 const topWasteStores: StorePerformance[] = [
@@ -132,9 +152,9 @@ function getStatusBadge(status: AuditStatus) {
 
 export default function ReportsPage() {
   const roleLabel =
-    mockUserRole === "user1"
-      ? "User 1 - Fokus Satu Toko"
-      : "User 2 - Monitoring Semua Toko"
+    mockUserRole === "user"
+      ? "user - Fokus Satu Toko"
+      : "admin - Monitoring Semua Toko"
   const maxActual = Math.max(...storeTrend.map((item) => item.actual))
   const maxStandard = Math.max(...storeTrend.map((item) => item.standard))
   const maxTrendValue = Math.max(maxActual, maxStandard)
@@ -156,7 +176,7 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
 
-        {mockUserRole === "user1" ? (
+        {mockUserRole === "user" ? (
           <>
             <Card>
               <CardHeader className="pb-2">
@@ -196,7 +216,9 @@ export default function ReportsPage() {
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Tren Aktual vs Standar</CardTitle>
+                <CardTitle className="text-sm">
+                  Tren Aktual vs Standar
+                </CardTitle>
                 <CardDescription>6 bulan terakhir</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -234,7 +256,9 @@ export default function ReportsPage() {
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Breakdown Konsumsi Area</CardTitle>
+                <CardTitle className="text-sm">
+                  Breakdown Konsumsi Area
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {storeAreaBreakdown.map((area) => (
@@ -279,7 +303,9 @@ export default function ReportsPage() {
           <>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">KPI Jaringan Audit Energi</CardTitle>
+                <CardTitle className="text-sm">
+                  KPI Jaringan Audit Energi
+                </CardTitle>
                 <CardDescription>
                   Ringkasan performa lintas cabang untuk keputusan prioritas.
                 </CardDescription>
@@ -388,7 +414,9 @@ export default function ReportsPage() {
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Prioritas Tindak Lanjut</CardTitle>
+                <CardTitle className="text-sm">
+                  Prioritas Tindak Lanjut
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p className="rounded-lg bg-amber-100/70 px-3 py-2 text-amber-900 dark:bg-amber-950/35 dark:text-amber-200">

@@ -18,13 +18,13 @@ Aplikasi ini berfungsi sebagai decision support system, bukan sekadar input data
 
 Ada 2 role user utama:
 
-1. user1 (utama)
+1. user (utama)
 
 - Hanya bisa melakukan audit untuk 1 toko miliknya.
 - History dan reports hanya menampilkan data toko tersebut.
 - Fokus pada eksekusi audit operasional dan tindak lanjut lokal.
 
-2. user2
+2. admin
 
 - Bisa melakukan audit untuk semua toko.
 - History dan reports menampilkan data lintas toko dan lintas cabang.
@@ -56,7 +56,7 @@ Ada 2 role user utama:
 
 5. Input History kWh (PLN)
 
-- Data tagihan listrik 12 bulan(user 2) dan 1 bulan(user 1).
+- Data tagihan listrik 12 bulan(admin) dan 1 bulan(user).
 - Dipakai untuk validasi dengan real usage.
 
 6. Kalkulasi Otomatis

@@ -44,8 +44,8 @@ export default function DashboardPage() {
 
       <section className="flex flex-col gap-5">
         <HeroCard />
-        <SummaryCards />
-        <AuditListSection items={auditItems} />
+        {/* <SummaryCards /> only for admin users */}
+        {/* <AuditListSection items={auditItems} /> */}
       </section>
 
       <BottomNavigation />

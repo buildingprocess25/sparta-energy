@@ -24,7 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-type UserRole = "user1" | "user2"
+type UserRole = "user" | "admin"
 type AuditStatus = "hemat" | "boros"
 type FollowUpStatus = "open" | "in_progress" | "done"
 
@@ -41,7 +41,7 @@ type HistoryItem = {
   followUp: FollowUpStatus
 }
 
-const getMockUserRole = (): UserRole => "user1"
+const getMockUserRole = (): UserRole => "user"
 const mockUserRole = getMockUserRole()
 
 const singleStoreHistory: HistoryItem[] = [
@@ -181,11 +181,11 @@ function getFollowUpBadge(status: FollowUpStatus) {
 
 export default function HistoryPage() {
   const roleLabel =
-    mockUserRole === "user1"
-      ? "User 1 - Audit Satu Toko"
-      : "User 2 - Audit Semua Toko"
+    mockUserRole === "user"
+      ? "user - Audit Satu Toko"
+      : "admin - Audit Semua Toko"
   const visibleHistory =
-    mockUserRole === "user1" ? singleStoreHistory : multiStoreHistory
+    mockUserRole === "user" ? singleStoreHistory : multiStoreHistory
 
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
@@ -204,7 +204,7 @@ export default function HistoryPage() {
           </CardContent>
         </Card>
 
-        {mockUserRole === "user1" ? (
+        {mockUserRole === "user" ? (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">
