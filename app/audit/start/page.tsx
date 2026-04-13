@@ -1,30 +1,11 @@
-"use client"
+import { Suspense } from "react"
 
-import * as React from "react"
-import { useSearchParams } from "next/navigation"
-
-import { AuditStep1 } from "@/components/audit/step1"
-import { AuditStep2 } from "@/components/audit/step2"
-import { AuditStep3 } from "@/components/audit/step3"
-import { AuditResult } from "@/components/audit/result"
+import { AuditStartClient } from "./start-client"
 
 export default function AuditStartPage() {
-  const searchParams = useSearchParams()
-  const step = searchParams.get("step") || "1"
-  const stepNum = parseInt(step, 10)
-  const selectedArea = searchParams.get("area")
-
-  if (stepNum === 2) {
-    return <AuditStep2 selectedArea={selectedArea} />
-  }
-
-  if (stepNum === 3) {
-    return <AuditStep3 />
-  }
-
-  if (stepNum === 4) {
-    return <AuditResult />
-  }
-
-  return <AuditStep1 />
+  return (
+    <Suspense fallback={null}>
+      <AuditStartClient />
+    </Suspense>
+  )
 }
