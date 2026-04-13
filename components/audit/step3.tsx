@@ -49,7 +49,14 @@ const mockMonthlyRows = [
 
 const visibleRows =
   mockUserRole === "user"
-    ? [mockMonthlyRows[mockMonthlyRows.length - 1]]
+    ? [
+        mockMonthlyRows[6],
+        mockMonthlyRows[7],
+        mockMonthlyRows[8],
+        mockMonthlyRows[9],
+        mockMonthlyRows[10],
+        mockMonthlyRows[11],
+      ]
     : mockMonthlyRows
 
 const monthColumnWidthClass = mockStore.isBeanspot ? "w-28" : "w-40"
