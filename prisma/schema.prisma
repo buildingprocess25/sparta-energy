@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String            @id @default(uuid()) @db.Uuid
+  email        String            @unique
+  passwordHash String            @map("password_hash")
+  role         Role              @default(USER)
+  fullName     String?           @map("full_name")
+  emailVerified Boolean?         @map("email_verified")
+  image        String?
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  audits       Audit[]
+  storeAccess  UserStoreAccess[]
+
+  sessions     Session[]
+  accounts     Account[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  expiresAt DateTime @map("expires_at")
+  token     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(uuid())
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id") @db.Uuid
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@map("account")
+}
+
+model Store {
+  id              String            @id @default(uuid()) @db.Uuid
+  code            String            @unique
+  name            String
+  branch          String?
+  plnCustomerId   String?           @map("pln_customer_id")
+  type            String
+  is24Hours       Boolean           @default(false) @map("is_24_hours")
+  openTime        String?           @map("open_time")
+  closeTime       String?           @map("close_time")
+  plnPowerVa      Int               @map("pln_power_va")
+  parkingAreaM2   Decimal           @map("parking_area_m2")
+  terraceAreaM2   Decimal           @map("terrace_area_m2")
+  salesAreaM2     Decimal           @map("sales_area_m2")
+  warehouseAreaM2 Decimal           @map("warehouse_area_m2")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  audits          Audit[]
+  userAccess      UserStoreAccess[]
+
+  @@map("stores")
+}
+
+model UserStoreAccess {
+  id      String @id @default(uuid()) @db.Uuid
+  userId  String @map("user_id") @db.Uuid
+  storeId String @map("store_id") @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id])
+  user    User   @relation(fields: [userId], references: [id])
+
+  @@map("user_store_access")
+}
+
+model EquipmentMaster {
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String
+  category    String
+  defaultWatt Decimal     @map("default_watt")
+  storeType   String?     @map("store_type")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  auditItems  AuditItem[]
+
+  @@map("equipments_master")
+}
+
+model Audit {
+  id                        String                @id @default(uuid()) @db.Uuid
+  storeId                   String                @map("store_id") @db.Uuid
+  auditorId                 String                @map("auditor_id") @db.Uuid
+  status                    AuditStatus           @default(DRAFT)
+  auditDate                 DateTime              @default(now()) @map("audit_date")
+  isBoros                   Boolean?              @map("is_boros")
+  totalEstimatedKwhPerMonth Decimal?              @map("total_estimated_kwh_per_month")
+  avgActualPlnKwhPerMonth   Decimal?              @map("avg_actual_pln_kwh_per_month")
+  createdAt                 DateTime              @default(now()) @map("created_at")
+  updatedAt                 DateTime              @updatedAt @map("updated_at")
+  items                     AuditItem[]
+  plnHistory                AuditPlnStdHistory[]
+  recommendations           AuditRecommendation[]
+  auditor                   User                  @relation(fields: [auditorId], references: [id])
+  store                     Store                 @relation(fields: [storeId], references: [id])
+
+  @@map("audits")
+}
+
+model AuditItem {
+  id                String           @id @default(uuid()) @db.Uuid
+  auditId           String           @map("audit_id") @db.Uuid
+  equipmentId       String?          @map("equipment_id") @db.Uuid
+  areaTarget        AreaTarget       @map("area_target")
+  customName        String?          @map("custom_name")
+  qty               Int
+  operationalHours  Decimal          @map("operational_hours")
+  baseWatt          Decimal          @map("base_watt")
+  estimatedDailyKwh Decimal          @map("estimated_daily_kwh")
+  audit             Audit            @relation(fields: [auditId], references: [id])
+  equipment         EquipmentMaster? @relation(fields: [equipmentId], references: [id])
+
+  @@map("audit_items")
+}
+
+model AuditPlnStdHistory {
+  id                     String  @id @default(uuid()) @db.Uuid
+  auditId                String  @map("audit_id") @db.Uuid
+  monthIdx               Int     @map("month_idx")
+  billingMonth           String  @map("billing_month")
+  plnUsageKwh            Decimal @map("pln_usage_kwh")
+  salesTransactionPerDay Decimal @map("sales_transaction_per_day")
+  audit                  Audit   @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@map("audit_pln_std_history")
+}
+
+model AuditRecommendation {
+  id          String             @id @default(uuid()) @db.Uuid
+  auditId     String             @map("audit_id") @db.Uuid
+  type        RecommendationType
+  title       String
+  description String
+  audit       Audit              @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@map("audit_recommendations")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum AuditStatus {
+  DRAFT
+  COMPLETED
+}
+
+enum AreaTarget {
+  PARKING
+  TERRACE
+  SALES
+  WAREHOUSE
+}
+
+enum RecommendationType {
+  TRAINING
+  REPAIR
+  MAINTENANCE
+}

@@ -33,73 +33,51 @@ Ada 2 role user utama:
 ## End-to-End User Flow
 
 1. Login
-
-- Akses dibatasi untuk karyawan internal.
+- Menggunakan email atau kode toko yang terdaftar.
+- Akses dibatasi untuk karyawan internal (saat ini difokuskan pada user yang mewakili 1 toko).
 
 2. Dashboard
-
-- Ringkasan jumlah toko.
-- Jumlah toko hemat vs boros.
+- Ringkasan jumlah toko, tren efisiensi.
 - Akses cepat untuk mulai audit baru.
 
-3. Input Data Toko
+3. Step 1: Input Toko & Area
+- Identitas & Teknis: Daya PLN (VA), tipe toko (Regular, Basic, dll), jam operasional toko.
+- Input Luas 4 Area Utama: Area Parkir, Area Teras, Area Sales, Area Gudang+Selasar+KM.
 
-- Identitas toko: kode, lokasi, luas, daya listrik.
-- Tipe toko: Regular, Advance, dll.
+4. Step 2: Input Equipment per Area
+- User mendata equipment di 4 area tersebut.
+- Item equipment ter-generate otomatis berdasarkan *tipe toko*, namun user bisa menambahkannya secara manual.
+- User memasukkan Jumlah (Qty) dan Jam Operasional pemakaian per alat. 
+- *Khusus Air Conditioner*: input per item AC dapat dibedakan jam operasionalnya (misal AC 1 nyala 24 jam, AC 2 nyala 12 jam).
+- Sistem menghitung Estimasi Konsumsi (kWh) = Jumlah × Jam Operasional × Daya kW (dari master database).
 
-4. Input Equipment per Area
+5. Step 3: Input History PLN & STD
+- User memasukkan history konsumsi PLN (kWh) dan STD (Sales Transaction per Day) mundur selama 6 bulan terakhir.
+- STD sementara hanya disimpan, belum difungsikan untuk analitik.
 
-- Area toko: Sales, Teras, Parkiran, Gudang, dll.
-- User memilih equipment per area.
-- Input per equipment: jumlah unit, jam operasional.
-- Sistem menghitung konsumsi listrik estimasi (kWh).
-
-5. Input History kWh (PLN)
-
-- Data tagihan listrik 12 bulan(admin) dan 1 bulan(user).
-- Dipakai untuk validasi dengan real usage.
-
-6. Kalkulasi Otomatis
-
-- Total konsumsi.
-- Konsumsi per meter persegi.
-- Perbandingan dengan standar.
-
-7. Hasil Audit
-
-- Klasifikasi akhir: Hemat vs Boros.
-- Output pendukung: grafik, breakdown per area, perbandingan data.
+6. Step 4: Kalkulasi & Hasil (Result)
+- Sistem menjumlahkan semua estimasi kWh equipment selama 1 bulan penuh, lalu dibandingkan dengan rata-rata aktual PLN per bulan.
+- Jika Hasil Estimasi (Teori) < Konsumsi Aktual PLN, maka toko dinilai "Boros" (pemborosan energi dari kebocoran/misusage yang tidak terpantau).
+- Muncul *Rekomendasi Audit* berupa "Perbaikan Equipment" atau "Pelatihan Tim Toko (SOP)".
 
 ## Core Functions
 
 ### 1) Analisis Konsumsi Energi
-
-- Menggabungkan:
-  - Estimasi teknis berbasis equipment.
-  - Data real usage dari PLN.
-- Lalu dibandingkan terhadap benchmark/standar.
+- Membandingkan estimasi teknis berbasis equipment bulanan dengan data rata-rata bulanan aktual usage dari PLN 6 bulan ke belakang.
 
 ### 2) Kalkulasi Otomatis
+- Estimasi Harian = kW (master) × jumlah (qty) × jam operasional
+- Estimasi Bulanan = Estimasi Harian × Jumlah hari operasional dlm sebulan
+- Status = "Boros" jika Estimasi Bulanan < Penggunaan PLN Aktual (rata-rata)
 
-Rumus utama:
-
-- kWh = Watt x jumlah x jam / 1000
-- Konsumsi efektif = kWh / luas toko
-
-### 3) Identifikasi Sumber Boros
-
-- Ada breakdown konsumsi per area.
-- Memudahkan identifikasi akar masalah, misalnya:
-  - AC menyala terlalu lama.
-  - Jumlah freezer berlebih.
-  - Lampu tidak efisien.
+### 3) Identifikasi Sumber Boros & Rekomendasi
+- Merangking area dan equipment dengan proporsi energi tertinggi (misal AC mendominasi > 60%).
+- Memberikan sinyal:
+  - Pelatihan Tim: Jika jam operasional alat yang diinput melebihi kebutuhan.
+  - Perbaikan Equipment: Jika perhitungan estimasi wajar, namun tagihan PLN jebol (indikasi kebocoran arus / kompresor rusak).
 
 ### 4) Monitoring dan Reporting
-
-- Riwayat audit semua toko.
-- Statistik performa.
-- Top toko hemat dan boros.
-- Export laporan.
+- Riwayat audit, tren tagging efisiensi, dan history STD.
 
 ## Business Value
 

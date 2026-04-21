@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useTheme } from "next-themes"
-import { IconChevronLeft, IconMoon, IconSun } from "@tabler/icons-react"
+import { IconChevronLeft, IconMoon, IconSun, IconBuildingStore } from "@tabler/icons-react"
 
 import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
@@ -11,13 +11,14 @@ import { cn } from "@/lib/utils"
 
 type DashboardLogoHeaderProps = {
   variant: "dashboard"
-  appName?: string
-  logoHref?: string
+  title: string
+  subtitle?: string
 }
 
 type DashboardBackHeaderProps = {
   variant: "dashboard-back"
   title: string
+  subtitle?: string
   backHref?: string
   backLabel?: string
 }
@@ -25,6 +26,7 @@ type DashboardBackHeaderProps = {
 type TitleOnlyHeaderProps = {
   variant: "title-only"
   title: string
+  subtitle?: string
 }
 
 type DashboardHeaderProps = (
@@ -83,13 +85,19 @@ function Header(props: DashboardHeaderProps) {
     >
       {props.variant === "dashboard" ? (
         <div className="flex min-h-8 items-center justify-between gap-3">
-          <Link
-            href={props.logoHref ?? "/"}
-            className="flex items-center"
-            aria-label={props.appName ?? "SPARTA Energy"}
-          >
-            <Logo className="origin-left scale-90 md:scale-95" />
-          </Link>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <IconBuildingStore className="size-5" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <h1 className="truncate text-base font-semibold">{props.title}</h1>
+              {props.subtitle && (
+                <p className="truncate text-xs font-medium text-muted-foreground">
+                  {props.subtitle}
+                </p>
+              )}
+            </div>
+          </div>
 
           <Button
             variant="ghost"
@@ -118,11 +126,23 @@ function Header(props: DashboardHeaderProps) {
               <IconChevronLeft className="size-4" />
             </Link>
           </Button>
-          <h1 className="text-base font-semibold">{props.title}</h1>
+          <div className="flex flex-col min-w-0">
+            <h1 className="truncate text-base font-semibold">{props.title}</h1>
+            {props.subtitle && (
+              <p className="truncate text-xs font-medium text-muted-foreground">
+                {props.subtitle}
+              </p>
+            )}
+          </div>
         </div>
       ) : (
-        <div className="flex h-8 items-center">
-          <h1 className="text-base font-semibold">{props.title}</h1>
+        <div className="flex min-h-8 flex-col justify-center min-w-0">
+          <h1 className="truncate text-base font-semibold">{props.title}</h1>
+          {props.subtitle && (
+            <p className="truncate text-xs font-medium text-muted-foreground">
+              {props.subtitle}
+            </p>
+          )}
         </div>
       )}
     </header>

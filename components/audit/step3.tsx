@@ -2,70 +2,93 @@
 
 import * as React from "react"
 import { IconBolt, IconArrowRight, IconInfoCircle } from "@tabler/icons-react"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useAuditStore, type PlnRowState } from "@/store/use-audit-store"
+import { submitAudit } from "@/app/actions/submit-audit"
 
 import { Header } from "@/components/header"
 import { AuditStepIndicator } from "@/components/audit/step-indicator"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
-type UserRole = "user" | "admin"
-
-const getMockUserRole = (): UserRole => "user"
-const mockUserRole = getMockUserRole()
-const mockStore = {
-  code: "ID-99281",
-  name: "Alfamart Cibubur Raya",
-  year: 2025,
-  isBeanspot: true,
-}
-
-const mockMonthlyRows = [
-  { month: "Januari", kwh: "2400", std: "350", beanspot: "45" },
-  { month: "Februari", kwh: "2350", std: "345", beanspot: "42" },
-  { month: "Maret", kwh: "2500", std: "360", beanspot: "50" },
-  { month: "April", kwh: "2420", std: "355", beanspot: "48" },
-  { month: "Mei", kwh: "2480", std: "370", beanspot: "55" },
-  { month: "Juni", kwh: "2550", std: "380", beanspot: "60" },
-  { month: "Juli", kwh: "2600", std: "385", beanspot: "65" },
-  { month: "Agustus", kwh: "2580", std: "375", beanspot: "62" },
-  { month: "September", kwh: "2520", std: "365", beanspot: "58" },
-  { month: "Oktober", kwh: "2490", std: "360", beanspot: "55" },
-  { month: "November", kwh: "2610", std: "390", beanspot: "70" },
-  { month: "Desember", kwh: "2600", std: "400", beanspot: "75" },
+// 6 blank month rows — user fills these in from their PLN bill
+const blankMonthRows = [
+  { month: "Bulan 1", kwh: "0", std: "0" },
+  { month: "Bulan 2", kwh: "0", std: "0" },
+  { month: "Bulan 3", kwh: "0", std: "0" },
+  { month: "Bulan 4", kwh: "0", std: "0" },
+  { month: "Bulan 5", kwh: "0", std: "0" },
+  { month: "Bulan 6", kwh: "0", std: "0" },
 ]
 
-const visibleRows =
-  mockUserRole === "user"
-    ? [
-        mockMonthlyRows[6],
-        mockMonthlyRows[7],
-        mockMonthlyRows[8],
-        mockMonthlyRows[9],
-        mockMonthlyRows[10],
-        mockMonthlyRows[11],
-      ]
-    : mockMonthlyRows
-
-const monthColumnWidthClass = mockStore.isBeanspot ? "w-28" : "w-40"
-const valueColumnWidthClass = mockStore.isBeanspot ? "w-20" : "w-20"
-const stdColumnWidthClass = "w-20"
-const beanspotColumnWidthClass = "w-20"
+const monthColumnWidthClass = "w-32"
+const valueColumnWidthClass = "w-24"
+const stdColumnWidthClass = "w-24"
 
 export function AuditStep3() {
-  const [isSkipped, setIsSkipped] = React.useState(false)
+  const router = useRouter()
+  const [isPending, setIsPending] = React.useState(false)
+  const [submitError, setSubmitError] = React.useState<string | null>(null)
+
+  const zustandPln = useAuditStore((state) => state.plnHistory)
+  const setPlnHistory = useAuditStore((state) => state.setPlnHistory)
+
+  const [rows, setRows] = React.useState<PlnRowState[]>(() => {
+    if (zustandPln.length > 0) return zustandPln
+    return blankMonthRows.map((r) => ({
+      month: r.month,
+      kwh: Number(r.kwh) || 0,
+      std: Number(r.std) || 0,
+    }))
+  })
+
+  function updateRow(idx: number, field: "kwh" | "std", val: string) {
+    setRows((prev) => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: Number(val) || 0 }
+      return next
+    })
+  }
+
+  React.useEffect(() => {
+    setPlnHistory(rows)
+  }, [rows, setPlnHistory])
+
+  const auditState = useAuditStore()
+
+  async function handleSubmit() {
+    setSubmitError(null)
+    setIsPending(true)
+    const result = await submitAudit({
+      storeType: auditState.storeType,
+      is24Hours: auditState.is24Hours,
+      openTime: auditState.openTime,
+      closeTime: auditState.closeTime,
+      plnPowerVa: auditState.plnPowerVa,
+      areas: auditState.areas,
+      equipments: auditState.equipments,
+      plnHistory: rows,
+    })
+    setIsPending(false)
+    if ("error" in result) {
+      setSubmitError(result.error ?? "Terjadi kesalahan.")
+      return
+    }
+
+    // Clear session storage so next session starts fresh
+    useAuditStore.setState({ storeCode: "", equipments: [], plnHistory: [], savedAreas: [] })
+    router.push(`/audit/${result.auditId}`)
+  }
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-36">
@@ -84,28 +107,19 @@ export function AuditStep3() {
           />
         </section>
 
-        <div
-          className={cn(
-            "grid transition-all duration-500 ease-in-out",
-            isSkipped
-              ? "pointer-events-none translate-y-8 grid-rows-[0fr] opacity-0"
-              : "translate-y-0 grid-rows-[1fr] opacity-100"
-          )}
-        >
+        <div>
           <div className="overflow-hidden">
             <div className="flex flex-col gap-6 pb-6">
               <p className="text-sm leading-relaxed text-muted-foreground">
-                {mockStore.isBeanspot
-                  ? "Masukkan riwayat konsumsi listrik, jumlah transaksi, dan penjualan Beanspot."
-                  : "Masukkan riwayat konsumsi listrik dan jumlah transaksi per hari (STD)."}
+                Masukkan riwayat konsumsi listrik dan nilai rata-rata jumlah
+                transaksi harian (STD) 6 bulan berturut-turut.
               </p>
 
               <Alert className="border-blue-600/50 bg-blue-50 dark:border-blue-400/70 dark:bg-blue-950/40">
                 <IconInfoCircle />
                 <AlertDescription>
-                  {mockStore.isBeanspot
-                    ? "Data kWh dan STD dapat dilihat di laporan bulanan toko. Beanspot merujuk pada total unit cup/produk terjual."
-                    : "Data kWh dan STD dapat dilihat di laporan bulanan toko."}
+                  Data kWh dan STD dapat dilihat di laporan bulanan/buku kas
+                  toko. Pastikan diisi guna menentukan deviasi tagihan aktual.
                 </AlertDescription>
               </Alert>
 
@@ -119,7 +133,7 @@ export function AuditStep3() {
                           monthColumnWidthClass
                         )}
                       >
-                        Bulan ({mockStore.year})
+                        Bulan
                       </TableHead>
                       <TableHead
                         className={cn(
@@ -131,27 +145,17 @@ export function AuditStep3() {
                       </TableHead>
                       <TableHead
                         className={cn(
-                          "text-center text-[10px] font-bold tracking-wider whitespace-normal text-muted-foreground uppercase",
+                          "text-center text-[7px] font-bold tracking-wider whitespace-normal text-muted-foreground uppercase",
                           stdColumnWidthClass
                         )}
                       >
-                        STD/Day
+                        Sales Transaction per Day
                       </TableHead>
-                      {mockStore.isBeanspot ? (
-                        <TableHead
-                          className={cn(
-                            "text-center text-[10px] font-bold tracking-wider whitespace-normal text-muted-foreground uppercase",
-                            beanspotColumnWidthClass
-                          )}
-                        >
-                          Beanspot (Pcs)
-                        </TableHead>
-                      ) : null}
                     </TableRow>
                   </TableHeader>
 
                   <TableBody>
-                    {visibleRows.map((row) => (
+                    {rows.map((row, idx) => (
                       <TableRow key={row.month}>
                         <TableCell className="truncate text-xs font-medium text-foreground">
                           {row.month}
@@ -159,77 +163,50 @@ export function AuditStep3() {
                         <TableCell>
                           <Input
                             type="number"
-                            placeholder={row.kwh}
-                            className="h-8 w-full rounded-none border-0 border-b bg-transparent px-0 text-right text-xs ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                            placeholder="0"
+                            value={row.kwh || ""}
+                            onChange={(e) =>
+                              updateRow(idx, "kwh", e.target.value)
+                            }
+                            className="h-8 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-xs ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                           />
                         </TableCell>
                         <TableCell>
                           <Input
                             type="number"
-                            placeholder={row.std}
-                            className="h-8 w-full rounded-none border-0 border-b bg-transparent px-0 text-right text-xs ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                            placeholder="0"
+                            value={row.std || ""}
+                            onChange={(e) =>
+                              updateRow(idx, "std", e.target.value)
+                            }
+                            className="h-8 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-xs ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                           />
                         </TableCell>
-                        {mockStore.isBeanspot ? (
-                          <TableCell>
-                            <Input
-                              type="number"
-                              placeholder={row.beanspot}
-                              className="h-8 w-full rounded-none border-0 border-b bg-transparent px-0 text-right text-xs ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                            />
-                          </TableCell>
-                        ) : null}
                       </TableRow>
                     ))}
                   </TableBody>
-
-                  {mockUserRole === "admin" ? (
-                    <TableFooter>
-                      <TableRow>
-                        <TableCell className="text-xs font-bold">
-                          Rata-rata (Otomatis)
-                        </TableCell>
-                        <TableCell className="text-right text-xs">
-                          2.508
-                        </TableCell>
-                        <TableCell className="text-right text-xs">
-                          367
-                        </TableCell>
-                        {mockStore.isBeanspot ? (
-                          <TableCell className="text-right text-xs">
-                            58
-                          </TableCell>
-                        ) : null}
-                      </TableRow>
-                    </TableFooter>
-                  ) : null}
                 </Table>
               </section>
             </div>
           </div>
         </div>
-
-        <section className="flex items-center justify-between rounded-2xl bg-muted/50 p-4">
-          <div className="pr-3">
-            <p className="text-sm font-semibold text-foreground">
-              Lewati, gunakan estimasi equipment
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Gunakan perhitungan berdasarkan alat listrik.
-            </p>
-          </div>
-          <Switch checked={isSkipped} onCheckedChange={setIsSkipped} />
-        </section>
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border/60 bg-background/90 p-4 backdrop-blur">
-        <div className="w-full max-w-sm">
-          <Button className="h-11 w-full rounded-full" asChild>
-            <Link href="/audit/start?step=4">
-              <IconBolt className="size-4" />
-              Kalkulasi Sekarang
-              <IconArrowRight data-icon="inline-end" />
-            </Link>
+        <div className="w-full max-w-sm space-y-2">
+          {submitError && (
+            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {submitError}
+            </p>
+          )}
+          <Button
+            className="h-11 w-full rounded-full"
+            onClick={handleSubmit}
+            disabled={isPending}
+          >
+            <IconBolt className="size-4" />
+            {isPending ? "Menghitung..." : "Kalkulasi Sekarang"}
+            {!isPending && <IconArrowRight data-icon="inline-end" />}
           </Button>
         </div>
       </div>

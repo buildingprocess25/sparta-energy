@@ -9,6 +9,7 @@ import {
 } from "@tabler/icons-react"
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 import { AuditStep2Detail } from "./step2-detail"
 import { Header } from "@/components/header"
@@ -20,36 +21,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
-type AreaStatus = "done" | "pending"
-
 type AreaItem = {
   id: string
   name: string
-  status: AreaStatus
 }
 
 type AuditStep2Props = {
   selectedArea?: string | null
+  equipmentByArea?: Record<
+    string,
+    Array<{ id: string; name: string; defaultWatt: number }>
+  >
 }
 
 const areaItems: AreaItem[] = [
-  { id: "AS", name: "Area Sales", status: "done" },
-  { id: "TR", name: "Teras", status: "done" },
-  { id: "PK", name: "Parkiran", status: "done" },
-  { id: "GD", name: "Gudang", status: "pending" },
-  { id: "SL", name: "Selasar", status: "pending" },
-  { id: "TL", name: "Toilet", status: "pending" },
-  { id: "LL", name: "Lain-lain", status: "pending" },
-  { id: "BS", name: "Beanspot", status: "pending" },
+  { id: "SALES", name: "Sales Area" },
+  { id: "PARKING", name: "Parkir" },
+  { id: "TERRACE", name: "Teras" },
+  { id: "WAREHOUSE", name: "Gudang, Toilet & Selasar" },
 ]
 
 const totalAreas = areaItems.length
-const completedAreas = areaItems.filter((item) => item.status === "done").length
-const progressValue = Math.round((completedAreas / totalAreas) * 100)
 
-function Step2AreaCard({ item }: { item: AreaItem }) {
-  const isDone = item.status === "done"
-
+function Step2AreaCard({ item, isDone }: { item: AreaItem; isDone: boolean }) {
   return (
     <Link href={`/audit/start?step=2&area=${item.id}`} className="block">
       <Card
@@ -58,7 +52,7 @@ function Step2AreaCard({ item }: { item: AreaItem }) {
           isDone ? "bg-card" : "bg-muted"
         )}
       >
-        <CardContent className="space-y-3">
+        <CardContent className="h-30 space-y-3">
           <div className="flex items-start justify-between">
             <div
               className={cn(
@@ -68,7 +62,7 @@ function Step2AreaCard({ item }: { item: AreaItem }) {
                   : "bg-muted text-muted-foreground"
               )}
             >
-              <IconBuildingWarehouse className="size-5" />
+              <IconBuildingWarehouse className="size-8 text-primary" />
             </div>
 
             {isDone ? (
@@ -93,14 +87,33 @@ function Step2AreaCard({ item }: { item: AreaItem }) {
   )
 }
 
-export function AuditStep2({ selectedArea }: AuditStep2Props) {
-  // const canContinue = completedAreas === totalAreas
+import { useAuditStore } from "@/store/use-audit-store"
+
+export function AuditStep2({
+  selectedArea,
+  equipmentByArea = {},
+}: AuditStep2Props) {
+  const router = useRouter()
+  const savedAreas = useAuditStore((state) => state.savedAreas)
+  const completedAreas = areaItems.filter((item) =>
+    savedAreas.includes(item.name)
+  ).length
+  const progressValue =
+    totalAreas > 0 ? Math.round((completedAreas / totalAreas) * 100) : 0
 
   if (selectedArea) {
     const areaName =
       areaItems.find((item) => item.id === selectedArea)?.name ?? "Area"
+    const masterItems = equipmentByArea[areaName] ?? []
+    const allMasterItems = Object.values(equipmentByArea).flat()
 
-    return <AuditStep2Detail areaName={areaName} />
+    return (
+       <AuditStep2Detail 
+         areaName={areaName} 
+         masterItems={masterItems} 
+         allMasterItems={allMasterItems} 
+       />
+    )
   }
 
   return (
@@ -137,28 +150,33 @@ export function AuditStep2({ selectedArea }: AuditStep2Props) {
             </CardContent>
           </Card>
 
-          <Alert className="border-amber-300/70 bg-amber-100/70 text-amber-900 dark:border-amber-600/60 dark:bg-amber-950/40 dark:text-amber-200">
-            <IconAlertTriangle className="size-4" />
-            <AlertDescription className="font-medium text-inherit">
-              Semua area harus diisi sebelum kalkulasi
-            </AlertDescription>
-          </Alert>
+          {completedAreas < totalAreas && (
+            <Alert className="border-amber-300/70 bg-amber-100/70 text-amber-900 dark:border-amber-600/60 dark:bg-amber-950/40 dark:text-amber-200">
+              <IconAlertTriangle className="size-4" />
+              <AlertDescription className="font-medium text-inherit">
+                Semua area harus diisi sebelum kalkulasi
+              </AlertDescription>
+            </Alert>
+          )}
         </section>
 
         <section className="grid grid-cols-2 gap-3">
-          {areaItems.map((item) => (
-            <Step2AreaCard key={item.name} item={item} />
-          ))}
+          {areaItems.map((item) => {
+            const isDone = savedAreas.includes(item.name)
+            return <Step2AreaCard key={item.id} item={item} isDone={isDone} />
+          })}
         </section>
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border/60 bg-background/90 p-4 backdrop-blur">
         <div className="w-full max-w-sm">
-          <Button className="h-11 w-full" asChild>
-            <Link href="/audit/start?step=3">
-              Lanjut ke History kWh
-              <IconArrowRight data-icon="inline-end" />
-            </Link>
+          <Button
+            className="h-11 w-full"
+            disabled={completedAreas < totalAreas}
+            onClick={() => router.push("/audit/start?step=3")}
+          >
+            Lanjut ke History kWh
+            <IconArrowRight data-icon="inline-end" />
           </Button>
         </div>
       </div>
