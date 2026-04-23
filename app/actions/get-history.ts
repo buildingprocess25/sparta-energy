@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
 import { headers } from "next/headers"
 
 type AuditStatus = "hemat" | "boros"
@@ -36,7 +37,7 @@ export async function getAuditHistory(
   const skip = (page - 1) * itemsPerPage
 
   // Build Prisma where clause
-  const where: any = {
+  const where: Prisma.AuditWhereInput = {
     auditorId: session.user.id,
     status: "COMPLETED",
   }
