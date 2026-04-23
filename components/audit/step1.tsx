@@ -20,14 +20,23 @@ import { cn } from "@/lib/utils"
 
 const regularStoreType = "Regular" as const
 const beanspotStoreTypeOptions = ["Basic", "Medium", "Advance"] as const
+const otherStoreTypeOptions = ["Dark Store", "Drive Thru"] as const
 
 type Props = {
   stores: StoreData[]
   selectedStore: StoreData | null
+  basePath?: string
+  backHref?: string
   onSelectStore: (store: StoreData) => void
 }
 
-export function AuditStep1({ stores, selectedStore, onSelectStore }: Props) {
+export function AuditStep1({
+  stores,
+  selectedStore,
+  basePath = "/audit/start",
+  backHref = "/dashboard",
+  onSelectStore,
+}: Props) {
   const router = useRouter()
   const {
     storeType,
@@ -43,7 +52,6 @@ export function AuditStep1({ stores, selectedStore, onSelectStore }: Props) {
   const displayOpenTime = is24Hours ? "00:00" : openTime
   const displayCloseTime = is24Hours ? "24:00" : closeTime
 
-
   const handle24HoursChange = React.useCallback(
     (checked: boolean) => {
       setStoreIdentity({ is24Hours: checked })
@@ -58,10 +66,7 @@ export function AuditStep1({ stores, selectedStore, onSelectStore }: Props) {
   )
 
   const isStep1Valid = Boolean(
-    selectedStore &&
-    storeType !== "" &&
-    plnPowerVa > 0 &&
-    areas.sales > 0
+    selectedStore && storeType !== "" && plnPowerVa > 0 && areas.sales > 0
   )
 
   const [isPending, startTransition] = React.useTransition()
@@ -69,16 +74,16 @@ export function AuditStep1({ stores, selectedStore, onSelectStore }: Props) {
   const handleNext = React.useCallback(() => {
     if (!isStep1Valid) return
     startTransition(() => {
-      router.push("/audit/start?step=2")
+      router.push(`${basePath}?step=2`)
     })
-  }, [router, isStep1Valid])
+  }, [router, isStep1Valid, basePath])
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
       <Header
         variant="dashboard-back"
         title="Mulai Audit Baru"
-        backHref="/dashboard"
+        backHref={backHref}
         className="px-0"
       />
 
@@ -100,7 +105,9 @@ export function AuditStep1({ stores, selectedStore, onSelectStore }: Props) {
         {selectedStore && (
           <>
             <section className="flex flex-col gap-4">
-              <h2 className="text-lg font-semibold text-primary">Identitas Toko</h2>
+              <h2 className="text-lg font-semibold text-primary">
+                Identitas Toko
+              </h2>
               <Card className="border-primary/10 bg-muted/30">
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -155,7 +162,8 @@ export function AuditStep1({ stores, selectedStore, onSelectStore }: Props) {
                     spacing={1}
                     value={storeType}
                     onValueChange={(value) => {
-                      if (value) setStoreIdentity({ storeType: value as StoreType })
+                      if (value)
+                        setStoreIdentity({ storeType: value as StoreType })
                     }}
                     className="flex w-full flex-wrap"
                   >
@@ -178,7 +186,8 @@ export function AuditStep1({ stores, selectedStore, onSelectStore }: Props) {
                     spacing={1}
                     value={storeType}
                     onValueChange={(value) => {
-                      if (value) setStoreIdentity({ storeType: value as StoreType })
+                      if (value)
+                        setStoreIdentity({ storeType: value as StoreType })
                     }}
                     className="flex w-full flex-wrap"
                   >
@@ -194,10 +203,38 @@ export function AuditStep1({ stores, selectedStore, onSelectStore }: Props) {
                   </ToggleGroup>
                 </div>
               </div>
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Lainnya
+                </p>
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  spacing={1}
+                  value={storeType}
+                  onValueChange={(value) => {
+                    if (value)
+                      setStoreIdentity({ storeType: value as StoreType })
+                  }}
+                  className="flex w-full flex-wrap"
+                >
+                  {otherStoreTypeOptions.map((option) => (
+                    <ToggleGroupItem
+                      key={option}
+                      value={option}
+                      className="rounded-full px-4 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground hover:data-[state=on]:bg-primary/90"
+                    >
+                      {option}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </div>
             </section>
 
             <section className="flex flex-col gap-4">
-              <h2 className="text-lg font-semibold text-primary">Teknis Toko</h2>
+              <h2 className="text-lg font-semibold text-primary">
+                Teknis Toko
+              </h2>
               <Card>
                 <CardContent>
                   <FieldGroup className="gap-5">
@@ -229,12 +266,30 @@ export function AuditStep1({ stores, selectedStore, onSelectStore }: Props) {
                         Rincian Luas Area
                       </h3>
                       <div className="grid grid-cols-2 gap-4">
-                        {([
-                          { id: "luasan_sales", label: "Sales Area", key: "sales" },
-                          { id: "luasan_parkir", label: "Parkiran", key: "parkir" },
-                          { id: "luasan_teras", label: "Teras", key: "teras" },
-                          { id: "luasan_gudang", label: "Gudang, Toilet & Selasar", key: "gudang" },
-                        ] as const).map(({ id, label, key }) => (
+                        {(
+                          [
+                            {
+                              id: "luasan_sales",
+                              label: "Sales Area",
+                              key: "sales",
+                            },
+                            {
+                              id: "luasan_parkir",
+                              label: "Parkiran",
+                              key: "parkir",
+                            },
+                            {
+                              id: "luasan_teras",
+                              label: "Teras",
+                              key: "teras",
+                            },
+                            {
+                              id: "luasan_gudang",
+                              label: "Gudang, Toilet & Selasar",
+                              key: "gudang",
+                            },
+                          ] as const
+                        ).map(({ id, label, key }) => (
                           <Field key={key}>
                             <FieldLabel htmlFor={id} className="text-xs">
                               {label}
@@ -243,11 +298,19 @@ export function AuditStep1({ stores, selectedStore, onSelectStore }: Props) {
                               <Input
                                 id={id}
                                 type="number"
+                                step="0.01"
                                 placeholder="0"
                                 value={areas[key] || ""}
-                                onChange={(e) =>
-                                  setStoreAreas({ [key]: Number(e.target.value) || 0 })
-                                }
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  if (val.includes(".")) {
+                                    const [, dec] = val.split(".")
+                                    if (dec && dec.length > 2) return
+                                  }
+                                  setStoreAreas({
+                                    [key]: Number(val) || 0,
+                                  })
+                                }}
                                 className="pr-12 text-sm font-semibold"
                               />
                               <div className="absolute inset-y-0 right-0 flex items-center pr-3">

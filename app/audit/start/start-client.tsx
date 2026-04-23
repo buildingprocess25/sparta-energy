@@ -29,9 +29,18 @@ export type StoreData = {
 type Props = {
   stores: StoreData[]
   equipmentByArea: Record<string, EquipmentMasterItem[]>
+  basePath?: string
+  dashboardPath?: string
+  mode?: "live" | "demo"
 }
 
-export function AuditStartClient({ stores, equipmentByArea }: Props) {
+export function AuditStartClient({
+  stores,
+  equipmentByArea,
+  basePath = "/audit/start",
+  dashboardPath = "/dashboard",
+  mode = "live",
+}: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const step = searchParams.get("step") || "1"
@@ -52,13 +61,15 @@ export function AuditStartClient({ stores, equipmentByArea }: Props) {
     if (isNew) {
       useAuditStore.setState({
         storeCode: "",
+        storeName: "",
         equipments: [],
         plnHistory: [],
         savedAreas: [],
+        demoAuditResult: null,
       })
-      router.replace("/audit/start", { scroll: false })
+      router.replace(basePath, { scroll: false })
     }
-  }, [searchParams, router])
+  }, [searchParams, router, basePath])
 
   // Resolve the currently selected store from Zustand storeCode
   const selectedStore = stores.find((s) => s.code === storeCode) ?? null
@@ -71,22 +82,31 @@ export function AuditStartClient({ stores, equipmentByArea }: Props) {
       <AuditStep2
         selectedArea={selectedArea}
         equipmentByArea={equipmentByArea}
+        basePath={basePath}
       />
     )
   }
 
   if (effectiveStep === 3) {
-    return <AuditStep3 />
+    return <AuditStep3 basePath={basePath} mode={mode} />
   }
 
   return (
     <AuditStep1
       stores={stores}
       selectedStore={selectedStore}
+      basePath={basePath}
+      backHref={dashboardPath}
       onSelectStore={(store) => {
-        useAuditStore.setState({ equipments: [], plnHistory: [], savedAreas: [] })
+        useAuditStore.setState({
+          equipments: [],
+          plnHistory: [],
+          savedAreas: [],
+          demoAuditResult: null,
+        })
         setStoreIdentity({
           storeCode: store.code,
+          storeName: store.name,
           storeType: store.type as StoreType,
           is24Hours: store.is24Hours,
           openTime: store.openTime || "07:00",

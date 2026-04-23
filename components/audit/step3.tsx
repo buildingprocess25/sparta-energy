@@ -3,8 +3,13 @@
 import * as React from "react"
 import { IconBolt, IconArrowRight, IconInfoCircle } from "@tabler/icons-react"
 import { useRouter } from "next/navigation"
-import { useAuditStore, type PlnRowState } from "@/store/use-audit-store"
+import {
+  useAuditStore,
+  type DemoAuditResult,
+  type PlnRowState,
+} from "@/store/use-audit-store"
 import { submitAudit } from "@/app/actions/submit-audit"
+import { calculateAudit, getHoursBetween } from "@/lib/audit-kalkulator"
 
 import { Header } from "@/components/header"
 import { AuditStepIndicator } from "@/components/audit/step-indicator"
@@ -31,22 +36,168 @@ import { cn } from "@/lib/utils"
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MONTH_NAMES = [
-  "Januari", "Februari", "Maret", "April",
-  "Mei", "Juni", "Juli", "Agustus",
-  "September", "Oktober", "November", "Desember",
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
 ]
 
 const SHORT_MONTH = [
-  "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-  "Jul", "Ags", "Sep", "Okt", "Nov", "Des",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "Mei",
+  "Jun",
+  "Jul",
+  "Ags",
+  "Sep",
+  "Okt",
+  "Nov",
+  "Des",
 ]
 
 const currentYear = new Date().getFullYear()
 
+type AuditStep3Props = {
+  basePath?: string
+  mode?: "live" | "demo"
+}
+
+type AreaTarget = "SALES" | "PARKING" | "TERRACE" | "WAREHOUSE"
+type RecommendationType = "TRAINING" | "REPAIR" | "MAINTENANCE"
+
+const RECOMMENDATION_COPY: Record<
+  RecommendationType,
+  { title: string; description: string }
+> = {
+  TRAINING: {
+    title: "Pelatihan SOP Operasional",
+    description:
+      "Ditemukan indikasi alat beroperasi melebihi jam buka toko. Rekomendasi: lakukan training SOP kepada karyawan untuk memastikan alat dimatikan sesuai jadwal toko.",
+  },
+  REPAIR: {
+    title: "Perbaikan & Pengecekan Peralatan",
+    description:
+      "Konsumsi listrik aktual melebihi estimasi peralatan meskipun jam operasional wajar. Rekomendasi: lakukan pengecekan fisik peralatan (kompresor, kabel) untuk indikasi bocor arus.",
+  },
+  MAINTENANCE: {
+    title: "Pertahankan Efisiensi",
+    description:
+      "Konsumsi listrik toko berada dalam ambang batas normal. Lanjutkan kebiasaan operasional yang baik dan lakukan pengecekan rutin.",
+  },
+}
+
+function toAreaTarget(areaName: string): AreaTarget {
+  const name = areaName.toLowerCase()
+  if (name.includes("parkir")) return "PARKING"
+  if (name.includes("teras")) return "TERRACE"
+  if (name.includes("sales")) return "SALES"
+  return "WAREHOUSE"
+}
+
+function buildDemoAuditResult(
+  auditState: ReturnType<typeof useAuditStore.getState>,
+  rows: PlnRowState[]
+): DemoAuditResult {
+  const calc = calculateAudit(auditState.equipments, rows, {
+    is24Hours: auditState.is24Hours,
+    openTime: auditState.openTime,
+    closeTime: auditState.closeTime,
+    areas: {
+      sales: auditState.areas.sales,
+      parkir: auditState.areas.parkir,
+      teras: auditState.areas.teras,
+      gudang: auditState.areas.gudang,
+    },
+    plnPowerVa: auditState.plnPowerVa,
+  })
+
+  const items = auditState.equipments
+    .filter((eq) => eq.selected)
+    .flatMap((eq) => {
+      const isAC =
+        eq.name.toLowerCase().includes("ac") ||
+        eq.name.toLowerCase().includes("air conditioner")
+
+      if (isAC && eq.quantity > 1) {
+        return Array.from({ length: eq.quantity }, (_, i) => {
+          const start = eq.startTimes[i] || "08:00"
+          const end = eq.endTimes[i] || "22:00"
+          const hours = getHoursBetween(start, end)
+          return {
+            areaTarget: toAreaTarget(eq.areaName),
+            customName: eq.name,
+            qty: 1,
+            operationalHours: hours,
+            baseKw: eq.kw,
+            estimatedDailyKwh: eq.kw * hours,
+          }
+        })
+      }
+
+      const start = eq.startTimes[0] || "08:00"
+      const end = eq.endTimes[0] || "22:00"
+      const hours = getHoursBetween(start, end)
+      return [
+        {
+          areaTarget: toAreaTarget(eq.areaName),
+          customName: eq.name,
+          qty: eq.quantity,
+          operationalHours: hours,
+          baseKw: eq.kw,
+          estimatedDailyKwh: eq.kw * eq.quantity * hours,
+        },
+      ]
+    })
+
+  const recommendationType = calc.recommendationType as RecommendationType
+  const recommendation =
+    RECOMMENDATION_COPY[recommendationType] ?? RECOMMENDATION_COPY.MAINTENANCE
+
+  return {
+    id: "demo",
+    isBoros: calc.isBoros,
+    totalEstimatedKwhPerMonth: calc.equipmentEstimateKwhPerMonth,
+    avgActualPlnKwhPerMonth: calc.avgActualPlnKwhPerMonth,
+    auditDate: new Date().toISOString(),
+    store: {
+      code: auditState.storeCode || "DEMO-STORE",
+      name: auditState.storeName || auditState.storeCode || "Toko Demo",
+      salesAreaM2: auditState.areas.sales,
+      parkingAreaM2: auditState.areas.parkir,
+      terraceAreaM2: auditState.areas.teras,
+      warehouseAreaM2: auditState.areas.gudang,
+    },
+    items,
+    plnHistory: rows.map((row, idx) => ({
+      monthIdx: idx + 1,
+      billingMonth: row.month,
+      plnUsageKwh: row.kwh,
+      salesTransactionPerDay: row.std,
+    })),
+    recommendations: [
+      {
+        type: recommendationType,
+        title: recommendation.title,
+        description: recommendation.description,
+      },
+    ],
+  }
+}
+
 // column widths — total must fit ≤ 352px (max-w-sm minus px-4 padding)
-const monthColumnWidthClass = "w-[168px]"  // month select ~112 + year ~56
+const monthColumnWidthClass = "w-[168px]" // month select ~112 + year ~56
 const valueColumnWidthClass = "w-[88px]"
-const stdColumnWidthClass   = "w-[88px]"
+const stdColumnWidthClass = "w-[88px]"
 
 function makeBlankRows(): PlnRowState[] {
   const now = new Date()
@@ -118,16 +269,18 @@ function MonthYearCell({
         min={2000}
         max={2099}
         maxLength={4}
-        className="h-7 w-14 rounded-none border-0 border-b px-0 text-center text-[11px] shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="h-7 w-14 [appearance:textfield] rounded-none border-0 border-b px-0 text-center text-[11px] shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
     </div>
   )
 }
 
-
 // ─── AuditStep3 ───────────────────────────────────────────────────────────────
 
-export function AuditStep3() {
+export function AuditStep3({
+  basePath = "/audit/start",
+  mode = "live",
+}: AuditStep3Props) {
   const router = useRouter()
   const [isPending, setIsPending] = React.useState(false)
   const [submitError, setSubmitError] = React.useState<string | null>(null)
@@ -140,7 +293,11 @@ export function AuditStep3() {
     return makeBlankRows()
   })
 
-  function updateRow(idx: number, field: "kwh" | "std" | "month", val: string | number) {
+  function updateRow(
+    idx: number,
+    field: "kwh" | "std" | "month",
+    val: string | number
+  ) {
     setRows((prev) => {
       const next = [...prev]
       if (field === "month") {
@@ -161,6 +318,15 @@ export function AuditStep3() {
   async function handleSubmit() {
     setSubmitError(null)
     setIsPending(true)
+
+    if (mode === "demo") {
+      const demoAuditResult = buildDemoAuditResult(auditState, rows)
+      useAuditStore.setState({ demoAuditResult })
+      setIsPending(false)
+      router.push("/demo/result")
+      return
+    }
+
     const result = await submitAudit({
       storeCode: auditState.storeCode,
       storeType: auditState.storeType,
@@ -179,7 +345,14 @@ export function AuditStep3() {
     }
 
     // Clear session storage so next session starts fresh
-    useAuditStore.setState({ storeCode: "", equipments: [], plnHistory: [], savedAreas: [] })
+    useAuditStore.setState({
+      storeCode: "",
+      storeName: "",
+      equipments: [],
+      plnHistory: [],
+      savedAreas: [],
+      demoAuditResult: null,
+    })
     router.push(`/audit/${result.auditId}`)
   }
 
@@ -188,7 +361,7 @@ export function AuditStep3() {
       <Header
         variant="dashboard-back"
         title="Kembali"
-        backHref="/audit/start?step=2"
+        backHref={`${basePath}?step=2`}
         className="px-0"
       />
 
@@ -261,7 +434,9 @@ export function AuditStep3() {
                             type="number"
                             placeholder="0"
                             value={row.kwh || ""}
-                            onChange={(e) => updateRow(idx, "kwh", e.target.value)}
+                            onChange={(e) =>
+                              updateRow(idx, "kwh", e.target.value)
+                            }
                             className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                           />
                         </TableCell>
@@ -270,7 +445,9 @@ export function AuditStep3() {
                             type="number"
                             placeholder="0"
                             value={row.std || ""}
-                            onChange={(e) => updateRow(idx, "std", e.target.value)}
+                            onChange={(e) =>
+                              updateRow(idx, "std", e.target.value)
+                            }
                             className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                           />
                         </TableCell>
@@ -294,7 +471,10 @@ export function AuditStep3() {
           <Button
             className="h-11 w-full rounded-full"
             onClick={handleSubmit}
-            disabled={isPending || rows.some(r => !r.kwh || !r.std || r.kwh <= 0 || r.std <= 0)}
+            disabled={
+              isPending ||
+              rows.some((r) => !r.kwh || !r.std || r.kwh <= 0 || r.std <= 0)
+            }
           >
             <IconBolt className="size-4" />
             {isPending ? "Menghitung..." : "Kalkulasi Sekarang"}

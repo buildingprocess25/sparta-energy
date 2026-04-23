@@ -20,21 +20,24 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
+import { useAuditStore } from "@/store/use-audit-store"
 
 type AreaItem = {
   id: string
   name: string
+  href: string
 }
 
 type AuditStep2Props = {
   selectedArea?: string | null
+  basePath?: string
   equipmentByArea?: Record<
     string,
     Array<{ id: string; name: string; category: string; defaultKw: number }>
   >
 }
 
-const areaItems: AreaItem[] = [
+const areaItems = [
   { id: "SALES", name: "Sales" },
   { id: "PARKING", name: "Parkiran" },
   { id: "TERRACE", name: "Teras" },
@@ -45,7 +48,7 @@ const totalAreas = areaItems.length
 
 function Step2AreaCard({ item, isDone }: { item: AreaItem; isDone: boolean }) {
   return (
-    <Link href={`/audit/start?step=2&area=${item.id}`} className="block">
+    <Link href={item.href} className="block">
       <Card
         className={cn(
           "gap-4 py-4 transition-transform active:translate-y-px",
@@ -87,17 +90,21 @@ function Step2AreaCard({ item, isDone }: { item: AreaItem; isDone: boolean }) {
   )
 }
 
-import { useAuditStore } from "@/store/use-audit-store"
-
 export function AuditStep2({
   selectedArea,
+  basePath = "/audit/start",
   equipmentByArea = {},
 }: AuditStep2Props) {
   const router = useRouter()
   const { savedAreas } = useAuditStore()
   const [isPending, startTransition] = React.useTransition()
 
-  const completedAreas = areaItems.filter((item) =>
+  const areaItemsWithLinks: AreaItem[] = areaItems.map((item) => ({
+    ...item,
+    href: `${basePath}?step=2&area=${item.id}`,
+  }))
+
+  const completedAreas = areaItemsWithLinks.filter((item) =>
     savedAreas.includes(item.name)
   ).length
   const progressValue =
@@ -105,12 +112,14 @@ export function AuditStep2({
 
   if (selectedArea) {
     const areaName =
-      areaItems.find((item) => item.id === selectedArea)?.name ?? "Area"
+      areaItemsWithLinks.find((item) => item.id === selectedArea)?.name ??
+      "Area"
     const masterItems = equipmentByArea[areaName] ?? []
 
     return (
       <AuditStep2Detail
         areaName={areaName}
+        basePath={basePath}
         masterItems={masterItems}
       />
     )
@@ -121,7 +130,7 @@ export function AuditStep2({
       <Header
         variant="dashboard-back"
         title="Kembali"
-        backHref="/audit/start?step=1"
+        backHref={`${basePath}?step=1`}
         className="px-0"
       />
 
@@ -161,7 +170,7 @@ export function AuditStep2({
         </section>
 
         <section className="grid grid-cols-2 gap-3">
-          {areaItems.map((item) => {
+          {areaItemsWithLinks.map((item) => {
             const isDone = savedAreas.includes(item.name)
             return <Step2AreaCard key={item.id} item={item} isDone={isDone} />
           })}
@@ -175,7 +184,7 @@ export function AuditStep2({
             disabled={completedAreas < totalAreas || isPending}
             onClick={() => {
               startTransition(() => {
-                router.push("/audit/start?step=3")
+                router.push(`${basePath}?step=3`)
               })
             }}
           >

@@ -49,6 +49,15 @@ export default function Page() {
             <IconArrowRight data-icon="inline-end" />
           </Link>
         </Button>
+
+        <Button
+          asChild
+          size="lg"
+          variant="outline"
+          className="w-full rounded-2xl text-base font-semibold"
+        >
+          <Link href="/demo">Coba Demo</Link>
+        </Button>
       </div>
     </main>
   )

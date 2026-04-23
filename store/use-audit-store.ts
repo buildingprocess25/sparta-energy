@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
 
-export type StoreType = "Regular" | "Basic" | "Medium" | "Advance" | ""
+export type StoreType = "Regular" | "Basic" | "Medium" | "Advance" | "Dark Store" | "Drive Thru" | ""
 
 export interface EquipmentState {
   id: string
@@ -20,9 +20,45 @@ export interface PlnRowState {
   std: number
 }
 
+export type DemoAuditResult = {
+  id: string
+  isBoros: boolean | null
+  totalEstimatedKwhPerMonth: number | null
+  avgActualPlnKwhPerMonth: number | null
+  auditDate: string
+  store: {
+    code: string
+    name: string
+    salesAreaM2: number
+    parkingAreaM2: number
+    terraceAreaM2: number
+    warehouseAreaM2: number
+  }
+  items: Array<{
+    areaTarget: "SALES" | "PARKING" | "TERRACE" | "WAREHOUSE"
+    customName: string | null
+    qty: number
+    operationalHours: number
+    baseKw: number
+    estimatedDailyKwh: number
+  }>
+  plnHistory: Array<{
+    monthIdx: number
+    billingMonth: string
+    plnUsageKwh: number
+    salesTransactionPerDay: number
+  }>
+  recommendations: Array<{
+    type: "TRAINING" | "REPAIR" | "MAINTENANCE"
+    title: string
+    description: string
+  }>
+}
+
 interface AuditState {
   // session tracking
   storeCode: string
+  storeName: string
 
   // Step 1
   storeType: StoreType
@@ -43,6 +79,7 @@ interface AuditState {
 
   // Step 3
   plnHistory: PlnRowState[]
+  demoAuditResult: DemoAuditResult | null
 
   // Actions
   setStoreIdentity: (data: Partial<AuditState>) => void
@@ -50,12 +87,14 @@ interface AuditState {
   syncEquipmentsForArea: (areaName: string, items: EquipmentState[]) => void
   markAreaSaved: (areaName: string) => void
   setPlnHistory: (data: PlnRowState[]) => void
+  setDemoAuditResult: (result: DemoAuditResult | null) => void
 }
 
 export const useAuditStore = create<AuditState>()(
   persist(
     (set) => ({
       storeCode: "",
+      storeName: "",
 
       storeType: "",
       is24Hours: true,
@@ -73,22 +112,31 @@ export const useAuditStore = create<AuditState>()(
       savedAreas: [],
 
       plnHistory: [],
+      demoAuditResult: null,
 
       setStoreIdentity: (data) => set((state) => ({ ...state, ...data })),
-      setStoreAreas: (areas) => set((state) => ({ areas: { ...state.areas, ...areas } })),
-      
-      syncEquipmentsForArea: (areaName, items) => set((state) => {
-        // Remove old items for this area
-        const otherAreas = state.equipments.filter(e => e.areaName !== areaName)
-        // Add new items
-        return { equipments: [...otherAreas, ...items] }
-      }),
-      
-      markAreaSaved: (areaName) => set((state) => ({
-        savedAreas: state.savedAreas.includes(areaName) ? state.savedAreas : [...state.savedAreas, areaName]
-      })),
+      setStoreAreas: (areas) =>
+        set((state) => ({ areas: { ...state.areas, ...areas } })),
+
+      syncEquipmentsForArea: (areaName, items) =>
+        set((state) => {
+          // Remove old items for this area
+          const otherAreas = state.equipments.filter(
+            (e) => e.areaName !== areaName
+          )
+          // Add new items
+          return { equipments: [...otherAreas, ...items] }
+        }),
+
+      markAreaSaved: (areaName) =>
+        set((state) => ({
+          savedAreas: state.savedAreas.includes(areaName)
+            ? state.savedAreas
+            : [...state.savedAreas, areaName],
+        })),
 
       setPlnHistory: (data) => set({ plnHistory: data }),
+      setDemoAuditResult: (result) => set({ demoAuditResult: result }),
     }),
     {
       name: "sparta-audit-storage",

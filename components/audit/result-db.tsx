@@ -97,7 +97,17 @@ const trendChartConfig = {
 const numberFormat = new Intl.NumberFormat("id-ID")
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export function AuditResultDB({ audit }: { audit: AuditDB }) {
+export function AuditResultDB({
+  audit,
+  dashboardHref = "/dashboard",
+  dashboardLabel = "Dashboard",
+  showDownloadButton = true,
+}: {
+  audit: AuditDB
+  dashboardHref?: string
+  dashboardLabel?: string
+  showDownloadButton?: boolean
+}) {
   const isBoros = audit.isBoros ?? false
   const statusLabel = isBoros ? "TOKO BOROS" : "TOKO HEMAT"
   const StatusIcon = isBoros ? IconAlertTriangle : IconLeaf
@@ -544,17 +554,24 @@ export function AuditResultDB({ audit }: { audit: AuditDB }) {
 
       {/* ── Bottom Action Bar ── */}
       <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border/60 bg-background/90 p-4 backdrop-blur">
-        <div className="grid w-full max-w-sm grid-cols-2 gap-3">
+        <div
+          className={cn(
+            "grid w-full max-w-sm gap-3",
+            showDownloadButton ? "grid-cols-2" : "grid-cols-1"
+          )}
+        >
           <Button variant="secondary" className="h-11 rounded-full" asChild>
-            <Link href="/dashboard">
+            <Link href={dashboardHref}>
               <IconArrowLeft className="size-4" />
-              Dashboard
+              {dashboardLabel}
             </Link>
           </Button>
-          <Button className="h-11 rounded-full">
-            <IconFileDownload className="size-4" />
-            Simpan Laporan
-          </Button>
+          {showDownloadButton ? (
+            <Button className="h-11 rounded-full">
+              <IconFileDownload className="size-4" />
+              Simpan Laporan
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

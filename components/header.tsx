@@ -2,18 +2,19 @@
 
 import * as React from "react"
 import Link from "next/link"
-import Image from "next/image"
 import { useTheme } from "next-themes"
-import {
-  IconChevronLeft,
-  IconMoon,
-  IconSun,
-  IconBuildingStore,
-} from "@tabler/icons-react"
+import { IconChevronLeft, IconLogout, IconUser } from "@tabler/icons-react"
+import { signOut } from "@/lib/auth-client"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Logo } from "./logo"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 type DashboardLogoHeaderProps = {
   variant: "dashboard"
@@ -50,6 +51,11 @@ function Header(props: DashboardHeaderProps) {
   const { resolvedTheme, setTheme } = useTheme()
 
   const isDark = resolvedTheme === "dark"
+
+  async function handleLogout() {
+    await signOut()
+    window.location.href = "/login"
+  }
 
   const handleThemeToggle = React.useCallback(() => {
     setTheme(isDark ? "light" : "dark")
@@ -91,25 +97,37 @@ function Header(props: DashboardHeaderProps) {
     >
       {props.variant === "dashboard" ? (
         <div className="flex min-h-8 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <Image
-              src="/assets/Building-Logo.png"
-              alt="Building Logo"
-              width={32}
-              height={32}
-              className="size-8 object-contain"
-            />
-            <div className="flex min-w-0 flex-col">
-              <h1 className="truncate text-base font-semibold">
-                {props.title}
-              </h1>
-              {props.subtitle && (
-                <p className="truncate text-xs font-medium text-muted-foreground">
-                  {props.subtitle}
-                </p>
-              )}
-            </div>
+          <div className="flex min-w-0 flex-col">
+            <h1 className="truncate text-base font-semibold text-primary">
+              {props.title}
+            </h1>
+            {props.subtitle && (
+              <p className="truncate text-xs font-medium text-muted-foreground">
+                {props.subtitle}
+              </p>
+            )}
           </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-primary/10">
+                    <IconUser className="h-4 w-4 text-primary" />
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="cursor-pointer text-destructive focus:text-destructive"
+              >
+                <IconLogout className="mr-2 h-4 w-4" />
+                <span>Keluar</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       ) : props.variant === "dashboard-back" ? (
         <div className="flex h-8 items-center gap-2">

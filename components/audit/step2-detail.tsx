@@ -46,6 +46,7 @@ type EquipmentItem = {
 
 type Step2DetailProps = {
   areaName: string
+  basePath?: string
   backHref?: string
   /** Equipment master records fetched from DB on the server */
   masterItems?: Array<{
@@ -136,7 +137,9 @@ function EquipmentRow({ item, onConfigure }: EquipmentRowProps) {
           >
             {isSelected
               ? `${item.quantity ?? 1} unit · ${getAverageDailyRuntime(item).toFixed(1).replace(/\.0$/, "")} jam/hari`
-              : item.kw != null ? `Daya: ${formatKw(item.kw)} kW` : item.detail}
+              : item.kw != null
+                ? `Daya: ${formatKw(item.kw)} kW`
+                : item.detail}
           </p>
           {item.energy ? (
             <>
@@ -160,7 +163,8 @@ function EquipmentRow({ item, onConfigure }: EquipmentRowProps) {
 
 export function AuditStep2Detail({
   areaName,
-  backHref = "/audit/start?step=2",
+  basePath = "/audit/start",
+  backHref,
   masterItems = [],
 }: Step2DetailProps) {
   const router = useRouter()
@@ -255,18 +259,26 @@ export function AuditStep2Detail({
     let totalDailyKwh = 0
     zustandEqs.forEach((eq) => {
       if (!eq.selected) return
-      const isAC = eq.name.toLowerCase().includes("ac") || eq.name.toLowerCase().includes("air conditioner")
+      const isAC =
+        eq.name.toLowerCase().includes("ac") ||
+        eq.name.toLowerCase().includes("air conditioner")
       for (let i = 0; i < eq.quantity; i++) {
-        const start = isAC ? (eq.startTimes[i] || "08:00") : (eq.startTimes[0] || "08:00")
-        const end = isAC ? (eq.endTimes[i] || "22:00") : (eq.endTimes[0] || "22:00")
+        const start = isAC
+          ? eq.startTimes[i] || "08:00"
+          : eq.startTimes[0] || "08:00"
+        const end = isAC ? eq.endTimes[i] || "22:00" : eq.endTimes[0] || "22:00"
         const hrs = getSingleDuration(start, end)
         totalDailyKwh += eq.kw * hrs
       }
     })
     console.log("==================================================")
-    console.log(`[Baseline Tracker] Ada ${zustandEqs.length} equipment disimpan`)
+    console.log(
+      `[Baseline Tracker] Ada ${zustandEqs.length} equipment disimpan`
+    )
     console.log(`[Baseline Tracker] Estimasi Harian : ${totalDailyKwh} kWh`)
-    console.log(`[Baseline Tracker] BASELINE SEBULAN: ${totalDailyKwh * 30} kWh`)
+    console.log(
+      `[Baseline Tracker] BASELINE SEBULAN: ${totalDailyKwh * 30} kWh`
+    )
     console.log("==================================================")
   }, [zustandEqs])
 
@@ -327,10 +339,12 @@ export function AuditStep2Detail({
     } else {
       sumHrs = getSingleDuration(starts[0], ends[0]) * qty
     }
-    return (kw * sumHrs)
+    return kw * sumHrs
   }
 
-  const activeKw = activeEquipment.kw ?? parseFloat(activeEquipment.detail?.replace(/[^\d.]/g, "") || "0")
+  const activeKw =
+    activeEquipment.kw ??
+    parseFloat(activeEquipment.detail?.replace(/[^\d.]/g, "") || "0")
   let activeHrsSum = 0
   if (isAC) {
     for (let i = 0; i < quantity; i++)
@@ -347,13 +361,7 @@ export function AuditStep2Detail({
       const qty = eq.quantity || 1
       return (
         acc +
-        calcEqDailyKwh(
-          eq.name,
-          kw,
-          qty,
-          eq.startTimes || [],
-          eq.endTimes || []
-        )
+        calcEqDailyKwh(eq.name, kw, qty, eq.startTimes || [], eq.endTimes || [])
       )
     }, 0)
 
@@ -389,12 +397,14 @@ export function AuditStep2Detail({
     })
   }
 
+  const resolvedBackHref = backHref ?? `${basePath}?step=2`
+
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-36">
       <Header
         variant="dashboard-back"
         title={areaName}
-        backHref={backHref}
+        backHref={resolvedBackHref}
         className="px-0"
       />
 
@@ -736,7 +746,7 @@ export function AuditStep2Detail({
             onClick={() => {
               markAreaSaved(areaName)
               startTransition(() => {
-                router.push("/audit/start?step=2")
+                router.push(`${basePath}?step=2`)
               })
             }}
           >

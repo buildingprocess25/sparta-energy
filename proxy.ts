@@ -1,32 +1,39 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
 
-// Exact-match public routes
-const publicExact = new Set(["/", "/login"])
+// Guest-only routes: accessible only when not logged in.
+const guestOnlyRoutes = new Set(["/", "/login"])
 
 // Prefix-match public routes
-const publicPrefixes = ["/api/auth", "/_next", "/favicon.ico", "/assets"]
+const publicPrefixes = [
+  "/api/auth",
+  "/_next",
+  "/favicon.ico",
+  "/assets",
+  "/demo",
+]
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-
-  // Allow exact-match public paths
-  if (publicExact.has(pathname)) {
-    return NextResponse.next()
-  }
 
   // Allow prefix-match public paths
   if (publicPrefixes.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.next()
   }
 
-  // Check session
+  // Resolve session once per request and branch by route intent.
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers: request.headers,
   })
+  const isLoggedIn = Boolean(session?.user)
+  const isGuestOnlyRoute = guestOnlyRoutes.has(pathname)
 
-  if (!session) {
+  if (isGuestOnlyRoute && isLoggedIn) {
+    const dashboardUrl = new URL("/dashboard", request.url)
+    return NextResponse.redirect(dashboardUrl)
+  }
+
+  if (!isGuestOnlyRoute && !isLoggedIn) {
     const loginUrl = new URL("/login", request.url)
     return NextResponse.redirect(loginUrl)
   }
