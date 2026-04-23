@@ -14,8 +14,10 @@ const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
-  const user = await prisma.user.findFirst({ include: { storeAccess: { include: { store: true } } }});
-  console.log(JSON.stringify(user, null, 2))
+  const user = await prisma.user.findFirst({ select: { id: true, email: true, branch: true, fullName: true }})
+  const stores = await prisma.store.findMany({ where: { branch: user?.branch ?? "" } })
+  console.log("User:", JSON.stringify(user, null, 2))
+  console.log("Branch stores:", JSON.stringify(stores, null, 2))
 }
 
 main().finally(() => prisma.$disconnect())

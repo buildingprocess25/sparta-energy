@@ -12,7 +12,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-type BottomNavigationItem = "dashboard" | "history" | "reports" | "settings"
+type BottomNavigationItem = "dashboard" | "history" | "settings"
 
 type BottomNavigationProps = {
   activeItem?: BottomNavigationItem
@@ -32,15 +32,9 @@ const navItems: Array<{
   },
   {
     key: "history",
-    label: "History",
+    label: "Riwayat",
     href: "/history",
     icon: IconHistory,
-  },
-  {
-    key: "reports",
-    label: "Reports",
-    href: "/reports",
-    icon: IconChartBar,
   },
   {
     key: "settings",

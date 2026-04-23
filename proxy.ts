@@ -6,7 +6,7 @@ import { headers } from "next/headers"
 const publicExact = new Set(["/", "/login"])
 
 // Prefix-match public routes
-const publicPrefixes = ["/api/auth", "/_next", "/favicon.ico"]
+const publicPrefixes = ["/api/auth", "/_next", "/favicon.ico", "/assets"]
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl

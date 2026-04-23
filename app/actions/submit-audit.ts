@@ -6,6 +6,7 @@ import { headers } from "next/headers"
 import { calculateAudit, getHoursBetween } from "@/lib/audit-kalkulator"
 import type { EquipmentState, PlnRowState } from "@/store/use-audit-store"
 import type { AreaTarget, RecommendationType } from "@prisma/client"
+import { generateRecommendationWithFallback } from "@/lib/ai-recommendation"
 
 // Map area name string → AreaTarget enum
 function toAreaTarget(areaName: string): AreaTarget {
@@ -18,6 +19,7 @@ function toAreaTarget(areaName: string): AreaTarget {
 
 type SubmitAuditInput = {
   // Step 1
+  storeCode: string
   storeType: string
   is24Hours: boolean
   openTime: string
@@ -44,17 +46,17 @@ export async function submitAudit(input: SubmitAuditInput) {
 
   const userId = session.user.id
 
-  // ── 2. Resolve storeId (from UserStoreAccess) ──────────────────────────────
-  const access = await prisma.userStoreAccess.findFirst({
-    where: { userId },
-    include: { store: true },
+  // ── 2. Resolve storeId from storeCode in input ──────────────────────────────
+  const store = await prisma.store.findUnique({
+    where: { code: input.storeCode },
+    select: { id: true, name: true },
   })
 
-  if (!access) {
-    return { error: "User tidak memiliki akses ke toko manapun." }
+  if (!store) {
+    return { error: "Toko tidak ditemukan." }
   }
 
-  const storeId = access.storeId
+  const storeId = store.id
 
   // ── 3. Update Store data from Step 1 input ──────────────────────────────────
   await prisma.store.update({
@@ -121,8 +123,8 @@ export async function submitAudit(input: SubmitAuditInput) {
               customName: eq.name,
               qty: 1,
               operationalHours: hours,
-              baseWatt: eq.watt,
-              estimatedDailyKwh: (eq.watt * hours) / 1000,
+              baseKw: eq.kw,
+              estimatedDailyKwh: eq.kw * hours,
             }
           })
         }
@@ -137,8 +139,8 @@ export async function submitAudit(input: SubmitAuditInput) {
             customName: eq.name,
             qty: eq.quantity,
             operationalHours: hours,
-            baseWatt: eq.watt,
-            estimatedDailyKwh: (eq.watt * eq.quantity * hours) / 1000,
+            baseKw: eq.kw,
+            estimatedDailyKwh: eq.kw * eq.quantity * hours,
           },
         ]
       }),
@@ -160,34 +162,55 @@ export async function submitAudit(input: SubmitAuditInput) {
   }
 
   // ── 8. Create Recommendation ────────────────────────────────────────────────
-  const recMap: Record<
-    string,
-    { title: string; description: string }
-  > = {
-    TRAINING: {
-      title: "Pelatihan SOP Operasional",
-      description:
-        "Ditemukan indikasi alat pendingin (AC) beroperasi melebihi jam buka toko. Rekomendasi: lakukan training SOP kepada karyawan untuk memastikan AC dimatikan sesuai jadwal toko.",
-    },
-    REPAIR: {
-      title: "Perbaikan & Pengecekan Peralatan",
-      description:
-        "Konsumsi listrik aktual melebihi estimasi peralatan meskipun jam operasional sudah sesuai. Rekomendasi: lakukan pengecekan kondisi fisik peralatan listrik (kompresor, kabel, grounding) untuk mendeteksi kebocoran arus.",
-    },
-    MAINTENANCE: {
-      title: "Pertahankan Efisiensi",
-      description:
-        "Konsumsi listrik toko berada dalam ambang batas normal. Lanjutkan kebiasaan operasional yang baik dan lakukan pengecekan rutin.",
-    },
+  const auditSummary = `
+Toko: ${store?.name || input.storeCode}
+Jam Buka: ${input.openTime} - ${input.closeTime} (${input.is24Hours ? "24 Jam" : "Non-24 Jam"})
+Daya PLN: ${input.plnPowerVa} VA
+Status Efisiensi: ${calc.isBoros ? "BOROS (Pemakaian aktual > estimasi wajar)" : "HEMAT (Pemakaian wajar)"}
+Estimasi Kebutuhan Alat: ${calc.equipmentEstimateKwhPerMonth.toFixed(0)} kWh/bulan
+Aktual Rata-rata PLN: ${calc.avgActualPlnKwhPerMonth.toFixed(0)} kWh/bulan
+Tipe Rekomendasi (Hard-coded fallback calc): ${calc.recommendationType}
+Daftar Peralatan (Format: Qty x Nama = Est Kwh/hari):
+${input.equipments.map(eq => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.quantity * getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00")).toFixed(1)} kWh/hari`).join('\n')}
+`
+
+  let finalRec = {
+    type: calc.recommendationType as RecommendationType,
+    title: "",
+    description: "",
   }
 
-  const rec = recMap[calc.recommendationType] ?? recMap["MAINTENANCE"]
+  try {
+    const aiResult = await generateRecommendationWithFallback(auditSummary)
+    finalRec = aiResult
+  } catch (error) {
+    console.error("[Submit Audit] AI Recommendation failed completely. Using static fallback.", error)
+    
+    // Static Fallback
+    const recMap: Record<string, { title: string; description: string }> = {
+      TRAINING: {
+        title: "Pelatihan SOP Operasional",
+        description: "Ditemukan indikasi alat beroperasi melebihi jam buka toko. Rekomendasi: lakukan training SOP kepada karyawan untuk memastikan alat dimatikan sesuai jadwal toko.",
+      },
+      REPAIR: {
+        title: "Perbaikan & Pengecekan Peralatan",
+        description: "Konsumsi listrik aktual melebihi estimasi peralatan meskipun jam operasional wajar. Rekomendasi: lakukan pengecekan fisik peralatan (kompresor, kabel) untuk indikasi bocor arus.",
+      },
+      MAINTENANCE: {
+        title: "Pertahankan Efisiensi",
+        description: "Konsumsi listrik toko berada dalam ambang batas normal. Lanjutkan kebiasaan operasional yang baik dan lakukan pengecekan rutin.",
+      },
+    }
+    const fallbackData = recMap[calc.recommendationType] ?? recMap["MAINTENANCE"]
+    finalRec.title = fallbackData.title
+    finalRec.description = fallbackData.description
+  }
   await prisma.auditRecommendation.create({
     data: {
       auditId: audit.id,
-      type: calc.recommendationType as RecommendationType,
-      title: rec.title,
-      description: rec.description,
+      type: finalRec.type,
+      title: finalRec.title,
+      description: finalRec.description,
     },
   })
 

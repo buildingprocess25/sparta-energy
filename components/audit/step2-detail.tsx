@@ -12,6 +12,7 @@ import {
   IconMinus,
   IconPlus,
   IconBoxMultiple,
+  IconSearch,
   IconTrash,
 } from "@tabler/icons-react"
 import { useRouter } from "next/navigation"
@@ -33,6 +34,7 @@ import { cn } from "@/lib/utils"
 type EquipmentItem = {
   name: string
   detail: string
+  kw?: number
   selected?: boolean
   energy?: string
   quantity?: number
@@ -46,8 +48,12 @@ type Step2DetailProps = {
   areaName: string
   backHref?: string
   /** Equipment master records fetched from DB on the server */
-  masterItems?: Array<{ id: string; name: string; defaultWatt: number }>
-  allMasterItems?: Array<{ id: string; name: string; defaultWatt: number }>
+  masterItems?: Array<{
+    id: string
+    name: string
+    category: string
+    defaultKw: number
+  }>
 }
 
 const getSingleDuration = (start: string, end: string) => {
@@ -56,6 +62,15 @@ const getSingleDuration = (start: string, end: string) => {
   let diffMinutes = eh * 60 + em - (sh * 60 + sm)
   if (diffMinutes < 0) diffMinutes += 24 * 60
   return diffMinutes / 60
+}
+
+/** Format kW untuk tampilan UI: max 3 desimal, tanpa trailing zero */
+const formatKw = (kw: number): string => {
+  const s = kw.toFixed(3).replace(/\.?0+$/, "")
+  // Gunakan format id-ID hanya untuk separator (koma), lalu tempel desimal manual
+  const [intPart, decPart] = s.split(".")
+  const intFormatted = Number(intPart).toLocaleString("id-ID")
+  return decPart ? `${intFormatted},${decPart}` : intFormatted
 }
 
 function getAverageDailyRuntime(item: EquipmentItem) {
@@ -121,7 +136,7 @@ function EquipmentRow({ item, onConfigure }: EquipmentRowProps) {
           >
             {isSelected
               ? `${item.quantity ?? 1} unit · ${getAverageDailyRuntime(item).toFixed(1).replace(/\.0$/, "")} jam/hari`
-              : item.detail}
+              : item.kw != null ? `Daya: ${formatKw(item.kw)} kW` : item.detail}
           </p>
           {item.energy ? (
             <>
@@ -147,26 +162,56 @@ export function AuditStep2Detail({
   areaName,
   backHref = "/audit/start?step=2",
   masterItems = [],
-  allMasterItems = [],
 }: Step2DetailProps) {
   const router = useRouter()
   const zustandEqs = useAuditStore((state) => state.equipments)
   const syncEqs = useAuditStore((state) => state.syncEquipmentsForArea)
   const markAreaSaved = useAuditStore((state) => state.markAreaSaved)
+  const storeType = useAuditStore((state) => state.storeType)
+  const [isPending, startTransition] = React.useTransition()
 
-  // Build default list from DB master items
-  const masterDefault: EquipmentItem[] = masterItems.map((m) => ({
-    name: m.name,
-    detail: `Daya: ${Math.round(m.defaultWatt * 1000)} W`,
-    quantity: 1,
-  }))
+  const isBeanspotStore = storeType !== "Regular"
+
+  // Filter master items by store type: Regular hides BEANSPOT equipment
+  // Sort so BEANSPOT items always appear after regular items (separator guaranteed once)
+  const filteredMasterItems = React.useMemo(() => {
+    const base = isBeanspotStore
+      ? masterItems
+      : masterItems.filter((m) => m.category !== "BEANSPOT")
+    return [...base].sort((a, b) => {
+      const aIsBean = a.category === "BEANSPOT" ? 1 : 0
+      const bIsBean = b.category === "BEANSPOT" ? 1 : 0
+      return aIsBean - bIsBean
+    })
+  }, [masterItems, isBeanspotStore])
+
+  // Build default list from filtered master items
+  const masterDefault: EquipmentItem[] = filteredMasterItems.map((m) => {
+    const kwVal = m.defaultKw
+    return {
+      name: m.name,
+      detail: `Daya: ${formatKw(kwVal)} kW`,
+      kw: kwVal,
+      quantity: 1,
+    }
+  })
+
+  // Set of beanspot item names (for separator rendering)
+  const beanspotNames = React.useMemo(
+    () =>
+      new Set(
+        masterItems.filter((m) => m.category === "BEANSPOT").map((m) => m.name)
+      ),
+    [masterItems]
+  )
 
   const [items, setItems] = React.useState<EquipmentItem[]>(() => {
     const fromZustand = zustandEqs.filter((e) => e.areaName === areaName)
     if (fromZustand.length > 0) {
       return fromZustand.map((e) => ({
         name: e.name,
-        detail: `Daya: ${e.watt} W`,
+        detail: `Daya: ${formatKw(e.kw)} kW`,
+        kw: e.kw,
         selected: e.selected,
         quantity: e.quantity,
         startTimes: e.startTimes,
@@ -178,6 +223,17 @@ export function AuditStep2Detail({
     return masterDefault
   })
 
+  // Sort for display: BEANSPOT items always appear after regular items
+  const sortedItems = React.useMemo(
+    () =>
+      [...items].sort((a, b) => {
+        const aIsBean = beanspotNames.has(a.name) ? 1 : 0
+        const bIsBean = beanspotNames.has(b.name) ? 1 : 0
+        return aIsBean - bIsBean
+      }),
+    [items, beanspotNames]
+  )
+
   React.useEffect(() => {
     syncEqs(
       areaName,
@@ -185,7 +241,7 @@ export function AuditStep2Detail({
         id: i.name,
         areaName,
         name: i.name,
-        watt: parseInt(i.detail.replace(/\D/g, "")) || 0,
+        kw: i.kw ?? (parseFloat(i.detail.replace(/[^\d.]/g, "")) || 0),
         quantity: i.quantity || 1,
         startTimes: i.startTimes || Array(i.quantity || 1).fill("08:00"),
         endTimes: i.endTimes || Array(i.quantity || 1).fill("22:00"),
@@ -194,10 +250,36 @@ export function AuditStep2Detail({
     )
   }, [items, areaName, syncEqs])
 
+  // --- BASELINE TRACKER ---
+  React.useEffect(() => {
+    let totalDailyKwh = 0
+    zustandEqs.forEach((eq) => {
+      if (!eq.selected) return
+      const isAC = eq.name.toLowerCase().includes("ac") || eq.name.toLowerCase().includes("air conditioner")
+      for (let i = 0; i < eq.quantity; i++) {
+        const start = isAC ? (eq.startTimes[i] || "08:00") : (eq.startTimes[0] || "08:00")
+        const end = isAC ? (eq.endTimes[i] || "22:00") : (eq.endTimes[0] || "22:00")
+        const hrs = getSingleDuration(start, end)
+        totalDailyKwh += eq.kw * hrs
+      }
+    })
+    console.log("==================================================")
+    console.log(`[Baseline Tracker] Ada ${zustandEqs.length} equipment disimpan`)
+    console.log(`[Baseline Tracker] Estimasi Harian : ${totalDailyKwh} kWh`)
+    console.log(`[Baseline Tracker] BASELINE SEBULAN: ${totalDailyKwh * 30} kWh`)
+    console.log("==================================================")
+  }, [zustandEqs])
+
   const defaultEquipment = items.find((item) => item.selected) ?? items[0]
 
   const [isConfigOpen, setIsConfigOpen] = React.useState(false)
   const [isAddOpen, setIsAddOpen] = React.useState(false)
+  const [addSearch, setAddSearch] = React.useState("")
+
+  // Reset search when drawer closes
+  React.useEffect(() => {
+    if (!isAddOpen) setAddSearch("")
+  }, [isAddOpen])
   const [activeEquipmentName, setActiveEquipmentName] = React.useState(
     defaultEquipment?.name ?? ""
   )
@@ -211,15 +293,17 @@ export function AuditStep2Detail({
     Array(defaultEquipment?.quantity ?? 1).fill("22:00")
   )
 
-  const activeEquipment = items.find(
-    (item) => item.name === activeEquipmentName
-  ) ??
-    defaultEquipment ?? {
-      name: "",
-      quantity: 1,
-      startTimes: ["08:00"],
-      endTimes: ["22:00"],
-    }
+  const activeEquipment = React.useMemo(() => {
+    return (
+      items.find((item) => item.name === activeEquipmentName) ??
+      defaultEquipment ?? {
+        name: "",
+        quantity: 1,
+        startTimes: ["08:00"],
+        endTimes: ["22:00"],
+      }
+    )
+  }, [items, activeEquipmentName, defaultEquipment])
 
   const isAC =
     (activeEquipment.name || "").toLowerCase().includes("ac") ||
@@ -228,7 +312,7 @@ export function AuditStep2Detail({
 
   const calcEqDailyKwh = (
     name: string,
-    watt: number,
+    kw: number,
     qty: number,
     starts: string[],
     ends: string[]
@@ -243,10 +327,10 @@ export function AuditStep2Detail({
     } else {
       sumHrs = getSingleDuration(starts[0], ends[0]) * qty
     }
-    return (watt * sumHrs) / 1000
+    return (kw * sumHrs)
   }
 
-  const activeWatt = parseInt(activeEquipment.detail?.replace(/\D/g, "") || "0")
+  const activeKw = activeEquipment.kw ?? parseFloat(activeEquipment.detail?.replace(/[^\d.]/g, "") || "0")
   let activeHrsSum = 0
   if (isAC) {
     for (let i = 0; i < quantity; i++)
@@ -254,18 +338,18 @@ export function AuditStep2Detail({
   } else {
     activeHrsSum = getSingleDuration(startTimes[0], endTimes[0]) * quantity
   }
-  const activeKwh = (activeWatt * activeHrsSum) / 1000
+  const activeKwh = activeKw * activeHrsSum
 
   const totalAreaDailyKwh = items
     .filter((i) => i.selected)
     .reduce((acc, eq) => {
-      const watt = parseInt(eq.detail?.replace(/\D/g, "") || "0")
+      const kw = eq.kw ?? parseFloat(eq.detail?.replace(/[^\d.]/g, "") || "0")
       const qty = eq.quantity || 1
       return (
         acc +
         calcEqDailyKwh(
           eq.name,
-          watt,
+          kw,
           qty,
           eq.startTimes || [],
           eq.endTimes || []
@@ -323,13 +407,34 @@ export function AuditStep2Detail({
         </section>
 
         <section className="space-y-3">
-          {items.map((item) => (
-            <EquipmentRow
-              key={item.name}
-              item={item}
-              onConfigure={() => handleConfigure(item)}
-            />
-          ))}
+          {(() => {
+            // Find index of first Beanspot item in SORTED list — separator appears exactly there
+            const firstBeanspotIdx = isBeanspotStore
+              ? sortedItems.findIndex((i) => beanspotNames.has(i.name))
+              : -1
+
+            return sortedItems.map((item, idx) => {
+              const showSeparator = idx === firstBeanspotIdx
+
+              return (
+                <React.Fragment key={item.name}>
+                  {showSeparator && (
+                    <div className="flex items-center gap-3 py-1">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-primary uppercase">
+                        Beanspot
+                      </span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                  )}
+                  <EquipmentRow
+                    item={item}
+                    onConfigure={() => handleConfigure(item)}
+                  />
+                </React.Fragment>
+              )
+            })
+          })()}
 
           <Button
             type="button"
@@ -345,23 +450,42 @@ export function AuditStep2Detail({
 
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DrawerContent className="flex max-h-[80dvh] flex-col">
-          <DrawerHeader className="shrink-0 border-b border-border/40 px-4 pt-4 pb-4 text-left">
+          <DrawerHeader className="shrink-0 border-b border-border/40 px-4 pt-4 pb-0 text-left">
             <DrawerTitle className="font-extrabold tracking-tight text-primary">
               Tambah Equipment
             </DrawerTitle>
+            <div className="flex items-center gap-2 py-3">
+              <IconSearch className="size-4 shrink-0 text-muted-foreground" />
+              <input
+                autoComplete="off"
+                value={addSearch}
+                onChange={(e) => setAddSearch(e.target.value)}
+                placeholder="Cari nama equipment..."
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
           </DrawerHeader>
           <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
-            {allMasterItems
+            {filteredMasterItems
               .filter((m) => !items.some((i) => i.name === m.name))
+              .filter((m) =>
+                addSearch.trim() === ""
+                  ? true
+                  : m.name
+                      .toLowerCase()
+                      .includes(addSearch.toLowerCase().trim())
+              )
               .map((availEq) => (
                 <button
                   key={availEq.name}
                   type="button"
                   className="flex w-full items-center justify-between rounded-xl border border-border/40 bg-background p-4 text-left transition-colors hover:border-primary/50 active:bg-muted/50"
                   onClick={() => {
+                    const kwVal = availEq.defaultKw
                     const newItem = {
                       name: availEq.name,
-                      detail: `Daya: ${Math.round(availEq.defaultWatt * 1000)} W`,
+                      detail: `Daya: ${formatKw(kwVal)} kW`,
+                      kw: kwVal,
                       quantity: 1,
                       startTimes: ["08:00"],
                       endTimes: ["22:00"],
@@ -378,7 +502,7 @@ export function AuditStep2Detail({
                       {availEq.name}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Daya: {Math.round(availEq.defaultWatt * 1000)} W
+                      Daya: {formatKw(availEq.defaultKw)} kW
                     </div>
                   </div>
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -387,8 +511,9 @@ export function AuditStep2Detail({
                 </button>
               ))}
 
-            {allMasterItems.filter((m) => !items.some((i) => i.name === m.name))
-              .length === 0 && (
+            {filteredMasterItems.filter(
+              (m) => !items.some((i) => i.name === m.name)
+            ).length === 0 && (
               <div className="py-8 text-center text-sm text-muted-foreground">
                 Semua peralatan sudah ada di daftar.
               </div>
@@ -525,14 +650,14 @@ export function AuditStep2Detail({
                     </div>
                     <span className="mt-0.5 text-xs text-muted-foreground">
                       {isAC
-                        ? `${activeWatt.toLocaleString("id-ID")} W × ${activeHrsSum.toFixed(1).replace(/\.0$/, "")} Jam Total`
-                        : `${activeWatt.toLocaleString("id-ID")} W × ${quantity} Unit × ${getSingleDuration(startTimes[0], endTimes[0]).toFixed(1).replace(/\.0$/, "")} Jam`}
+                        ? `${formatKw(activeKw)} kW × ${activeHrsSum.toFixed(1).replace(/\.0$/, "")} Jam Total`
+                        : `${formatKw(activeKw)} kW × ${quantity} Unit × ${getSingleDuration(startTimes[0], endTimes[0]).toFixed(1).replace(/\.0$/, "")} Jam`}
                     </span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
                   <span className="text-xl font-black tracking-tight text-primary">
-                    {activeKwh.toFixed(1).replace(/\.0$/, "")}
+                    {Number(activeKwh.toFixed(6))}
                   </span>
                   <span className="text-[10px] font-bold text-primary/70 uppercase">
                     kWh / hari
@@ -563,7 +688,7 @@ export function AuditStep2Detail({
             </DrawerClose>
             <DrawerClose asChild>
               <Button
-                className="h-11 flex-[2]"
+                className="h-11 flex-2"
                 onClick={() => {
                   setItems((prev) =>
                     prev.map((eq) =>
@@ -607,16 +732,24 @@ export function AuditStep2Detail({
           </div>
           <Button
             className="mt-3 h-11 w-full"
-            disabled={items.some((item) => !item.isConfigured)}
+            disabled={items.some((item) => !item.isConfigured) || isPending}
             onClick={() => {
               markAreaSaved(areaName)
-              router.push("/audit/start?step=2")
+              startTransition(() => {
+                router.push("/audit/start?step=2")
+              })
             }}
           >
-            <IconCheck className="size-4" />
-            {items.some((item) => !item.isConfigured)
-              ? "Lengkapi / Hapus Item Tersisa"
-              : `Simpan ${areaName}`}
+            {isPending ? (
+              "Menyimpan..."
+            ) : (
+              <>
+                <IconCheck className="size-4" />
+                {items.some((item) => !item.isConfigured)
+                  ? "Lengkapi / Hapus Item Tersisa"
+                  : `Simpan ${areaName}`}
+              </>
+            )}
           </Button>
         </div>
       </div>

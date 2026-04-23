@@ -7,20 +7,19 @@ datasource db {
 }
 
 model User {
-  id           String            @id @default(uuid()) @db.Uuid
-  email        String            @unique
-  passwordHash String            @map("password_hash")
-  role         Role              @default(USER)
-  fullName     String?           @map("full_name")
-  emailVerified Boolean?         @map("email_verified")
-  image        String?
-  createdAt    DateTime          @default(now()) @map("created_at")
-  updatedAt    DateTime          @updatedAt @map("updated_at")
-  audits       Audit[]
-  storeAccess  UserStoreAccess[]
-
-  sessions     Session[]
-  accounts     Account[]
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  role          Role      @default(USER)
+  fullName      String?   @map("full_name")
+  branch        String?
+  emailVerified Boolean?  @map("email_verified")
+  image         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  audits        Audit[]
+  sessions      Session[]
+  accounts      Account[]
 
   @@map("users")
 }
@@ -59,43 +58,32 @@ model Account {
 }
 
 model Store {
-  id              String            @id @default(uuid()) @db.Uuid
-  code            String            @unique
+  id              String    @id @default(uuid()) @db.Uuid
+  code            String    @unique
   name            String
   branch          String?
-  plnCustomerId   String?           @map("pln_customer_id")
+  plnCustomerId   String?   @map("pln_customer_id")
   type            String
-  is24Hours       Boolean           @default(false) @map("is_24_hours")
-  openTime        String?           @map("open_time")
-  closeTime       String?           @map("close_time")
-  plnPowerVa      Int               @map("pln_power_va")
-  parkingAreaM2   Decimal           @map("parking_area_m2")
-  terraceAreaM2   Decimal           @map("terrace_area_m2")
-  salesAreaM2     Decimal           @map("sales_area_m2")
-  warehouseAreaM2 Decimal           @map("warehouse_area_m2")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  is24Hours       Boolean   @default(false) @map("is_24_hours")
+  openTime        String?   @map("open_time")
+  closeTime       String?   @map("close_time")
+  plnPowerVa      Int       @map("pln_power_va")
+  parkingAreaM2   Decimal   @map("parking_area_m2")
+  terraceAreaM2   Decimal   @map("terrace_area_m2")
+  salesAreaM2     Decimal   @map("sales_area_m2")
+  warehouseAreaM2 Decimal   @map("warehouse_area_m2")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
   audits          Audit[]
-  userAccess      UserStoreAccess[]
 
   @@map("stores")
-}
-
-model UserStoreAccess {
-  id      String @id @default(uuid()) @db.Uuid
-  userId  String @map("user_id") @db.Uuid
-  storeId String @map("store_id") @db.Uuid
-  store   Store  @relation(fields: [storeId], references: [id])
-  user    User   @relation(fields: [userId], references: [id])
-
-  @@map("user_store_access")
 }
 
 model EquipmentMaster {
   id          String      @id @default(uuid()) @db.Uuid
   name        String
   category    String
-  defaultWatt Decimal     @map("default_watt")
+  defaultKw Decimal     @map("default_kw")
   storeType   String?     @map("store_type")
   createdAt   DateTime    @default(now()) @map("created_at")
   auditItems  AuditItem[]
@@ -131,7 +119,7 @@ model AuditItem {
   customName        String?          @map("custom_name")
   qty               Int
   operationalHours  Decimal          @map("operational_hours")
-  baseWatt          Decimal          @map("base_watt")
+  baseKw            Decimal          @map("base_kw")
   estimatedDailyKwh Decimal          @map("estimated_daily_kwh")
   audit             Audit            @relation(fields: [auditId], references: [id])
   equipment         EquipmentMaster? @relation(fields: [equipmentId], references: [id])

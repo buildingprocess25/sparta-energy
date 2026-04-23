@@ -30,13 +30,13 @@ type AuditStep2Props = {
   selectedArea?: string | null
   equipmentByArea?: Record<
     string,
-    Array<{ id: string; name: string; defaultWatt: number }>
+    Array<{ id: string; name: string; category: string; defaultKw: number }>
   >
 }
 
 const areaItems: AreaItem[] = [
-  { id: "SALES", name: "Sales Area" },
-  { id: "PARKING", name: "Parkir" },
+  { id: "SALES", name: "Sales" },
+  { id: "PARKING", name: "Parkiran" },
   { id: "TERRACE", name: "Teras" },
   { id: "WAREHOUSE", name: "Gudang, Toilet & Selasar" },
 ]
@@ -94,7 +94,9 @@ export function AuditStep2({
   equipmentByArea = {},
 }: AuditStep2Props) {
   const router = useRouter()
-  const savedAreas = useAuditStore((state) => state.savedAreas)
+  const { savedAreas } = useAuditStore()
+  const [isPending, startTransition] = React.useTransition()
+
   const completedAreas = areaItems.filter((item) =>
     savedAreas.includes(item.name)
   ).length
@@ -105,14 +107,12 @@ export function AuditStep2({
     const areaName =
       areaItems.find((item) => item.id === selectedArea)?.name ?? "Area"
     const masterItems = equipmentByArea[areaName] ?? []
-    const allMasterItems = Object.values(equipmentByArea).flat()
 
     return (
-       <AuditStep2Detail 
-         areaName={areaName} 
-         masterItems={masterItems} 
-         allMasterItems={allMasterItems} 
-       />
+      <AuditStep2Detail
+        areaName={areaName}
+        masterItems={masterItems}
+      />
     )
   }
 
@@ -172,11 +172,15 @@ export function AuditStep2({
         <div className="w-full max-w-sm">
           <Button
             className="h-11 w-full"
-            disabled={completedAreas < totalAreas}
-            onClick={() => router.push("/audit/start?step=3")}
+            disabled={completedAreas < totalAreas || isPending}
+            onClick={() => {
+              startTransition(() => {
+                router.push("/audit/start?step=3")
+              })
+            }}
           >
-            Lanjut ke History kWh
-            <IconArrowRight data-icon="inline-end" />
+            {isPending ? "Memproses..." : "Lanjut ke History kWh"}
+            {!isPending && <IconArrowRight data-icon="inline-end" />}
           </Button>
         </div>
       </div>

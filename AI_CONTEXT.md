@@ -18,29 +18,36 @@ Aplikasi ini berfungsi sebagai decision support system, bukan sekadar input data
 
 Ada 2 role user utama:
 
-1. user (utama)
+1. user (Auditor)
 
-- Hanya bisa melakukan audit untuk 1 toko miliknya.
-- History dan reports hanya menampilkan data toko tersebut.
-- Fokus pada eksekusi audit operasional dan tindak lanjut lokal.
+- Login menggunakan akun personal (email & password).
+- Setiap user terikat pada 1 **cabang** (`branch`).
+- Saat memulai audit, user **memilih toko** dari daftar toko yang tersedia di cabangnya.
+- History dan reports menampilkan semua audit yang pernah dilakukan oleh user tersebut, bisa lintas toko dalam 1 cabang.
+- Fokus pada eksekusi audit operasional dan tindak lanjut lokal per toko.
 
 2. admin
 
-- Bisa melakukan audit untuk semua toko.
+- Login menggunakan akun personal (email & password).
+- Bisa melakukan audit dan melihat data untuk semua toko di semua cabang.
 - History dan reports menampilkan data lintas toko dan lintas cabang.
 - Fokus pada monitoring jaringan toko, benchmarking, dan prioritas intervensi.
 
 ## End-to-End User Flow
 
 1. Login
-- Menggunakan email atau kode toko yang terdaftar.
-- Akses dibatasi untuk karyawan internal (saat ini difokuskan pada user yang mewakili 1 toko).
+- Menggunakan email dan password akun personal yang terdaftar.
+- Akses dibatasi untuk karyawan internal.
+- Setelah login, user masuk ke Dashboard sebagai **dirinya sendiri** (bukan sebagai toko).
+- Identitas cabang (`branch`) ditentukan dari data akun user di database.
 
 2. Dashboard
-- Ringkasan jumlah toko, tren efisiensi.
-- Akses cepat untuk mulai audit baru.
+- Menampilkan ringkasan kinerja audit terbaru yang pernah dilakukan user.
+- Setiap kartu riwayat menampilkan **Nama Toko** yang diaudit beserta bulan pelaksanaannya.
+- Akses cepat untuk memulai audit baru.
 
 3. Step 1: Input Toko & Area
+- User **memilih toko** yang akan diaudit dari daftar toko yang tersedia di cabangnya (bukan input kode manual).
 - Identitas & Teknis: Daya PLN (VA), tipe toko (Regular, Basic, dll), jam operasional toko.
 - Input Luas 4 Area Utama: Area Parkir, Area Teras, Area Sales, Area Gudang+Selasar+KM.
 

@@ -12,6 +12,13 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -21,19 +28,104 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
-// 6 blank month rows — user fills these in from their PLN bill
-const blankMonthRows = [
-  { month: "Bulan 1", kwh: "0", std: "0" },
-  { month: "Bulan 2", kwh: "0", std: "0" },
-  { month: "Bulan 3", kwh: "0", std: "0" },
-  { month: "Bulan 4", kwh: "0", std: "0" },
-  { month: "Bulan 5", kwh: "0", std: "0" },
-  { month: "Bulan 6", kwh: "0", std: "0" },
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const MONTH_NAMES = [
+  "Januari", "Februari", "Maret", "April",
+  "Mei", "Juni", "Juli", "Agustus",
+  "September", "Oktober", "November", "Desember",
 ]
 
-const monthColumnWidthClass = "w-32"
-const valueColumnWidthClass = "w-24"
-const stdColumnWidthClass = "w-24"
+const SHORT_MONTH = [
+  "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+  "Jul", "Ags", "Sep", "Okt", "Nov", "Des",
+]
+
+const currentYear = new Date().getFullYear()
+
+// column widths — total must fit ≤ 352px (max-w-sm minus px-4 padding)
+const monthColumnWidthClass = "w-[168px]"  // month select ~112 + year ~56
+const valueColumnWidthClass = "w-[88px]"
+const stdColumnWidthClass   = "w-[88px]"
+
+function makeBlankRows(): PlnRowState[] {
+  const now = new Date()
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 6 + i, 1)
+    return {
+      month: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`,
+      kwh: 0,
+      std: 0,
+    }
+  })
+}
+
+// Parse "Januari 2025" → { monthIdx: 0, year: 2025 }
+function parseMonthLabel(label: string): { monthIdx: number; year: number } {
+  const parts = label.split(" ")
+  const monthIdx = MONTH_NAMES.indexOf(parts[0] ?? "")
+  const year = parseInt(parts[1] ?? String(currentYear), 10)
+  return {
+    monthIdx: monthIdx >= 0 ? monthIdx : 0,
+    year: isNaN(year) ? currentYear : year,
+  }
+}
+
+// ─── MonthYearCell ─────────────────────────────────────────────────────────────
+
+function MonthYearCell({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (val: string) => void
+}) {
+  const { monthIdx, year } = parseMonthLabel(value)
+
+  function handleMonthChange(val: string) {
+    onChange(`${MONTH_NAMES[Number(val)]} ${year}`)
+  }
+
+  function handleYearChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value
+    // Allow typing — only commit if it's a valid 4-digit year
+    const y = parseInt(raw, 10)
+    if (raw.length === 4 && !isNaN(y) && y > 1900 && y < 2100) {
+      onChange(`${MONTH_NAMES[monthIdx]} ${y}`)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-0.5">
+      <Select value={String(monthIdx)} onValueChange={handleMonthChange}>
+        <SelectTrigger className="h-7 min-w-0 flex-1 rounded-none border-0 border-b px-1 text-[11px] shadow-none focus:ring-0">
+          {/* Show short name in trigger to save space */}
+          <span className="truncate">{SHORT_MONTH[monthIdx]}</span>
+        </SelectTrigger>
+        <SelectContent>
+          {MONTH_NAMES.map((name, idx) => (
+            <SelectItem key={name} value={String(idx)} className="text-xs">
+              {name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Input
+        type="number"
+        defaultValue={year}
+        key={value}
+        onChange={handleYearChange}
+        min={2000}
+        max={2099}
+        maxLength={4}
+        className="h-7 w-14 rounded-none border-0 border-b px-0 text-center text-[11px] shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+    </div>
+  )
+}
+
+
+// ─── AuditStep3 ───────────────────────────────────────────────────────────────
 
 export function AuditStep3() {
   const router = useRouter()
@@ -45,17 +137,17 @@ export function AuditStep3() {
 
   const [rows, setRows] = React.useState<PlnRowState[]>(() => {
     if (zustandPln.length > 0) return zustandPln
-    return blankMonthRows.map((r) => ({
-      month: r.month,
-      kwh: Number(r.kwh) || 0,
-      std: Number(r.std) || 0,
-    }))
+    return makeBlankRows()
   })
 
-  function updateRow(idx: number, field: "kwh" | "std", val: string) {
+  function updateRow(idx: number, field: "kwh" | "std" | "month", val: string | number) {
     setRows((prev) => {
       const next = [...prev]
-      next[idx] = { ...next[idx], [field]: Number(val) || 0 }
+      if (field === "month") {
+        next[idx] = { ...next[idx], month: val as string }
+      } else {
+        next[idx] = { ...next[idx], [field]: Number(val) || 0 }
+      }
       return next
     })
   }
@@ -70,6 +162,7 @@ export function AuditStep3() {
     setSubmitError(null)
     setIsPending(true)
     const result = await submitAudit({
+      storeCode: auditState.storeCode,
       storeType: auditState.storeType,
       is24Hours: auditState.is24Hours,
       openTime: auditState.openTime,
@@ -133,7 +226,7 @@ export function AuditStep3() {
                           monthColumnWidthClass
                         )}
                       >
-                        Bulan
+                        Bulan &amp; Tahun
                       </TableHead>
                       <TableHead
                         className={cn(
@@ -156,30 +249,29 @@ export function AuditStep3() {
 
                   <TableBody>
                     {rows.map((row, idx) => (
-                      <TableRow key={row.month}>
-                        <TableCell className="truncate text-xs font-medium text-foreground">
-                          {row.month}
+                      <TableRow key={idx}>
+                        <TableCell className="px-1 py-0.5">
+                          <MonthYearCell
+                            value={row.month}
+                            onChange={(val) => updateRow(idx, "month", val)}
+                          />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="px-1 py-0.5">
                           <Input
                             type="number"
                             placeholder="0"
                             value={row.kwh || ""}
-                            onChange={(e) =>
-                              updateRow(idx, "kwh", e.target.value)
-                            }
-                            className="h-8 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-xs ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                            onChange={(e) => updateRow(idx, "kwh", e.target.value)}
+                            className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="px-1 py-0.5">
                           <Input
                             type="number"
                             placeholder="0"
                             value={row.std || ""}
-                            onChange={(e) =>
-                              updateRow(idx, "std", e.target.value)
-                            }
-                            className="h-8 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-xs ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                            onChange={(e) => updateRow(idx, "std", e.target.value)}
+                            className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                           />
                         </TableCell>
                       </TableRow>
@@ -202,7 +294,7 @@ export function AuditStep3() {
           <Button
             className="h-11 w-full rounded-full"
             onClick={handleSubmit}
-            disabled={isPending}
+            disabled={isPending || rows.some(r => !r.kwh || !r.std || r.kwh <= 0 || r.std <= 0)}
           >
             <IconBolt className="size-4" />
             {isPending ? "Menghitung..." : "Kalkulasi Sekarang"}

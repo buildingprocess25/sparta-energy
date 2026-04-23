@@ -1,13 +1,13 @@
 import { create } from "zustand"
 import { persist, createJSONStorage } from "zustand/middleware"
 
-export type StoreType = "Regular" | "Basic" | "Medium" | "Advance"
+export type StoreType = "Regular" | "Basic" | "Medium" | "Advance" | ""
 
 export interface EquipmentState {
   id: string
   areaName: string // e.g. "Sales Area", "Teras", "Parkir", "Gudang, Toilet & Selasar"
   name: string
-  watt: number
+  kw: number
   quantity: number
   startTimes: string[]
   endTimes: string[]
@@ -57,7 +57,7 @@ export const useAuditStore = create<AuditState>()(
     (set) => ({
       storeCode: "",
 
-      storeType: "Regular",
+      storeType: "",
       is24Hours: true,
       openTime: "07:00",
       closeTime: "22:00",

@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { IconSearch } from "@tabler/icons-react"
 
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { Header } from "@/components/header"
 import { AuditCard } from "@/components/dashboard/audit-card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -15,92 +16,102 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-type AuditStatus = "hemat" | "boros"
-type AuditFilterStatus = "all" | AuditStatus
+import { getAuditHistory, getAvailableYears, type HistoryItem } from "@/app/actions/get-history"
+import { useDebounce } from "@/hooks/use-debounce"
 
-type HistoryItem = {
-  period: string
-  status: AuditStatus
-  standardAverage: number
-  actualAverage: number
-  efficiency: number
-}
-
-const singleStoreHistory: HistoryItem[] = [
-  {
-    period: "April 2026",
-    status: "hemat",
-    standardAverage: 13.0,
-    actualAverage: 12.4,
-    efficiency: 95.4,
-  },
-  {
-    period: "Maret 2026",
-    status: "hemat",
-    standardAverage: 13.0,
-    actualAverage: 13.0,
-    efficiency: 100.0,
-  },
-  {
-    period: "Februari 2026",
-    status: "boros",
-    standardAverage: 13.0,
-    actualAverage: 13.2,
-    efficiency: 98.5,
-  },
-  {
-    period: "Januari 2026",
-    status: "boros",
-    standardAverage: 13.0,
-    actualAverage: 13.2,
-    efficiency: 98.5,
-  },
-  {
-    period: "Desember 2025",
-    status: "hemat",
-    standardAverage: 13.0,
-    actualAverage: 12.8,
-    efficiency: 98.5,
-  },
-]
-
-function getYearFromPeriod(period: string) {
-  const parts = period.trim().split(" ")
-  return parts[parts.length - 1] ?? ""
-}
+type AuditFilterStatus = "all" | "hemat" | "boros"
 
 export default function HistoryPage() {
-  const [currentPage, setCurrentPage] = useState(1)
+  const [items, setItems] = useState<HistoryItem[]>([])
+  const [availableYears, setAvailableYears] = useState<string[]>([])
+  
+  // Filters & Search
+  const [search, setSearch] = useState("")
+  const debouncedSearch = useDebounce(search, 500)
   const [selectedYear, setSelectedYear] = useState<string>("all")
   const [selectedStatus, setSelectedStatus] = useState<AuditFilterStatus>("all")
-  const itemsPerPage = 5
+  
+  // Infinite Scroll State
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  const allHistory = singleStoreHistory // user-only untuk sekarang
-  const availableYears = Array.from(
-    new Set(allHistory.map((item) => getYearFromPeriod(item.period)))
-  ).sort((a, b) => Number(b) - Number(a))
+  // Fetch initial years
+  useEffect(() => {
+    getAvailableYears().then(setAvailableYears)
+  }, [])
 
-  const filteredHistory = allHistory.filter((item) => {
-    const itemYear = getYearFromPeriod(item.period)
-    const matchesYear = selectedYear === "all" || itemYear === selectedYear
-    const matchesStatus =
-      selectedStatus === "all" || item.status === selectedStatus
+  // Reset pagination when filters change
+  useEffect(() => {
+    setPage(1)
+    setItems([])
+    // We intentionally don't call fetchHistory here directly.
+    // Changing page to 1 will trigger the data fetch in the next useEffect.
+  }, [debouncedSearch, selectedYear, selectedStatus])
 
-    return matchesYear && matchesStatus
-  })
+  // Fetch data
+  const fetchHistory = useCallback(async () => {
+    setLoading(true)
+    try {
+      const response = await getAuditHistory(
+        page,
+        debouncedSearch,
+        selectedStatus,
+        selectedYear
+      )
+      
+      if (page === 1) {
+        setItems(response.items)
+      } else {
+        setItems((prev) => [...prev, ...response.items])
+      }
+      setHasMore(response.hasMore)
+    } catch (error) {
+      console.error("Failed to fetch history:", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [page, debouncedSearch, selectedStatus, selectedYear])
 
-  const totalItems = filteredHistory.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
-  const safeCurrentPage = Math.min(currentPage, totalPages)
-  const startIndex = (safeCurrentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const visibleHistory = filteredHistory.slice(startIndex, endIndex)
+  useEffect(() => {
+    fetchHistory()
+  }, [fetchHistory])
+
+  // Intersection Observer for Infinite Scroll
+  const observer = useRef<IntersectionObserver | null>(null)
+  const lastElementRef = useCallback(
+    (node: HTMLDivElement) => {
+      if (loading) return
+      if (observer.current) observer.current.disconnect()
+      
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasMore) {
+          setPage((prev) => prev + 1)
+        }
+      })
+      
+      if (node) observer.current.observe(node)
+    },
+    [loading, hasMore]
+  )
 
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
       <Header variant="title-only" title="History" />
 
       <section className="space-y-4">
+        {/* Search Bar */}
+        <div className="relative">
+          <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Cari kode atau nama toko..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-10 w-full pl-9 text-sm"
+          />
+        </div>
+
+        {/* Filters */}
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <label
@@ -109,13 +120,7 @@ export default function HistoryPage() {
             >
               Tahun
             </label>
-            <Select
-              value={selectedYear}
-              onValueChange={(value: string) => {
-                setSelectedYear(value)
-                setCurrentPage(1)
-              }}
-            >
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
               <SelectTrigger
                 id="history-year-filter"
                 className="h-9 w-full text-xs"
@@ -142,10 +147,7 @@ export default function HistoryPage() {
             </label>
             <Select
               value={selectedStatus}
-              onValueChange={(value: string) => {
-                setSelectedStatus(value as AuditFilterStatus)
-                setCurrentPage(1)
-              }}
+              onValueChange={(val) => setSelectedStatus(val as AuditFilterStatus)}
             >
               <SelectTrigger
                 id="history-status-filter"
@@ -162,64 +164,53 @@ export default function HistoryPage() {
           </div>
         </div>
 
+        {/* List */}
         <div className="flex flex-col gap-3">
-          {visibleHistory.length > 0 ? (
-            visibleHistory.map((item) => (
-              <AuditCard
-                key={item.period}
-                status={item.status}
-                title={item.period}
-                standardAverage={item.standardAverage}
-                actualAverage={item.actualAverage}
-                efficiency={item.efficiency}
-              />
-            ))
-          ) : (
+          {items.length > 0 ? (
+            items.map((item, index) => {
+              if (items.length === index + 1) {
+                // Last item, attach the ref for infinite scroll
+                return (
+                  <div ref={lastElementRef} key={item.id}>
+                    <AuditCard
+                      id={item.id}
+                      status={item.status}
+                      storeName={item.storeName}
+                      period={item.period}
+                      standardAverage={item.standardAverage}
+                      actualAverage={item.actualAverage}
+                      efficiency={item.efficiency}
+                    />
+                  </div>
+                )
+              } else {
+                return (
+                  <AuditCard
+                    key={item.id}
+                    id={item.id}
+                    status={item.status}
+                    storeName={item.storeName}
+                    period={item.period}
+                    standardAverage={item.standardAverage}
+                    actualAverage={item.actualAverage}
+                    efficiency={item.efficiency}
+                  />
+                )
+              }
+            })
+          ) : !loading ? (
             <div className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
               Data tidak ditemukan untuk filter yang dipilih.
             </div>
+          ) : null}
+
+          {loading && (
+            <div className="flex justify-center py-4">
+              <span className="text-xs text-muted-foreground animate-pulse">
+                Memuat data...
+              </span>
+            </div>
           )}
-        </div>
-
-        {/* Pagination Controls */}
-        <div className="flex items-center justify-between gap-2 pt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setCurrentPage((prev) =>
-                Math.max(1, Math.min(totalPages, prev - 1))
-              )
-            }
-            disabled={safeCurrentPage === 1}
-            className="h-8 w-8 rounded-lg p-0"
-          >
-            <IconChevronLeft className="size-4" />
-          </Button>
-
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>
-              {totalItems === 0
-                ? "0-0"
-                : `${startIndex + 1}-${Math.min(endIndex, totalItems)}`}
-            </span>
-            <span className="text-muted-foreground/50">dari</span>
-            <span className="font-semibold">{totalItems}</span>
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setCurrentPage((prev) =>
-                Math.max(1, Math.min(totalPages, prev + 1))
-              )
-            }
-            disabled={safeCurrentPage === totalPages || totalItems === 0}
-            className="h-8 w-8 rounded-lg p-0"
-          >
-            <IconChevronRight className="size-4" />
-          </Button>
         </div>
       </section>
 
