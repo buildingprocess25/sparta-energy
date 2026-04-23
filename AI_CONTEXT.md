@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-SPARTA Energy adalah aplikasi internal untuk tim audit energi perusahaan retail..
+SPARTA Energy adalah aplikasi internal untuk tim audit energi perusahaan retail.
 
 Tujuan utama:
 
