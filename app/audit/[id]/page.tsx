@@ -43,7 +43,7 @@ export default async function AuditResultPage({ params }: Props) {
         items: audit.items.map((item) => ({
           ...item,
           operationalHours: Number(item.operationalHours),
-          baseWatt: Number(item.baseWatt),
+          baseKw: Number(item.baseKw),
           estimatedDailyKwh: Number(item.estimatedDailyKwh),
         })),
         plnHistory: audit.plnHistory.map((row) => ({

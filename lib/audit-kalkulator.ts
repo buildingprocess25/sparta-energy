@@ -42,16 +42,18 @@ export function calculateAudit(
   let trainingNeededCount = 0
 
   equipments.forEach((eq) => {
+    if (!eq.selected) return
     let eqKwhPerDay = 0
+    const isAC = eq.name.toLowerCase().includes("ac") || eq.name.toLowerCase().includes("air conditioner")
+    
     for (let i = 0; i < eq.quantity; i++) {
-      const start = eq.startTimes[i] || "08:00"
-      const end = eq.endTimes[i] || "22:00"
+      const start = isAC ? (eq.startTimes[i] || "08:00") : (eq.startTimes[0] || "08:00")
+      const end = isAC ? (eq.endTimes[i] || "22:00") : (eq.endTimes[0] || "22:00")
       const hrs = getHoursBetween(start, end)
 
-      eqKwhPerDay += (eq.watt * hrs) / 1000
+      eqKwhPerDay += eq.kw * hrs
 
       // Check training logic: e.g. AC nyala >> store open hours
-      const isAC = eq.name.toLowerCase().includes("ac") || eq.name.toLowerCase().includes("air conditioner")
       if (isAC && hrs >= storeOpenHours + 2 && storeOpenHours < 24) {
         trainingNeededCount++
       }

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 type RecentAuditStatus = "hemat" | "boros"
 
 type RecentAuditItem = {
+  id: string
+  storeName: string
   period: string
   status: RecentAuditStatus
   standardAverage: number
@@ -51,9 +53,11 @@ function RecentAuditSection({
       <div className="flex flex-col gap-4">
         {visibleItems.map((item) => (
           <AuditCard
-            key={item.period}
+            key={item.id}
+            id={item.id}
             status={item.status}
-            title={item.period}
+            storeName={item.storeName}
+            period={item.period}
             standardAverage={item.standardAverage}
             actualAverage={item.actualAverage}
             efficiency={item.efficiency}

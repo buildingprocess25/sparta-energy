@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma"
 
 const AREA_TO_CATEGORY: Record<string, string[]> = {
-  "Sales Area":               ["SALES"],
+  "Sales":                    ["SALES", "BEANSPOT"],
   "Teras":                    ["TERAS"],
-  "Parkir":                   ["PARKIRAN"],
+  "Parkiran":                 ["PARKIRAN"],
   "Gudang, Toilet & Selasar": ["GUDANG"],
   "Beanspot":                 ["BEANSPOT"],
 }
@@ -12,7 +12,7 @@ export type EquipmentMasterItem = {
   id: string
   name: string
   category: string
-  defaultWatt: number
+  defaultKw: number
 }
 
 export async function getEquipmentForArea(
@@ -31,6 +31,6 @@ export async function getEquipmentForArea(
     id: r.id,
     name: r.name,
     category: r.category,
-    defaultWatt: Number(r.defaultWatt),
+    defaultKw: Number(r.defaultKw),
   }))
 }

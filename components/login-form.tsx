@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { IconMail, IconLock, IconEye, IconEyeOff } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { signIn } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
@@ -23,6 +24,7 @@ export function LoginForm({
   const [password, setPassword] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
   const [isPending, setIsPending] = React.useState(false)
+  const [showPassword, setShowPassword] = React.useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -36,7 +38,10 @@ export function LoginForm({
     })
 
     if (signInError) {
-      setError(signInError.message ?? "Login gagal. Periksa kembali email dan password.")
+      setError(
+        signInError.message ??
+          "Login gagal. Periksa kembali email dan password."
+      )
       setIsPending(false)
       return
     }
@@ -66,30 +71,49 @@ export function LoginForm({
 
         <Field>
           <FieldLabel htmlFor="email">Email</FieldLabel>
-          <Input
-            id="email"
-            type="email"
-            placeholder="auditor@sparta.id"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="bg-background"
-            disabled={isPending}
-          />
+          <div className="relative">
+            <IconMail className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="email"
+              type="email"
+              placeholder="Masukkan Email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="bg-background pl-9"
+              disabled={isPending}
+            />
+          </div>
         </Field>
         <Field>
           <div className="flex items-center">
             <FieldLabel htmlFor="password">Password</FieldLabel>
           </div>
-          <Input
-            id="password"
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="bg-background"
-            disabled={isPending}
-          />
+          <div className="relative">
+            <IconLock className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              required
+              placeholder="Masukkan Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="bg-background px-9"
+              disabled={isPending}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+              tabIndex={-1}
+            >
+              {showPassword ? (
+                <IconEyeOff className="size-4" />
+              ) : (
+                <IconEye className="size-4" />
+              )}
+            </button>
+          </div>
         </Field>
         <FieldGroup>
           <Field orientation="horizontal">

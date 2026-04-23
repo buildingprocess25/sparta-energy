@@ -7,28 +7,53 @@ import { getEquipmentForArea } from "@/lib/get-equipment-for-area"
 import { AuditStartClient } from "./start-client"
 
 const AREA_NAMES = [
-  "Sales Area",
+  "Sales",
   "Teras",
-  "Parkir",
+  "Parkiran",
   "Gudang, Toilet & Selasar",
-  "Beanspot",
 ]
 
 export default async function AuditStartPage() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) redirect("/login")
 
-  const access = await prisma.userStoreAccess.findFirst({
-    where: { userId: session.user.id },
-    include: { store: true },
+  // Find user with branch info
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { branch: true },
   })
-  
-  if (!access?.store) {
-    // Optionally redirect or show an error if no store is assigned
-    return <div className="p-4 text-center">Toko tidak ditemukan atau Anda tidak memiliki akses.</div>
+
+  // Find all stores in the same branch
+  const stores = await prisma.store.findMany({
+    where: { branch: dbUser?.branch ?? "" },
+    orderBy: { code: "asc" },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      branch: true,
+      plnCustomerId: true,
+      type: true,
+      is24Hours: true,
+      openTime: true,
+      closeTime: true,
+      plnPowerVa: true,
+      parkingAreaM2: true,
+      terraceAreaM2: true,
+      salesAreaM2: true,
+      warehouseAreaM2: true,
+    },
+  })
+
+  if (stores.length === 0) {
+    return (
+      <div className="p-4 text-center">
+        Tidak ada toko yang tersedia untuk cabang Anda.
+      </div>
+    )
   }
 
-  // Fetch all area equipment server-side in parallel
+  // Fetch all area equipment server-side in parallel (independent of store)
   const allEquipment = await Promise.all(
     AREA_NAMES.map((name) =>
       getEquipmentForArea(name).then((items) => [name, items] as const)
@@ -39,23 +64,24 @@ export default async function AuditStartPage() {
 
   return (
     <Suspense fallback={null}>
-      <AuditStartClient 
-        equipmentByArea={equipmentByArea} 
-        initialStore={{
-          code: access.store.code,
-          name: access.store.name,
-          branch: access.store.branch,
-          plnCustomerId: access.store.plnCustomerId,
-          type: access.store.type,
-          is24Hours: access.store.is24Hours,
-          openTime: access.store.openTime,
-          closeTime: access.store.closeTime,
-          plnPowerVa: access.store.plnPowerVa,
-          parkingAreaM2: Number(access.store.parkingAreaM2),
-          terraceAreaM2: Number(access.store.terraceAreaM2),
-          salesAreaM2: Number(access.store.salesAreaM2),
-          warehouseAreaM2: Number(access.store.warehouseAreaM2),
-        }}
+      <AuditStartClient
+        stores={stores.map((s) => ({
+          id: s.id,
+          code: s.code,
+          name: s.name,
+          branch: s.branch,
+          plnCustomerId: s.plnCustomerId,
+          type: s.type,
+          is24Hours: s.is24Hours,
+          openTime: s.openTime,
+          closeTime: s.closeTime,
+          plnPowerVa: s.plnPowerVa,
+          parkingAreaM2: Number(s.parkingAreaM2),
+          terraceAreaM2: Number(s.terraceAreaM2),
+          salesAreaM2: Number(s.salesAreaM2),
+          warehouseAreaM2: Number(s.warehouseAreaM2),
+        }))}
+        equipmentByArea={equipmentByArea}
       />
     </Suspense>
   )

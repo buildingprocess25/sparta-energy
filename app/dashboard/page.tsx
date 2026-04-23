@@ -14,18 +14,23 @@ export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) redirect("/login")
 
-  // Get user's store via UserStoreAccess
-  const access = await prisma.userStoreAccess.findFirst({
-    where: { userId: session.user.id },
-    include: { store: true },
+  // Get all audits for stores in user's branch
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { branch: true, fullName: true },
   })
 
-  const store = access?.store
+  const stores = await prisma.store.findMany({
+    where: { branch: dbUser?.branch ?? "" },
+    select: { id: true, name: true, code: true },
+  })
 
-  // Fetch 5 most recent COMPLETED audits for this store
-  const recentAudits = store
+  const storeIds = stores.map((s) => s.id)
+
+  // Fetch 5 most recent COMPLETED audits for this user
+  const recentAudits = storeIds.length > 0
     ? await prisma.audit.findMany({
-        where: { storeId: store.id, status: "COMPLETED" },
+        where: { storeId: { in: storeIds }, status: "COMPLETED", auditorId: session.user.id },
         orderBy: { auditDate: "desc" },
         take: 5,
         select: {
@@ -34,7 +39,7 @@ export default async function DashboardPage() {
           isBoros: true,
           totalEstimatedKwhPerMonth: true,
           avgActualPlnKwhPerMonth: true,
-          store: { select: { salesAreaM2: true, parkingAreaM2: true, terraceAreaM2: true, warehouseAreaM2: true } },
+          store: { select: { name: true, code: true, salesAreaM2: true, parkingAreaM2: true, terraceAreaM2: true, warehouseAreaM2: true } },
         },
       })
     : []
@@ -58,6 +63,7 @@ export default async function DashboardPage() {
 
     return {
       id: a.id,
+      storeName: a.store.name,
       period: month,
       status: a.isBoros ? "boros" : "hemat",
       standardAverage: Math.round(est * 10) / 10,
@@ -70,8 +76,8 @@ export default async function DashboardPage() {
     <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
       <Header
         variant="dashboard"
-        title={store?.name ?? "Dashboard"}
-        subtitle={store?.code ?? ""}
+        title={dbUser?.fullName ?? "Dashboard"}
+        subtitle={dbUser?.branch ?? ""}
       />
 
       <section className="flex flex-col gap-5">

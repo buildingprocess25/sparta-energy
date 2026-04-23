@@ -2,12 +2,18 @@
 
 import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { useTheme } from "next-themes"
-import { IconChevronLeft, IconMoon, IconSun, IconBuildingStore } from "@tabler/icons-react"
+import {
+  IconChevronLeft,
+  IconMoon,
+  IconSun,
+  IconBuildingStore,
+} from "@tabler/icons-react"
 
-import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { Logo } from "./logo"
 
 type DashboardLogoHeaderProps = {
   variant: "dashboard"
@@ -85,12 +91,18 @@ function Header(props: DashboardHeaderProps) {
     >
       {props.variant === "dashboard" ? (
         <div className="flex min-h-8 items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <IconBuildingStore className="size-5" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <h1 className="truncate text-base font-semibold">{props.title}</h1>
+          <div className="flex min-w-0 items-center gap-3">
+            <Image
+              src="/assets/Building-Logo.png"
+              alt="Building Logo"
+              width={32}
+              height={32}
+              className="size-8 object-contain"
+            />
+            <div className="flex min-w-0 flex-col">
+              <h1 className="truncate text-base font-semibold">
+                {props.title}
+              </h1>
               {props.subtitle && (
                 <p className="truncate text-xs font-medium text-muted-foreground">
                   {props.subtitle}
@@ -98,21 +110,6 @@ function Header(props: DashboardHeaderProps) {
               )}
             </div>
           </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-full px-2"
-            onClick={handleThemeToggle}
-            aria-label="Toggle theme"
-            disabled={!mounted}
-          >
-            {mounted && isDark ? (
-              <IconSun className="size-4" />
-            ) : (
-              <IconMoon className="size-4" />
-            )}
-          </Button>
         </div>
       ) : props.variant === "dashboard-back" ? (
         <div className="flex h-8 items-center gap-2">
@@ -126,7 +123,7 @@ function Header(props: DashboardHeaderProps) {
               <IconChevronLeft className="size-4" />
             </Link>
           </Button>
-          <div className="flex flex-col min-w-0">
+          <div className="flex min-w-0 flex-col">
             <h1 className="truncate text-base font-semibold">{props.title}</h1>
             {props.subtitle && (
               <p className="truncate text-xs font-medium text-muted-foreground">
@@ -136,7 +133,7 @@ function Header(props: DashboardHeaderProps) {
           </div>
         </div>
       ) : (
-        <div className="flex min-h-8 flex-col justify-center min-w-0">
+        <div className="flex min-h-8 min-w-0 flex-col justify-center">
           <h1 className="truncate text-base font-semibold">{props.title}</h1>
           {props.subtitle && (
             <p className="truncate text-xs font-medium text-muted-foreground">
