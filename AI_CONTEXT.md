@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-SPARTA Energy adalah aplikasi internal untuk tim audit energi perusahaan retail.
+SPARTA Energy adalah aplikasi internal untuk tim audit energi perusahaan retail..
 
 Tujuan utama:
 
@@ -36,54 +36,64 @@ Ada 2 role user utama:
 ## End-to-End User Flow
 
 1. Login
+
 - Menggunakan email dan password akun personal yang terdaftar.
 - Akses dibatasi untuk karyawan internal.
 - Setelah login, user masuk ke Dashboard sebagai **dirinya sendiri** (bukan sebagai toko).
 - Identitas cabang (`branch`) ditentukan dari data akun user di database.
 
 2. Dashboard
+
 - Menampilkan ringkasan kinerja audit terbaru yang pernah dilakukan user.
 - Setiap kartu riwayat menampilkan **Nama Toko** yang diaudit beserta bulan pelaksanaannya.
 - Akses cepat untuk memulai audit baru.
 
 3. Step 1: Input Toko & Area
+
 - User **memilih toko** yang akan diaudit dari daftar toko yang tersedia di cabangnya (bukan input kode manual).
 - Identitas & Teknis: Daya PLN (VA), tipe toko (Regular, Basic, dll), jam operasional toko.
 - Input Luas 4 Area Utama: Area Parkir, Area Teras, Area Sales, Area Gudang+Selasar+KM.
 
 4. Step 2: Input Equipment per Area
+
 - User mendata equipment di 4 area tersebut.
-- Item equipment ter-generate otomatis berdasarkan *tipe toko*, namun user bisa menambahkannya secara manual.
-- User memasukkan Jumlah (Qty) dan Jam Operasional pemakaian per alat. 
-- *Khusus Air Conditioner*: input per item AC dapat dibedakan jam operasionalnya (misal AC 1 nyala 24 jam, AC 2 nyala 12 jam).
+- Item equipment ter-generate otomatis berdasarkan _tipe toko_, namun user bisa menambahkannya secara manual.
+- User memasukkan Jumlah (Qty) dan Jam Operasional pemakaian per alat.
+- _Khusus Air Conditioner_: input per item AC dapat dibedakan jam operasionalnya (misal AC 1 nyala 24 jam, AC 2 nyala 12 jam).
 - Sistem menghitung Estimasi Konsumsi (kWh) = Jumlah × Jam Operasional × Daya kW (dari master database).
 
 5. Step 3: Input History PLN & STD
+
 - User memasukkan history konsumsi PLN (kWh) dan STD (Sales Transaction per Day) mundur selama 6 bulan terakhir.
 - STD sementara hanya disimpan, belum difungsikan untuk analitik.
 
 6. Step 4: Kalkulasi & Hasil (Result)
+
 - Sistem menjumlahkan semua estimasi kWh equipment selama 1 bulan penuh, lalu dibandingkan dengan rata-rata aktual PLN per bulan.
 - Jika Hasil Estimasi (Teori) < Konsumsi Aktual PLN, maka toko dinilai "Boros" (pemborosan energi dari kebocoran/misusage yang tidak terpantau).
-- Muncul *Rekomendasi Audit* berupa "Perbaikan Equipment" atau "Pelatihan Tim Toko (SOP)".
+- Muncul _Rekomendasi Audit_ berupa "Perbaikan Equipment" atau "Pelatihan Tim Toko (SOP)".
 
 ## Core Functions
 
 ### 1) Analisis Konsumsi Energi
+
 - Membandingkan estimasi teknis berbasis equipment bulanan dengan data rata-rata bulanan aktual usage dari PLN 6 bulan ke belakang.
 
 ### 2) Kalkulasi Otomatis
+
 - Estimasi Harian = kW (master) × jumlah (qty) × jam operasional
 - Estimasi Bulanan = Estimasi Harian × Jumlah hari operasional dlm sebulan
 - Status = "Boros" jika Estimasi Bulanan < Penggunaan PLN Aktual (rata-rata)
 
 ### 3) Identifikasi Sumber Boros & Rekomendasi
+
 - Merangking area dan equipment dengan proporsi energi tertinggi (misal AC mendominasi > 60%).
 - Memberikan sinyal:
   - Pelatihan Tim: Jika jam operasional alat yang diinput melebihi kebutuhan.
   - Perbaikan Equipment: Jika perhitungan estimasi wajar, namun tagihan PLN jebol (indikasi kebocoran arus / kompresor rusak).
 
 ### 4) Monitoring dan Reporting
+
 - Riwayat audit, tren tagging efisiensi, dan history STD.
 
 ## Business Value
