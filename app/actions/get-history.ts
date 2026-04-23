@@ -21,11 +21,6 @@ export type HistoryResponse = {
   hasMore: boolean
 }
 
-type AuditFindManyArgs = NonNullable<
-  Parameters<typeof prisma.audit.findMany>[0]
->
-type AuditWhereInput = NonNullable<AuditFindManyArgs["where"]>
-
 export async function getAuditHistory(
   page: number,
   search: string,
@@ -40,38 +35,38 @@ export async function getAuditHistory(
   const itemsPerPage = 10
   const skip = (page - 1) * itemsPerPage
 
-  // Build Prisma where clause
-  const where: AuditWhereInput = {
-    auditorId: session.user.id,
-    status: "COMPLETED",
-  }
+  const searchFilter = search
+    ? {
+        store: {
+          OR: [
+            { name: { contains: search, mode: "insensitive" as const } },
+            { code: { contains: search, mode: "insensitive" as const } },
+          ],
+        },
+      }
+    : {}
 
-  if (search) {
-    where.store = {
-      OR: [
-        { name: { contains: search, mode: "insensitive" } },
-        { code: { contains: search, mode: "insensitive" } },
-      ],
-    }
-  }
+  const statusFilter = status !== "all" ? { isBoros: status === "boros" } : {}
 
-  if (status !== "all") {
-    where.isBoros = status === "boros"
-  }
-
-  if (year !== "all") {
-    // AuditDate is DateTime. We filter by year.
-    const startYear = new Date(`${year}-01-01T00:00:00.000Z`)
-    const endYear = new Date(`${year}-12-31T23:59:59.999Z`)
-    where.auditDate = {
-      gte: startYear,
-      lte: endYear,
-    }
-  }
+  const yearFilter =
+    year !== "all"
+      ? {
+          auditDate: {
+            gte: new Date(`${year}-01-01T00:00:00.000Z`),
+            lte: new Date(`${year}-12-31T23:59:59.999Z`),
+          },
+        }
+      : {}
 
   // Fetch audits plus one extra to determine if there's a next page
   const audits = await prisma.audit.findMany({
-    where,
+    where: {
+      auditorId: session.user.id,
+      status: "COMPLETED",
+      ...searchFilter,
+      ...statusFilter,
+      ...yearFilter,
+    },
     orderBy: { auditDate: "desc" },
     skip,
     take: itemsPerPage + 1,
