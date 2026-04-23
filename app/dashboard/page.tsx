@@ -38,7 +38,16 @@ export default async function DashboardPage() {
           isBoros: true,
           totalEstimatedKwhPerMonth: true,
           avgActualPlnKwhPerMonth: true,
-          store: { select: { name: true, code: true, salesAreaM2: true, parkingAreaM2: true, terraceAreaM2: true, warehouseAreaM2: true } },
+          store: {
+            select: {
+              name: true,
+              code: true,
+              salesAreaM2: true,
+              parkingAreaM2: true,
+              terraceAreaM2: true,
+              warehouseAreaM2: true,
+            },
+          },
         },
       })
     : []
@@ -47,9 +56,9 @@ export default async function DashboardPage() {
   const auditItems: RecentAuditItem[] = recentAudits.map((a) => {
     const totalAreaM2 =
       Number(a.store.salesAreaM2) +
-      Number(a.store.parkingAreaM2) +
-      Number(a.store.terraceAreaM2) +
-      Number(a.store.warehouseAreaM2) || 1
+        Number(a.store.parkingAreaM2) +
+        Number(a.store.terraceAreaM2) +
+        Number(a.store.warehouseAreaM2) || 1
 
     const est = Number(a.totalEstimatedKwhPerMonth ?? 0) / totalAreaM2
     const actual = Number(a.avgActualPlnKwhPerMonth ?? 0) / totalAreaM2

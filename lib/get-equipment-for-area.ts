@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma"
 
 const AREA_TO_CATEGORY: Record<string, string[]> = {
-  "Sales": ["SALES", "BEANSPOT"],
-  "Teras": ["TERAS"],
-  "Parkiran": ["PARKIRAN"],
+  Sales: ["SALES", "BEANSPOT"],
+  Teras: ["TERAS"],
+  Parkiran: ["PARKIRAN"],
   "Gudang, Toilet & Selasar": ["GUDANG"],
-  "Beanspot": ["BEANSPOT"],
+  Beanspot: ["BEANSPOT"],
 }
 
 export type EquipmentMasterItem = {
@@ -60,10 +60,7 @@ export async function getEquipmentForAreas(
   return Object.fromEntries(
     areaNames.map((areaName) => {
       const categorySet = new Set(AREA_TO_CATEGORY[areaName] ?? [])
-      return [
-        areaName,
-        items.filter((item) => categorySet.has(item.category)),
-      ]
+      return [areaName, items.filter((item) => categorySet.has(item.category))]
     })
   )
 }

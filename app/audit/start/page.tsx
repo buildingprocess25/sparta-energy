@@ -6,12 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { getEquipmentForAreas } from "@/lib/get-equipment-for-area"
 import { AuditStartClient } from "./start-client"
 
-const AREA_NAMES = [
-  "Sales",
-  "Teras",
-  "Parkiran",
-  "Gudang, Toilet & Selasar",
-]
+const AREA_NAMES = ["Sales", "Teras", "Parkiran", "Gudang, Toilet & Selasar"]
 
 export default async function AuditStartPage() {
   const session = await auth.api.getSession({ headers: await headers() })
