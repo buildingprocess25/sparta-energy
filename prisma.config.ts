@@ -1,10 +1,7 @@
-import "dotenv/config"
 import { defineConfig } from "prisma/config"
+import dotenv from "dotenv"
 
-const databaseUrl =
-  process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length > 0
-    ? process.env.DATABASE_URL
-    : "postgresql://invalid:invalid@127.0.0.1:1/prisma_placeholder"
+dotenv.config({ quiet: true })
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -12,7 +9,8 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    // Allow `prisma generate` in CI even when DATABASE_URL is not injected.
-    url: databaseUrl,
+    // DIRECT_URL is preferred for Prisma CLI operations.
+    // DATABASE_URL is used as fallback when DIRECT_URL is not provided.
+    url: process.env.DIRECT_URL ?? process.env.DATABASE_URL ?? "",
   },
 })
