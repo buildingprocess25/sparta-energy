@@ -1,18 +1,9 @@
 import { betterAuth } from "better-auth"
-import { Pool } from "pg"
 import { createHash } from "crypto"
-
-// Strip sslmode from URL — set ssl directly to accept Aiven self-signed cert
-const rawUrl = process.env.DATABASE_URL!
-const cleanUrl = rawUrl.replace(/[?&]sslmode=[^&]*/g, "").replace(/\?$/, "")
-
-const pool = new Pool({
-  connectionString: cleanUrl,
-  ssl: { rejectUnauthorized: false },
-})
+import { dbPool } from "@/lib/db-pool"
 
 export const auth = betterAuth({
-  database: pool,
+  database: dbPool,
 
   // Map onto our existing "users" table columns
   user: {
