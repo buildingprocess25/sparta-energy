@@ -2,7 +2,6 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
 import { headers } from "next/headers"
 
 type AuditStatus = "hemat" | "boros"
@@ -22,11 +21,16 @@ export type HistoryResponse = {
   hasMore: boolean
 }
 
+type AuditFindManyArgs = NonNullable<
+  Parameters<typeof prisma.audit.findMany>[0]
+>
+type AuditWhereInput = NonNullable<AuditFindManyArgs["where"]>
+
 export async function getAuditHistory(
   page: number,
   search: string,
   status: string, // "all", "hemat", "boros"
-  year: string    // "all" or "YYYY"
+  year: string // "all" or "YYYY"
 ): Promise<HistoryResponse> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
@@ -37,7 +41,7 @@ export async function getAuditHistory(
   const skip = (page - 1) * itemsPerPage
 
   // Build Prisma where clause
-  const where: Prisma.AuditWhereInput = {
+  const where: AuditWhereInput = {
     auditorId: session.user.id,
     status: "COMPLETED",
   }
@@ -95,9 +99,9 @@ export async function getAuditHistory(
   const items: HistoryItem[] = itemsToReturn.map((a) => {
     const totalAreaM2 =
       Number(a.store.salesAreaM2) +
-      Number(a.store.parkingAreaM2) +
-      Number(a.store.terraceAreaM2) +
-      Number(a.store.warehouseAreaM2) || 1
+        Number(a.store.parkingAreaM2) +
+        Number(a.store.terraceAreaM2) +
+        Number(a.store.warehouseAreaM2) || 1
 
     const est = Number(a.totalEstimatedKwhPerMonth ?? 0) / totalAreaM2
     const actual = Number(a.avgActualPlnKwhPerMonth ?? 0) / totalAreaM2
