@@ -10,6 +10,7 @@ import {
 } from "@/store/use-audit-store"
 import { submitAudit } from "@/app/actions/submit-audit"
 import { calculateAudit, getHoursBetween } from "@/lib/audit-kalkulator"
+import { getDemoAiRecommendation } from "@/app/actions/get-demo-ai-recommendation"
 
 import { Header } from "@/components/header"
 import { AuditStepIndicator } from "@/components/audit/step-indicator"
@@ -160,8 +161,7 @@ function buildDemoAuditResult(
     })
 
   const recommendationType = calc.recommendationType as RecommendationType
-  const recommendation =
-    RECOMMENDATION_COPY[recommendationType] ?? RECOMMENDATION_COPY.MAINTENANCE
+  // We remove the default RECOMMENDATION_COPY lookup from here because we will pass the ai recommendation directly.
 
   return {
     id: "demo",
@@ -184,13 +184,7 @@ function buildDemoAuditResult(
       plnUsageKwh: row.kwh,
       salesTransactionPerDay: row.std,
     })),
-    recommendations: [
-      {
-        type: recommendationType,
-        title: recommendation.title,
-        description: recommendation.description,
-      },
-    ],
+    recommendations: [], // We'll set this outside
   }
 }
 
@@ -320,7 +314,37 @@ export function AuditStep3({
     setIsPending(true)
 
     if (mode === "demo") {
+      const calc = calculateAudit(auditState.equipments, rows, {
+        is24Hours: auditState.is24Hours,
+        openTime: auditState.openTime,
+        closeTime: auditState.closeTime,
+        areas: {
+          sales: auditState.areas.sales,
+          parkir: auditState.areas.parkir,
+          teras: auditState.areas.teras,
+          gudang: auditState.areas.gudang,
+        },
+        plnPowerVa: auditState.plnPowerVa,
+      })
+
+      const auditSummary = `
+Toko: ${auditState.storeName || auditState.storeCode || "Toko Demo"}
+Jam Buka: ${auditState.openTime} - ${auditState.closeTime} (${auditState.is24Hours ? "24 Jam" : "Non-24 Jam"})
+Daya PLN: ${auditState.plnPowerVa} VA
+Status Efisiensi: ${calc.isBoros ? "BOROS (Pemakaian aktual > estimasi wajar)" : "HEMAT (Pemakaian wajar)"}
+Estimasi Kebutuhan Alat: ${calc.equipmentEstimateKwhPerMonth.toFixed(0)} kWh/bulan
+Aktual Rata-rata PLN: ${calc.avgActualPlnKwhPerMonth.toFixed(0)} kWh/bulan
+Tipe Rekomendasi (Hard-coded fallback calc): ${calc.recommendationType}
+Daftar Peralatan (Format: Qty x Nama = Est Kwh/hari):
+${auditState.equipments.map(eq => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.quantity * getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00")).toFixed(1)} kWh/hari`).join('\n')}
+`
+      const aiResult = await getDemoAiRecommendation(auditSummary, calc.recommendationType as any)
+      
       const demoAuditResult = buildDemoAuditResult(auditState, rows)
+      if (aiResult.data) {
+        demoAuditResult.recommendations = [aiResult.data]
+      }
+
       useAuditStore.setState({ demoAuditResult })
       setIsPending(false)
       router.push("/demo/result")
@@ -377,15 +401,13 @@ export function AuditStep3({
           <div className="overflow-hidden">
             <div className="flex flex-col gap-6 pb-6">
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Masukkan riwayat konsumsi listrik dan nilai rata-rata jumlah
-                transaksi harian (STD) 6 bulan berturut-turut.
+                Masukkan riwayat konsumsi listrik 6 bulan berturut-turut.
               </p>
 
               <Alert className="border-blue-600/50 bg-blue-50 dark:border-blue-400/70 dark:bg-blue-950/40">
                 <IconInfoCircle />
                 <AlertDescription>
-                  Data kWh dan STD dapat dilihat di laporan bulanan/buku kas
-                  toko. Pastikan diisi guna menentukan deviasi tagihan aktual.
+                  Data kWh dapat dilihat di laporan bulanan/buku kas toko. Pastikan diisi guna menentukan deviasi tagihan aktual.
                 </AlertDescription>
               </Alert>
 
@@ -409,14 +431,6 @@ export function AuditStep3({
                       >
                         Konsumsi (kWh)
                       </TableHead>
-                      <TableHead
-                        className={cn(
-                          "text-center text-[7px] font-bold tracking-wider whitespace-normal text-muted-foreground uppercase",
-                          stdColumnWidthClass
-                        )}
-                      >
-                        Sales Transaction per Day
-                      </TableHead>
                     </TableRow>
                   </TableHeader>
 
@@ -436,17 +450,6 @@ export function AuditStep3({
                             value={row.kwh || ""}
                             onChange={(e) =>
                               updateRow(idx, "kwh", e.target.value)
-                            }
-                            className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                          />
-                        </TableCell>
-                        <TableCell className="px-1 py-0.5">
-                          <Input
-                            type="number"
-                            placeholder="0"
-                            value={row.std || ""}
-                            onChange={(e) =>
-                              updateRow(idx, "std", e.target.value)
                             }
                             className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                           />
@@ -473,7 +476,7 @@ export function AuditStep3({
             onClick={handleSubmit}
             disabled={
               isPending ||
-              rows.some((r) => !r.kwh || !r.std || r.kwh <= 0 || r.std <= 0)
+              rows.some((r) => !r.kwh || r.kwh <= 0)
             }
           >
             <IconBolt className="size-4" />
