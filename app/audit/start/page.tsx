@@ -3,7 +3,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { getEquipmentForArea } from "@/lib/get-equipment-for-area"
+import { getEquipmentForAreas } from "@/lib/get-equipment-for-area"
 import { AuditStartClient } from "./start-client"
 
 const AREA_NAMES = [
@@ -53,14 +53,7 @@ export default async function AuditStartPage() {
     )
   }
 
-  // Fetch all area equipment server-side in parallel (independent of store)
-  const allEquipment = await Promise.all(
-    AREA_NAMES.map((name) =>
-      getEquipmentForArea(name).then((items) => [name, items] as const)
-    )
-  )
-
-  const equipmentByArea = Object.fromEntries(allEquipment)
+  const equipmentByArea = await getEquipmentForAreas(AREA_NAMES)
 
   return (
     <Suspense fallback={null}>

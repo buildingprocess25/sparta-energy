@@ -20,17 +20,16 @@ export default async function DashboardPage() {
     select: { branch: true, fullName: true },
   })
 
-  const stores = await prisma.store.findMany({
-    where: { branch: dbUser?.branch ?? "" },
-    select: { id: true, name: true, code: true },
-  })
-
-  const storeIds = stores.map((s) => s.id)
-
   // Fetch 5 most recent COMPLETED audits for this user
-  const recentAudits = storeIds.length > 0
+  const recentAudits = dbUser?.branch
     ? await prisma.audit.findMany({
-        where: { storeId: { in: storeIds }, status: "COMPLETED", auditorId: session.user.id },
+        where: {
+          status: "COMPLETED",
+          auditorId: session.user.id,
+          store: {
+            branch: dbUser.branch,
+          },
+        },
         orderBy: { auditDate: "desc" },
         take: 5,
         select: {

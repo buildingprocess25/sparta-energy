@@ -26,12 +26,15 @@ function createDbPool() {
   return new Pool({
     connectionString: getDatabaseUrl(),
     ssl: { rejectUnauthorized: false },
-    max: parsePositiveIntEnv("PG_POOL_MAX", 3),
-    idleTimeoutMillis: parsePositiveIntEnv("PG_IDLE_TIMEOUT_MS", 30_000),
+    // Serverless-safe defaults: one connection per runtime instance.
+    max: parsePositiveIntEnv("PG_POOL_MAX", 1),
+    // Release idle connections quickly to avoid exhausting DB slots.
+    idleTimeoutMillis: parsePositiveIntEnv("PG_IDLE_TIMEOUT_MS", 5_000),
     connectionTimeoutMillis: parsePositiveIntEnv(
       "PG_CONNECT_TIMEOUT_MS",
-      10_000
+      5_000
     ),
+    allowExitOnIdle: true,
   })
 }
 
