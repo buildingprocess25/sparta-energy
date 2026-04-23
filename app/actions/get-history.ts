@@ -25,7 +25,7 @@ export async function getAuditHistory(
   page: number,
   search: string,
   status: string, // "all", "hemat", "boros"
-  year: string    // "all" or "YYYY"
+  year: string // "all" or "YYYY"
 ): Promise<HistoryResponse> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {
@@ -35,38 +35,38 @@ export async function getAuditHistory(
   const itemsPerPage = 10
   const skip = (page - 1) * itemsPerPage
 
-  // Build Prisma where clause
-  const where: any = {
-    auditorId: session.user.id,
-    status: "COMPLETED",
-  }
+  const searchFilter = search
+    ? {
+        store: {
+          OR: [
+            { name: { contains: search, mode: "insensitive" as const } },
+            { code: { contains: search, mode: "insensitive" as const } },
+          ],
+        },
+      }
+    : {}
 
-  if (search) {
-    where.store = {
-      OR: [
-        { name: { contains: search, mode: "insensitive" } },
-        { code: { contains: search, mode: "insensitive" } },
-      ],
-    }
-  }
+  const statusFilter = status !== "all" ? { isBoros: status === "boros" } : {}
 
-  if (status !== "all") {
-    where.isBoros = status === "boros"
-  }
-
-  if (year !== "all") {
-    // AuditDate is DateTime. We filter by year.
-    const startYear = new Date(`${year}-01-01T00:00:00.000Z`)
-    const endYear = new Date(`${year}-12-31T23:59:59.999Z`)
-    where.auditDate = {
-      gte: startYear,
-      lte: endYear,
-    }
-  }
+  const yearFilter =
+    year !== "all"
+      ? {
+          auditDate: {
+            gte: new Date(`${year}-01-01T00:00:00.000Z`),
+            lte: new Date(`${year}-12-31T23:59:59.999Z`),
+          },
+        }
+      : {}
 
   // Fetch audits plus one extra to determine if there's a next page
   const audits = await prisma.audit.findMany({
-    where,
+    where: {
+      auditorId: session.user.id,
+      status: "COMPLETED",
+      ...searchFilter,
+      ...statusFilter,
+      ...yearFilter,
+    },
     orderBy: { auditDate: "desc" },
     skip,
     take: itemsPerPage + 1,
@@ -94,9 +94,9 @@ export async function getAuditHistory(
   const items: HistoryItem[] = itemsToReturn.map((a) => {
     const totalAreaM2 =
       Number(a.store.salesAreaM2) +
-      Number(a.store.parkingAreaM2) +
-      Number(a.store.terraceAreaM2) +
-      Number(a.store.warehouseAreaM2) || 1
+        Number(a.store.parkingAreaM2) +
+        Number(a.store.terraceAreaM2) +
+        Number(a.store.warehouseAreaM2) || 1
 
     const est = Number(a.totalEstimatedKwhPerMonth ?? 0) / totalAreaM2
     const actual = Number(a.avgActualPlnKwhPerMonth ?? 0) / totalAreaM2
