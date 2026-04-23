@@ -21,6 +21,25 @@ export type HistoryResponse = {
   hasMore: boolean
 }
 
+type AuditHistoryRow = {
+  id: string
+  auditDate: Date
+  isBoros: boolean | null
+  totalEstimatedKwhPerMonth: unknown
+  avgActualPlnKwhPerMonth: unknown
+  store: {
+    name: string
+    salesAreaM2: unknown
+    parkingAreaM2: unknown
+    terraceAreaM2: unknown
+    warehouseAreaM2: unknown
+  }
+}
+
+type AuditYearRow = {
+  auditDate: Date
+}
+
 export async function getAuditHistory(
   page: number,
   search: string,
@@ -59,7 +78,7 @@ export async function getAuditHistory(
       : {}
 
   // Fetch audits plus one extra to determine if there's a next page
-  const audits = await prisma.audit.findMany({
+  const audits = (await prisma.audit.findMany({
     where: {
       auditorId: session.user.id,
       status: "COMPLETED",
@@ -86,7 +105,7 @@ export async function getAuditHistory(
         },
       },
     },
-  })
+  })) as AuditHistoryRow[]
 
   const hasMore = audits.length > itemsPerPage
   const itemsToReturn = audits.slice(0, itemsPerPage)
@@ -128,7 +147,7 @@ export async function getAvailableYears(): Promise<string[]> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) return []
 
-  const audits = await prisma.audit.findMany({
+  const audits = (await prisma.audit.findMany({
     where: {
       auditorId: session.user.id,
       status: "COMPLETED",
@@ -139,7 +158,7 @@ export async function getAvailableYears(): Promise<string[]> {
     orderBy: {
       auditDate: "desc",
     },
-  })
+  })) as AuditYearRow[]
 
   // Extract unique years
   const years = new Set(
