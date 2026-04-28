@@ -7,6 +7,7 @@ import { calculateAudit, getHoursBetween } from "@/lib/audit-kalkulator"
 import type { EquipmentState, PlnRowState } from "@/store/use-audit-store"
 import type { AreaTarget, RecommendationType } from "@prisma/client"
 import { generateRecommendationWithFallback } from "@/lib/ai-recommendation"
+import { DEMO_EMAIL } from "@/lib/demo-config"
 
 // Map area name string → AreaTarget enum
 function toAreaTarget(areaName: string): AreaTarget {
@@ -45,6 +46,91 @@ export async function submitAudit(input: SubmitAuditInput) {
   }
 
   const userId = session.user.id
+
+  // ── DEMO GUARD: jika user demo, hitung tapi TIDAK tulis ke DB ──────────────
+  if (session.user.email === DEMO_EMAIL) {
+    const calc = calculateAudit(input.equipments, input.plnHistory, {
+      is24Hours: input.is24Hours,
+      openTime: input.openTime,
+      closeTime: input.closeTime,
+      areas: {
+        sales: input.areas.sales,
+        parkir: input.areas.parkir,
+        teras: input.areas.teras,
+        gudang: input.areas.gudang,
+      },
+      plnPowerVa: input.plnPowerVa,
+    })
+
+    const auditSummary = `
+Toko: ${input.storeCode}
+Jam Buka: ${input.openTime} - ${input.closeTime} (${input.is24Hours ? "24 Jam" : "Non-24 Jam"})
+Daya PLN: ${input.plnPowerVa} VA
+Status Efisiensi: ${calc.isBoros ? "BOROS" : "HEMAT"}
+Estimasi Kebutuhan Alat: ${calc.equipmentEstimateKwhPerMonth.toFixed(0)} kWh/bulan
+Aktual Rata-rata PLN: ${calc.avgActualPlnKwhPerMonth.toFixed(0)} kWh/bulan
+Tipe Rekomendasi: ${calc.recommendationType}
+Daftar Peralatan:
+${input.equipments.map(eq => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.quantity * getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00")).toFixed(1)} kWh/hari`).join('\n')}
+`
+    let rec = { type: calc.recommendationType as RecommendationType, title: "", description: "" }
+    try {
+      rec = await generateRecommendationWithFallback(auditSummary)
+    } catch {
+      const recMap: Record<string, { title: string; description: string }> = {
+        TRAINING: { title: "Pelatihan SOP Operasional", description: "Ditemukan indikasi alat beroperasi melebihi jam buka toko. Rekomendasi: lakukan training SOP kepada karyawan." },
+        REPAIR: { title: "Perbaikan & Pengecekan Peralatan", description: "Konsumsi listrik aktual melebihi estimasi. Rekomendasi: lakukan pengecekan fisik peralatan." },
+        MAINTENANCE: { title: "Pertahankan Efisiensi", description: "Konsumsi listrik berada dalam ambang batas normal. Lanjutkan kebiasaan operasional yang baik." },
+      }
+      const fallback = recMap[calc.recommendationType] ?? recMap["MAINTENANCE"]
+      rec.title = fallback.title
+      rec.description = fallback.description
+    }
+
+    const selectedEquipments = input.equipments.filter((eq) => eq.selected)
+    const items = selectedEquipments.flatMap((eq) => {
+      const isAC = eq.name.toLowerCase().includes("ac") || eq.name.toLowerCase().includes("air conditioner")
+      if (isAC && eq.quantity > 1) {
+        return Array.from({ length: eq.quantity }, (_, i) => {
+          const start = eq.startTimes[i] || "08:00"
+          const end = eq.endTimes[i] || "22:00"
+          const hours = getHoursBetween(start, end)
+          return { areaTarget: toAreaTarget(eq.areaName), customName: eq.name, qty: 1, operationalHours: hours, baseKw: eq.kw, estimatedDailyKwh: eq.kw * hours }
+        })
+      }
+      const start = eq.startTimes[0] || "08:00"
+      const end = eq.endTimes[0] || "22:00"
+      const hours = getHoursBetween(start, end)
+      return [{ areaTarget: toAreaTarget(eq.areaName), customName: eq.name, qty: eq.quantity, operationalHours: hours, baseKw: eq.kw, estimatedDailyKwh: eq.kw * eq.quantity * hours }]
+    })
+
+    return {
+      demoAuditResult: {
+        id: "demo",
+        isBoros: calc.isBoros,
+        totalEstimatedKwhPerMonth: calc.equipmentEstimateKwhPerMonth,
+        avgActualPlnKwhPerMonth: calc.avgActualPlnKwhPerMonth,
+        auditDate: new Date().toISOString(),
+        store: {
+          code: input.storeCode,
+          name: input.storeCode,
+          salesAreaM2: input.areas.sales,
+          parkingAreaM2: input.areas.parkir,
+          terraceAreaM2: input.areas.teras,
+          warehouseAreaM2: input.areas.gudang,
+        },
+        items,
+        plnHistory: input.plnHistory.map((row, idx) => ({
+          monthIdx: idx + 1,
+          billingMonth: row.month,
+          plnUsageKwh: row.kwh,
+          salesTransactionPerDay: row.std,
+        })),
+        recommendations: [rec],
+      },
+    }
+  }
+  // ── END DEMO GUARD ─────────────────────────────────────────────────────────
 
   // ── 2. Resolve storeId from storeCode in input ──────────────────────────────
   const store = await prisma.store.findUnique({

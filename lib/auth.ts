@@ -17,7 +17,6 @@ export const auth = betterAuth({
     },
   },
 
-  // Map session table
   session: {
     modelName: "session",
     fields: {
@@ -27,6 +26,12 @@ export const auth = betterAuth({
       updatedAt: "updated_at",
       ipAddress: "ip_address",
       userAgent: "user_agent",
+    },
+    expiresIn: 8 * 60 * 60, // 8 hours in seconds (default for regular users)
+    updateAge: 60 * 60,     // refresh cookie after 1 hour of activity
+    cookieCache: {
+      enabled: true,
+      maxAge: 8 * 60 * 60,  // match session TTL
     },
   },
 

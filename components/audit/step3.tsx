@@ -368,6 +368,13 @@ ${auditState.equipments.map(eq => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.
       return
     }
 
+    // Demo user via normal login: server returns demoAuditResult instead of auditId
+    if ("demoAuditResult" in result && result.demoAuditResult) {
+      useAuditStore.setState({ demoAuditResult: result.demoAuditResult })
+      router.push("/demo/result")
+      return
+    }
+
     // Clear session storage so next session starts fresh
     useAuditStore.setState({
       storeCode: "",

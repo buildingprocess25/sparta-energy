@@ -378,6 +378,86 @@ async function main() {
   console.log(`   🏢 Branch: ${user.branch}`)
   console.log(`   🔑 Password: sparta123`)
 
+  // ── 4. Demo Stores ────────────────────────────────────────────────────────
+  console.log("\n🏪 Seeding demo stores...")
+
+  const demoStore1 = await prisma.store.upsert({
+    where: { code: "DEM1" },
+    update: { branch: "DEMO" },
+    create: {
+      code: "DEM1",
+      name: "Alfamart Demo 1",
+      branch: "DEMO",
+      plnCustomerId: "0000000001",
+      type: "",
+      is24Hours: false,
+      openTime: "07:00",
+      closeTime: "22:00",
+      plnPowerVa: 0,
+      parkingAreaM2: 0,
+      terraceAreaM2: 0,
+      salesAreaM2: 0,
+      warehouseAreaM2: 0,
+    },
+  })
+
+  const demoStore2 = await prisma.store.upsert({
+    where: { code: "DEMO2" },
+    update: { branch: "DEMO" },
+    create: {
+      code: "DEM2",
+      name: "Alfamart Demo 2",
+      branch: "DEMO",
+      plnCustomerId: "0000000002",
+      type: "",
+      is24Hours: false,
+      openTime: "07:00",
+      closeTime: "22:00",
+      plnPowerVa: 33000,
+      parkingAreaM2: 40,
+      terraceAreaM2: 20,
+      salesAreaM2: 150,
+      warehouseAreaM2: 25,
+    },
+  })
+
+  console.log(`   ✅ Demo Store 1: ${demoStore1.name} (${demoStore1.code})`)
+  console.log(`   ✅ Demo Store 2: ${demoStore2.name} (${demoStore2.code})`)
+
+  // ── 5. Demo User ──────────────────────────────────────────────────────────
+  console.log("\n👤 Seeding demo user...")
+
+  const DEMO_PASSWORD = "demo-sparta-2025"
+
+  const demoUser = await prisma.user.upsert({
+    where: { email: "demo@sparta.app" },
+    update: { branch: "DEMO" },
+    create: {
+      email: "demo@sparta.app",
+      passwordHash: hashPassword(DEMO_PASSWORD),
+      role: "USER",
+      fullName: "Demo User",
+      branch: "DEMO",
+    },
+  })
+
+  await prisma.account.upsert({
+    where: { id: `credential-${demoUser.id}` },
+    update: { password: hashPassword(DEMO_PASSWORD) },
+    create: {
+      id: `credential-${demoUser.id}`,
+      accountId: demoUser.id,
+      providerId: "credential",
+      userId: demoUser.id,
+      password: hashPassword(DEMO_PASSWORD),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  })
+
+  console.log(`   ✅ Demo User: ${demoUser.fullName} (${demoUser.email})`)
+  console.log(`   🏢 Branch: ${demoUser.branch}`)
+
   // ── Summary ───────────────────────────────────────────────────────────────
   console.log("\n🎉 Seed complete!")
   console.log(`\n   Login credentials:`)
@@ -387,6 +467,10 @@ async function main() {
   console.log(
     `   Stores   : ${store1.code} (Regular), ${store2.code} (Beanspot)`
   )
+  console.log(`\n   Demo Login:`)
+  console.log(`   Email    : demo@sparta.app`)
+  console.log(`   Branch   : DEMO`)
+  console.log(`   Stores   : ${demoStore1.code}, ${demoStore2.code}`)
 }
 
 main()

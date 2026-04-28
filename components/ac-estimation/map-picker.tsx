@@ -28,7 +28,14 @@ function createCustomIcon() {
       height="20"
       viewBox="0 0 20 20"
     >
-      <circle cx="10" cy="10" r="8" fill="#3b82f6" stroke="white" strokeWidth="3" />
+      <circle
+        cx="10"
+        cy="10"
+        r="8"
+        fill="#3b82f6"
+        stroke="white"
+        strokeWidth="3"
+      />
     </svg>
   )
   return L.divIcon({
@@ -78,14 +85,19 @@ function MapUpdater({ position, onChange }: Props) {
   return <Marker position={position} icon={createCustomIcon()} />
 }
 
-function ProtomapsLayer() {
+function ProtomapsLayer({ pixelRatio }: { pixelRatio?: number }) {
   const map = useMap()
+  const currentPixelRatio = pixelRatio || (typeof window !== 'undefined' ? window.devicePixelRatio : 1) || 1
 
   useEffect(() => {
-    const layer = protomapsL.leafletLayer({
+    const options = {
       url: "https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=f6cac8c113d13705",
       flavor: "light",
       lang: "id",
+    }
+    const layer = protomapsL.leafletLayer({
+      ...options,
+      devicePixelRatio: currentPixelRatio,
     }) as unknown as L.Layer
     layer.addTo(map)
 
@@ -104,21 +116,27 @@ const MapPicker = forwardRef<MapPickerRef, Props>(function MapPicker(
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isLocating, setIsLocating] = useState(false)
   const leafletMapRef = useRef<L.Map | null>(null)
+  const snapshotMapRef = useRef<L.Map | null>(null)
 
   useImperativeHandle(ref, () => ({
     captureSnapshot: (position: [number, number]) => {
-      const map = leafletMapRef.current
+      const map = snapshotMapRef.current
       if (!map) return null
       const container = map.getContainer()
-      const canvases = container.querySelectorAll<HTMLCanvasElement>("canvas.leaflet-tile")
+      const canvases = container.querySelectorAll<HTMLCanvasElement>(
+        "canvas.leaflet-tile"
+      )
       if (canvases.length === 0) return null
       try {
+        const SCALE = 2
         const mapSize = map.getSize()
         const offscreen = document.createElement("canvas")
-        offscreen.width = mapSize.x
-        offscreen.height = mapSize.y
+        offscreen.width = mapSize.x * SCALE
+        offscreen.height = mapSize.y * SCALE
         const ctx = offscreen.getContext("2d")
         if (!ctx) return null
+
+        ctx.scale(SCALE, SCALE)
 
         // Stitch all Protomaps canvas tiles
         canvases.forEach((canvas) => {
@@ -130,7 +148,10 @@ const MapPicker = forwardRef<MapPickerRef, Props>(function MapPicker(
         })
 
         // Draw the marker as a blue circle with white outline
-        const markerPoint = map.latLngToContainerPoint([position[0], position[1]])
+        const markerPoint = map.latLngToContainerPoint([
+          position[0],
+          position[1],
+        ])
         const r = 9
         ctx.beginPath()
         ctx.arc(markerPoint.x, markerPoint.y, r, 0, 2 * Math.PI)
@@ -187,7 +208,7 @@ const MapPicker = forwardRef<MapPickerRef, Props>(function MapPicker(
       )}
 
       <div className="relative z-0 h-64 w-full overflow-hidden rounded-xl border">
-        <Map center={position} zoom={16} className="z-0 h-full min-h-0 w-full">
+        <Map center={position} zoom={14} className="z-0 h-full min-h-0 w-full">
           <ProtomapsLayer />
           <MapUpdater position={position} onChange={onChange} />
           <MapCaptureHandler mapRef={leafletMapRef} />
@@ -206,6 +227,30 @@ const MapPicker = forwardRef<MapPickerRef, Props>(function MapPicker(
             {isLocating ? "Mencari lokasi..." : "Lokasi saya"}
           </Button>
         </div>
+      </div>
+
+      {/* Hidden Map for Snapshot (Always centered at zoom 14) */}
+      <div
+        style={{
+          position: "fixed",
+          top: "-9999px",
+          left: "-9999px",
+          width: "358px",
+          height: "200px",
+          pointerEvents: "none",
+        }}
+        aria-hidden="true"
+      >
+        <Map
+          center={position}
+          zoom={14}
+          className="h-full w-full"
+          dragging={false}
+          scrollWheelZoom={false}
+        >
+          <ProtomapsLayer pixelRatio={2} />
+          <MapCaptureHandler mapRef={snapshotMapRef} />
+        </Map>
       </div>
 
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

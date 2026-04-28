@@ -36,6 +36,7 @@ import {
   EstimationResultCard,
   type EstimationResultCardData,
 } from "@/components/ac-estimation/estimation-result-card"
+import { Thermometer } from "lucide-react"
 
 const MapPicker = dynamic(
   () => import("@/components/ac-estimation/map-picker"),
@@ -110,6 +111,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
   const [result, setResult] = useState<{
     area: number
     maxTemp: number
+    bmkgTemp: number | null   // manual input (diasumsikan dari BMKG)
+    openMeteoTemp: number | null // dari Open-Meteo API
     clusterBtu: number
     totalBtu: number
     acUnits: number
@@ -158,6 +161,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
 
     startTransition(async () => {
       let maxTemp = 0
+      let openMeteoTemp: number | null = null
+      const bmkgTemp: number | null = isManualTemp ? Number(manualTemp) : null
 
       if (isManualTemp && isManualTempOnly) {
         // Hanya manual BMKG
@@ -172,7 +177,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
           setErrorMsg(res.error)
           return
         }
-        maxTemp = Math.max(res.maxTemp as number, Number(manualTemp))
+        openMeteoTemp = res.maxTemp as number
+        maxTemp = Math.max(openMeteoTemp, Number(manualTemp))
       } else {
         // Hanya Map
         const res = await getTemperature(
@@ -183,7 +189,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
           setErrorMsg(res.error)
           return
         }
-        maxTemp = res.maxTemp as number
+        openMeteoTemp = res.maxTemp as number
+        maxTemp = openMeteoTemp
       }
 
       // Menentukan Cluster BTU
@@ -216,6 +223,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       setResult({
         area,
         maxTemp,
+        bmkgTemp,
+        openMeteoTemp,
         clusterBtu,
         totalBtu,
         acUnits: finalUnit,
@@ -547,7 +556,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
                         Suhu Tertinggi
                       </p>
                       <div className="flex items-center gap-1.5">
-                        <IconThermometer className="size-4 text-orange-500" />
+                        <Thermometer className="size-4 text-orange-500" />
                         <span className="text-lg font-bold">
                           {result.maxTemp}°C
                         </span>
@@ -646,6 +655,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
             position,
             salesArea: result.area,
             maxTemp: result.maxTemp,
+            bmkgTemp: result.bmkgTemp,
+            openMeteoTemp: result.openMeteoTemp,
             clusterBtu: result.clusterBtu,
             totalBtu: result.totalBtu,
             acUnits: result.acUnits,

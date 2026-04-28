@@ -1,7 +1,6 @@
 "use client"
 
 import React from "react"
-import Image from "next/image"
 
 export type EstimationResultCardData = {
   storeCode: string
@@ -10,10 +9,12 @@ export type EstimationResultCardData = {
   position: [number, number]
   salesArea: number
   maxTemp: number
+  bmkgTemp: number | null // suhu manual (BMKG)
+  openMeteoTemp: number | null // suhu dari Open-Meteo
   clusterBtu: number
   totalBtu: number
   acUnits: number
-  mapSnapshot: string | null // base64 PNG from Protomaps canvas
+  mapSnapshot: string | null
 }
 
 type Props = {
@@ -59,6 +60,56 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
+function SubTempRow({
+  label,
+  value,
+  isUsed,
+}: {
+  label: string
+  value: number
+  isUsed: boolean
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "4px 0 4px 12px",
+        gap: "8px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+        <span
+          style={{
+            fontSize: "10px",
+            color: "#6b7280",
+            fontWeight: 400,
+          }}
+        >
+          {label}
+        </span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        {isUsed && (
+          <span style={{ fontSize: "10px", color: "#16a34a", fontWeight: 700 }}>
+            ✓
+          </span>
+        )}
+        <span
+          style={{
+            fontSize: "11px",
+            color: isUsed ? "#166534" : "#9ca3af",
+            fontWeight: isUsed ? 600 : 400,
+          }}
+        >
+          {value}°C
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export function EstimationResultCard({ cardRef, data }: Props) {
   const {
     storeCode,
@@ -67,7 +118,8 @@ export function EstimationResultCard({ cardRef, data }: Props) {
     position,
     salesArea,
     maxTemp,
-    clusterBtu,
+    bmkgTemp,
+    openMeteoTemp,
     totalBtu,
     acUnits,
     mapSnapshot,
@@ -111,33 +163,35 @@ export function EstimationResultCard({ cardRef, data }: Props) {
             justifyContent: "space-between",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/assets/Alfamart-Emblem.png"
               alt="Alfamart"
               width={80}
               height={80}
-              style={{ height: "32px", width: "auto", objectFit: "contain" }}
+              style={{ height: "22px", width: "auto", objectFit: "contain" }}
             />
             <div
               style={{
                 width: "1px",
-                height: "28px",
+                height: "18px",
                 backgroundColor: "rgba(255,255,255,0.3)",
               }}
             />
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/assets/Building-Logo.png"
                 alt="SPARTA"
                 width={40}
                 height={40}
-                style={{ height: "28px", width: "auto", objectFit: "contain" }}
+                style={{ height: "18px", width: "auto", objectFit: "contain" }}
               />
               <div style={{ lineHeight: 1 }}>
                 <div
                   style={{
-                    fontSize: "14px",
+                    fontSize: "11px",
                     fontWeight: 800,
                     color: "#ffffff",
                     letterSpacing: "0.1em",
@@ -147,7 +201,7 @@ export function EstimationResultCard({ cardRef, data }: Props) {
                 </div>
                 <div
                   style={{
-                    fontSize: "9px",
+                    fontSize: "7px",
                     fontWeight: 500,
                     color: "rgba(255,255,255,0.7)",
                   }}
@@ -177,7 +231,7 @@ export function EstimationResultCard({ cardRef, data }: Props) {
                 letterSpacing: "0.05em",
               }}
             >
-              AC Pendingin Ruangan
+              Unit Pendingin Ruangan
             </div>
           </div>
         </div>
@@ -237,18 +291,6 @@ export function EstimationResultCard({ cardRef, data }: Props) {
             }}
           >
             <div
-              style={{
-                fontSize: "9px",
-                fontWeight: 700,
-                color: "#6b7280",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                marginBottom: "2px",
-              }}
-            >
-              Identitas Toko
-            </div>
-            <div
               style={{ fontSize: "14px", fontWeight: 800, color: "#111827" }}
             >
               {storeCode} - {storeName}
@@ -264,7 +306,33 @@ export function EstimationResultCard({ cardRef, data }: Props) {
           <div style={{ padding: "0 16px" }}>
             <Row label="Lat, Lng" value={`${lat}, ${lng}`} />
             <Row label="Luas Sales Area" value={`${salesArea} m²`} />
+
+            {/* Suhu Luar — main row + sub-rows */}
             <Row label="Suhu Luar Tertinggi" value={`${maxTemp}°C`} />
+            {(openMeteoTemp !== null || bmkgTemp !== null) && (
+              <div
+                style={{
+                  borderBottom: "1px solid #e5e7eb",
+                  paddingBottom: "4px",
+                }}
+              >
+                {openMeteoTemp !== null && (
+                  <SubTempRow
+                    label="Open-Meteo (otomatis berdasarkan titik map)"
+                    value={openMeteoTemp}
+                    isUsed={bmkgTemp === null || openMeteoTemp >= bmkgTemp}
+                  />
+                )}
+                {bmkgTemp !== null && (
+                  <SubTempRow
+                    label="BMKG ( input manual )"
+                    value={bmkgTemp}
+                    isUsed={openMeteoTemp === null || bmkgTemp > openMeteoTemp}
+                  />
+                )}
+              </div>
+            )}
+
             <Row
               label="Total Beban BTU"
               value={`${new Intl.NumberFormat("id-ID").format(totalBtu)} BTU`}
@@ -294,7 +362,7 @@ export function EstimationResultCard({ cardRef, data }: Props) {
                   letterSpacing: "0.08em",
                 }}
               >
-                ✅ Rekomendasi Pemasangan
+                Rekomendasi Pemasangan
               </div>
               <div
                 style={{

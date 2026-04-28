@@ -4,6 +4,7 @@ import { IconArrowRight } from "@tabler/icons-react"
 
 import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
+import { DemoLoginButton } from "@/components/demo-login-button"
 import landingImage from "../assets/landing.png"
 
 export default function Page() {
@@ -50,14 +51,7 @@ export default function Page() {
           </Link>
         </Button>
 
-        <Button
-          asChild
-          size="lg"
-          variant="outline"
-          className="w-full rounded-2xl text-base font-semibold"
-        >
-          <Link href="/demo">Coba Demo</Link>
-        </Button>
+        <DemoLoginButton />
       </div>
     </main>
   )

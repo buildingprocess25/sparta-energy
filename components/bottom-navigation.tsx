@@ -37,7 +37,7 @@ const navItems: Array<{
   },
   {
     key: "settings",
-    label: "Settings",
+    label: "Pengaturan",
     href: "/settings",
     icon: IconMenu2,
   },
@@ -85,3 +85,4 @@ function BottomNavigation({ activeItem }: BottomNavigationProps) {
 }
 
 export { BottomNavigation }
+

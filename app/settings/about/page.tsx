@@ -23,7 +23,7 @@ export default function AboutPage() {
         className="px-0"
       />
 
-      <div className="mt-4 flex flex-col gap-6">
+      <div className="flex flex-col gap-6">
         {/* App identity */}
         <div className="flex flex-col items-center gap-4 py-6">
           <div className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/30 px-5 py-3">

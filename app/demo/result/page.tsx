@@ -29,8 +29,8 @@ export default function DemoResultPage() {
         ...demoAuditResult,
         auditDate: new Date(demoAuditResult.auditDate),
       }}
-      dashboardHref="/demo?new=1"
-      dashboardLabel="Ulangi Demo"
+      dashboardHref="/dashboard"
+      dashboardLabel="Kembali ke Dashboard"
     />
   )
 }
