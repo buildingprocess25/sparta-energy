@@ -9,6 +9,7 @@ import {
   type RecentAuditItem,
 } from "@/components/dashboard/recent-audit-section"
 import { Header } from "@/components/header"
+import { AcEstimationCard } from "@/components/dashboard/ac-estimation-card"
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -88,8 +89,12 @@ export default async function DashboardPage() {
         subtitle={dbUser?.branch ?? ""}
       />
 
-      <section className="flex flex-col gap-5">
+      <section className="flex flex-col gap-4 mt-2">
         <HeroCard />
+        <AcEstimationCard />
+      </section>
+
+      <section className="flex flex-col gap-5 mt-5">
         <RecentAuditSection items={auditItems} />
       </section>
 

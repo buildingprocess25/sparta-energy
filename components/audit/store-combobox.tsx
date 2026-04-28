@@ -30,6 +30,7 @@ function StoreComboboxTrigger({
         role="combobox"
         aria-expanded={open}
         aria-haspopup="listbox"
+        suppressHydrationWarning
         className={cn(
           "flex h-11 w-full items-center justify-between rounded-xl border border-input bg-background px-3 text-sm shadow-xs transition-[color,box-shadow] outline-none",
           "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
