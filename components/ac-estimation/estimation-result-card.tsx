@@ -303,7 +303,7 @@ export function EstimationResultCard({ cardRef, data }: Props) {
           </div>
 
           {/* Data rows */}
-          <div style={{ padding: "0 16px" }}>
+          <div style={{ padding: "0 16px", marginBottom: "10px" }}>
             <Row label="Lat, Lng" value={`${lat}, ${lng}`} />
             <Row label="Luas Sales Area" value={`${salesArea} m²`} />
 
@@ -342,7 +342,7 @@ export function EstimationResultCard({ cardRef, data }: Props) {
           {/* Recommendation highlight */}
           <div
             style={{
-              margin: "30px 16px 16px",
+              margin: "0px 16px 16px",
               borderRadius: "10px",
               background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
               border: "1.5px solid #bbf7d0",
