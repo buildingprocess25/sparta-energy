@@ -318,14 +318,14 @@ export function EstimationResultCard({ cardRef, data }: Props) {
               >
                 {openMeteoTemp !== null && (
                   <SubTempRow
-                    label="Open-Meteo (otomatis berdasarkan titik map)"
+                    label="Open-Meteo (otomatis, historis satu tahun)"
                     value={openMeteoTemp}
                     isUsed={bmkgTemp === null || openMeteoTemp >= bmkgTemp}
                   />
                 )}
                 {bmkgTemp !== null && (
                   <SubTempRow
-                    label="BMKG ( input manual )"
+                    label="BMKG (input manual)"
                     value={bmkgTemp}
                     isUsed={openMeteoTemp === null || bmkgTemp > openMeteoTemp}
                   />
