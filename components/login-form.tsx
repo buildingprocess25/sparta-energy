@@ -130,10 +130,11 @@ export function LoginForm({
         </Field>
         <Field className="gap-1">
           <FieldDescription className="text-center text-xs">
-            © 2026 Building & Maintenance System
+            © {new Date().getFullYear()} PT Sumber Alfaria Trijaya, Tbk. Seluruh
+            Hak Cipta.
           </FieldDescription>
           <FieldDescription className="text-center text-xs">
-            Internal use only.
+            Hanya untuk penggunaan internal.
           </FieldDescription>
         </Field>
       </FieldGroup>

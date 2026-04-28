@@ -3,10 +3,9 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  IconChartBar,
   IconHistory,
   IconLayoutDashboard,
-  IconSettings,
+  IconMenu2,
 } from "@tabler/icons-react"
 import * as React from "react"
 
@@ -40,7 +39,7 @@ const navItems: Array<{
     key: "settings",
     label: "Settings",
     href: "/settings",
-    icon: IconSettings,
+    icon: IconMenu2,
   },
 ]
 

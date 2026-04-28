@@ -1,12 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { IconSearch } from "@tabler/icons-react"
+import { IconSearch, IconRefresh } from "@tabler/icons-react"
 
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { Header } from "@/components/header"
 import { AuditCard } from "@/components/dashboard/audit-card"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -16,93 +15,214 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-import { getAuditHistory, getAvailableYears, type HistoryItem } from "@/app/actions/get-history"
+import {
+  getAuditHistory,
+  getAvailableYears,
+  type HistoryItem,
+} from "@/app/actions/get-history"
 import { useDebounce } from "@/hooks/use-debounce"
 
 type AuditFilterStatus = "all" | "hemat" | "boros"
 
+// ─── Module-level cache ────────────────────────────────────────────────────────
+// Persists across navigation as long as the JS module stays loaded.
+// Keyed by the active filter combination.
+const cache: {
+  items: HistoryItem[]
+  availableYears: string[]
+  hasMore: boolean
+  page: number
+  initialized: boolean
+} = {
+  items: [],
+  availableYears: [],
+  hasMore: false,
+  page: 1,
+  initialized: false,
+}
+
+// ─── Pull-to-refresh threshold (px) ──────────────────────────────────────────
+const PULL_THRESHOLD = 72
+
 export default function HistoryPage() {
-  const [items, setItems] = useState<HistoryItem[]>([])
-  const [availableYears, setAvailableYears] = useState<string[]>([])
-  
+  const [items, setItems] = useState<HistoryItem[]>(cache.items)
+  const [availableYears, setAvailableYears] = useState<string[]>(
+    cache.availableYears
+  )
+
   // Filters & Search
   const [search, setSearch] = useState("")
   const debouncedSearch = useDebounce(search, 500)
   const [selectedYear, setSelectedYear] = useState<string>("all")
-  const [selectedStatus, setSelectedStatus] = useState<AuditFilterStatus>("all")
-  
-  // Infinite Scroll State
-  const [page, setPage] = useState(1)
-  const [hasMore, setHasMore] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [selectedStatus, setSelectedStatus] =
+    useState<AuditFilterStatus>("all")
 
-  // Fetch initial years
+  // Infinite Scroll State
+  const [page, setPage] = useState(cache.page)
+  const [hasMore, setHasMore] = useState(cache.hasMore)
+  const [loading, setLoading] = useState(!cache.initialized)
+
+  // Pull-to-refresh state
+  const [pullY, setPullY] = useState(0)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const touchStartY = useRef(0)
+  const mainRef = useRef<HTMLElement>(null)
+
+  // ── Filter key so we only cache the "no filter" state ────────────────────
+  const isDefaultFilter =
+    debouncedSearch === "" && selectedYear === "all" && selectedStatus === "all"
+
+  // ── Fetch data ────────────────────────────────────────────────────────────
+  const fetchHistory = useCallback(
+    async (forcePage?: number) => {
+      const targetPage = forcePage ?? page
+      setLoading(true)
+      try {
+        const response = await getAuditHistory(
+          targetPage,
+          debouncedSearch,
+          selectedStatus,
+          selectedYear
+        )
+
+        if (targetPage === 1) {
+          setItems(response.items)
+          if (isDefaultFilter) {
+            cache.items = response.items
+          }
+        } else {
+          setItems((prev) => {
+            const merged = [...prev, ...response.items]
+            if (isDefaultFilter) cache.items = merged
+            return merged
+          })
+        }
+
+        setHasMore(response.hasMore)
+        if (isDefaultFilter) {
+          cache.hasMore = response.hasMore
+          cache.page = targetPage
+          cache.initialized = true
+        }
+      } catch (error) {
+        console.error("Failed to fetch history:", error)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [page, debouncedSearch, selectedStatus, selectedYear, isDefaultFilter]
+  )
+
+  // ── Initial fetch — skip if cache is warm ────────────────────────────────
   useEffect(() => {
-    getAvailableYears().then(setAvailableYears)
+    if (cache.initialized && isDefaultFilter) return // already cached
+    fetchHistory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Reset pagination when filters change
+  // ── Re-fetch when page increments (infinite scroll) ───────────────────────
+  useEffect(() => {
+    if (page === 1) return // initial handled above
+    fetchHistory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page])
+
+  // ── Re-fetch when filters change ──────────────────────────────────────────
   useEffect(() => {
     setPage(1)
     setItems([])
-    // We intentionally don't call fetchHistory here directly.
-    // Changing page to 1 will trigger the data fetch in the next useEffect.
+    fetchHistory(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, selectedYear, selectedStatus])
 
-  // Fetch data
-  const fetchHistory = useCallback(async () => {
-    setLoading(true)
-    try {
-      const response = await getAuditHistory(
-        page,
-        debouncedSearch,
-        selectedStatus,
-        selectedYear
-      )
-      
-      if (page === 1) {
-        setItems(response.items)
-      } else {
-        setItems((prev) => [...prev, ...response.items])
-      }
-      setHasMore(response.hasMore)
-    } catch (error) {
-      console.error("Failed to fetch history:", error)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, debouncedSearch, selectedStatus, selectedYear])
-
+  // ── Fetch years once ─────────────────────────────────────────────────────
   useEffect(() => {
-    fetchHistory()
-  }, [fetchHistory])
+    if (cache.availableYears.length > 0) return
+    getAvailableYears().then((years) => {
+      setAvailableYears(years)
+      cache.availableYears = years
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  // Intersection Observer for Infinite Scroll
+  // ── Intersection Observer for infinite scroll ─────────────────────────────
   const observer = useRef<IntersectionObserver | null>(null)
   const lastElementRef = useCallback(
     (node: HTMLDivElement) => {
       if (loading) return
       if (observer.current) observer.current.disconnect()
-      
       observer.current = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting && hasMore) {
           setPage((prev) => prev + 1)
         }
       })
-      
       if (node) observer.current.observe(node)
     },
     [loading, hasMore]
   )
 
+  // ── Pull-to-refresh touch handlers ───────────────────────────────────────
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const el = mainRef.current
+    if (el && el.scrollTop === 0) {
+      touchStartY.current = e.touches[0].clientY
+    } else {
+      touchStartY.current = 0
+    }
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartY.current) return
+    const delta = e.touches[0].clientY - touchStartY.current
+    if (delta > 0) {
+      // resist pull with a logarithmic decay
+      setPullY(Math.min(delta * 0.45, PULL_THRESHOLD))
+    }
+  }, [])
+
+  const handleTouchEnd = useCallback(async () => {
+    if (pullY >= PULL_THRESHOLD - 4 && !isRefreshing) {
+      setIsRefreshing(true)
+      cache.initialized = false
+      setPage(1)
+      setItems([])
+      await fetchHistory(1)
+      setIsRefreshing(false)
+    }
+    setPullY(0)
+    touchStartY.current = 0
+  }, [pullY, isRefreshing, fetchHistory])
+
+  const pullProgress = Math.min(pullY / PULL_THRESHOLD, 1)
+
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
-      <Header variant="title-only" title="History" />
+    <main
+      ref={mainRef}
+      className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32 overflow-y-auto"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* ── Pull indicator ── */}
+      <div
+        className="flex items-center justify-center overflow-hidden transition-all duration-200 ease-out"
+        style={{ height: `${pullY}px` }}
+      >
+        <IconRefresh
+          className="size-5 text-primary transition-transform duration-200"
+          style={{
+            opacity: pullProgress,
+            transform: `rotate(${pullProgress * 360}deg) scale(${0.5 + pullProgress * 0.5})`,
+          }}
+        />
+      </div>
+
+      <Header variant="title-only" title="Riwayat Audit" />
 
       <section className="space-y-4">
         {/* Search Bar */}
         <div className="relative">
-          <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Cari kode atau nama toko..."
             value={search}
@@ -147,7 +267,9 @@ export default function HistoryPage() {
             </label>
             <Select
               value={selectedStatus}
-              onValueChange={(val) => setSelectedStatus(val as AuditFilterStatus)}
+              onValueChange={(val) =>
+                setSelectedStatus(val as AuditFilterStatus)
+              }
             >
               <SelectTrigger
                 id="history-status-filter"
@@ -164,12 +286,21 @@ export default function HistoryPage() {
           </div>
         </div>
 
+        {/* Refreshing indicator */}
+        {isRefreshing && (
+          <div className="flex items-center justify-center gap-2 py-2">
+            <IconRefresh className="size-3.5 animate-spin text-primary" />
+            <span className="text-xs text-muted-foreground">
+              Memuat ulang...
+            </span>
+          </div>
+        )}
+
         {/* List */}
         <div className="flex flex-col gap-3">
           {items.length > 0 ? (
             items.map((item, index) => {
               if (items.length === index + 1) {
-                // Last item, attach the ref for infinite scroll
                 return (
                   <div ref={lastElementRef} key={item.id}>
                     <AuditCard
@@ -204,9 +335,9 @@ export default function HistoryPage() {
             </div>
           ) : null}
 
-          {loading && (
+          {loading && !isRefreshing && (
             <div className="flex justify-center py-4">
-              <span className="text-xs text-muted-foreground animate-pulse">
+              <span className="animate-pulse text-xs text-muted-foreground">
                 Memuat data...
               </span>
             </div>

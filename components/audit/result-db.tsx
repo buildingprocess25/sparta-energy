@@ -1,9 +1,9 @@
 "use client"
 
+import { useState } from "react"
 import {
   IconLeaf,
   IconAlertTriangle,
-  IconFileDownload,
   IconInfoCircle,
   IconCheck,
   IconTool,
@@ -36,6 +36,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { cn } from "@/lib/utils"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 // ─── Types (from Prisma include) ──────────────────────────────────────────────
 type AuditStore = {
@@ -96,17 +97,25 @@ const trendChartConfig = {
 
 const numberFormat = new Intl.NumberFormat("id-ID")
 
+const AREA_LABELS: Record<string, string> = {
+  SALES: "Sales Area",
+  TERRACE: "Teras",
+  PARKING: "Parkir",
+  WAREHOUSE: "Gudang & Lainnya",
+}
+function getAreaLabel(area: string) {
+  return AREA_LABELS[area] ?? area
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export function AuditResultDB({
   audit,
   dashboardHref = "/dashboard",
-  dashboardLabel = "Dashboard",
-  showDownloadButton = true,
+  dashboardLabel = "Kembali ke Dashboard",
 }: {
   audit: AuditDB
   dashboardHref?: string
   dashboardLabel?: string
-  showDownloadButton?: boolean
 }) {
   const isBoros = audit.isBoros ?? false
   const statusLabel = isBoros ? "TOKO BOROS" : "TOKO HEMAT"
@@ -164,15 +173,26 @@ export function AuditResultDB({
 
   const recommendation = audit.recommendations[0]
 
+  // Equipment section
+  const areasWithItems = Array.from(
+    new Set(audit.items.map((item) => item.areaTarget))
+  )
+  const [activeArea, setActiveArea] = useState<string>(
+    areasWithItems[0] ?? "SALES"
+  )
+  const activeItems = audit.items.filter(
+    (item) => item.areaTarget === activeArea
+  )
+
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-36">
       <Header variant="title-only" title="Hasil Audit Energi" />
 
       <main className="space-y-4">
-        {/* ── Status Card ── */}
+        {/* ── 1. Status Card ── */}
         <Card
           className={cn(
-            "relative overflow-hidden border-0 text-white shadow-lg",
+            "relative mb-8 overflow-hidden border-0 text-white shadow-lg",
             isBoros
               ? "bg-linear-to-br from-[#d85a53] to-[#c54b45] shadow-[#d85a53]/20"
               : "bg-linear-to-br from-primary to-primary/80 shadow-primary/20"
@@ -195,7 +215,6 @@ export function AuditResultDB({
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 border-t border-white/20 pt-4">
-              {/* Aktual */}
               <div className="space-y-0.5">
                 <p className="text-xl font-black tracking-tight">
                   {numberFormat.format(Math.round(avgActual))}
@@ -216,7 +235,6 @@ export function AuditResultDB({
                   </div>
                 </div>
               </div>
-              {/* Baseline */}
               <div className="space-y-0.5">
                 <p className="text-xl font-black tracking-tight opacity-85">
                   {numberFormat.format(Math.round(totalEst))}
@@ -242,7 +260,140 @@ export function AuditResultDB({
           </CardContent>
         </Card>
 
-        {/* ── Trend Chart ── */}
+        {/* ── 2. Rekomendasi ── */}
+        {recommendation && (
+          <div className="space-y-2">
+            <div className="ml-1 flex items-center justify-between">
+              <h3 className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+                Rekomendasi Tindakan
+              </h3>
+              <div className="flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-bold text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
+                <IconSparkles className="size-3" />
+                <span>AI Generated</span>
+              </div>
+            </div>
+            <div
+              className={cn(
+                "relative overflow-hidden rounded-xl border p-3.5 shadow-sm",
+                recommendation.type === "TRAINING"
+                  ? "border-amber-200 bg-linear-to-b from-amber-50 to-white dark:border-amber-900/50 dark:from-amber-950/20 dark:to-background"
+                  : recommendation.type === "REPAIR"
+                    ? "border-rose-200 bg-linear-to-b from-rose-50 to-white dark:border-rose-900/50 dark:from-rose-950/20 dark:to-background"
+                    : "border-emerald-200 bg-linear-to-b from-emerald-50 to-white dark:border-emerald-900/50 dark:from-emerald-950/20 dark:to-background"
+              )}
+            >
+              <div
+                className={cn(
+                  "absolute -top-3 -right-3 opacity-10",
+                  recommendation.type === "TRAINING"
+                    ? "text-amber-500"
+                    : recommendation.type === "REPAIR"
+                      ? "text-rose-500"
+                      : "text-emerald-500"
+                )}
+              >
+                {recommendation.type === "TRAINING" ? (
+                  <IconBook className="size-20" />
+                ) : recommendation.type === "REPAIR" ? (
+                  <IconTool className="size-20" />
+                ) : (
+                  <IconCheck className="size-20" />
+                )}
+              </div>
+              <div className="relative z-10 space-y-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={cn(
+                      "flex size-8 shrink-0 items-center justify-center rounded-full shadow-sm",
+                      recommendation.type === "TRAINING"
+                        ? "bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400"
+                        : recommendation.type === "REPAIR"
+                          ? "bg-rose-100 text-rose-600 dark:bg-rose-900/50 dark:text-rose-400"
+                          : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400"
+                    )}
+                  >
+                    {recommendation.type === "TRAINING" ? (
+                      <IconBook className="size-4" />
+                    ) : recommendation.type === "REPAIR" ? (
+                      <IconTool className="size-4" />
+                    ) : (
+                      <IconCheck className="size-4" />
+                    )}
+                  </div>
+                  <div>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "mb-0.5 border-0 px-1.5 py-0 text-[9px] font-bold tracking-wider uppercase",
+                        recommendation.type === "TRAINING"
+                          ? "bg-amber-200/50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                          : recommendation.type === "REPAIR"
+                            ? "bg-rose-200/50 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
+                            : "bg-emerald-200/50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                      )}
+                    >
+                      {recommendation.type === "TRAINING"
+                        ? "SOP Training"
+                        : recommendation.type === "REPAIR"
+                          ? "Equipment Repair"
+                          : "Maintain Good"}
+                    </Badge>
+                    <h4 className="text-sm leading-tight font-bold text-foreground/90">
+                      {recommendation.title}
+                    </h4>
+                  </div>
+                </div>
+                <div className="rounded-lg bg-white/60 p-2.5 text-xs leading-relaxed text-muted-foreground backdrop-blur-sm dark:bg-black/20">
+                  <div className="flex gap-1.5">
+                    <IconBulb className="mt-0.5 size-3.5 shrink-0 text-foreground/40" />
+                    <p>{recommendation.description}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── 3. Perbandingan kWh ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Perbandingan kWh</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3">
+              <span className="text-sm">Baseline</span>
+              <span className="font-bold">
+                {numberFormat.format(Math.round(totalEst))} kWh
+              </span>
+            </div>
+            <div
+              className={cn(
+                "flex items-center justify-between rounded-xl p-3 text-primary-foreground",
+                isBoros ? "bg-[#d85a53]" : "bg-primary"
+              )}
+            >
+              <span className="text-sm">Aktual Rata-rata</span>
+              <span className="font-bold">
+                {numberFormat.format(Math.round(avgActual))} kWh
+              </span>
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3">
+              <span className="text-sm">
+                {isBoros ? "Kelebihan" : "Penghematan"}
+              </span>
+              <span
+                className={cn(
+                  "font-bold",
+                  isBoros ? "text-[#d85a53]" : "text-emerald-600"
+                )}
+              >
+                {numberFormat.format(Math.round(Math.abs(savingsRawKwh)))} kWh
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── 4. Trend Chart ── */}
         {trendData.length > 0 && (
           <Card>
             <CardHeader>
@@ -283,7 +434,6 @@ export function AuditResultDB({
                       )
                     }}
                   />
-                  {/* Baseline — dashed reference line */}
                   <ReferenceLine
                     y={totalEst}
                     stroke="var(--muted-foreground)"
@@ -296,7 +446,6 @@ export function AuditResultDB({
                       fill: "var(--muted-foreground)",
                     }}
                   />
-                  {/* Actual — bar colored red if over baseline */}
                   <Bar
                     dataKey="actual"
                     name="Aktual"
@@ -320,46 +469,7 @@ export function AuditResultDB({
           </Card>
         )}
 
-        {/* ── Breakdown Comparison ── */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Perbandingan kWh</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3">
-              <span className="text-sm">Baseline</span>
-              <span className="font-bold">
-                {numberFormat.format(Math.round(totalEst))} kWh
-              </span>
-            </div>
-            <div
-              className={cn(
-                "flex items-center justify-between rounded-xl p-3 text-primary-foreground",
-                isBoros ? "bg-[#d85a53]" : "bg-primary"
-              )}
-            >
-              <span className="text-sm">Aktual Rata-rata</span>
-              <span className="font-bold">
-                {numberFormat.format(Math.round(avgActual))} kWh
-              </span>
-            </div>
-            <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3">
-              <span className="text-sm">
-                {isBoros ? "Kelebihan" : "Penghematan"}
-              </span>
-              <span
-                className={cn(
-                  "font-bold",
-                  isBoros ? "text-[#d85a53]" : "text-emerald-600"
-                )}
-              >
-                {numberFormat.format(Math.round(Math.abs(savingsRawKwh)))} kWh
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* ── Pie Chart Area Breakdown ── */}
+        {/* ── 5. Pie Chart Area Breakdown ── */}
         {pieData.length > 0 && (
           <Card>
             <CardHeader>
@@ -420,7 +530,6 @@ export function AuditResultDB({
                   </Pie>
                 </PieChart>
               </ChartContainer>
-
               <div className="space-y-2">
                 {pieData.map((item) => (
                   <div
@@ -454,125 +563,78 @@ export function AuditResultDB({
           </Card>
         )}
 
-        {/* ── Recommendation ── */}
-        {recommendation && (
-          <div className="space-y-3">
-            <div className="ml-1 flex items-center justify-between">
-              <h3 className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-                Rekomendasi Tindakan
-              </h3>
-              <div className="flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-bold text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
-                <IconSparkles className="size-3" />
-                <span>AI Generated</span>
+        {/* ── 6. Daftar Peralatan ── */}
+        {audit.items.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Daftar Peralatan</CardTitle>
+                <Badge variant="secondary" className="text-xs font-medium">
+                  {audit.items.length} item
+                </Badge>
               </div>
-            </div>
-            <div
-              className={cn(
-                "relative overflow-hidden rounded-2xl border p-5 shadow-sm",
-                recommendation.type === "TRAINING"
-                  ? "border-amber-200 bg-linear-to-b from-amber-50 to-white dark:border-amber-900/50 dark:from-amber-950/20 dark:to-background"
-                  : recommendation.type === "REPAIR"
-                    ? "border-rose-200 bg-linear-to-b from-rose-50 to-white dark:border-rose-900/50 dark:from-rose-950/20 dark:to-background"
-                    : "border-emerald-200 bg-linear-to-b from-emerald-50 to-white dark:border-emerald-900/50 dark:from-emerald-950/20 dark:to-background"
-              )}
-            >
-              {/* Decorative background icon */}
-              <div
-                className={cn(
-                  "absolute -top-4 -right-4 opacity-10",
-                  recommendation.type === "TRAINING"
-                    ? "text-amber-500"
-                    : recommendation.type === "REPAIR"
-                      ? "text-rose-500"
-                      : "text-emerald-500"
-                )}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Area Toggle */}
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                spacing={1}
+                value={activeArea}
+                onValueChange={(val) => {
+                  if (val) setActiveArea(val)
+                }}
+                className="flex w-full"
               >
-                {recommendation.type === "TRAINING" ? (
-                  <IconBook className="size-32" />
-                ) : recommendation.type === "REPAIR" ? (
-                  <IconTool className="size-32" />
-                ) : (
-                  <IconCheck className="size-32" />
-                )}
-              </div>
-
-              <div className="relative z-10 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "flex size-10 shrink-0 items-center justify-center rounded-full shadow-sm",
-                      recommendation.type === "TRAINING"
-                        ? "bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400"
-                        : recommendation.type === "REPAIR"
-                          ? "bg-rose-100 text-rose-600 dark:bg-rose-900/50 dark:text-rose-400"
-                          : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400"
-                    )}
+                {areasWithItems.map((area) => (
+                  <ToggleGroupItem
+                    key={area}
+                    value={area}
+                    className="h-6 rounded-full px-2.5 text-[11px] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground hover:data-[state=on]:bg-primary/90"
                   >
-                    {recommendation.type === "TRAINING" ? (
-                      <IconBook className="size-5" />
-                    ) : recommendation.type === "REPAIR" ? (
-                      <IconTool className="size-5" />
-                    ) : (
-                      <IconCheck className="size-5" />
-                    )}
-                  </div>
-                  <div>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "mb-1 border-0 px-2 py-0 text-[9px] font-bold tracking-wider uppercase",
-                        recommendation.type === "TRAINING"
-                          ? "bg-amber-200/50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-                          : recommendation.type === "REPAIR"
-                            ? "bg-rose-200/50 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
-                            : "bg-emerald-200/50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
-                      )}
-                    >
-                      {recommendation.type === "TRAINING"
-                        ? "SOP Training"
-                        : recommendation.type === "REPAIR"
-                          ? "Equipment Repair"
-                          : "Maintain Good"}
-                    </Badge>
-                    <h4 className="leading-tight font-bold text-foreground/90">
-                      {recommendation.title}
-                    </h4>
-                  </div>
-                </div>
+                    {getAreaLabel(area)}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
 
-                <div className="rounded-xl bg-white/60 p-3.5 text-sm leading-relaxed text-muted-foreground backdrop-blur-sm dark:bg-black/20">
-                  <div className="flex gap-2">
-                    <IconBulb className="mt-0.5 size-4 shrink-0 text-foreground/40" />
-                    <p>{recommendation.description}</p>
+              {/* Items */}
+              <div className="flex flex-col gap-2">
+                {activeItems.map((item, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="max-w-50 truncate text-xs font-medium">
+                        {item.customName ?? getAreaLabel(item.areaTarget)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {item.qty} unit · {Number(item.operationalHours)}j ·{" "}
+                        {Number(item.baseKw)}kW
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-xs font-semibold">
+                      {Number(item.estimatedDailyKwh).toFixed(1)}{" "}
+                      <span className="font-normal text-muted-foreground">
+                        kWh/hr
+                      </span>
+                    </p>
                   </div>
-                </div>
+                ))}
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
       </main>
 
       {/* ── Bottom Action Bar ── */}
       <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border/60 bg-background/90 p-4 backdrop-blur">
-        <div
-          className={cn(
-            "grid w-full max-w-sm gap-3",
-            showDownloadButton ? "grid-cols-2" : "grid-cols-1"
-          )}
-        >
-          <Button variant="secondary" className="h-11 rounded-full" asChild>
-            <Link href={dashboardHref}>
-              <IconArrowLeft className="size-4" />
-              {dashboardLabel}
-            </Link>
-          </Button>
-          {showDownloadButton ? (
-            <Button className="h-11 rounded-full">
-              <IconFileDownload className="size-4" />
-              Simpan Laporan
-            </Button>
-          ) : null}
-        </div>
+        <Button className="h-11 w-full max-w-sm rounded-full" asChild>
+          <Link href={dashboardHref}>
+            <IconArrowLeft className="size-4" />
+            {dashboardLabel}
+          </Link>
+        </Button>
       </div>
     </div>
   )

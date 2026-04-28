@@ -44,7 +44,7 @@ function RecentAuditSection({
           className="h-auto px-0 text-xs"
         >
           <Link href={href}>
-            Lihat History
+            Lihat Riwayat
             <IconArrowRight data-icon="inline-end" />
           </Link>
         </Button>

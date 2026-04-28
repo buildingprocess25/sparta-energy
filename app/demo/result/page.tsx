@@ -31,7 +31,6 @@ export default function DemoResultPage() {
       }}
       dashboardHref="/demo?new=1"
       dashboardLabel="Ulangi Demo"
-      showDownloadButton={false}
     />
   )
 }

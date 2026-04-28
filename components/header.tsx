@@ -2,19 +2,11 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useTheme } from "next-themes"
 import { IconChevronLeft, IconLogout, IconUser } from "@tabler/icons-react"
-import { signOut } from "@/lib/auth-client"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Logo } from "@/components/logo"
 
 type DashboardLogoHeaderProps = {
   variant: "dashboard"
@@ -48,18 +40,6 @@ function Header(props: DashboardHeaderProps) {
   const [isVisible, setIsVisible] = React.useState(true)
   const lastScrollYRef = React.useRef(0)
   const [mounted, setMounted] = React.useState(false)
-  const { resolvedTheme, setTheme } = useTheme()
-
-  const isDark = resolvedTheme === "dark"
-
-  async function handleLogout() {
-    await signOut()
-    window.location.href = "/login"
-  }
-
-  const handleThemeToggle = React.useCallback(() => {
-    setTheme(isDark ? "light" : "dark")
-  }, [isDark, setTheme])
 
   React.useEffect(() => {
     lastScrollYRef.current = window.scrollY
@@ -108,26 +88,7 @@ function Header(props: DashboardHeaderProps) {
             )}
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary/10">
-                    <IconUser className="h-4 w-4 text-primary" />
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={handleLogout}
-                className="cursor-pointer text-destructive focus:text-destructive"
-              >
-                <IconLogout className="mr-2 h-4 w-4" />
-                <span>Keluar</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Logo className="absolute right-0 scale-75 justify-end" />
         </div>
       ) : props.variant === "dashboard-back" ? (
         <div className="flex h-8 items-center gap-2">
