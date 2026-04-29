@@ -10,7 +10,6 @@ function getDatabaseUrl() {
     throw new Error("DATABASE_URL environment variable is not set")
   }
 
-  // Strip ?sslmode=require so it doesn't override manual SSL config.
   return rawUrl.replace("?sslmode=require", "")
 }
 
@@ -18,10 +17,9 @@ function createDbPool() {
   return new Pool({
     connectionString: getDatabaseUrl(),
     ssl: { rejectUnauthorized: false },
-    // Serverless-safe defaults from reference project.
-    max: 1,
-    idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 10_000,
+    max: 10,
+    idleTimeoutMillis: 5_000,
+    connectionTimeoutMillis: 3_000,
     allowExitOnIdle: true,
   })
 }

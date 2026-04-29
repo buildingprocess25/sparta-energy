@@ -16,7 +16,6 @@ import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useAuditStore, type StoreType } from "@/store/use-audit-store"
 import type { StoreData } from "@/app/audit/start/start-client"
-import { cn } from "@/lib/utils"
 
 const regularStoreType = "Regular" as const
 const beanspotStoreTypeOptions = ["Basic", "Medium", "Advance"] as const

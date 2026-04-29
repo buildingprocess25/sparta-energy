@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { TimeRangeCards } from "@/components/audit/time-range-cards"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { useAuditStore } from "@/store/use-audit-store"
 import {
   Drawer,
@@ -172,6 +173,9 @@ export function AuditStep2Detail({
   const syncEqs = useAuditStore((state) => state.syncEquipmentsForArea)
   const markAreaSaved = useAuditStore((state) => state.markAreaSaved)
   const storeType = useAuditStore((state) => state.storeType)
+  const storeIs24Hours = useAuditStore((state) => state.is24Hours)
+  const storeOpenTime = useAuditStore((state) => state.openTime)
+  const storeCloseTime = useAuditStore((state) => state.closeTime)
   const [isPending, startTransition] = React.useTransition()
 
   const isBeanspotStore = storeType !== "Regular"
@@ -299,11 +303,16 @@ export function AuditStep2Detail({
     defaultEquipment?.quantity ?? 1
   )
   const [startTimes, setStartTimes] = React.useState<string[]>(
-    Array(defaultEquipment?.quantity ?? 1).fill("08:00")
+    Array(defaultEquipment?.quantity ?? 1).fill(
+      storeIs24Hours ? "00:00" : storeOpenTime
+    )
   )
   const [endTimes, setEndTimes] = React.useState<string[]>(
-    Array(defaultEquipment?.quantity ?? 1).fill("22:00")
+    Array(defaultEquipment?.quantity ?? 1).fill(
+      storeIs24Hours ? "23:59" : storeCloseTime
+    )
   )
+  const [isItemAllDay, setIsItemAllDay] = React.useState<boolean[]>([])
 
   const activeEquipment = React.useMemo(() => {
     return (
@@ -373,17 +382,32 @@ export function AuditStep2Detail({
     setActiveEquipmentName(item.name)
     const eq = items.find((i) => i.name === item.name)
     const qty = eq?.quantity || 1
+    const defaultStart = storeIs24Hours ? "00:00" : storeOpenTime
+    const defaultEnd = storeIs24Hours ? "23:59" : storeCloseTime
+    const starts = eq?.startTimes || Array(qty).fill(defaultStart)
+    const ends = eq?.endTimes || Array(qty).fill(defaultEnd)
     setQuantity(qty)
-    setStartTimes(eq?.startTimes || Array(qty).fill("08:00"))
-    setEndTimes(eq?.endTimes || Array(qty).fill("22:00"))
+    setStartTimes(starts)
+    setEndTimes(ends)
+    // Detect allDay per unit
+    setIsItemAllDay(
+      Array.from({ length: qty }, (_, i) =>
+        starts[i] === "00:00" && ends[i] === "23:59"
+      )
+    )
     setIsConfigOpen(true)
   }
 
   function handleIncrement() {
+    const defaultStart = storeIs24Hours ? "00:00" : storeOpenTime
+    const defaultEnd = storeIs24Hours ? "23:59" : storeCloseTime
+    const newStart = defaultStart
+    const newEnd = defaultEnd
     setQuantity((prev) => {
       const next = prev + 1
-      setStartTimes((arr) => [...arr, "08:00"])
-      setEndTimes((arr) => [...arr, "22:00"])
+      setStartTimes((arr) => [...arr, newStart])
+      setEndTimes((arr) => [...arr, newEnd])
+      setIsItemAllDay((arr) => [...arr, false])
       return next
     })
   }
@@ -393,6 +417,7 @@ export function AuditStep2Detail({
       const next = Math.max(1, prev - 1)
       setStartTimes((arr) => arr.slice(0, next))
       setEndTimes((arr) => arr.slice(0, next))
+      setIsItemAllDay((arr) => arr.slice(0, next))
       return next
     })
   }
@@ -614,22 +639,53 @@ export function AuditStep2Detail({
                         : "Waktu Operasional"}
                     </label>
 
-                    <TimeRangeCards
-                      startLabel="Mulai"
-                      endLabel="Selesai"
-                      startValue={startTimes[idx] || "08:00"}
-                      endValue={endTimes[idx] || "22:00"}
-                      onStartChange={(val) => {
-                        const newArr = [...startTimes]
-                        newArr[idx] = val
-                        setStartTimes(newArr)
-                      }}
-                      onEndChange={(val) => {
-                        const newArr = [...endTimes]
-                        newArr[idx] = val
-                        setEndTimes(newArr)
-                      }}
-                    />
+                    {/* Switch 24 jam — per unit */}
+                    <div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/30 px-3 py-2">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Operasional 24 Jam
+                      </span>
+                      <Switch
+                        checked={isItemAllDay[idx] ?? false}
+                        onCheckedChange={(checked) => {
+                          setIsItemAllDay((prev) => {
+                            const next = [...prev]
+                            next[idx] = checked
+                            return next
+                          })
+                          const newStart = checked ? "00:00" : (storeIs24Hours ? "00:00" : storeOpenTime)
+                          const newEnd = checked ? "23:59" : (storeIs24Hours ? "23:59" : storeCloseTime)
+                          setStartTimes((prev) => {
+                            const next = [...prev]
+                            next[idx] = newStart
+                            return next
+                          })
+                          setEndTimes((prev) => {
+                            const next = [...prev]
+                            next[idx] = newEnd
+                            return next
+                          })
+                        }}
+                      />
+                    </div>
+
+                    <div className={isItemAllDay[idx] ? "pointer-events-none opacity-40" : ""}>
+                      <TimeRangeCards
+                        startLabel="Mulai"
+                        endLabel="Selesai"
+                        startValue={startTimes[idx] || storeOpenTime}
+                        endValue={endTimes[idx] || storeCloseTime}
+                        onStartChange={(val) => {
+                          const newArr = [...startTimes]
+                          newArr[idx] = val
+                          setStartTimes(newArr)
+                        }}
+                        onEndChange={(val) => {
+                          const newArr = [...endTimes]
+                          newArr[idx] = val
+                          setEndTimes(newArr)
+                        }}
+                      />
+                    </div>
 
                     <div className="flex items-center gap-2 px-1">
                       <IconInfoCircle className="size-4 text-muted-foreground" />
