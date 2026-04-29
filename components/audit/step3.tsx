@@ -417,8 +417,9 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
               <Alert className="border-blue-600/50 bg-blue-50 dark:border-blue-400/70 dark:bg-blue-950/40">
                 <IconInfoCircle />
                 <AlertDescription>
-                  Data kWh dapat dilihat di laporan PLN Mobile. Pastikan diisi
-                  guna menentukan deviasi tagihan aktual.
+                  Data kWh Pascabayar tersedia di aplikasi PLN Mobile, sedangkan
+                  data Prabayar dapat dilihat pada rekapitulasi toko atau
+                  pembayaran bulanan.
                 </AlertDescription>
               </Alert>
 
@@ -442,6 +443,14 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
                       >
                         Konsumsi (kWh)
                       </TableHead>
+                      <TableHead
+                        className={cn(
+                          "text-center text-[10px] font-bold tracking-wider whitespace-normal text-muted-foreground uppercase",
+                          stdColumnWidthClass
+                        )}
+                      >
+                        Trans/Hari (STD)
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
 
@@ -461,6 +470,17 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
                             value={row.kwh || ""}
                             onChange={(e) =>
                               updateRow(idx, "kwh", e.target.value)
+                            }
+                            className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                          />
+                        </TableCell>
+                        <TableCell className="px-1 py-0.5">
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={row.std || ""}
+                            onChange={(e) =>
+                              updateRow(idx, "std", e.target.value)
                             }
                             className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                           />

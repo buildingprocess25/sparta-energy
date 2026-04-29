@@ -116,6 +116,47 @@ Ada 2 role user utama:
 
 SPARTA Energy adalah sistem audit energi + analitik + decision support untuk membantu perusahaan memahami, mengontrol, dan mengoptimalkan konsumsi energi toko secara terukur.
 
+## Codebase Map (Routes and Files)
+
+Routes (App Router):
+
+- / -> app/page.tsx
+- /login -> app/login/page.tsx
+- /dashboard -> app/dashboard/page.tsx (loading.tsx)
+- /audit/start -> app/audit/start/page.tsx (loading.tsx)
+- /audit/[id] -> app/audit/[id]/page.tsx (loading.tsx)
+- /history -> app/history/page.tsx (loading.tsx)
+- /reports -> app/reports/page.tsx (loading.tsx)
+- /settings -> app/settings/page.tsx (loading.tsx)
+- /settings/about -> app/settings/about/page.tsx
+- /ac-estimation -> app/ac-estimation/page.tsx (loading.tsx)
+- /demo -> app/demo/page.tsx
+- /demo/result -> app/demo/result/page.tsx
+
+Feature components:
+
+- Audit steps UI -> components/audit/step1.tsx, step2.tsx, step2-detail.tsx, step3.tsx, step-indicator.tsx, time-range-cards.tsx, store-combobox.tsx, brand-combobox.tsx, result-db.tsx
+- Dashboard UI -> components/dashboard/hero-card.tsx, summary-cards.tsx, recent-audit-section.tsx, audit-list-section.tsx, audit-card.tsx, ac-estimation-card.tsx
+- AC estimation -> components/ac-estimation/map-picker.tsx, estimation-result-card.tsx
+- Shared UI -> components/header.tsx, bottom-navigation.tsx, login-form.tsx, demo-login-button.tsx, landing-illustration.tsx, logo.tsx, simple-time-picker.tsx, theme-provider.tsx
+- UI primitives (shadcn) -> components/ui/\*
+
+Server actions and API routes:
+
+- Server actions -> app/actions/get-history.ts, get-temperature.ts, submit-audit.ts, get-demo-ai-recommendation.ts
+- API routes -> app/api/auth/[...all]/route.ts, app/api/demo-session/route.ts
+
+Core domain and infra:
+
+- Audit calculations -> lib/audit-kalkulator.ts, lib/get-equipment-for-area.ts
+- AI recommendation -> lib/ai-recommendation.ts
+- Auth and session -> lib/auth.ts, lib/auth-client.ts
+- DB and pools -> lib/prisma.ts, lib/db-pool.ts
+- Demo config -> lib/demo-config.ts
+- Shared utils -> lib/utils.ts
+- Store -> store/use-audit-store.ts
+- Hook -> hooks/use-debounce.ts
+
 ## Notes for AI Handoff
 
 - Gunakan istilah domain: toko, area, equipment, kWh, PLN, hemat, boros.
