@@ -32,6 +32,7 @@ import { Header } from "@/components/header"
 import { Label } from "@/components/ui/label"
 
 type EquipmentItem = {
+  uid?: string // unique identifier — allows same equipment type multiple times
   name: string
   brandId?: string
   brandName?: string
@@ -232,6 +233,7 @@ export function AuditStep2Detail({
           )
         : filteredMasterItems // fallback: show all if areaId unknown
     return source.map((m) => ({
+      uid: m.name, // masterDefault items use name as uid (always unique here)
       name: m.name,
       detail: `Daya: ${formatKw(m.defaultKw)} kW`,
       kw: m.defaultKw,
@@ -253,6 +255,7 @@ export function AuditStep2Detail({
     const fromZustand = zustandEqs.filter((e) => e.areaName === areaName)
     if (fromZustand.length > 0) {
       return fromZustand.map((e) => ({
+        uid: e.id, // restore unique id from Zustand
         name: e.name,
         brandId: e.brandId,
         brandName: e.brandName,
@@ -287,7 +290,7 @@ export function AuditStep2Detail({
     syncEqs(
       areaName,
       items.map((i) => ({
-        id: i.name,
+        id: i.uid ?? i.name,
         areaName,
         name: i.name,
         brandId: i.brandId,
@@ -343,8 +346,8 @@ export function AuditStep2Detail({
   React.useEffect(() => {
     if (!isAddOpen) setAddSearch("")
   }, [isAddOpen])
-  const [activeEquipmentName, setActiveEquipmentName] = React.useState(
-    defaultEquipment?.name ?? ""
+  const [activeEquipmentUid, setActiveEquipmentUid] = React.useState(
+    defaultEquipment?.uid ?? defaultEquipment?.name ?? ""
   )
   const [brandNames, setBrandNames] = React.useState<string[]>([])
   const [quantity, setQuantity] = React.useState<number>(
@@ -364,7 +367,7 @@ export function AuditStep2Detail({
 
   const activeEquipment = React.useMemo(() => {
     return (
-      items.find((item) => item.name === activeEquipmentName) ??
+      items.find((item) => (item.uid ?? item.name) === activeEquipmentUid) ??
       defaultEquipment ?? {
         name: "",
         quantity: 1,
@@ -372,11 +375,11 @@ export function AuditStep2Detail({
         endTimes: ["22:00"],
       }
     )
-  }, [items, activeEquipmentName, defaultEquipment])
+  }, [items, activeEquipmentUid, defaultEquipment])
 
   const activeMaster = React.useMemo(() => {
-    return masterItems.find((m) => m.name === activeEquipmentName)
-  }, [masterItems, activeEquipmentName])
+    return masterItems.find((m) => m.name === activeEquipment.name)
+  }, [masterItems, activeEquipment.name])
 
   const isAC =
     (activeEquipment.name || "").toLowerCase().includes("ac") ||
@@ -465,8 +468,8 @@ export function AuditStep2Detail({
   }, [activeEquipment])
 
   function handleConfigure(item: EquipmentItem) {
-    setActiveEquipmentName(item.name)
-    const eq = items.find((i) => i.name === item.name)
+    setActiveEquipmentUid(item.uid ?? item.name)
+    const eq = items.find((i) => (i.uid ?? i.name) === (item.uid ?? item.name))
     const qty = eq?.quantity || 1
     const defaultStart = storeIs24Hours ? "00:00" : storeOpenTime
     const defaultEnd = storeIs24Hours ? "23:59" : storeCloseTime
@@ -549,7 +552,7 @@ export function AuditStep2Detail({
               const showSeparator = idx === firstBeanspotIdx
 
               return (
-                <React.Fragment key={item.name}>
+                <React.Fragment key={item.uid ?? item.name}>
                   {showSeparator && (
                     <div className="flex items-center gap-3 py-1">
                       <div className="h-px flex-1 bg-border" />
@@ -564,7 +567,7 @@ export function AuditStep2Detail({
                     onConfigure={() => handleConfigure(item)}
                     onDelete={() =>
                       setItems((prev) =>
-                        prev.filter((eq) => eq.name !== item.name)
+                        prev.filter((eq) => (eq.uid ?? eq.name) !== (item.uid ?? item.name))
                       )
                     }
                   />
@@ -604,7 +607,6 @@ export function AuditStep2Detail({
           </DrawerHeader>
           <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
             {filteredMasterItems
-              .filter((m) => !items.some((i) => i.name === m.name))
               .filter((m) =>
                 addSearch.trim() === ""
                   ? true
@@ -619,7 +621,9 @@ export function AuditStep2Detail({
                   className="flex w-full items-center justify-between rounded-xl border border-border/40 bg-background p-4 text-left transition-colors hover:border-primary/50 active:bg-muted/50"
                   onClick={() => {
                     const kwVal = availEq.defaultKw
+                    const uid = `${availEq.name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
                     const newItem = {
+                      uid,
                       name: availEq.name,
                       detail: `Daya: ${formatKw(kwVal)} kW`,
                       kw: kwVal,
@@ -648,11 +652,13 @@ export function AuditStep2Detail({
                 </button>
               ))}
 
-            {filteredMasterItems.filter(
-              (m) => !items.some((i) => i.name === m.name)
+            {filteredMasterItems.filter((m) =>
+              addSearch.trim() === ""
+                ? true
+                : m.name.toLowerCase().includes(addSearch.toLowerCase().trim())
             ).length === 0 && (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                Semua peralatan sudah ada di daftar.
+                Tidak ada peralatan yang cocok.
               </div>
             )}
           </div>
@@ -892,7 +898,7 @@ export function AuditStep2Detail({
                 onClick={() => {
                   setItems((prev) =>
                     prev.map((eq) => {
-                      if (eq.name !== activeEquipmentName) return eq
+                      if ((eq.uid ?? eq.name) !== activeEquipmentUid) return eq
 
                       const finalBrandNames = [...brandNames]
                       const finalBrandIds = finalBrandNames.map((name) => {

@@ -336,10 +336,13 @@ Estimasi Kebutuhan Alat: ${calc.equipmentEstimateKwhPerMonth.toFixed(0)} kWh/bul
 Aktual Rata-rata PLN: ${calc.avgActualPlnKwhPerMonth.toFixed(0)} kWh/bulan
 Tipe Rekomendasi (Hard-coded fallback calc): ${calc.recommendationType}
 Daftar Peralatan (Format: Qty x Nama = Est Kwh/hari):
-${auditState.equipments.map(eq => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.quantity * getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00")).toFixed(1)} kWh/hari`).join('\n')}
+${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.quantity * getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00")).toFixed(1)} kWh/hari`).join("\n")}
 `
-      const aiResult = await getDemoAiRecommendation(auditSummary, calc.recommendationType as RecommendationType)
-      
+      const aiResult = await getDemoAiRecommendation(
+        auditSummary,
+        calc.recommendationType as RecommendationType
+      )
+
       const demoAuditResult = buildDemoAuditResult(auditState, rows)
       if (aiResult.data) {
         demoAuditResult.recommendations = [aiResult.data]
@@ -414,7 +417,8 @@ ${auditState.equipments.map(eq => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.
               <Alert className="border-blue-600/50 bg-blue-50 dark:border-blue-400/70 dark:bg-blue-950/40">
                 <IconInfoCircle />
                 <AlertDescription>
-                  Data kWh dapat dilihat di laporan bulanan/buku kas toko. Pastikan diisi guna menentukan deviasi tagihan aktual.
+                  Data kWh dapat dilihat di laporan PLN Mobile. Pastikan diisi
+                  guna menentukan deviasi tagihan aktual.
                 </AlertDescription>
               </Alert>
 
@@ -481,10 +485,7 @@ ${auditState.equipments.map(eq => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.
           <Button
             className="h-11 w-full rounded-full"
             onClick={handleSubmit}
-            disabled={
-              isPending ||
-              rows.some((r) => !r.kwh || r.kwh <= 0)
-            }
+            disabled={isPending || rows.some((r) => !r.kwh || r.kwh <= 0)}
           >
             <IconBolt className="size-4" />
             {isPending ? "Menghitung..." : "Kalkulasi Sekarang"}
