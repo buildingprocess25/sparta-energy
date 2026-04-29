@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
 import {
   IconBolt,
   IconBoxMultiple,
@@ -24,12 +23,14 @@ import {
   DrawerTitle,
   DrawerFooter,
 } from "@/components/ui/drawer"
+import { AuditStepSkeleton } from "@/components/audit/step-skeleton"
 import { BrandCombobox } from "@/components/audit/brand-combobox"
 import { Switch } from "@/components/ui/switch"
 import { useAuditStore } from "@/store/use-audit-store"
 import { TimeRangeCards } from "@/components/audit/time-range-cards"
 import { Header } from "@/components/header"
 import { Label } from "@/components/ui/label"
+import type { AuditStepNavigate } from "@/app/audit/start/start-client"
 
 type EquipmentItem = {
   uid?: string // unique identifier — allows same equipment type multiple times
@@ -55,6 +56,8 @@ type Step2DetailProps = {
   areaId?: string // e.g. "SALES", "PARKING", "TERRACE", "WAREHOUSE"
   basePath?: string
   backHref?: string
+  onNavigate: AuditStepNavigate
+  showSkeleton?: boolean
   /** Equipment master records fetched from DB on the server */
   masterItems?: Array<{
     id: string
@@ -187,9 +190,10 @@ export function AuditStep2Detail({
   areaId,
   basePath = "/audit/start",
   backHref,
+  onNavigate,
   masterItems = [],
+  showSkeleton = false,
 }: Step2DetailProps) {
-  const router = useRouter()
   const zustandEqs = useAuditStore((state) => state.equipments)
   const syncEqs = useAuditStore((state) => state.syncEquipmentsForArea)
   const markAreaSaved = useAuditStore((state) => state.markAreaSaved)
@@ -197,7 +201,6 @@ export function AuditStep2Detail({
   const storeIs24Hours = useAuditStore((state) => state.is24Hours)
   const storeOpenTime = useAuditStore((state) => state.openTime)
   const storeCloseTime = useAuditStore((state) => state.closeTime)
-  const [isPending, startTransition] = React.useTransition()
 
   const isBeanspotStore = storeType !== "Regular"
 
@@ -530,62 +533,72 @@ export function AuditStep2Detail({
         variant="dashboard-back"
         title={areaName}
         backHref={resolvedBackHref}
+        onBack={() => onNavigate("step-2")}
         className="px-0"
       />
 
       <main className="flex flex-col gap-6">
-        <section className="space-y-4">
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Pilih atau tambahkan equipment yang ada di toko ini untuk diatur
-            konfigurasinya.
-          </p>
-        </section>
+        {showSkeleton ? (
+          <AuditStepSkeleton variant="step-2-detail" areaName={areaName} />
+        ) : (
+          <>
+            <section className="space-y-4">
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Pilih atau tambahkan equipment yang ada di toko ini untuk diatur
+                konfigurasinya.
+              </p>
+            </section>
 
-        <section className="space-y-3">
-          {(() => {
-            // Find index of first Beanspot item in SORTED list — separator appears exactly there
-            const firstBeanspotIdx = isBeanspotStore
-              ? sortedItems.findIndex((i) => beanspotNames.has(i.name))
-              : -1
+            <section className="space-y-3">
+              {(() => {
+                // Find index of first Beanspot item in SORTED list — separator appears exactly there
+                const firstBeanspotIdx = isBeanspotStore
+                  ? sortedItems.findIndex((i) => beanspotNames.has(i.name))
+                  : -1
 
-            return sortedItems.map((item, idx) => {
-              const showSeparator = idx === firstBeanspotIdx
+                return sortedItems.map((item, idx) => {
+                  const showSeparator = idx === firstBeanspotIdx
 
-              return (
-                <React.Fragment key={item.uid ?? item.name}>
-                  {showSeparator && (
-                    <div className="flex items-center gap-3 py-1">
-                      <div className="h-px flex-1 bg-border" />
-                      <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-primary uppercase">
-                        Beanspot
-                      </span>
-                      <div className="h-px flex-1 bg-border" />
-                    </div>
-                  )}
-                  <EquipmentRow
-                    item={item}
-                    onConfigure={() => handleConfigure(item)}
-                    onDelete={() =>
-                      setItems((prev) =>
-                        prev.filter((eq) => (eq.uid ?? eq.name) !== (item.uid ?? item.name))
-                      )
-                    }
-                  />
-                </React.Fragment>
-              )
-            })
-          })()}
+                  return (
+                    <React.Fragment key={item.uid ?? item.name}>
+                      {showSeparator && (
+                        <div className="flex items-center gap-3 py-1">
+                          <div className="h-px flex-1 bg-border" />
+                          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-primary uppercase">
+                            Beanspot
+                          </span>
+                          <div className="h-px flex-1 bg-border" />
+                        </div>
+                      )}
+                      <EquipmentRow
+                        item={item}
+                        onConfigure={() => handleConfigure(item)}
+                        onDelete={() =>
+                          setItems((prev) =>
+                            prev.filter(
+                              (eq) =>
+                                (eq.uid ?? eq.name) !== (item.uid ?? item.name)
+                            )
+                          )
+                        }
+                      />
+                    </React.Fragment>
+                  )
+                })
+              })()}
 
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-3 h-12 w-full rounded-2xl border-dashed border-primary/30 text-primary hover:bg-primary/5"
-            onClick={() => setIsAddOpen(true)}
-          >
-            <IconPlus className="size-4" />
-            Tambah Equipment Lain
-          </Button>
-        </section>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 h-12 w-full rounded-2xl border-dashed border-primary/30 text-primary hover:bg-primary/5"
+                onClick={() => setIsAddOpen(true)}
+              >
+                <IconPlus className="size-4" />
+                Tambah Equipment Lain
+              </Button>
+            </section>
+          </>
+        )}
       </main>
 
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -964,29 +977,21 @@ export function AuditStep2Detail({
           <Button
             className="mt-3 h-11 w-full"
             disabled={
+              showSkeleton ||
               !items.some((item) => item.selected && item.isConfigured) ||
-              items.some((item) => item.selected && !item.isConfigured) ||
-              isPending
+              items.some((item) => item.selected && !item.isConfigured)
             }
             onClick={() => {
               markAreaSaved(areaName)
-              startTransition(() => {
-                router.push(`${basePath}?step=2`)
-              })
+              onNavigate("step-2")
             }}
           >
-            {isPending ? (
-              "Menyimpan..."
-            ) : (
-              <>
-                <IconCheck className="size-4" />
-                {items.some((item) => item.selected && !item.isConfigured)
-                  ? "Lengkapi / Hapus Item Tersisa"
-                  : !items.some((item) => item.selected && item.isConfigured)
-                    ? "Pilih minimal 1 equipment"
-                    : `Simpan ${areaName}`}
-              </>
-            )}
+            <IconCheck className="size-4" />
+            {items.some((item) => item.selected && !item.isConfigured)
+              ? "Lengkapi / Hapus Item Tersisa"
+              : !items.some((item) => item.selected && item.isConfigured)
+                ? "Pilih minimal 1 equipment"
+                : `Simpan ${areaName}`}
           </Button>
         </div>
       </div>

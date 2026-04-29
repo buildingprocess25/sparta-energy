@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { IconChevronLeft, IconLogout, IconUser } from "@tabler/icons-react"
+import { IconChevronLeft } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -20,6 +20,7 @@ type DashboardBackHeaderProps = {
   subtitle?: string
   backHref?: string
   backLabel?: string
+  onBack?: () => void
 }
 
 type TitleOnlyHeaderProps = {
@@ -39,7 +40,6 @@ type DashboardHeaderProps = (
 function Header(props: DashboardHeaderProps) {
   const [isVisible, setIsVisible] = React.useState(true)
   const lastScrollYRef = React.useRef(0)
-  const [mounted, setMounted] = React.useState(false)
 
   React.useEffect(() => {
     lastScrollYRef.current = window.scrollY
@@ -61,10 +61,6 @@ function Header(props: DashboardHeaderProps) {
     return () => {
       window.removeEventListener("scroll", controlHeader)
     }
-  }, [])
-
-  React.useEffect(() => {
-    setMounted(true)
   }, [])
 
   return (
@@ -92,16 +88,32 @@ function Header(props: DashboardHeaderProps) {
         </div>
       ) : props.variant === "dashboard-back" ? (
         <div className="flex h-8 items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-full px-2"
-            asChild
-          >
-            <Link href={props.backHref ?? "/"}>
-              <IconChevronLeft className="size-4" />
-            </Link>
-          </Button>
+          {props.onBack ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="rounded-full px-2"
+              aria-label={props.backLabel ?? "Kembali"}
+              onClick={props.onBack}
+            >
+              <IconChevronLeft />
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full px-2"
+              asChild
+            >
+              <Link
+                href={props.backHref ?? "/"}
+                aria-label={props.backLabel ?? "Kembali"}
+              >
+                <IconChevronLeft />
+              </Link>
+            </Button>
+          )}
           <div className="flex min-w-0 flex-col">
             <h1 className="truncate text-base font-semibold">{props.title}</h1>
             {props.subtitle && (

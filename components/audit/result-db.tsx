@@ -609,7 +609,7 @@ export function AuditResultDB({
                         {item.customName ?? getAreaLabel(item.areaTarget)}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
-                        {item.qty} unit · {Number(item.operationalHours)}j ·{" "}
+                        {item.qty} unit · {(() => { const h = Number(item.operationalHours); return h >= 23.98 ? "24" : parseFloat(h.toFixed(1)) })()}j ·{" "}
                         {Number(item.baseKw)}kW
                       </p>
                     </div>

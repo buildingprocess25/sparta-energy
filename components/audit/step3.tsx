@@ -12,6 +12,7 @@ import { submitAudit } from "@/app/actions/submit-audit"
 import { calculateAudit, getHoursBetween } from "@/lib/audit-kalkulator"
 import { getDemoAiRecommendation } from "@/app/actions/get-demo-ai-recommendation"
 
+import { AuditStepSkeleton } from "@/components/audit/step-skeleton"
 import { Header } from "@/components/header"
 import { AuditStepIndicator } from "@/components/audit/step-indicator"
 import { Button } from "@/components/ui/button"
@@ -22,7 +23,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select"
 import {
   Table,
@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import type { AuditStepNavigate } from "@/app/audit/start/start-client"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -71,31 +72,12 @@ const currentYear = new Date().getFullYear()
 type AuditStep3Props = {
   basePath?: string
   mode?: "live" | "demo"
+  onNavigate: AuditStepNavigate
+  showSkeleton?: boolean
 }
 
 type AreaTarget = "SALES" | "PARKING" | "TERRACE" | "WAREHOUSE"
 type RecommendationType = "TRAINING" | "REPAIR" | "MAINTENANCE"
-
-const RECOMMENDATION_COPY: Record<
-  RecommendationType,
-  { title: string; description: string }
-> = {
-  TRAINING: {
-    title: "Pelatihan SOP Operasional",
-    description:
-      "Ditemukan indikasi alat beroperasi melebihi jam buka toko. Rekomendasi: lakukan training SOP kepada karyawan untuk memastikan alat dimatikan sesuai jadwal toko.",
-  },
-  REPAIR: {
-    title: "Perbaikan & Pengecekan Peralatan",
-    description:
-      "Konsumsi listrik aktual melebihi estimasi peralatan meskipun jam operasional wajar. Rekomendasi: lakukan pengecekan fisik peralatan (kompresor, kabel) untuk indikasi bocor arus.",
-  },
-  MAINTENANCE: {
-    title: "Pertahankan Efisiensi",
-    description:
-      "Konsumsi listrik toko berada dalam ambang batas normal. Lanjutkan kebiasaan operasional yang baik dan lakukan pengecekan rutin.",
-  },
-}
 
 function toAreaTarget(areaName: string): AreaTarget {
   const name = areaName.toLowerCase()
@@ -160,9 +142,6 @@ function buildDemoAuditResult(
       ]
     })
 
-  const recommendationType = calc.recommendationType as RecommendationType
-  // We remove the default RECOMMENDATION_COPY lookup from here because we will pass the ai recommendation directly.
-
   return {
     id: "demo",
     isBoros: calc.isBoros,
@@ -188,7 +167,7 @@ function buildDemoAuditResult(
   }
 }
 
-// column widths — total must fit ≤ 352px (max-w-sm minus px-4 padding)
+// column widths — total must fit <= 352px (max-w-sm minus px-4 padding)
 const monthColumnWidthClass = "w-[168px]" // month select ~112 + year ~56
 const valueColumnWidthClass = "w-[88px]"
 const stdColumnWidthClass = "w-[88px]"
@@ -205,7 +184,7 @@ function makeBlankRows(): PlnRowState[] {
   })
 }
 
-// Parse "Januari 2025" → { monthIdx: 0, year: 2025 }
+// Parse "Januari 2025" -> { monthIdx: 0, year: 2025 }
 function parseMonthLabel(label: string): { monthIdx: number; year: number } {
   const parts = label.split(" ")
   const monthIdx = MONTH_NAMES.indexOf(parts[0] ?? "")
@@ -274,6 +253,8 @@ function MonthYearCell({
 export function AuditStep3({
   basePath = "/audit/start",
   mode = "live",
+  onNavigate,
+  showSkeleton = false,
 }: AuditStep3Props) {
   const router = useRouter()
   const [isPending, setIsPending] = React.useState(false)
@@ -313,21 +294,22 @@ export function AuditStep3({
     setSubmitError(null)
     setIsPending(true)
 
-    if (mode === "demo") {
-      const calc = calculateAudit(auditState.equipments, rows, {
-        is24Hours: auditState.is24Hours,
-        openTime: auditState.openTime,
-        closeTime: auditState.closeTime,
-        areas: {
-          sales: auditState.areas.sales,
-          parkir: auditState.areas.parkir,
-          teras: auditState.areas.teras,
-          gudang: auditState.areas.gudang,
-        },
-        plnPowerVa: auditState.plnPowerVa,
-      })
+    try {
+      if (mode === "demo") {
+        const calc = calculateAudit(auditState.equipments, rows, {
+          is24Hours: auditState.is24Hours,
+          openTime: auditState.openTime,
+          closeTime: auditState.closeTime,
+          areas: {
+            sales: auditState.areas.sales,
+            parkir: auditState.areas.parkir,
+            teras: auditState.areas.teras,
+            gudang: auditState.areas.gudang,
+          },
+          plnPowerVa: auditState.plnPowerVa,
+        })
 
-      const auditSummary = `
+        const auditSummary = `
 Toko: ${auditState.storeName || auditState.storeCode || "Toko Demo"}
 Jam Buka: ${auditState.openTime} - ${auditState.closeTime} (${auditState.is24Hours ? "24 Jam" : "Non-24 Jam"})
 Daya PLN: ${auditState.plnPowerVa} VA
@@ -338,56 +320,62 @@ Tipe Rekomendasi (Hard-coded fallback calc): ${calc.recommendationType}
 Daftar Peralatan (Format: Qty x Nama = Est Kwh/hari):
 ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.quantity * getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00")).toFixed(1)} kWh/hari`).join("\n")}
 `
-      const aiResult = await getDemoAiRecommendation(
-        auditSummary,
-        calc.recommendationType as RecommendationType
-      )
+        const aiResult = await getDemoAiRecommendation(
+          auditSummary,
+          calc.recommendationType as RecommendationType
+        )
 
-      const demoAuditResult = buildDemoAuditResult(auditState, rows)
-      if (aiResult.data) {
-        demoAuditResult.recommendations = [aiResult.data]
+        const demoAuditResult = buildDemoAuditResult(auditState, rows)
+        if (aiResult.data) {
+          demoAuditResult.recommendations = [aiResult.data]
+        }
+
+        useAuditStore.setState({ demoAuditResult })
+        router.push("/demo/result")
+        return
       }
 
-      useAuditStore.setState({ demoAuditResult })
+      const result = await submitAudit({
+        storeCode: auditState.storeCode,
+        storeType: auditState.storeType,
+        is24Hours: auditState.is24Hours,
+        openTime: auditState.openTime,
+        closeTime: auditState.closeTime,
+        plnPowerVa: auditState.plnPowerVa,
+        areas: auditState.areas,
+        equipments: auditState.equipments,
+        plnHistory: rows,
+      })
+
+      if ("error" in result) {
+        setSubmitError(result.error ?? "Terjadi kesalahan.")
+        setIsPending(false)
+        return
+      }
+
+      // Demo user via normal login: server returns demoAuditResult instead of auditId
+      if ("demoAuditResult" in result && result.demoAuditResult) {
+        useAuditStore.setState({ demoAuditResult: result.demoAuditResult })
+        router.push("/demo/result")
+        return
+      }
+
+      // Clear session storage so next session starts fresh
+      useAuditStore.setState({
+        storeCode: "",
+        storeName: "",
+        equipments: [],
+        plnHistory: [],
+        savedAreas: [],
+        demoAuditResult: null,
+      })
+      router.push(`/audit/${result.auditId}`)
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : "Terjadi kesalahan."
+      )
       setIsPending(false)
-      router.push("/demo/result")
-      return
     }
-
-    const result = await submitAudit({
-      storeCode: auditState.storeCode,
-      storeType: auditState.storeType,
-      is24Hours: auditState.is24Hours,
-      openTime: auditState.openTime,
-      closeTime: auditState.closeTime,
-      plnPowerVa: auditState.plnPowerVa,
-      areas: auditState.areas,
-      equipments: auditState.equipments,
-      plnHistory: rows,
-    })
-    setIsPending(false)
-    if ("error" in result) {
-      setSubmitError(result.error ?? "Terjadi kesalahan.")
-      return
-    }
-
-    // Demo user via normal login: server returns demoAuditResult instead of auditId
-    if ("demoAuditResult" in result && result.demoAuditResult) {
-      useAuditStore.setState({ demoAuditResult: result.demoAuditResult })
-      router.push("/demo/result")
-      return
-    }
-
-    // Clear session storage so next session starts fresh
-    useAuditStore.setState({
-      storeCode: "",
-      storeName: "",
-      equipments: [],
-      plnHistory: [],
-      savedAreas: [],
-      demoAuditResult: null,
-    })
-    router.push(`/audit/${result.auditId}`)
   }
 
   return (
@@ -396,103 +384,110 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
         variant="dashboard-back"
         title="Kembali"
         backHref={`${basePath}?step=2`}
+        onBack={() => onNavigate("step-2")}
         className="px-0"
       />
 
       <main className="flex flex-col">
-        <section className="mb-6">
-          <AuditStepIndicator
-            currentStep={3}
-            label="Step 3: Data Operasional"
-          />
-        </section>
+        {showSkeleton ? (
+          <AuditStepSkeleton variant="step-3" />
+        ) : (
+          <>
+            <section className="mb-6">
+              <AuditStepIndicator
+                currentStep={3}
+                label="Step 3: Data Operasional"
+              />
+            </section>
 
-        <div>
-          <div className="overflow-hidden">
-            <div className="flex flex-col gap-6 pb-6">
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                Masukkan riwayat konsumsi listrik 6 bulan berturut-turut.
-              </p>
+            <div>
+              <div className="overflow-hidden">
+                <div className="flex flex-col gap-6 pb-6">
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    Masukkan riwayat konsumsi listrik 6 bulan berturut-turut.
+                  </p>
 
-              <Alert className="border-blue-600/50 bg-blue-50 dark:border-blue-400/70 dark:bg-blue-950/40">
-                <IconInfoCircle />
-                <AlertDescription>
-                  Data kWh Pascabayar tersedia di aplikasi PLN Mobile, sedangkan
-                  data Prabayar dapat dilihat pada rekapitulasi toko atau
-                  pembayaran bulanan.
-                </AlertDescription>
-              </Alert>
+                  <Alert className="border-blue-600/50 bg-blue-50 dark:border-blue-400/70 dark:bg-blue-950/40">
+                    <IconInfoCircle />
+                    <AlertDescription>
+                      Data kWh Pascabayar tersedia di aplikasi PLN Mobile,
+                      sedangkan data Prabayar dapat dilihat pada rekapitulasi
+                      toko atau pembayaran bulanan.
+                    </AlertDescription>
+                  </Alert>
 
-              <section className="rounded-lg border bg-card">
-                <Table className="min-w-full table-fixed">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead
-                        className={cn(
-                          "text-[10px] font-bold tracking-wider text-muted-foreground uppercase",
-                          monthColumnWidthClass
-                        )}
-                      >
-                        Bulan &amp; Tahun
-                      </TableHead>
-                      <TableHead
-                        className={cn(
-                          "text-center text-[10px] font-bold tracking-wider whitespace-normal text-muted-foreground uppercase",
-                          valueColumnWidthClass
-                        )}
-                      >
-                        Konsumsi (kWh)
-                      </TableHead>
-                      <TableHead
-                        className={cn(
-                          "text-center text-[10px] font-bold tracking-wider whitespace-normal text-muted-foreground uppercase",
-                          stdColumnWidthClass
-                        )}
-                      >
-                        Trans/Hari (STD)
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <section className="rounded-lg border bg-card">
+                    <Table className="min-w-full table-fixed">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead
+                            className={cn(
+                              "text-[10px] font-bold tracking-wider text-muted-foreground uppercase",
+                              monthColumnWidthClass
+                            )}
+                          >
+                            Bulan &amp; Tahun
+                          </TableHead>
+                          <TableHead
+                            className={cn(
+                              "text-center text-[10px] font-bold tracking-wider whitespace-normal text-muted-foreground uppercase",
+                              valueColumnWidthClass
+                            )}
+                          >
+                            Konsumsi (kWh)
+                          </TableHead>
+                          <TableHead
+                            className={cn(
+                              "text-center text-[10px] font-bold tracking-wider whitespace-normal text-muted-foreground uppercase",
+                              stdColumnWidthClass
+                            )}
+                          >
+                            Trans/Hari (STD)
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
 
-                  <TableBody>
-                    {rows.map((row, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="px-1 py-0.5">
-                          <MonthYearCell
-                            value={row.month}
-                            onChange={(val) => updateRow(idx, "month", val)}
-                          />
-                        </TableCell>
-                        <TableCell className="px-1 py-0.5">
-                          <Input
-                            type="number"
-                            placeholder="0"
-                            value={row.kwh || ""}
-                            onChange={(e) =>
-                              updateRow(idx, "kwh", e.target.value)
-                            }
-                            className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                          />
-                        </TableCell>
-                        <TableCell className="px-1 py-0.5">
-                          <Input
-                            type="number"
-                            placeholder="0"
-                            value={row.std || ""}
-                            onChange={(e) =>
-                              updateRow(idx, "std", e.target.value)
-                            }
-                            className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </section>
+                      <TableBody>
+                        {rows.map((row, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell className="px-1 py-0.5">
+                              <MonthYearCell
+                                value={row.month}
+                                onChange={(val) => updateRow(idx, "month", val)}
+                              />
+                            </TableCell>
+                            <TableCell className="px-1 py-0.5">
+                              <Input
+                                type="number"
+                                placeholder="0"
+                                value={row.kwh || ""}
+                                onChange={(e) =>
+                                  updateRow(idx, "kwh", e.target.value)
+                                }
+                                className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                              />
+                            </TableCell>
+                            <TableCell className="px-1 py-0.5">
+                              <Input
+                                type="number"
+                                placeholder="0"
+                                value={row.std || ""}
+                                onChange={(e) =>
+                                  updateRow(idx, "std", e.target.value)
+                                }
+                                className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </section>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border/60 bg-background/90 p-4 backdrop-blur">
@@ -505,7 +500,11 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
           <Button
             className="h-11 w-full rounded-full"
             onClick={handleSubmit}
-            disabled={isPending || rows.some((r) => !r.kwh || r.kwh <= 0)}
+            disabled={
+              showSkeleton ||
+              isPending ||
+              rows.some((r) => !r.kwh || r.kwh <= 0)
+            }
           >
             <IconBolt className="size-4" />
             {isPending ? "Menghitung..." : "Kalkulasi Sekarang"}
