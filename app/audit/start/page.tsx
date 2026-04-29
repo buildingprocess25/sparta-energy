@@ -3,10 +3,8 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { getEquipmentForAreas } from "@/lib/get-equipment-for-area"
+import { getAllEquipmentMaster } from "@/lib/get-equipment-for-area"
 import { AuditStartClient } from "./start-client"
-
-const AREA_NAMES = ["Sales", "Teras", "Parkiran", "Gudang, Toilet & Selasar"]
 
 export default async function AuditStartPage() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -48,7 +46,7 @@ export default async function AuditStartPage() {
     )
   }
 
-  const equipmentByArea = await getEquipmentForAreas(AREA_NAMES)
+  const masterItems = await getAllEquipmentMaster()
 
   return (
     <Suspense fallback={null}>
@@ -69,7 +67,7 @@ export default async function AuditStartPage() {
           salesAreaM2: Number(s.salesAreaM2),
           warehouseAreaM2: Number(s.warehouseAreaM2),
         }))}
-        equipmentByArea={equipmentByArea}
+        masterItems={masterItems}
       />
     </Suspense>
   )

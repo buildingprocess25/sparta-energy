@@ -1,39 +1,43 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   IconBolt,
-  IconClock,
+  IconBoxMultiple,
   IconCheck,
-  IconChevronRight,
   IconCircle,
-  IconEdit,
+  IconClock,
   IconInfoCircle,
   IconMinus,
   IconPlus,
-  IconBoxMultiple,
   IconSearch,
   IconTrash,
 } from "@tabler/icons-react"
-import { useRouter } from "next/navigation"
-
-import { Header } from "@/components/header"
-import { TimeRangeCards } from "@/components/audit/time-range-cards"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { useAuditStore } from "@/store/use-audit-store"
 import {
   Drawer,
   DrawerClose,
   DrawerContent,
-  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
+  DrawerFooter,
 } from "@/components/ui/drawer"
-import { cn } from "@/lib/utils"
+import { BrandCombobox } from "@/components/audit/brand-combobox"
+import { Switch } from "@/components/ui/switch"
+import { useAuditStore } from "@/store/use-audit-store"
+import { TimeRangeCards } from "@/components/audit/time-range-cards"
+import { Header } from "@/components/header"
+import { Label } from "@/components/ui/label"
 
 type EquipmentItem = {
   name: string
+  brandId?: string
+  brandName?: string
+  brandIds?: (string | undefined)[]
+  brandNames?: string[]
+  kws?: number[]
   detail: string
   kw?: number
   selected?: boolean
@@ -47,6 +51,7 @@ type EquipmentItem = {
 
 type Step2DetailProps = {
   areaName: string
+  areaId?: string // e.g. "SALES", "PARKING", "TERRACE", "WAREHOUSE"
   basePath?: string
   backHref?: string
   /** Equipment master records fetched from DB on the server */
@@ -55,6 +60,7 @@ type Step2DetailProps = {
     name: string
     category: string
     defaultKw: number
+    brands: Array<{ id: string; name: string; baseKw: number }>
   }>
 }
 
@@ -97,73 +103,87 @@ function getAverageDailyRuntime(item: EquipmentItem) {
 type EquipmentRowProps = {
   item: EquipmentItem
   onConfigure: () => void
+  onDelete: () => void
 }
 
-function EquipmentRow({ item, onConfigure }: EquipmentRowProps) {
+function EquipmentRow({ item, onConfigure, onDelete }: EquipmentRowProps) {
   const isSelected = Boolean(item.selected)
 
   return (
-    <button
-      type="button"
-      onClick={onConfigure}
-      className={cn(
-        "flex w-full items-center gap-4 rounded-2xl border bg-background p-4 text-left transition-colors active:translate-y-px",
-        isSelected
-          ? "border-primary shadow-sm"
-          : "border-transparent shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-border/40"
-      )}
-    >
-      <div className="flex items-center justify-center">
-        {isSelected ? (
-          <IconCheck className="size-6 text-primary" />
-        ) : (
-          <IconCircle className="size-6 text-muted-foreground/50" />
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onConfigure}
+        className={cn(
+          "flex w-full items-center gap-4 rounded-2xl border bg-background p-4 text-left transition-colors active:translate-y-px",
+          isSelected
+            ? "border-primary shadow-sm"
+            : "border-transparent shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-border/40"
         )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <h3
-          className={cn(
-            "truncate text-sm font-semibold",
-            isSelected ? "text-foreground" : "text-muted-foreground"
+      >
+        <div className="flex items-center justify-center">
+          {isSelected ? (
+            <IconCheck className="size-6 text-primary" />
+          ) : (
+            <IconCircle className="size-6 text-muted-foreground/50" />
           )}
-        >
-          {item.name}
-        </h3>
-        <div className="flex items-center gap-2 text-xs">
-          <p
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <h3
             className={cn(
-              isSelected ? "text-muted-foreground" : "text-muted-foreground/70"
+              "truncate text-sm font-semibold",
+              isSelected ? "text-foreground" : "text-muted-foreground"
             )}
           >
-            {isSelected
-              ? `${item.quantity ?? 1} unit · ${getAverageDailyRuntime(item).toFixed(1).replace(/\.0$/, "")} jam/hari`
-              : item.kw != null
-                ? `Daya: ${formatKw(item.kw)} kW`
-                : item.detail}
-          </p>
-          {item.energy ? (
-            <>
-              <span className="size-1 rounded-full bg-border" />
-              <p className="font-semibold text-primary">{item.energy}</p>
-            </>
-          ) : null}
+            {item.name} {item.brandName ? `(${item.brandName})` : ""}
+          </h3>
+          <div className="flex items-center gap-2 text-xs">
+            <p
+              className={cn(
+                isSelected
+                  ? "text-muted-foreground"
+                  : "text-muted-foreground/70"
+              )}
+            >
+              {isSelected
+                ? `${item.quantity ?? 1} unit · ${getAverageDailyRuntime(item).toFixed(1).replace(/\.0$/, "")} jam/hari`
+                : item.kw != null
+                  ? `Daya: ${formatKw(item.kw)} kW`
+                  : item.detail}
+            </p>
+            {item.energy ? (
+              <>
+                <span className="size-1 rounded-full bg-border" />
+                <p className="font-semibold text-primary">{item.energy}</p>
+              </>
+            ) : null}
+          </div>
         </div>
-      </div>
 
-      {isSelected ? (
-        <span className="flex size-9 items-center justify-center rounded-xl bg-primary/5 text-primary">
-          <IconEdit className="size-4" />
-        </span>
-      ) : (
-        <IconChevronRight className="size-4 text-muted-foreground/50" />
-      )}
-    </button>
+        {/* Spacer so text doesn't overlap delete button */}
+        <span className="w-7 shrink-0" />
+      </button>
+
+      {/* Delete button — overlaid on the right edge */}
+      <button
+        type="button"
+        aria-label={`Hapus ${item.name}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete()
+        }}
+        className="absolute top-1/2 right-3 flex size-7 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive"
+      >
+        <IconTrash className="size-4" />
+      </button>
+    </div>
   )
 }
 
 export function AuditStep2Detail({
   areaName,
+  areaId,
   basePath = "/audit/start",
   backHref,
   masterItems = [],
@@ -193,16 +213,32 @@ export function AuditStep2Detail({
     })
   }, [masterItems, isBeanspotStore])
 
-  // Build default list from filtered master items
-  const masterDefault: EquipmentItem[] = filteredMasterItems.map((m) => {
-    const kwVal = m.defaultKw
-    return {
+  // Map area ID → equipment category in DB
+  const AREA_TO_CATEGORIES: Record<string, string[]> = {
+    SALES: ["SALES"],
+    PARKING: ["PARKIRAN"],
+    TERRACE: ["TERAS"],
+    WAREHOUSE: ["GUDANG"],
+  }
+
+  // Items shown by default = category matching this area + store type filter
+  const defaultCategoryFilter = areaId ? (AREA_TO_CATEGORIES[areaId] ?? []) : []
+
+  const masterDefault: EquipmentItem[] = React.useMemo(() => {
+    const source =
+      defaultCategoryFilter.length > 0
+        ? filteredMasterItems.filter((m) =>
+            defaultCategoryFilter.includes(m.category)
+          )
+        : filteredMasterItems // fallback: show all if areaId unknown
+    return source.map((m) => ({
       name: m.name,
-      detail: `Daya: ${formatKw(kwVal)} kW`,
-      kw: kwVal,
+      detail: `Daya: ${formatKw(m.defaultKw)} kW`,
+      kw: m.defaultKw,
       quantity: 1,
-    }
-  })
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredMasterItems, areaId])
 
   // Set of beanspot item names (for separator rendering)
   const beanspotNames = React.useMemo(
@@ -218,13 +254,18 @@ export function AuditStep2Detail({
     if (fromZustand.length > 0) {
       return fromZustand.map((e) => ({
         name: e.name,
+        brandId: e.brandId,
+        brandName: e.brandName,
+        brandIds: e.brandIds,
+        brandNames: e.brandNames,
+        kws: e.kws,
         detail: `Daya: ${formatKw(e.kw)} kW`,
         kw: e.kw,
         selected: e.selected,
         quantity: e.quantity,
         startTimes: e.startTimes,
         endTimes: e.endTimes,
-        isConfigured: true,
+        isConfigured: e.isConfigured ?? false,
       }))
     }
     // Fall back to DB master items (no mock fallback)
@@ -249,11 +290,17 @@ export function AuditStep2Detail({
         id: i.name,
         areaName,
         name: i.name,
+        brandId: i.brandId,
+        brandName: i.brandName,
+        brandIds: i.brandIds,
+        brandNames: i.brandNames,
         kw: i.kw ?? (parseFloat(i.detail.replace(/[^\d.]/g, "")) || 0),
+        kws: i.kws,
         quantity: i.quantity || 1,
         startTimes: i.startTimes || Array(i.quantity || 1).fill("08:00"),
         endTimes: i.endTimes || Array(i.quantity || 1).fill("22:00"),
         selected: !!i.selected,
+        isConfigured: !!i.isConfigured,
       }))
     )
   }, [items, areaName, syncEqs])
@@ -299,6 +346,7 @@ export function AuditStep2Detail({
   const [activeEquipmentName, setActiveEquipmentName] = React.useState(
     defaultEquipment?.name ?? ""
   )
+  const [brandNames, setBrandNames] = React.useState<string[]>([])
   const [quantity, setQuantity] = React.useState<number>(
     defaultEquipment?.quantity ?? 1
   )
@@ -326,6 +374,10 @@ export function AuditStep2Detail({
     )
   }, [items, activeEquipmentName, defaultEquipment])
 
+  const activeMaster = React.useMemo(() => {
+    return masterItems.find((m) => m.name === activeEquipmentName)
+  }, [masterItems, activeEquipmentName])
+
   const isAC =
     (activeEquipment.name || "").toLowerCase().includes("ac") ||
     (activeEquipment.name || "").toLowerCase().includes("air conditioner")
@@ -333,7 +385,7 @@ export function AuditStep2Detail({
 
   const calcEqDailyKwh = (
     name: string,
-    kw: number,
+    kws: number[],
     qty: number,
     starts: string[],
     ends: string[]
@@ -341,36 +393,70 @@ export function AuditStep2Detail({
     const isEqAC =
       (name || "").toLowerCase().includes("ac") ||
       (name || "").toLowerCase().includes("air conditioner")
-    let sumHrs = 0
+    let sumKwh = 0
     if (isEqAC) {
-      for (let i = 0; i < qty; i++)
-        sumHrs += getSingleDuration(starts[i], ends[i])
+      for (let i = 0; i < qty; i++) {
+        const unitKw = kws[i] ?? kws[0] ?? 0
+        sumKwh += unitKw * getSingleDuration(starts[i], ends[i])
+      }
     } else {
-      sumHrs = getSingleDuration(starts[0], ends[0]) * qty
+      const unitKw = kws[0] ?? 0
+      sumKwh += unitKw * getSingleDuration(starts[0], ends[0]) * qty
     }
-    return kw * sumHrs
+    return sumKwh
   }
 
-  const activeKw =
-    activeEquipment.kw ??
-    parseFloat(activeEquipment.detail?.replace(/[^\d.]/g, "") || "0")
-  let activeHrsSum = 0
+  // Calculate Active KWH for the drawer
+  let activeKwh = 0
+  let activeHrsSum = 0 // Just for display fallback if needed
   if (isAC) {
-    for (let i = 0; i < quantity; i++)
-      activeHrsSum += getSingleDuration(startTimes[i], endTimes[i])
+    for (let i = 0; i < quantity; i++) {
+      const bName = brandNames[i]
+      const matchedBrand = activeMaster?.brands?.find(
+        (b) => b.name.toLowerCase() === bName?.toLowerCase()?.trim()
+      )
+      const unitKw = matchedBrand
+        ? matchedBrand.baseKw
+        : (activeEquipment.kw ??
+          parseFloat(activeEquipment.detail?.replace(/[^\d.]/g, "") || "0"))
+      const duration = getSingleDuration(startTimes[i], endTimes[i])
+      activeKwh += unitKw * duration
+      activeHrsSum += duration
+    }
   } else {
-    activeHrsSum = getSingleDuration(startTimes[0], endTimes[0]) * quantity
+    const bName = brandNames[0]
+    const matchedBrand = activeMaster?.brands?.find(
+      (b) => b.name.toLowerCase() === bName?.toLowerCase()?.trim()
+    )
+    const unitKw = matchedBrand
+      ? matchedBrand.baseKw
+      : (activeEquipment.kw ??
+        parseFloat(activeEquipment.detail?.replace(/[^\d.]/g, "") || "0"))
+    const duration = getSingleDuration(startTimes[0], endTimes[0])
+    activeKwh += unitKw * duration * quantity
+    activeHrsSum = duration * quantity
   }
-  const activeKwh = activeKw * activeHrsSum
+  const activeKwDisplay =
+    activeEquipment.kw ??
+    parseFloat(activeEquipment.detail?.replace(/[^\d.]/g, "") || "0") // For simple display
 
   const totalAreaDailyKwh = items
     .filter((i) => i.selected)
     .reduce((acc, eq) => {
-      const kw = eq.kw ?? parseFloat(eq.detail?.replace(/[^\d.]/g, "") || "0")
+      const fallbackKw =
+        eq.kw ?? parseFloat(eq.detail?.replace(/[^\d.]/g, "") || "0")
       const qty = eq.quantity || 1
+      const kwsArray =
+        eq.kws && eq.kws.length > 0 ? eq.kws : Array(qty).fill(fallbackKw)
       return (
         acc +
-        calcEqDailyKwh(eq.name, kw, qty, eq.startTimes || [], eq.endTimes || [])
+        calcEqDailyKwh(
+          eq.name,
+          kwsArray,
+          qty,
+          eq.startTimes || [],
+          eq.endTimes || []
+        )
       )
     }, 0)
 
@@ -386,13 +472,22 @@ export function AuditStep2Detail({
     const defaultEnd = storeIs24Hours ? "23:59" : storeCloseTime
     const starts = eq?.startTimes || Array(qty).fill(defaultStart)
     const ends = eq?.endTimes || Array(qty).fill(defaultEnd)
+
+    // Setup brand arrays — use saved per-unit brands, NOT a copy of brandName[0]
+    const bNames: string[] =
+      eq?.brandNames && eq.brandNames.length === qty
+        ? eq.brandNames
+        : Array.from({ length: qty }, (_, i) => eq?.brandNames?.[i] ?? "")
+
+    setBrandNames(bNames)
     setQuantity(qty)
     setStartTimes(starts)
     setEndTimes(ends)
     // Detect allDay per unit
     setIsItemAllDay(
-      Array.from({ length: qty }, (_, i) =>
-        starts[i] === "00:00" && ends[i] === "23:59"
+      Array.from(
+        { length: qty },
+        (_, i) => starts[i] === "00:00" && ends[i] === "23:59"
       )
     )
     setIsConfigOpen(true)
@@ -407,6 +502,7 @@ export function AuditStep2Detail({
       const next = prev + 1
       setStartTimes((arr) => [...arr, newStart])
       setEndTimes((arr) => [...arr, newEnd])
+      setBrandNames((arr) => [...arr, arr[0] || ""])
       setIsItemAllDay((arr) => [...arr, false])
       return next
     })
@@ -417,6 +513,7 @@ export function AuditStep2Detail({
       const next = Math.max(1, prev - 1)
       setStartTimes((arr) => arr.slice(0, next))
       setEndTimes((arr) => arr.slice(0, next))
+      setBrandNames((arr) => arr.slice(0, next))
       setIsItemAllDay((arr) => arr.slice(0, next))
       return next
     })
@@ -465,6 +562,11 @@ export function AuditStep2Detail({
                   <EquipmentRow
                     item={item}
                     onConfigure={() => handleConfigure(item)}
+                    onDelete={() =>
+                      setItems((prev) =>
+                        prev.filter((eq) => eq.name !== item.name)
+                      )
+                    }
                   />
                 </React.Fragment>
               )
@@ -612,6 +714,19 @@ export function AuditStep2Detail({
                               ]
                             : prev.slice(0, val)
                         )
+                        setBrandNames((prev) =>
+                          val > prev.length
+                            ? [
+                                ...prev,
+                                ...Array(val - prev.length).fill(prev[0] || ""),
+                              ]
+                            : prev.slice(0, val)
+                        )
+                        setIsItemAllDay((prev) =>
+                          val > prev.length
+                            ? [...prev, ...Array(val - prev.length).fill(false)]
+                            : prev.slice(0, val)
+                        )
                       }}
                       type="number"
                       min={1}
@@ -635,13 +750,31 @@ export function AuditStep2Detail({
                     <label className="flex items-center gap-2 text-sm font-bold text-foreground">
                       <IconClock className="size-4 text-primary" />
                       {isAC && quantity > 1
-                        ? `Waktu Operasional AC ${idx + 1}`
+                        ? `Unit AC ${idx + 1}`
                         : "Waktu Operasional"}
                     </label>
 
+                    {/* Merek / Brand input per unit */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">
+                        Merek / Brand (Opsional)
+                      </Label>
+                      <BrandCombobox
+                        brands={activeMaster?.brands || []}
+                        value={brandNames[idx] || ""}
+                        onChange={(val) =>
+                          setBrandNames((prev) => {
+                            const next = [...prev]
+                            next[idx] = val
+                            return next
+                          })
+                        }
+                      />
+                    </div>
+
                     {/* Switch 24 jam — per unit */}
-                    <div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/30 px-3 py-2">
-                      <span className="text-xs font-medium text-muted-foreground">
+                    <div className="flex items-center justify-between rounded-xl border border-input bg-background px-3 py-2">
+                      <span className="text-xs text-muted-foreground">
                         Operasional 24 Jam
                       </span>
                       <Switch
@@ -652,8 +785,16 @@ export function AuditStep2Detail({
                             next[idx] = checked
                             return next
                           })
-                          const newStart = checked ? "00:00" : (storeIs24Hours ? "00:00" : storeOpenTime)
-                          const newEnd = checked ? "23:59" : (storeIs24Hours ? "23:59" : storeCloseTime)
+                          const newStart = checked
+                            ? "00:00"
+                            : storeIs24Hours
+                              ? "00:00"
+                              : storeOpenTime
+                          const newEnd = checked
+                            ? "23:59"
+                            : storeIs24Hours
+                              ? "23:59"
+                              : storeCloseTime
                           setStartTimes((prev) => {
                             const next = [...prev]
                             next[idx] = newStart
@@ -668,7 +809,13 @@ export function AuditStep2Detail({
                       />
                     </div>
 
-                    <div className={isItemAllDay[idx] ? "pointer-events-none opacity-40" : ""}>
+                    <div
+                      className={
+                        isItemAllDay[idx]
+                          ? "pointer-events-none opacity-40"
+                          : ""
+                      }
+                    >
                       <TimeRangeCards
                         startLabel="Mulai"
                         endLabel="Selesai"
@@ -703,7 +850,7 @@ export function AuditStep2Detail({
                 ))}
               </div>
 
-              <div className="flex items-center justify-between gap-4 border-b border-border/40 py-3">
+              <div className="flex items-center justify-between gap-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                     <IconBolt className="size-5" />
@@ -716,8 +863,8 @@ export function AuditStep2Detail({
                     </div>
                     <span className="mt-0.5 text-xs text-muted-foreground">
                       {isAC
-                        ? `${formatKw(activeKw)} kW × ${activeHrsSum.toFixed(1).replace(/\.0$/, "")} Jam Total`
-                        : `${formatKw(activeKw)} kW × ${quantity} Unit × ${getSingleDuration(startTimes[0], endTimes[0]).toFixed(1).replace(/\.0$/, "")} Jam`}
+                        ? `${formatKw(activeKwDisplay)} kW (base) × ${activeHrsSum.toFixed(1).replace(/\.0$/, "")} Jam Total`
+                        : `${formatKw(activeKwDisplay)} kW (base) × ${quantity} Unit × ${getSingleDuration(startTimes[0], endTimes[0]).toFixed(1).replace(/\.0$/, "")} Jam`}
                     </span>
                   </div>
                 </div>
@@ -735,19 +882,6 @@ export function AuditStep2Detail({
 
           <DrawerFooter className="flex shrink-0 flex-row items-center gap-2 border-t border-border/40 bg-background px-4 pt-4 pb-8">
             <DrawerClose asChild>
-              <Button
-                variant="destructive"
-                className="h-11 w-11 shrink-0 p-0"
-                onClick={() => {
-                  setItems((prev) =>
-                    prev.filter((eq) => eq.name !== activeEquipmentName)
-                  )
-                }}
-              >
-                <IconTrash className="size-5" />
-              </Button>
-            </DrawerClose>
-            <DrawerClose asChild>
               <Button variant="outline" className="h-11 flex-1">
                 Tutup
               </Button>
@@ -757,18 +891,43 @@ export function AuditStep2Detail({
                 className="h-11 flex-2"
                 onClick={() => {
                   setItems((prev) =>
-                    prev.map((eq) =>
-                      eq.name === activeEquipmentName
-                        ? {
-                            ...eq,
-                            quantity,
-                            startTimes,
-                            endTimes,
-                            isConfigured: true,
-                            selected: true,
-                          }
-                        : eq
-                    )
+                    prev.map((eq) => {
+                      if (eq.name !== activeEquipmentName) return eq
+
+                      const finalBrandNames = [...brandNames]
+                      const finalBrandIds = finalBrandNames.map((name) => {
+                        const bName = name || ""
+                        const matchedBrand = activeMaster?.brands?.find(
+                          (b) =>
+                            b.name.toLowerCase() === bName.toLowerCase().trim()
+                        )
+                        return matchedBrand ? matchedBrand.id : undefined
+                      })
+                      const finalKws = finalBrandNames.map((name) => {
+                        const bName = name || ""
+                        const matchedBrand = activeMaster?.brands?.find(
+                          (b) =>
+                            b.name.toLowerCase() === bName.toLowerCase().trim()
+                        )
+                        return matchedBrand
+                          ? matchedBrand.baseKw
+                          : (activeMaster?.defaultKw ?? eq.kw ?? 0)
+                      })
+
+                      return {
+                        ...eq,
+                        brandName: finalBrandNames[0] || "",
+                        brandNames: finalBrandNames,
+                        brandIds: finalBrandIds,
+                        kw: finalKws[0] ?? eq.kw ?? 0,
+                        kws: finalKws,
+                        quantity,
+                        startTimes,
+                        endTimes,
+                        isConfigured: true,
+                        selected: true,
+                      }
+                    })
                   )
                 }}
               >
@@ -798,7 +957,11 @@ export function AuditStep2Detail({
           </div>
           <Button
             className="mt-3 h-11 w-full"
-            disabled={items.some((item) => !item.isConfigured) || isPending}
+            disabled={
+              !items.some((item) => item.selected && item.isConfigured) ||
+              items.some((item) => item.selected && !item.isConfigured) ||
+              isPending
+            }
             onClick={() => {
               markAreaSaved(areaName)
               startTransition(() => {
@@ -811,9 +974,11 @@ export function AuditStep2Detail({
             ) : (
               <>
                 <IconCheck className="size-4" />
-                {items.some((item) => !item.isConfigured)
+                {items.some((item) => item.selected && !item.isConfigured)
                   ? "Lengkapi / Hapus Item Tersisa"
-                  : `Simpan ${areaName}`}
+                  : !items.some((item) => item.selected && item.isConfigured)
+                    ? "Pilih minimal 1 equipment"
+                    : `Simpan ${areaName}`}
               </>
             )}
           </Button>

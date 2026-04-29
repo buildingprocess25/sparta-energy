@@ -4,9 +4,14 @@ import { Skeleton } from "@/components/ui/skeleton"
 export default function AcEstimationLoading() {
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
-      <Header variant="dashboard-back" title="Estimasi AC" backHref="/dashboard" className="px-0" />
+      <Header
+        variant="dashboard-back"
+        title="Hitung Kebutuhan AC"
+        backHref="/dashboard"
+        className="px-0"
+      />
 
-      <main className="flex flex-col gap-6 mt-4">
+      <main className="mt-4 flex flex-col gap-6">
         {/* Toko selector */}
         <section className="flex flex-col gap-3">
           <Skeleton className="h-4 w-24" />

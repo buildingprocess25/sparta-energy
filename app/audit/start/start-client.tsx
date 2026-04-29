@@ -28,7 +28,7 @@ export type StoreData = {
 
 type Props = {
   stores: StoreData[]
-  equipmentByArea: Record<string, EquipmentMasterItem[]>
+  masterItems: EquipmentMasterItem[]
   basePath?: string
   dashboardPath?: string
   mode?: "live" | "demo"
@@ -36,7 +36,7 @@ type Props = {
 
 export function AuditStartClient({
   stores,
-  equipmentByArea,
+  masterItems,
   basePath = "/audit/start",
   dashboardPath = "/dashboard",
   mode = "live",
@@ -81,7 +81,7 @@ export function AuditStartClient({
     return (
       <AuditStep2
         selectedArea={selectedArea}
-        equipmentByArea={equipmentByArea}
+        masterItems={masterItems}
         basePath={basePath}
       />
     )

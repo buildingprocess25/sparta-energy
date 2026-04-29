@@ -233,7 +233,7 @@ export function SimpleTimePicker({
           role="combobox"
           aria-expanded={open}
           className={cn(
-            "flex h-9 cursor-pointer items-center justify-between rounded-md border border-input px-3 text-sm font-normal shadow-sm",
+            "flex h-9 cursor-pointer items-center justify-between rounded-full border border-input px-3 text-sm font-normal",
             disabled && "cursor-not-allowed opacity-50"
           )}
           tabIndex={0}
@@ -253,11 +253,11 @@ export function SimpleTimePicker({
           <div className="flex h-56">
             {/* Hours */}
             <div
-              className="h-full flex-1 overflow-y-auto"
+              className="no-scrollbar h-full flex-1 overflow-y-auto"
               onPointerMove={(e) => e.stopPropagation()}
               onTouchMove={(e) => e.stopPropagation()}
             >
-              <div className="flex flex-col pb-48 pr-1">
+              <div className="flex flex-col pr-1 pb-48">
                 {hours.map((v) => (
                   <div
                     ref={v.value === hour ? hourRef : undefined}
@@ -277,11 +277,11 @@ export function SimpleTimePicker({
 
             {/* Minutes */}
             <div
-              className="h-full flex-1 overflow-y-auto"
+              className="no-scrollbar h-full flex-1 overflow-y-auto"
               onPointerMove={(e) => e.stopPropagation()}
               onTouchMove={(e) => e.stopPropagation()}
             >
-              <div className="flex flex-col pb-48 pr-1">
+              <div className="flex flex-col pr-1 pb-48">
                 {minutes.map((v) => (
                   <div
                     ref={v.value === minute ? minuteRef : undefined}
@@ -302,7 +302,7 @@ export function SimpleTimePicker({
             {/* AM/PM */}
             {use12HourFormat && (
               <div
-                className="h-full flex-1 overflow-y-auto"
+                className="no-scrollbar h-full flex-1 overflow-y-auto"
                 onPointerMove={(e) => e.stopPropagation()}
                 onTouchMove={(e) => e.stopPropagation()}
               >

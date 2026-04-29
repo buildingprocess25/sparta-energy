@@ -7,11 +7,17 @@ export interface EquipmentState {
   id: string
   areaName: string // e.g. "Sales Area", "Teras", "Parkir", "Gudang, Toilet & Selasar"
   name: string
+  brandId?: string
+  brandName?: string
+  brandIds?: (string | undefined)[]
+  brandNames?: string[]
   kw: number
+  kws?: number[]
   quantity: number
   startTimes: string[]
   endTimes: string[]
   selected: boolean
+  isConfigured: boolean
 }
 
 export interface PlnRowState {

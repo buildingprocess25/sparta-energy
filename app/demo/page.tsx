@@ -2,18 +2,16 @@ import { Suspense } from "react"
 
 import { AuditStartClient } from "@/app/audit/start/start-client"
 import { demoStores } from "@/lib/data/demo-audit"
-import { getEquipmentForAreas } from "@/lib/get-equipment-for-area"
-
-const AREA_NAMES = ["Sales", "Teras", "Parkiran", "Gudang, Toilet & Selasar"]
+import { getAllEquipmentMaster } from "@/lib/get-equipment-for-area"
 
 export default async function DemoPage() {
-  const equipmentByArea = await getEquipmentForAreas(AREA_NAMES)
+  const masterItems = await getAllEquipmentMaster()
 
   return (
     <Suspense fallback={null}>
       <AuditStartClient
         stores={demoStores}
-        equipmentByArea={equipmentByArea}
+        masterItems={masterItems}
         basePath="/demo"
         dashboardPath="/"
         mode="demo"

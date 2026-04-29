@@ -79,16 +79,31 @@ model Store {
   @@map("stores")
 }
 
-model EquipmentMaster {
-  id          String      @id @default(uuid()) @db.Uuid
+model EquipmentType {
+  id          String           @id @default(uuid()) @db.Uuid
   name        String
   category    String
-  defaultKw Decimal     @map("default_kw")
-  storeType   String?     @map("store_type")
-  createdAt   DateTime    @default(now()) @map("created_at")
+  defaultKw   Decimal          @map("default_kw")
+  storeType   String?          @map("store_type")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  
+  brands      EquipmentBrand[]
   auditItems  AuditItem[]
 
-  @@map("equipments_master")
+  @@map("equipment_types")
+}
+
+model EquipmentBrand {
+  id              String        @id @default(uuid()) @db.Uuid
+  equipmentTypeId String        @map("equipment_type_id") @db.Uuid
+  name            String
+  baseKw          Decimal       @map("base_kw") // Diisi dengan defaultKw dari EquipmentType saat dibuat
+  createdAt       DateTime      @default(now()) @map("created_at")
+  
+  type            EquipmentType @relation(fields: [equipmentTypeId], references: [id], onDelete: Cascade)
+  auditItems      AuditItem[]
+
+  @@map("equipment_brands")
 }
 
 model Audit {
@@ -112,17 +127,21 @@ model Audit {
 }
 
 model AuditItem {
-  id                String           @id @default(uuid()) @db.Uuid
-  auditId           String           @map("audit_id") @db.Uuid
-  equipmentId       String?          @map("equipment_id") @db.Uuid
-  areaTarget        AreaTarget       @map("area_target")
-  customName        String?          @map("custom_name")
+  id                String          @id @default(uuid()) @db.Uuid
+  auditId           String          @map("audit_id") @db.Uuid
+  equipmentTypeId   String?         @map("equipment_type_id") @db.Uuid
+  equipmentBrandId  String?         @map("equipment_brand_id") @db.Uuid
+  areaTarget        AreaTarget      @map("area_target")
+  customName        String?         @map("custom_name")
+  brandName         String          @default("") @map("brand_name")
   qty               Int
-  operationalHours  Decimal          @map("operational_hours")
-  baseKw            Decimal          @map("base_kw")
-  estimatedDailyKwh Decimal          @map("estimated_daily_kwh")
-  audit             Audit            @relation(fields: [auditId], references: [id])
-  equipment         EquipmentMaster? @relation(fields: [equipmentId], references: [id])
+  operationalHours  Decimal         @map("operational_hours")
+  baseKw            Decimal         @map("base_kw")
+  estimatedDailyKwh Decimal         @map("estimated_daily_kwh")
+  
+  audit             Audit           @relation(fields: [auditId], references: [id])
+  equipmentType     EquipmentType?  @relation(fields: [equipmentTypeId], references: [id])
+  equipmentBrand    EquipmentBrand? @relation(fields: [equipmentBrandId], references: [id])
 
   @@map("audit_items")
 }

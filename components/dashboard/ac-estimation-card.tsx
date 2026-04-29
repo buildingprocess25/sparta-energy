@@ -23,7 +23,7 @@ function AcEstimationCard() {
               Kalkulator AC
             </CardTitle>
             <CardDescription className="max-w-50 text-xs text-blue-700/70 dark:text-blue-300/70">
-              Estimasi kebutuhan unit AC berdasarkan suhu lokasi.
+              Hitung kebutuhan unit AC berdasarkan suhu luar di lokasi.
             </CardDescription>
           </div>
           <Button

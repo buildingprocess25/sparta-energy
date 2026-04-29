@@ -31,10 +31,13 @@ type AreaItem = {
 type AuditStep2Props = {
   selectedArea?: string | null
   basePath?: string
-  equipmentByArea?: Record<
-    string,
-    Array<{ id: string; name: string; category: string; defaultKw: number }>
-  >
+  masterItems?: Array<{
+    id: string
+    name: string
+    category: string
+    defaultKw: number
+    brands: Array<{ id: string; name: string; baseKw: number }>
+  }>
 }
 
 const areaItems = [
@@ -93,7 +96,7 @@ function Step2AreaCard({ item, isDone }: { item: AreaItem; isDone: boolean }) {
 export function AuditStep2({
   selectedArea,
   basePath = "/audit/start",
-  equipmentByArea = {},
+  masterItems = [],
 }: AuditStep2Props) {
   const router = useRouter()
   const { savedAreas } = useAuditStore()
@@ -114,11 +117,11 @@ export function AuditStep2({
     const areaName =
       areaItemsWithLinks.find((item) => item.id === selectedArea)?.name ??
       "Area"
-    const masterItems = equipmentByArea[areaName] ?? []
 
     return (
       <AuditStep2Detail
         areaName={areaName}
+        areaId={selectedArea}
         basePath={basePath}
         masterItems={masterItems}
       />
@@ -143,7 +146,7 @@ export function AuditStep2({
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="text-sm text-muted-foreground">
-                    Kemajuan Pengisian
+                    Progress Pengisian
                   </p>
                   <CardTitle className="text-lg text-primary">
                     {completedAreas} / {totalAreas} area selesai

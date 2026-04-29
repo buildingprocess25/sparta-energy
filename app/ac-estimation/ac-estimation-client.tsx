@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   IconAirConditioning,
-  IconThermometer,
   IconCalculator,
   IconMapPin,
   IconDownload,
@@ -111,7 +110,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
   const [result, setResult] = useState<{
     area: number
     maxTemp: number
-    bmkgTemp: number | null   // manual input (diasumsikan dari BMKG)
+    bmkgTemp: number | null // manual input (diasumsikan dari BMKG)
     openMeteoTemp: number | null // dari Open-Meteo API
     clusterBtu: number
     totalBtu: number
@@ -258,7 +257,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
     <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
       <Header
         variant="dashboard-back"
-        title="Estimasi Kebutuhan AC"
+        title="Hitung Kebutuhan AC"
         backHref="/dashboard"
         className="px-0"
       />
@@ -271,7 +270,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
               Identitas Toko
             </h2>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Tentukan toko yang ingin diestimasi kebutuhan AC-nya.
+              Tentukan toko yang ingin dihitung kebutuhan AC-nya.
             </p>
           </div>
 
@@ -536,7 +535,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
           <DrawerContent className="px-4 pb-6">
             <DrawerHeader className="px-0 pt-6 text-left">
               <DrawerTitle className="text-lg font-semibold text-primary">
-                Hasil Estimasi AC
+                Kebutuhan AC
               </DrawerTitle>
               <DrawerDescription>
                 Kebutuhan pendinginan berdasarkan parameter toko.

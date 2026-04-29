@@ -109,6 +109,15 @@ function ProtomapsLayer({ pixelRatio }: { pixelRatio?: number }) {
   return null
 }
 
+/** Keeps the hidden snapshot map centered on the current position */
+function SnapshotViewUpdater({ position }: { position: [number, number] }) {
+  const map = useMap()
+  useEffect(() => {
+    map.setView(position, map.getZoom(), { animate: false })
+  }, [position, map])
+  return null
+}
+
 const MapPicker = forwardRef<MapPickerRef, Props>(function MapPicker(
   { position, onChange },
   ref
@@ -249,6 +258,7 @@ const MapPicker = forwardRef<MapPickerRef, Props>(function MapPicker(
           scrollWheelZoom={false}
         >
           <ProtomapsLayer pixelRatio={2} />
+          <SnapshotViewUpdater position={position} />
           <MapCaptureHandler mapRef={snapshotMapRef} />
         </Map>
       </div>
