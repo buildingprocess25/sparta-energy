@@ -14,6 +14,7 @@ import {
   IconMapPin,
   IconDownload,
 } from "@tabler/icons-react"
+import { toast } from "sonner"
 import { getTemperature } from "@/app/actions/get-temperature"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -173,7 +174,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
           position[1].toString()
         )
         if ("error" in res && res.error) {
-          setErrorMsg(res.error)
+          setErrorMsg(res.error.message)
+          toast.warning(res.error.message)
           return
         }
         openMeteoTemp = res.maxTemp as number
@@ -185,7 +187,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
           position[1].toString()
         )
         if ("error" in res && res.error) {
-          setErrorMsg(res.error)
+          setErrorMsg(res.error.message)
+          toast.warning(res.error.message)
           return
         }
         openMeteoTemp = res.maxTemp as number

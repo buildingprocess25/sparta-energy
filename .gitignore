@@ -30,6 +30,7 @@ pnpm-debug.log*
 
 .agents/
 .env
+.kiro/
 
 # import-stores.ts
 

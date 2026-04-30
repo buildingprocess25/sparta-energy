@@ -7,14 +7,20 @@ import type { StoreData } from "@/app/audit/start/start-client"
 
 export default async function AcEstimationPage() {
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/login?reason=session-expired")
 
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { branch: true },
   })
 
-  const branches = dbUser?.branch?.split(",").map((b) => b.trim()).filter(Boolean) ?? []
+  if (!dbUser) redirect("/forbidden")
+
+  const branches =
+    dbUser?.branch
+      ?.split(",")
+      .map((b) => b.trim())
+      .filter(Boolean) ?? []
   const stores = await prisma.store.findMany({
     where: { branch: { in: branches } },
     orderBy: { code: "asc" },

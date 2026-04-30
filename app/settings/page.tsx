@@ -58,7 +58,9 @@ function MenuRow({
     <>
       <Icon className="size-4 shrink-0" />
       <span className="flex-1 text-left font-medium">{label}</span>
-      {trailing ?? <IconChevronRight className="size-4 text-muted-foreground" />}
+      {trailing ?? (
+        <IconChevronRight className="size-4 text-muted-foreground" />
+      )}
     </>
   )
 
@@ -79,18 +81,24 @@ function MenuRow({
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleLogout = async () => {
     await signOut()
     window.location.href = "/login"
   }
 
+  const activeTheme = mounted ? theme : "system"
+
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
       <Header variant="title-only" title="Pengaturan" />
 
       <div className="mt-2 flex flex-col gap-6">
-
         {/* ── Tema ── */}
         <section>
           <SectionLabel>Tampilan</SectionLabel>
@@ -102,7 +110,7 @@ export default function SettingsPage() {
                 onClick={() => setTheme(value)}
                 className={cn(
                   "flex flex-col items-center gap-2 rounded-xl border px-3 py-3.5 text-xs font-medium transition-colors",
-                  theme === value
+                  activeTheme === value
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border bg-card text-muted-foreground hover:bg-muted/50"
                 )}
@@ -110,7 +118,9 @@ export default function SettingsPage() {
                 <Icon
                   className={cn(
                     "size-5",
-                    theme === value ? "text-primary" : "text-muted-foreground"
+                    activeTheme === value
+                      ? "text-primary"
+                      : "text-muted-foreground"
                   )}
                 />
                 {label}
@@ -140,7 +150,6 @@ export default function SettingsPage() {
             trailing={null}
           />
         </section>
-
       </div>
 
       <BottomNavigation />

@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { OfflineIndicator } from "@/components/offline-indicator"
+import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
@@ -28,10 +30,18 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/assets/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/assets/android-chrome-192x192.png", sizes: "192x192", type: "image/png" },
+      {
+        url: "/assets/android-chrome-192x192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
     ],
     apple: [
-      { url: "/assets/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      {
+        url: "/assets/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
     ],
   },
   manifest: "/manifest.json",
@@ -58,7 +68,11 @@ export default function RootLayout({
       )}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <OfflineIndicator />
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   )

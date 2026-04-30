@@ -13,7 +13,7 @@ import { AcEstimationCard } from "@/components/dashboard/ac-estimation-card"
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/login?reason=session-expired")
 
   // Get all audits for stores in user's branch
   const dbUser = await prisma.user.findUnique({
@@ -21,38 +21,45 @@ export default async function DashboardPage() {
     select: { branch: true, fullName: true },
   })
 
+  if (!dbUser) redirect("/forbidden")
+
   // Fetch 5 most recent COMPLETED audits for this user
-  const branches = dbUser?.branch?.split(",").map((b) => b.trim()).filter(Boolean) ?? []
-  const recentAudits = branches.length > 0
-    ? await prisma.audit.findMany({
-        where: {
-          status: "COMPLETED",
-          auditorId: session.user.id,
-          store: {
-            branch: { in: branches },
-          },
-        },
-        orderBy: { auditDate: "desc" },
-        take: 5,
-        select: {
-          id: true,
-          auditDate: true,
-          isBoros: true,
-          totalEstimatedKwhPerMonth: true,
-          avgActualPlnKwhPerMonth: true,
-          store: {
-            select: {
-              name: true,
-              code: true,
-              salesAreaM2: true,
-              parkingAreaM2: true,
-              terraceAreaM2: true,
-              warehouseAreaM2: true,
+  const branches =
+    dbUser?.branch
+      ?.split(",")
+      .map((b) => b.trim())
+      .filter(Boolean) ?? []
+  const recentAudits =
+    branches.length > 0
+      ? await prisma.audit.findMany({
+          where: {
+            status: "COMPLETED",
+            auditorId: session.user.id,
+            store: {
+              branch: { in: branches },
             },
           },
-        },
-      })
-    : []
+          orderBy: { auditDate: "desc" },
+          take: 5,
+          select: {
+            id: true,
+            auditDate: true,
+            isBoros: true,
+            totalEstimatedKwhPerMonth: true,
+            avgActualPlnKwhPerMonth: true,
+            store: {
+              select: {
+                name: true,
+                code: true,
+                salesAreaM2: true,
+                parkingAreaM2: true,
+                terraceAreaM2: true,
+                warehouseAreaM2: true,
+              },
+            },
+          },
+        })
+      : []
 
   // Map to RecentAuditItem shape
   const auditItems: RecentAuditItem[] = recentAudits.map((a) => {
@@ -90,12 +97,12 @@ export default async function DashboardPage() {
         subtitle={dbUser?.branch ?? ""}
       />
 
-      <section className="flex flex-col gap-4 mt-2">
+      <section className="mt-2 flex flex-col gap-4">
         <HeroCard />
         <AcEstimationCard />
       </section>
 
-      <section className="flex flex-col gap-5 mt-5">
+      <section className="mt-5 flex flex-col gap-5">
         <RecentAuditSection items={auditItems} />
       </section>
 

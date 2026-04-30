@@ -3,6 +3,7 @@
 import * as React from "react"
 import { IconBolt, IconArrowRight, IconInfoCircle } from "@tabler/icons-react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import {
   useAuditStore,
   type DemoAuditResult,
@@ -347,8 +348,21 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
         plnHistory: rows,
       })
 
-      if ("error" in result) {
-        setSubmitError(result.error ?? "Terjadi kesalahan.")
+      if ("error" in result && result.error) {
+        if (result.error.type === "auth") {
+          sessionStorage.setItem("auth-toast", "session-expired")
+          toast.error(result.error.message)
+          router.push("/login?reason=session-expired")
+          return
+        }
+
+        if (result.error.type === "validation") {
+          setSubmitError(result.error.message)
+          setIsPending(false)
+          return
+        }
+
+        toast.error(result.error.message)
         setIsPending(false)
         return
       }
@@ -371,9 +385,7 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
       })
       router.push(`/audit/${result.auditId}`)
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : "Terjadi kesalahan."
-      )
+      toast.error(error instanceof Error ? error.message : "Terjadi kesalahan.")
       setIsPending(false)
     }
   }

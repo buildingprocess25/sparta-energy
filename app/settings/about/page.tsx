@@ -64,7 +64,6 @@ export default function AboutPage() {
         {/* App info */}
         <div className="rounded-xl border bg-card px-4">
           <InfoRow label="Versi" value="1.0.0" />
-          <InfoRow label="Dikembangkan oleh" value="BME Dev" />
         </div>
 
         {/* Features */}
@@ -99,28 +98,13 @@ export default function AboutPage() {
             Tim Pengembang
           </p>
           <div className="flex flex-col gap-3">
-            {[
-              {
-                name: "Syahid Jaya Dilaga",
-                role: "System Flow Design",
-                icon: UserStar,
-              },
-              {
-                name: "Akmal Zaidan Hibatullah",
-                role: "Fullstack Developer",
-                icon: IconBrandGithub,
-              },
-            ].map(({ name, role, icon: Icon }) => (
-              <div key={name} className="flex items-center gap-3">
-                <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10">
-                  <Icon className="size-3.5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">{name}</p>
-                  <p className="text-xs text-muted-foreground">{role}</p>
-                </div>
+            <div className="flex items-center gap-3">
+              <div>
+                <p className="text-sm">
+                  System Development Building Maintenance Energy (BME) Team
+                </p>
               </div>
-            ))}
+            </div>
           </div>
         </div>
 

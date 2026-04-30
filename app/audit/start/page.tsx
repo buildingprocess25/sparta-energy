@@ -8,7 +8,7 @@ import { AuditStartClient } from "./start-client"
 
 export default async function AuditStartPage() {
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) redirect("/login")
+  if (!session?.user) redirect("/login?reason=session-expired")
 
   // Find user with branch info
   const dbUser = await prisma.user.findUnique({
@@ -16,8 +16,14 @@ export default async function AuditStartPage() {
     select: { branch: true },
   })
 
+  if (!dbUser) redirect("/forbidden")
+
   // Find all stores in the user's branches (comma-separated for multi-branch support)
-  const branches = dbUser?.branch?.split(",").map((b) => b.trim()).filter(Boolean) ?? []
+  const branches =
+    dbUser?.branch
+      ?.split(",")
+      .map((b) => b.trim())
+      .filter(Boolean) ?? []
   const stores = await prisma.store.findMany({
     where: { branch: { in: branches } },
     orderBy: { code: "asc" },

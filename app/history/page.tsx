@@ -10,6 +10,8 @@ import {
   IconFilterOff,
 } from "@tabler/icons-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { Header } from "@/components/header"
@@ -84,6 +86,7 @@ function EmptyState({ hasFilter }: { hasFilter: boolean }) {
 }
 
 export default function HistoryPage() {
+  const router = useRouter()
   const { data: sessionData } = useSession()
   const isDemoUser = sessionData?.user?.email === DEMO_EMAIL
 
@@ -126,6 +129,18 @@ export default function HistoryPage() {
           selectedYear
         )
 
+        if (response.error) {
+          if (response.error.type === "auth") {
+            sessionStorage.setItem("auth-toast", "session-expired")
+            toast.error(response.error.message)
+            router.push("/login?reason=session-expired")
+            return
+          }
+
+          toast.error(response.error.message)
+          return
+        }
+
         if (targetPage === 1) {
           setItems(response.items)
           if (isDefaultFilter) {
@@ -151,7 +166,14 @@ export default function HistoryPage() {
         setLoading(false)
       }
     },
-    [page, debouncedSearch, selectedStatus, selectedYear, isDefaultFilter]
+    [
+      page,
+      debouncedSearch,
+      selectedStatus,
+      selectedYear,
+      isDefaultFilter,
+      router,
+    ]
   )
 
   // ── Initial fetch — skip if cache is warm ────────────────────────────────
@@ -179,9 +201,20 @@ export default function HistoryPage() {
   // ── Fetch years once ─────────────────────────────────────────────────────
   useEffect(() => {
     if (cache.availableYears.length > 0) return
-    getAvailableYears().then((years) => {
-      setAvailableYears(years)
-      cache.availableYears = years
+    getAvailableYears().then((response) => {
+      if (response.error) {
+        if (response.error.type === "auth") {
+          sessionStorage.setItem("auth-toast", "session-expired")
+          toast.error(response.error.message)
+          router.push("/login?reason=session-expired")
+          return
+        }
+        toast.error(response.error.message)
+        return
+      }
+
+      setAvailableYears(response.years)
+      cache.availableYears = response.years
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

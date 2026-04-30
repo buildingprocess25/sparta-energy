@@ -1,15 +1,37 @@
 "use client"
 
 import Link from "next/link"
+import { Suspense, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { IconChevronLeft } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 import { LoginForm } from "@/components/login-form"
 import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 
+function LoginToastNotice() {
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const reason = searchParams.get("reason")
+    const storedReason = sessionStorage.getItem("auth-toast")
+
+    if (reason === "session-expired" || storedReason === "session-expired") {
+      toast.error("Sesi Anda telah berakhir. Silakan login kembali.")
+      sessionStorage.removeItem("auth-toast")
+    }
+  }, [searchParams])
+
+  return null
+}
+
 export default function LoginPage() {
   return (
     <div className="grid min-h-svh">
+      <Suspense fallback={null}>
+        <LoginToastNotice />
+      </Suspense>
       <div className="flex flex-col gap-4 p-6 md:p-10">
         <div className="flex items-center justify-between">
           <Button
