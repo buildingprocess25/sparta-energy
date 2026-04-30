@@ -14,8 +14,9 @@ export default async function AcEstimationPage() {
     select: { branch: true },
   })
 
+  const branches = dbUser?.branch?.split(",").map((b) => b.trim()).filter(Boolean) ?? []
   const stores = await prisma.store.findMany({
-    where: { branch: dbUser?.branch ?? "" },
+    where: { branch: { in: branches } },
     orderBy: { code: "asc" },
     select: {
       id: true,

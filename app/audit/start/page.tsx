@@ -16,9 +16,10 @@ export default async function AuditStartPage() {
     select: { branch: true },
   })
 
-  // Find all stores in the same branch
+  // Find all stores in the user's branches (comma-separated for multi-branch support)
+  const branches = dbUser?.branch?.split(",").map((b) => b.trim()).filter(Boolean) ?? []
   const stores = await prisma.store.findMany({
-    where: { branch: dbUser?.branch ?? "" },
+    where: { branch: { in: branches } },
     orderBy: { code: "asc" },
     select: {
       id: true,

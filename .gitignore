@@ -31,7 +31,7 @@ pnpm-debug.log*
 .agents/
 .env
 
-import-stores.ts
+# import-stores.ts
 
 # env files
 .env*.local

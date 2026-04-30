@@ -22,13 +22,14 @@ export default async function DashboardPage() {
   })
 
   // Fetch 5 most recent COMPLETED audits for this user
-  const recentAudits = dbUser?.branch
+  const branches = dbUser?.branch?.split(",").map((b) => b.trim()).filter(Boolean) ?? []
+  const recentAudits = branches.length > 0
     ? await prisma.audit.findMany({
         where: {
           status: "COMPLETED",
           auditorId: session.user.id,
           store: {
-            branch: dbUser.branch,
+            branch: { in: branches },
           },
         },
         orderBy: { auditDate: "desc" },
