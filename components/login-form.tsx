@@ -108,9 +108,9 @@ export function LoginForm({
               tabIndex={-1}
             >
               {showPassword ? (
-                <IconEyeOff className="size-4" />
-              ) : (
                 <IconEye className="size-4" />
+              ) : (
+                <IconEyeOff className="size-4" />
               )}
             </button>
           </div>

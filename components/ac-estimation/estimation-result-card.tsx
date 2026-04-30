@@ -220,7 +220,7 @@ export function EstimationResultCard({ cardRef, data }: Props) {
                 letterSpacing: "0.08em",
               }}
             >
-              Estimasi Kebutuhan
+              Hitung Kebutuhan
             </div>
             <div
               style={{
