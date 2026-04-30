@@ -10,14 +10,15 @@ function getDatabaseUrl() {
     throw new Error("DATABASE_URL environment variable is not set")
   }
 
-  return rawUrl.replace("?sslmode=require", "")
+  // Let node-postgres handle TLS via the `ssl` option below.
+  return rawUrl.replace(/[?&]sslmode=[^&]*/g, "").replace(/\?$/, "")
 }
 
 function createDbPool() {
   return new Pool({
     connectionString: getDatabaseUrl(),
     ssl: { rejectUnauthorized: false },
-    max: 10,
+    max: 1,
     idleTimeoutMillis: 5_000,
     connectionTimeoutMillis: 3_000,
     allowExitOnIdle: true,
