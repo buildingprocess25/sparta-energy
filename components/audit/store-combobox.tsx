@@ -72,7 +72,7 @@ export function StoreCombobox({
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE)
   const [isLoadingMore, setIsLoadingMore] = React.useState(false)
 
-  const sentinelRef = React.useRef<HTMLDivElement>(null)
+  const listRef = React.useRef<HTMLDivElement>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   // Filter stores based on search query
@@ -94,28 +94,29 @@ export function StoreCombobox({
     setVisibleCount(PAGE_SIZE)
   }, [query])
 
-  // IntersectionObserver for infinite scroll sentinel
+  const maybeLoadMore = React.useCallback(() => {
+    const list = listRef.current
+    if (!list || !hasMore || isLoadingMore) return
+
+    const { scrollTop, clientHeight, scrollHeight } = list
+    const nearBottom = scrollTop + clientHeight >= scrollHeight - 24
+
+    if (nearBottom) {
+      setIsLoadingMore(true)
+      // Small delay to simulate async feel
+      setTimeout(() => {
+        setVisibleCount((prev) => prev + PAGE_SIZE)
+        setIsLoadingMore(false)
+      }, 150)
+    }
+  }, [hasMore, isLoadingMore])
+
+  // Auto-load when list isn't scrollable yet
   React.useEffect(() => {
-    const sentinel = sentinelRef.current
-    if (!sentinel || !hasMore) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setIsLoadingMore(true)
-          // Small delay to simulate async feel
-          setTimeout(() => {
-            setVisibleCount((prev) => prev + PAGE_SIZE)
-            setIsLoadingMore(false)
-          }, 150)
-        }
-      },
-      { threshold: 0.1 }
-    )
-
-    observer.observe(sentinel)
-    return () => observer.disconnect()
-  }, [hasMore, visible.length])
+    if (open) {
+      maybeLoadMore()
+    }
+  }, [open, visibleCount, maybeLoadMore])
 
   // Focus input when popover opens
   React.useEffect(() => {
@@ -166,6 +167,8 @@ export function StoreCombobox({
           <div
             role="listbox"
             aria-label="Daftar toko"
+            ref={listRef}
+            onScroll={maybeLoadMore}
             className="max-h-64 overflow-y-auto py-1"
           >
             {visible.length === 0 ? (
@@ -209,10 +212,7 @@ export function StoreCombobox({
 
                 {/* Infinite scroll sentinel */}
                 {hasMore && (
-                  <div
-                    ref={sentinelRef}
-                    className="flex items-center justify-center py-2"
-                  >
+                  <div className="flex items-center justify-center py-2">
                     {isLoadingMore ? (
                       <IconLoader2 className="size-4 animate-spin text-muted-foreground" />
                     ) : (
