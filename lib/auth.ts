@@ -28,10 +28,10 @@ export const auth = betterAuth({
       userAgent: "user_agent",
     },
     expiresIn: 8 * 60 * 60, // 8 hours in seconds (default for regular users)
-    updateAge: 60 * 60,     // refresh cookie after 1 hour of activity
+    updateAge: 60 * 60, // refresh cookie after 1 hour of activity
     cookieCache: {
       enabled: true,
-      maxAge: 8 * 60 * 60,  // match session TTL
+      maxAge: 8 * 60 * 60, // match session TTL
     },
   },
 
@@ -64,7 +64,7 @@ export const auth = betterAuth({
   },
 
   trustedOrigins: [
-    "http://localhost:3000",
+    "http://localhost:*",
     "https://sparta-energy.vercel.app",
     "https://runtgenographically-preposterous-shanel.ngrok-free.dev",
   ],

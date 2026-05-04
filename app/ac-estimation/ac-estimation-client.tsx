@@ -4,7 +4,7 @@ import React, { useState, useTransition, useEffect, useRef } from "react"
 import dynamic from "next/dynamic"
 import { toPng } from "html-to-image"
 import { Header } from "@/components/header"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,9 +13,11 @@ import {
   IconCalculator,
   IconMapPin,
   IconDownload,
+  IconCheck,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 import { getTemperature } from "@/app/actions/get-temperature"
+import { getRabData } from "@/app/actions/get-rab-data"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Drawer,
@@ -28,8 +30,6 @@ import {
 } from "@/components/ui/drawer"
 import { StoreCombobox } from "@/components/audit/store-combobox"
 import type { StoreData } from "@/app/audit/start/start-client"
-import { Switch } from "@/components/ui/switch"
-import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import type { MapPickerRef } from "@/components/ac-estimation/map-picker"
 import {
@@ -70,6 +70,10 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
   const [newStoreName, setNewStoreName] = useState("")
   const [newStoreBranch, setNewStoreBranch] = useState("")
 
+  const [ulokInput, setUlokInput] = useState("")
+  const [isFetchingUlok, setIsFetchingUlok] = useState(false)
+  const [fetchedRabData, setFetchedRabData] = useState(false)
+
   // Sales Area
   const [salesArea, setSalesArea] = useState<number | "">("")
 
@@ -100,8 +104,6 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
   }, [coordInput])
 
   // Temperature States
-  const [isManualTemp, setIsManualTemp] = useState(false)
-  const [isManualTempOnly, setIsManualTempOnly] = useState(false)
   const [manualTemp, setManualTemp] = useState<number | "">("")
 
   // UI / Logic States
@@ -131,6 +133,41 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
     }
   }
 
+  const handleSearchRab = async () => {
+    if (!ulokInput) return
+    setIsFetchingUlok(true)
+    setErrorMsg(null)
+
+    try {
+      const res = await getRabData(ulokInput)
+      if (res.error) {
+        toast.error(res.error)
+        setErrorMsg(res.error)
+        return
+      }
+
+      if (res.data) {
+        setNewStoreCode(res.data.nomor_ulok)
+        setNewStoreName(res.data.nama_toko)
+        setNewStoreBranch(res.data.cabang || "")
+        if (
+          res.data.luas_area_sales !== undefined &&
+          !Number.isNaN(res.data.luas_area_sales)
+        ) {
+          setSalesArea(res.data.luas_area_sales)
+        } else {
+          setSalesArea("")
+        }
+        setFetchedRabData(true)
+        toast.success("Data RAB berhasil dimuat.")
+      }
+    } catch (e) {
+      toast.error("Terjadi kesalahan sistem saat mengambil data RAB.")
+    } finally {
+      setIsFetchingUlok(false)
+    }
+  }
+
   const handleCalculate = () => {
     // Validation
     if (storeMode === "existing" && !selectedStore) {
@@ -138,10 +175,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       return
     }
 
-    if (
-      storeMode === "new" &&
-      (!newStoreCode || !newStoreName || !newStoreBranch)
-    ) {
+    if (storeMode === "new" && (!newStoreCode || !newStoreName)) {
       setErrorMsg("Mohon lengkapi data toko baru.")
       return
     }
@@ -151,8 +185,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       return
     }
 
-    if (isManualTemp && (!manualTemp || manualTemp <= 0)) {
-      setErrorMsg("Suhu lokasi manual harus diisi.")
+    if (!manualTemp || manualTemp <= 0) {
+      setErrorMsg("Suhu BMKG (manual) harus diisi.")
       return
     }
 
@@ -160,40 +194,21 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
     setResult(null)
 
     startTransition(async () => {
-      let maxTemp = 0
-      let openMeteoTemp: number | null = null
-      const bmkgTemp: number | null = isManualTemp ? Number(manualTemp) : null
+      const bmkgTemp: number = Number(manualTemp)
 
-      if (isManualTemp && isManualTempOnly) {
-        // Hanya manual BMKG
-        maxTemp = Number(manualTemp)
-      } else if (isManualTemp && !isManualTempOnly) {
-        // Gabungan BMKG dan Map
-        const res = await getTemperature(
-          position[0].toString(),
-          position[1].toString()
-        )
-        if ("error" in res && res.error) {
-          setErrorMsg(res.error.message)
-          toast.warning(res.error.message)
-          return
-        }
-        openMeteoTemp = res.maxTemp as number
-        maxTemp = Math.max(openMeteoTemp, Number(manualTemp))
-      } else {
-        // Hanya Map
-        const res = await getTemperature(
-          position[0].toString(),
-          position[1].toString()
-        )
-        if ("error" in res && res.error) {
-          setErrorMsg(res.error.message)
-          toast.warning(res.error.message)
-          return
-        }
-        openMeteoTemp = res.maxTemp as number
-        maxTemp = openMeteoTemp
+      const res = await getTemperature(
+        position[0].toString(),
+        position[1].toString()
+      )
+
+      if ("error" in res && res.error) {
+        setErrorMsg(res.error.message)
+        toast.warning(res.error.message)
+        return
       }
+
+      const openMeteoTemp = res.maxTemp as number
+      const maxTemp = Math.max(openMeteoTemp, bmkgTemp)
 
       // Menentukan Cluster BTU
       let clusterBtu = 0
@@ -343,43 +358,88 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
               )}
             </div>
           ) : (
-            <div className="flex animate-in flex-col gap-3 rounded-xl border border-border/40 bg-muted/20 p-4 fade-in slide-in-from-top-2">
-              <Field>
-                <FieldLabel htmlFor="new_store_code">Kode Toko</FieldLabel>
-                <Input
-                  id="new_store_code"
-                  placeholder="Masukkan kode toko"
-                  value={newStoreCode}
-                  onChange={(e) =>
-                    setNewStoreCode(e.target.value.toUpperCase())
-                  }
-                  className="bg-background"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="new_store_name">Nama Toko</FieldLabel>
-                <Input
-                  id="new_store_name"
-                  placeholder="Masukkan nama toko"
-                  value={newStoreName}
-                  onChange={(e) =>
-                    setNewStoreName(e.target.value.toUpperCase())
-                  }
-                  className="bg-background"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="new_store_branch">Nama Cabang</FieldLabel>
-                <Input
-                  id="new_store_branch"
-                  placeholder="Masukkan nama cabang"
-                  value={newStoreBranch}
-                  onChange={(e) =>
-                    setNewStoreBranch(e.target.value.toUpperCase())
-                  }
-                  className="bg-background"
-                />
-              </Field>
+            <div className="flex animate-in flex-col gap-3 fade-in slide-in-from-top-2">
+              {!fetchedRabData ? (
+                <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-muted/20 p-4">
+                  <Field>
+                    <FieldLabel htmlFor="ulok_input">Nomor ULOK</FieldLabel>
+                    <FieldDescription className="text-xs">
+                      Hanya RAB dengan status &quot;Telah Disetujui&quot;.
+                    </FieldDescription>
+                    <div className="flex gap-2">
+                      <Input
+                        id="ulok_input"
+                        placeholder="Contoh: 7AZ1-0001-0001"
+                        value={ulokInput}
+                        onChange={(e) =>
+                          setUlokInput(e.target.value.toUpperCase())
+                        }
+                        className="bg-background uppercase"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSearchRab()
+                        }}
+                      />
+                      <Button
+                        onClick={handleSearchRab}
+                        disabled={!ulokInput || isFetchingUlok}
+                      >
+                        {isFetchingUlok ? "Mencari..." : "Cari"}
+                      </Button>
+                    </div>
+                  </Field>
+                </div>
+              ) : (
+                <Card className="border-primary/20 bg-primary/5 shadow-none">
+                  <CardContent>
+                    <div className="mb-4 flex items-start justify-between">
+                      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-primary">
+                        <IconCheck className="size-4" />
+                        RAB Ditemukan
+                      </h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => {
+                          setFetchedRabData(false)
+                          setNewStoreCode("")
+                          setNewStoreName("")
+                          setNewStoreBranch("")
+                          setUlokInput("")
+                        }}
+                      >
+                        Ganti
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                          Nomor ULOK
+                        </span>
+                        <span className="text-xs font-semibold text-foreground">
+                          {newStoreCode}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                          Nama Toko
+                        </span>
+                        <span className="text-xs font-semibold text-foreground">
+                          {newStoreName}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                          Cabang
+                        </span>
+                        <span className="text-xs font-semibold text-foreground">
+                          {newStoreBranch || "-"}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
         </section>
@@ -419,118 +479,71 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
               </div>
             </Field>
 
-            <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-muted/20 p-3">
-              <Field
-                orientation="horizontal"
-                className="items-center justify-between"
-              >
-                <FieldLabel
-                  htmlFor="input-suhu-manual"
-                  className="mb-0 text-sm font-semibold text-primary"
-                >
-                  Menggunakan Suhu BMKG
-                </FieldLabel>
-                <Switch
-                  id="input-suhu-manual"
-                  checked={isManualTemp}
-                  onCheckedChange={(checked) => {
-                    setIsManualTemp(checked)
-                    if (!checked) setIsManualTempOnly(false)
-                  }}
-                />
-              </Field>
-
-              {isManualTemp && (
-                <div className="flex animate-in flex-col gap-4 border-t border-border/40 pt-3 fade-in slide-in-from-top-2">
-                  <Field>
-                    <FieldLabel htmlFor="manual_temp">
-                      Suhu Luar Tertinggi berdasarkan BMKG
-                    </FieldLabel>
-                    <div className="relative">
-                      <Input
-                        id="manual_temp"
-                        type="number"
-                        step="0.1"
-                        placeholder="0"
-                        value={manualTemp}
-                        onChange={(e) =>
-                          setManualTemp(
-                            e.target.value ? Number(e.target.value) : ""
-                          )
-                        }
-                        className="bg-background pr-12"
-                      />
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                        <span className="rounded-md bg-orange-500/10 px-2 py-0.5 text-xs font-bold text-orange-600 dark:text-orange-400">
-                          °C
-                        </span>
-                      </div>
-                    </div>
-                  </Field>
-                  <Field
-                    orientation="horizontal"
-                    className="items-center gap-2"
-                  >
-                    <Checkbox
-                      id="only-bmkg"
-                      checked={isManualTempOnly}
-                      onCheckedChange={(checked) =>
-                        setIsManualTempOnly(checked === true)
-                      }
-                    />
-                    <FieldLabel
-                      htmlFor="only-bmkg"
-                      className="mb-0 text-xs font-medium text-muted-foreground"
-                    >
-                      Hanya gunakan suhu BMKG (Sembunyikan Peta)
-                    </FieldLabel>
-                  </Field>
-                </div>
-              )}
-            </div>
-
-            {(!isManualTemp || (isManualTemp && !isManualTempOnly)) && (
-              <div className="animate-in space-y-3 fade-in slide-in-from-top-2">
+            <div className="flex flex-col gap-4">
+              <Field>
                 <div className="space-y-1">
-                  <FieldLabel className="mb-0">
-                    Titik Lokasi Referensi Peta
+                  <FieldLabel htmlFor="manual_temp">
+                    Suhu Luar Tertinggi berdasarkan BMKG
                   </FieldLabel>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    Suhu luar tertinggi otomatis diambil berdasarkan titik
-                    lokasi yang dipilih dengan historis waktu 1 tahun kebelakang
-                    oleh Open-Meteo.
+                    Suhu referensi manual yang bersumber dari data BMKG di
+                    sekitar lokasi toko.
                   </p>
                 </div>
-                <Field>
-                  <FieldLabel
-                    htmlFor="coord_input"
-                    className="text-[10px] text-muted-foreground uppercase"
-                  >
-                    Latitude, Longitude
-                  </FieldLabel>
+                <div className="relative">
                   <Input
-                    id="coord_input"
-                    value={coordInput}
-                    onChange={(e) => setCoordInput(e.target.value)}
-                    placeholder="Contoh: -6.1702, 106.6403"
-                    className="h-8 bg-background/50 text-xs"
+                    id="manual_temp"
+                    type="number"
+                    step="0.1"
+                    placeholder="0"
+                    value={manualTemp}
+                    onChange={(e) =>
+                      setManualTemp(
+                        e.target.value ? Number(e.target.value) : ""
+                      )
+                    }
+                    className="bg-background/50 pr-12 focus:bg-background"
                   />
-                </Field>
-                <MapPicker
-                  ref={mapPickerRef}
-                  position={position}
-                  onChange={setPosition}
-                />
-              </div>
-            )}
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                    <span className="rounded-md bg-orange-500/10 px-2 py-0.5 text-xs font-bold text-orange-600 dark:text-orange-400">
+                      °C
+                    </span>
+                  </div>
+                </div>
+              </Field>
+            </div>
 
-            {errorMsg && (
-              <Alert variant="destructive">
-                <AlertDescription className="text-xs">
-                  {errorMsg}
-                </AlertDescription>
-              </Alert>
-            )}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <FieldLabel className="mb-0">
+                  Suhu Otomatis Peta (Open-Meteo)
+                </FieldLabel>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Suhu historis 1 tahun terakhir ditarik secara otomatis
+                  berdasarkan koordinat toko pada peta.
+                </p>
+              </div>
+              <Field>
+                <FieldLabel
+                  htmlFor="coord_input"
+                  className="text-[10px] text-muted-foreground uppercase"
+                >
+                  Latitude, Longitude
+                </FieldLabel>
+                <Input
+                  id="coord_input"
+                  value={coordInput}
+                  onChange={(e) => setCoordInput(e.target.value)}
+                  placeholder="Contoh: -6.1702, 106.6403"
+                  className="h-8 bg-background/50 text-xs"
+                />
+              </Field>
+              <MapPicker
+                ref={mapPickerRef}
+                position={position}
+                onChange={setPosition}
+              />
+            </div>
           </div>
         </section>
 
@@ -625,10 +638,11 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
             disabled={
               isPending ||
               !salesArea ||
+              !manualTemp ||
               !coordInput ||
               (storeMode === "existing"
                 ? !selectedStore
-                : !newStoreCode || !newStoreName || !newStoreBranch)
+                : !newStoreCode || !newStoreName)
             }
             className="h-11 w-full shadow-lg"
           >

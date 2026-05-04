@@ -3,7 +3,7 @@ import withSerwistInit from "@serwist/next"
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   allowedDevOrigins: [
-    "localhost:3000",
+    "localhost:*",
     "*.devtunnels.ms",
     "*.devtunnels.ms:*",
     "*.ngrok-free.dev",
@@ -12,7 +12,7 @@ const nextConfig = {
   experimental: {
     serverActions: {
       allowedOrigins: [
-        "localhost:3000",
+        "localhost:*",
         "*.devtunnels.ms",
         "*.devtunnels.ms:*",
         "*.ngrok-free.dev",
