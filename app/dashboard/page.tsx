@@ -1,3 +1,7 @@
+import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { HeroCard } from "@/components/dashboard/hero-card"
 import {
@@ -5,63 +9,101 @@ import {
   type RecentAuditItem,
 } from "@/components/dashboard/recent-audit-section"
 import { Header } from "@/components/header"
-import { Card, CardContent } from "@/components/ui/card"
+import { AcEstimationCard } from "@/components/dashboard/ac-estimation-card"
 
-const userStore = {
-  name: "Alfamart Cibubur Raya",
-  code: "ALF-0123",
-  branch: "Jakarta Timur",
-  owner: "Budi Santoso",
-}
+export default async function DashboardPage() {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) redirect("/login?reason=session-expired")
 
-const recentAudits: RecentAuditItem[] = [
-  {
-    period: "April 2026",
-    status: "hemat",
-    standardAverage: 13.2,
-    actualAverage: 12.4,
-    efficiency: 82.7,
-  },
-  {
-    period: "Maret 2026",
-    status: "hemat",
-    standardAverage: 13.0,
-    actualAverage: 13.0,
-    efficiency: 100,
-  },
-  {
-    period: "Januari 2026",
-    status: "boros",
-    standardAverage: 13.2,
-    actualAverage: 13.8,
-    efficiency: 104.5,
-  },
-]
+  // Get all audits for stores in user's branch
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { branch: true, fullName: true },
+  })
 
-export default function DashboardPage() {
+  if (!dbUser) redirect("/forbidden")
+
+  // Fetch 5 most recent COMPLETED audits for this user
+  const branches =
+    dbUser?.branch
+      ?.split(",")
+      .map((b) => b.trim())
+      .filter(Boolean) ?? []
+  const recentAudits =
+    branches.length > 0
+      ? await prisma.audit.findMany({
+          where: {
+            status: "COMPLETED",
+            auditorId: session.user.id,
+            store: {
+              branch: { in: branches },
+            },
+          },
+          orderBy: { auditDate: "desc" },
+          take: 5,
+          select: {
+            id: true,
+            auditDate: true,
+            isBoros: true,
+            totalEstimatedKwhPerMonth: true,
+            avgActualPlnKwhPerMonth: true,
+            store: {
+              select: {
+                name: true,
+                code: true,
+                salesAreaM2: true,
+                parkingAreaM2: true,
+                terraceAreaM2: true,
+                warehouseAreaM2: true,
+              },
+            },
+          },
+        })
+      : []
+
+  // Map to RecentAuditItem shape
+  const auditItems: RecentAuditItem[] = recentAudits.map((a) => {
+    const totalAreaM2 =
+      Number(a.store.salesAreaM2) +
+        Number(a.store.parkingAreaM2) +
+        Number(a.store.terraceAreaM2) +
+        Number(a.store.warehouseAreaM2) || 1
+
+    const est = Number(a.totalEstimatedKwhPerMonth ?? 0) / totalAreaM2
+    const actual = Number(a.avgActualPlnKwhPerMonth ?? 0) / totalAreaM2
+    const efficiency = est > 0 ? Math.round((actual / est) * 100 * 10) / 10 : 0
+
+    const month = new Date(a.auditDate).toLocaleDateString("id-ID", {
+      month: "long",
+      year: "numeric",
+    })
+
+    return {
+      id: a.id,
+      storeName: a.store.name,
+      period: month,
+      status: a.isBoros ? "boros" : "hemat",
+      standardAverage: Math.round(est * 10) / 10,
+      actualAverage: Math.round(actual * 10) / 10,
+      efficiency,
+    }
+  })
+
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
-      <Header variant="dashboard" logoHref="/dashboard" />
+      <Header
+        variant="dashboard"
+        title={dbUser?.fullName ?? "Dashboard"}
+        subtitle={dbUser?.branch ?? ""}
+      />
 
-      <section className="flex flex-col gap-5">
-        {/* <Card className="border-primary/10 bg-muted/30">
-          <CardContent className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="truncate text-lg font-semibold text-foreground">
-                  {userStore.name}
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  {userStore.code} · {userStore.branch}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card> */}
-
+      <section className="mt-2 flex flex-col gap-4">
         <HeroCard />
+        <AcEstimationCard />
+      </section>
 
-        <RecentAuditSection items={recentAudits} />
+      <section className="mt-5 flex flex-col gap-5">
+        <RecentAuditSection items={auditItems} />
       </section>
 
       <BottomNavigation />

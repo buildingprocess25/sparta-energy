@@ -28,6 +28,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+.agents/
+.env
+.kiro/
+
+# import-stores.ts
+
 # env files
 .env*.local
 

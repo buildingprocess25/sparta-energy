@@ -23,7 +23,7 @@ function HeroCard() {
       </CardHeader>
       <CardFooter>
         <Button asChild className="w-full">
-          <Link href="/audit/start">
+          <Link href="/audit/start?new=1">
             <IconPlus data-icon="inline-start" />
             Mulai Audit Baru
           </Link>

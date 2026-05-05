@@ -32,7 +32,7 @@ function Logo({ className }: LogoProps) {
           />
           <div className="flex flex-col leading-none text-foreground">
             <span className="text-sm font-bold tracking-wider">SPARTA</span>
-            <span className="text-[10px] font-light opacity-80">Energy</span>
+            <span className="text-[10px] font-medium opacity-80">Energy</span>
           </div>
         </div>
       </div>
