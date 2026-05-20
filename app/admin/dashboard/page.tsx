@@ -38,6 +38,8 @@ const compactNumberFormat = new Intl.NumberFormat("id-ID", {
   notation: "compact",
   maximumFractionDigits: 1,
 })
+const tableLinkClass =
+  "text-primary underline underline-offset-2 decoration-chart-2 transition-colors hover:decoration-primary"
 
 type CompletedAuditRow = {
   id: string
@@ -580,7 +582,12 @@ export default async function AdminDashboardPage({
                   {topWastefulStores.map((store) => (
                     <TableRow key={store.id}>
                       <TableCell className="font-medium">
-                        <Link href={`/audit/${store.id}`}>{store.code}</Link>
+                        <Link
+                          href={`/audit/${store.id}`}
+                          className={tableLinkClass}
+                        >
+                          {store.code}
+                        </Link>
                       </TableCell>
                       <TableCell>
                         <p className="max-w-72 truncate">{store.name}</p>

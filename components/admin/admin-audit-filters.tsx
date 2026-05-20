@@ -4,11 +4,14 @@ import { useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   IconBuildingStore,
+  IconCalendar,
+  IconCalendarMonth,
+  IconClipboardCheck,
   IconFilter,
   IconFilterOff,
   IconLeaf,
   IconSearch,
-  IconTag,
+  IconUser,
 } from "@tabler/icons-react"
 
 import {
@@ -19,23 +22,49 @@ import {
 } from "@/components/reui/filters"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import type { AdminAuditAuditorOption } from "@/lib/admin-audit-queries"
 
-type AdminStoreFiltersProps = {
+type AdminAuditFiltersProps = {
   branches: string[]
-  storeTypes: string[]
+  auditors: AdminAuditAuditorOption[]
+  years: string[]
 }
+
+const monthOptions = [
+  { value: "01", label: "Januari" },
+  { value: "02", label: "Februari" },
+  { value: "03", label: "Maret" },
+  { value: "04", label: "April" },
+  { value: "05", label: "Mei" },
+  { value: "06", label: "Juni" },
+  { value: "07", label: "Juli" },
+  { value: "08", label: "Agustus" },
+  { value: "09", label: "September" },
+  { value: "10", label: "Oktober" },
+  { value: "11", label: "November" },
+  { value: "12", label: "Desember" },
+]
 
 function getParam(searchParams: URLSearchParams, key: string) {
   return searchParams.get(key) ?? ""
 }
 
-const filterParamKeys = ["branch", "status", "type"] as const
+const filterParamKeys = [
+  "branch",
+  "auditor",
+  "year",
+  "month",
+  "status",
+  "recommendation",
+] as const
+
 const filterParamKeySet = new Set<string>(filterParamKeys)
 
-export function AdminStoreFilters({
+export function AdminAuditFilters({
   branches,
-  storeTypes,
-}: AdminStoreFiltersProps) {
+  auditors,
+  years,
+}: AdminAuditFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -44,6 +73,11 @@ export function AdminStoreFilters({
     () => getParam(new URLSearchParams(searchParamKey), "q"),
     [searchParamKey]
   )
+  const yearFromParams = useMemo(
+    () => getParam(new URLSearchParams(searchParamKey), "year"),
+    [searchParamKey]
+  )
+  const hasYearFilter = Boolean(yearFromParams && yearFromParams !== "all")
 
   const [query, setQuery] = useState(queryFromParams)
 
@@ -51,24 +85,45 @@ export function AdminStoreFilters({
     setQuery(queryFromParams)
   }, [queryFromParams])
 
-  const branchOptions = useMemo(
-    () => branches.map((item) => item.trim()).filter(Boolean),
-    [branches]
-  )
-  const storeTypeOptions = useMemo(
-    () => storeTypes.map((item) => item.trim()).filter(Boolean),
-    [storeTypes]
-  )
-
-  const fields = useMemo<FilterFieldConfig<string>[]>(
-    () => [
+  const fields = useMemo<FilterFieldConfig<string>[]>(() => {
+    const periodFields: FilterFieldConfig<string>[] = [
       {
         key: "branch",
         label: "Cabang",
         type: "select",
         icon: <IconBuildingStore />,
-        options: branchOptions.map((item) => ({ value: item, label: item })),
+        options: branches.map((item) => ({ value: item, label: item })),
       },
+      {
+        key: "auditor",
+        label: "Auditor",
+        type: "select",
+        icon: <IconUser />,
+        options: auditors.map((item) => ({
+          value: item.id,
+          label: item.label,
+        })),
+      },
+      {
+        key: "year",
+        label: "Tahun",
+        type: "select",
+        icon: <IconCalendar />,
+        options: years.map((item) => ({ value: item, label: item })),
+      },
+    ]
+
+    if (hasYearFilter) {
+      periodFields.push({
+        key: "month",
+        label: "Bulan",
+        type: "select",
+        icon: <IconCalendarMonth />,
+        options: monthOptions,
+      })
+    }
+
+    periodFields.push(
       {
         key: "status",
         label: "Status Audit",
@@ -77,44 +132,47 @@ export function AdminStoreFilters({
         options: [
           { value: "hemat", label: "Hemat" },
           { value: "boros", label: "Boros" },
-          { value: "not-audited", label: "Belum Audit" },
         ],
       },
       {
-        key: "type",
-        label: "Tipe Toko",
+        key: "recommendation",
+        label: "Rekomendasi",
         type: "select",
-        icon: <IconTag />,
-        options: storeTypeOptions.map((item) => ({
-          value: item,
-          label: item,
-        })),
+        icon: <IconClipboardCheck />,
+        options: [
+          { value: "TRAINING", label: "Training" },
+          { value: "REPAIR", label: "Repair" },
+          { value: "MAINTENANCE", label: "Maintenance" },
+        ],
       },
-    ],
-    [branchOptions, storeTypeOptions]
-  )
+    )
+
+    return periodFields
+  }, [auditors, branches, hasYearFilter, years])
 
   const activeFilters = useMemo<Filter<string>[]>(() => {
     const params = new URLSearchParams(searchParamKey)
 
     return filterParamKeys.flatMap((key) => {
+      if (key === "month" && !hasYearFilter) return []
+
       const value = getParam(params, key)
       if (!value || value === "all") return []
       return [createFilter(key, "is", [value])]
     })
-  }, [searchParamKey])
+  }, [hasYearFilter, searchParamKey])
 
   const hasFilters = Boolean(queryFromParams || activeFilters.length)
 
   function pushParams(params: URLSearchParams) {
-    params.delete("page")
-
     const qs = params.toString()
     router.push(qs ? `${pathname}?${qs}` : pathname)
   }
 
   function applyFilterChanges(nextFilters: Filter<string>[]) {
     const params = new URLSearchParams(searchParams.toString())
+    const nextYear = nextFilters.find((filter) => filter.field === "year")
+      ?.values[0]
 
     for (const key of filterParamKeys) {
       params.delete(key)
@@ -122,6 +180,7 @@ export function AdminStoreFilters({
 
     for (const filter of nextFilters) {
       if (!filterParamKeySet.has(filter.field)) continue
+      if (filter.field === "month" && !nextYear) continue
 
       const value = filter.values[0]
       if (value) params.set(filter.field, value)
@@ -181,12 +240,12 @@ export function AdminStoreFilters({
           fields={fields}
           onChange={applyFilterChanges}
           allowMultiple={false}
-          idPrefix="admin-store-filters"
+          idPrefix="admin-audit-filters"
           size="default"
           className="min-w-0 flex-1"
           trigger={
             <Button
-              id="admin-store-filter-trigger"
+              id="admin-audit-filter-trigger"
               type="button"
               variant="outline"
             >

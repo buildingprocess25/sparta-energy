@@ -7,7 +7,6 @@ import {
   IconAlertTriangle,
   IconBuildingStore,
   IconClipboardCheck,
-  IconEye,
   IconLeaf,
   IconLoader2,
   IconMinus,
@@ -34,6 +33,8 @@ import type {
 } from "@/lib/admin-store-queries"
 
 const numberFormat = new Intl.NumberFormat("id-ID")
+const tableLinkClass =
+  "text-primary underline underline-offset-2 decoration-chart-2 transition-colors hover:decoration-primary"
 
 function formatDate(date: Date | string | null) {
   if (!date) return "-"
@@ -221,7 +222,7 @@ export function AdminStoresTable({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-auto bg-background">
-        <Table className="min-w-[940px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
+        <Table className="min-w-[900px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
           <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
             <TableRow>
               <TableHead>
@@ -256,7 +257,6 @@ export function AdminStoresTable({
                   Gap
                 </SortableHeader>
               </TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -276,7 +276,10 @@ export function AdminStoresTable({
                       </div>
                       <div className="min-w-0">
                         <p className="font-medium">
-                          <Link href={`/admin/stores/${store.id}`}>
+                          <Link
+                            href={`/admin/stores/${store.id}`}
+                            className={tableLinkClass}
+                          >
                             {store.code}
                           </Link>
                         </p>
@@ -314,18 +317,6 @@ export function AdminStoresTable({
                         {gapPercent.toFixed(1)}%
                       </Badge>
                     )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={`Lihat detail ${store.code}`}
-                      asChild
-                    >
-                      <Link href={`/admin/stores/${store.id}`}>
-                        <IconEye className="size-3.5" />
-                      </Link>
-                    </Button>
                   </TableCell>
                 </TableRow>
               )

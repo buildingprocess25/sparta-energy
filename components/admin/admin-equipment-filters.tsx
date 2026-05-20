@@ -6,9 +6,10 @@ import {
   IconBuildingStore,
   IconFilter,
   IconFilterOff,
-  IconLeaf,
+  IconMapPin,
   IconSearch,
   IconTag,
+  IconTool,
 } from "@tabler/icons-react"
 
 import {
@@ -20,22 +21,31 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-type AdminStoreFiltersProps = {
+type AdminEquipmentFiltersProps = {
   branches: string[]
-  storeTypes: string[]
+  equipmentTypes: string[]
+  brands: string[]
 }
+
+const areaOptions = [
+  { value: "SALES", label: "Sales" },
+  { value: "PARKING", label: "Parkir" },
+  { value: "TERRACE", label: "Teras" },
+  { value: "WAREHOUSE", label: "Gudang" },
+]
+
+const filterParamKeys = ["branch", "area", "equipment", "brand"] as const
+const filterParamKeySet = new Set<string>(filterParamKeys)
 
 function getParam(searchParams: URLSearchParams, key: string) {
   return searchParams.get(key) ?? ""
 }
 
-const filterParamKeys = ["branch", "status", "type"] as const
-const filterParamKeySet = new Set<string>(filterParamKeys)
-
-export function AdminStoreFilters({
+export function AdminEquipmentFilters({
   branches,
-  storeTypes,
-}: AdminStoreFiltersProps) {
+  equipmentTypes,
+  brands,
+}: AdminEquipmentFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -51,15 +61,6 @@ export function AdminStoreFilters({
     setQuery(queryFromParams)
   }, [queryFromParams])
 
-  const branchOptions = useMemo(
-    () => branches.map((item) => item.trim()).filter(Boolean),
-    [branches]
-  )
-  const storeTypeOptions = useMemo(
-    () => storeTypes.map((item) => item.trim()).filter(Boolean),
-    [storeTypes]
-  )
-
   const fields = useMemo<FilterFieldConfig<string>[]>(
     () => [
       {
@@ -67,31 +68,34 @@ export function AdminStoreFilters({
         label: "Cabang",
         type: "select",
         icon: <IconBuildingStore />,
-        options: branchOptions.map((item) => ({ value: item, label: item })),
+        options: branches.map((item) => ({ value: item, label: item })),
       },
       {
-        key: "status",
-        label: "Status Audit",
+        key: "area",
+        label: "Area",
         type: "select",
-        icon: <IconLeaf />,
-        options: [
-          { value: "hemat", label: "Hemat" },
-          { value: "boros", label: "Boros" },
-          { value: "not-audited", label: "Belum Audit" },
-        ],
+        icon: <IconMapPin />,
+        options: areaOptions,
       },
       {
-        key: "type",
-        label: "Tipe Toko",
+        key: "equipment",
+        label: "Equipment",
         type: "select",
-        icon: <IconTag />,
-        options: storeTypeOptions.map((item) => ({
+        icon: <IconTool />,
+        options: equipmentTypes.map((item) => ({
           value: item,
           label: item,
         })),
       },
+      {
+        key: "brand",
+        label: "Brand",
+        type: "select",
+        icon: <IconTag />,
+        options: brands.map((item) => ({ value: item, label: item })),
+      },
     ],
-    [branchOptions, storeTypeOptions]
+    [branches, brands, equipmentTypes]
   )
 
   const activeFilters = useMemo<Filter<string>[]>(() => {
@@ -161,12 +165,12 @@ export function AdminStoreFilters({
           applySearch()
         }}
       >
-        <div className="relative w-full sm:w-[19rem]">
+        <div className="relative w-full sm:w-[22rem]">
           <IconSearch className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Cari kode atau nama toko..."
+            placeholder="Cari toko, equipment, atau brand..."
             className="pl-9"
           />
         </div>
@@ -181,12 +185,12 @@ export function AdminStoreFilters({
           fields={fields}
           onChange={applyFilterChanges}
           allowMultiple={false}
-          idPrefix="admin-store-filters"
+          idPrefix="admin-equipment-filters"
           size="default"
           className="min-w-0 flex-1"
           trigger={
             <Button
-              id="admin-store-filter-trigger"
+              id="admin-equipment-filter-trigger"
               type="button"
               variant="outline"
             >

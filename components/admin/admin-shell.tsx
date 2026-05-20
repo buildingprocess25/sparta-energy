@@ -140,13 +140,11 @@ const navGroups: AdminNavGroup[] = [
         label: "Riwayat Audit",
         href: "/admin/audits",
         icon: IconClipboardList,
-        disabled: true,
       },
       {
         label: "Analitik Equipment",
         href: "/admin/equipment",
         icon: IconTool,
-        disabled: true,
       },
       {
         label: "Performa Cabang",
@@ -340,6 +338,7 @@ function AdminSidebar({ user }: { user: AdminUser }) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
+                  id="admin-sidebar-profile-trigger"
                   size="lg"
                   className="group/profile-trigger group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center"
                 >
@@ -420,6 +419,7 @@ function ThemeModeToggle() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
+          id="admin-theme-trigger"
           type="button"
           variant="outline"
           size="icon-sm"
@@ -448,6 +448,7 @@ function HeaderProfileMenu({ user }: { user: AdminUser }) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
+          id="admin-header-profile-trigger"
           type="button"
           variant="outline"
           size="icon-sm"
