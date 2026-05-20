@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   })
 
   if (!dbUser) redirect("/forbidden")
-  if (dbUser.role === "ADMIN") redirect("/admin/dashboard")
+  const isAdmin = dbUser.role === "ADMIN"
 
   // Fetch 5 most recent COMPLETED audits for this user
   const branches =
@@ -30,37 +30,43 @@ export default async function DashboardPage() {
       ?.split(",")
       .map((b) => b.trim())
       .filter(Boolean) ?? []
-  const recentAudits =
-    branches.length > 0
-      ? await prisma.audit.findMany({
-          where: {
-            status: "COMPLETED",
-            auditorId: session.user.id,
+  const headerSubtitle = isAdmin
+    ? undefined
+    : branches.length > 2
+      ? undefined
+      : (dbUser.branch ?? "")
+  const recentAudits = await prisma.audit.findMany({
+    where: {
+      status: "COMPLETED",
+      auditorId: session.user.id,
+      ...(isAdmin
+        ? {}
+        : {
             store: {
               branch: { in: branches },
             },
-          },
-          orderBy: { auditDate: "desc" },
-          take: 5,
-          select: {
-            id: true,
-            auditDate: true,
-            isBoros: true,
-            totalEstimatedKwhPerMonth: true,
-            avgActualPlnKwhPerMonth: true,
-            store: {
-              select: {
-                name: true,
-                code: true,
-                salesAreaM2: true,
-                parkingAreaM2: true,
-                terraceAreaM2: true,
-                warehouseAreaM2: true,
-              },
-            },
-          },
-        })
-      : []
+          }),
+    },
+    orderBy: { auditDate: "desc" },
+    take: 5,
+    select: {
+      id: true,
+      auditDate: true,
+      isBoros: true,
+      totalEstimatedKwhPerMonth: true,
+      avgActualPlnKwhPerMonth: true,
+      store: {
+        select: {
+          name: true,
+          code: true,
+          salesAreaM2: true,
+          parkingAreaM2: true,
+          terraceAreaM2: true,
+          warehouseAreaM2: true,
+        },
+      },
+    },
+  })
 
   // Map to RecentAuditItem shape
   const auditItems: RecentAuditItem[] = recentAudits.map((a) => {
@@ -95,7 +101,7 @@ export default async function DashboardPage() {
       <Header
         variant="dashboard"
         title={dbUser?.fullName ?? "Dashboard"}
-        subtitle={dbUser?.branch ?? ""}
+        subtitle={headerSubtitle}
       />
 
       <section className="mt-2 flex flex-col gap-4">

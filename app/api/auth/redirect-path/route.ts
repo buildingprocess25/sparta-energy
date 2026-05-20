@@ -17,6 +17,6 @@ export async function GET() {
   })
 
   return NextResponse.json({
-    redirectTo: user?.role === "ADMIN" ? "/admin/dashboard" : "/dashboard",
+    redirectTo: user?.role === "ADMIN" ? "/admin-entry" : "/dashboard",
   })
 }

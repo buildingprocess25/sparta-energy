@@ -52,6 +52,8 @@ export default async function AuditResultPage({ params }: Props) {
           salesTransactionPerDay: Number(row.salesTransactionPerDay),
         })),
       }}
+      dashboardHref="/dashboard"
+      dashboardLabel="Kembali ke Dashboard"
     />
   )
 }

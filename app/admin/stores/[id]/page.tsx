@@ -227,10 +227,10 @@ export default async function AdminStoreDetailPage({ params }: Props) {
           tone={latestAudit?.isBoros ? "danger" : "default"}
         />
         <MetricCard
-          label="kWh/m2"
+          label="kWh/m²"
           value={
             latestAudit
-              ? formatDecimal(latestAudit.actualKwhPerM2, " kWh/m2")
+              ? formatDecimal(latestAudit.actualKwhPerM2, " kWh/m²")
               : "-"
           }
           description="Intensitas aktual per luas toko"
@@ -259,11 +259,11 @@ export default async function AdminStoreDetailPage({ params }: Props) {
                         identity.closeTime ?? "-"
                       }`,
                 ],
-                ["Total area", formatDecimal(identity.totalAreaM2, " m2")],
-                ["Sales", formatDecimal(identity.salesAreaM2, " m2")],
-                ["Parkir", formatDecimal(identity.parkingAreaM2, " m2")],
-                ["Teras", formatDecimal(identity.terraceAreaM2, " m2")],
-                ["Gudang", formatDecimal(identity.warehouseAreaM2, " m2")],
+                ["Total area", formatDecimal(identity.totalAreaM2, " m²")],
+                ["Sales", formatDecimal(identity.salesAreaM2, " m²")],
+                ["Parkir", formatDecimal(identity.parkingAreaM2, " m²")],
+                ["Teras", formatDecimal(identity.terraceAreaM2, " m²")],
+                ["Gudang", formatDecimal(identity.warehouseAreaM2, " m²")],
               ].map(([label, value]) => (
                 <div
                   key={label}

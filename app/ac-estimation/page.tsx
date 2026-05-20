@@ -5,16 +5,26 @@ import { prisma } from "@/lib/prisma"
 import { AcEstimationClient } from "./ac-estimation-client"
 import type { StoreData } from "@/app/audit/start/start-client"
 
+const excludedBranchNames = [
+  "DEMO",
+  "Demo",
+  "demo",
+  "HEAD OFFICE",
+  "Head Office",
+  "head office",
+]
+
 export default async function AcEstimationPage() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) redirect("/login?reason=session-expired")
 
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { branch: true },
+    select: { branch: true, role: true },
   })
 
   if (!dbUser) redirect("/forbidden")
+  const isAdmin = dbUser.role === "ADMIN"
 
   const branches =
     dbUser?.branch
@@ -22,7 +32,13 @@ export default async function AcEstimationPage() {
       .map((b) => b.trim())
       .filter(Boolean) ?? []
   const stores = await prisma.store.findMany({
-    where: { branch: { in: branches } },
+    where: isAdmin
+      ? {
+          branch: {
+            notIn: excludedBranchNames,
+          },
+        }
+      : { branch: { in: branches } },
     orderBy: { code: "asc" },
     select: {
       id: true,

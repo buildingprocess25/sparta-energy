@@ -13,6 +13,7 @@ import {
   IconInfoCircle,
   IconLogout,
   IconChevronRight,
+  IconLayoutDashboard,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 
@@ -81,10 +82,25 @@ function MenuRow({
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = React.useState(false)
+  const [canOpenAdminDashboard, setCanOpenAdminDashboard] =
+    React.useState(false)
 
   React.useEffect(() => {
-    setMounted(true)
+    let isMounted = true
+
+    fetch("/api/auth/redirect-path")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { redirectTo?: string } | null) => {
+        if (!isMounted) return
+        setCanOpenAdminDashboard(data?.redirectTo === "/admin-entry")
+      })
+      .catch(() => {
+        if (isMounted) setCanOpenAdminDashboard(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   const handleLogout = async () => {
@@ -92,7 +108,7 @@ export default function SettingsPage() {
     window.location.href = "/login"
   }
 
-  const activeTheme = mounted ? theme : "system"
+  const activeTheme = theme ?? "system"
 
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
@@ -128,6 +144,17 @@ export default function SettingsPage() {
             ))}
           </div>
         </section>
+
+        {canOpenAdminDashboard && (
+          <section>
+            <SectionLabel>Mode</SectionLabel>
+            <MenuRow
+              icon={IconLayoutDashboard}
+              label="Dashboard Admin"
+              href="/admin/dashboard"
+            />
+          </section>
+        )}
 
         {/* ── Tentang ── */}
         <section>

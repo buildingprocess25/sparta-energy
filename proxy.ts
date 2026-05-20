@@ -35,7 +35,7 @@ export async function proxy(request: NextRequest) {
       select: { role: true },
     })
     const dashboardUrl = new URL(
-      user?.role === "ADMIN" ? "/admin/dashboard" : "/dashboard",
+      user?.role === "ADMIN" ? "/admin-entry" : "/dashboard",
       request.url
     )
     return NextResponse.redirect(dashboardUrl)

@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { headers } from "next/headers"
+import type { Prisma } from "@prisma/client"
 import { getServerErrorMessage, type ActionError } from "@/lib/error-handling"
 
 type AuditStatus = "hemat" | "boros"
@@ -68,8 +69,9 @@ export async function getAuditHistory(
 
     const itemsPerPage = 10
     const skip = (page - 1) * itemsPerPage
+    const scopeFilter: Prisma.AuditWhereInput = { auditorId: session.user.id }
 
-    const searchFilter = search
+    const searchFilter: Prisma.AuditWhereInput = search
       ? {
           store: {
             OR: [
@@ -95,11 +97,11 @@ export async function getAuditHistory(
     // Fetch audits plus one extra to determine if there's a next page
     const audits = (await prisma.audit.findMany({
       where: {
-        auditorId: session.user.id,
         status: "COMPLETED",
         ...searchFilter,
         ...statusFilter,
         ...yearFilter,
+        AND: [scopeFilter, searchFilter],
       },
       orderBy: { auditDate: "desc" },
       skip,
@@ -182,10 +184,12 @@ export async function getAvailableYears(): Promise<AvailableYearsResponse> {
       }
     }
 
+    const scopeFilter: Prisma.AuditWhereInput = { auditorId: session.user.id }
+
     const audits = (await prisma.audit.findMany({
       where: {
-        auditorId: session.user.id,
         status: "COMPLETED",
+        ...scopeFilter,
       },
       select: {
         auditDate: true,

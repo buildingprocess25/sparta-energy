@@ -6,6 +6,15 @@ import { prisma } from "@/lib/prisma"
 import { getAllEquipmentMaster } from "@/lib/get-equipment-for-area"
 import { AuditStartClient } from "./start-client"
 
+const excludedBranchNames = [
+  "DEMO",
+  "Demo",
+  "demo",
+  "HEAD OFFICE",
+  "Head Office",
+  "head office",
+]
+
 export default async function AuditStartPage() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) redirect("/login?reason=session-expired")
@@ -13,10 +22,11 @@ export default async function AuditStartPage() {
   // Find user with branch info
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { branch: true },
+    select: { branch: true, role: true },
   })
 
   if (!dbUser) redirect("/forbidden")
+  const isAdmin = dbUser.role === "ADMIN"
 
   // Find all stores in the user's branches (comma-separated for multi-branch support)
   const branches =
@@ -25,7 +35,13 @@ export default async function AuditStartPage() {
       .map((b) => b.trim())
       .filter(Boolean) ?? []
   const stores = await prisma.store.findMany({
-    where: { branch: { in: branches } },
+    where: isAdmin
+      ? {
+          branch: {
+            notIn: excludedBranchNames,
+          },
+        }
+      : { branch: { in: branches } },
     orderBy: { code: "asc" },
     select: {
       id: true,
@@ -75,6 +91,7 @@ export default async function AuditStartPage() {
           warehouseAreaM2: Number(s.warehouseAreaM2),
         }))}
         masterItems={masterItems}
+        dashboardPath="/dashboard"
       />
     </Suspense>
   )

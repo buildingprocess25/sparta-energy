@@ -71,57 +71,16 @@ export default async function AdminStoresPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Card size="sm">
-          <CardHeader>
-            <CardDescription>Total Toko</CardDescription>
-            <CardTitle className="text-3xl">
-              {numberFormat.format(totalStores)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card size="sm">
-          <CardHeader>
-            <CardDescription>Coverage Audit</CardDescription>
-            <CardTitle className="text-3xl">{coverage.toFixed(1)}%</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card size="sm">
-          <CardHeader>
-            <CardDescription>Hemat</CardDescription>
-            <CardTitle className="text-3xl">
-              {numberFormat.format(hematStores)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card size="sm">
-          <CardHeader>
-            <CardDescription>Boros</CardDescription>
-            <CardTitle className="text-3xl">
-              {numberFormat.format(borosStores)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-      </section>
-
       <Card className="min-h-0">
-        <CardHeader className="shrink-0">
-          <CardTitle>Daftar Toko</CardTitle>
-          <CardDescription>
-            {numberFormat.format(totalFilteredRows)} toko cocok dengan filter.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex min-h-0 flex-col gap-0 px-0 pb-0">
-          <div className="sticky top-0 z-20 border-y bg-card/95 px-6 py-4 shadow-sm backdrop-blur supports-backdrop-filter:bg-card/80">
-            <AdminStoreFilters branches={branches} storeTypes={storeTypes} />
-          </div>
-          <AdminStoresTable
-            initialRows={initialResult.rows}
-            initialHasMore={initialResult.hasMore}
-            totalRows={totalFilteredRows}
-            filters={filters}
-          />
-        </CardContent>
+        <div className="sticky top-0 z-20 border-y bg-card/95 px-6 py-4 shadow-sm backdrop-blur supports-backdrop-filter:bg-card/80">
+          <AdminStoreFilters branches={branches} storeTypes={storeTypes} />
+        </div>
+        <AdminStoresTable
+          initialRows={initialResult.rows}
+          initialHasMore={initialResult.hasMore}
+          totalRows={totalFilteredRows}
+          filters={filters}
+        />
       </Card>
     </div>
   )

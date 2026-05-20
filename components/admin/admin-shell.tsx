@@ -32,6 +32,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from "react"
 
 import { Logo } from "@/components/logo"
@@ -328,6 +329,14 @@ function AdminSidebar({ user }: { user: AdminUser }) {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Mode Auditor">
+              <Link href="/dashboard">
+                <IconClipboardList />
+                <span>Mode Auditor</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
@@ -369,7 +378,7 @@ function AdminSidebar({ user }: { user: AdminUser }) {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                  <DropdownMenuItem asChild>
+                  <DropdownMenuItem asChild disabled>
                     <Link href="#">
                       <IconKey />
                       Ganti Password
@@ -395,7 +404,13 @@ function AdminSidebar({ user }: { user: AdminUser }) {
 
 function ThemeModeToggle() {
   const { theme, setTheme } = useTheme()
-  const activeTheme = theme ?? "system"
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  )
+
+  const activeTheme = mounted ? (theme ?? "system") : "system"
   const activeOption =
     themeOptions.find((option) => option.value === activeTheme) ??
     themeOptions[2]
@@ -459,7 +474,7 @@ function HeaderProfileMenu({ user }: { user: AdminUser }) {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem asChild disabled>
             <Link href="#">
               <IconKey />
               Ganti Password
