@@ -1,5 +1,6 @@
 import Link from "next/link"
 import {
+  IconArrowRight,
   IconAlertTriangle,
   IconBuildingStore,
   IconLeaf,
@@ -311,6 +312,17 @@ function formatOperatingHours(
   return "-"
 }
 
+function getBranchSummaryHref(params: Awaited<SearchParams>) {
+  const nextParams = new URLSearchParams()
+
+  if (params.period) nextParams.set("period", params.period)
+  if (params.months) nextParams.set("months", params.months)
+  if (params.branch) nextParams.set("branch", params.branch)
+
+  const query = nextParams.toString()
+  return query ? `/admin/branches?${query}` : "/admin/branches"
+}
+
 export default async function AdminDashboardPage({
   searchParams,
 }: {
@@ -402,6 +414,7 @@ export default async function AdminDashboardPage({
 
   const consumptionGap = calculateGapPercent(avgActual, avgBaseline)
   const consumptionTrend = getConsumptionTrend(completedAudits)
+  const branchSummaryHref = getBranchSummaryHref(params)
 
   const topWastefulStores = latestAudits
     .filter((audit) => audit.isBoros)
@@ -448,6 +461,13 @@ export default async function AdminDashboardPage({
               <span className="text-muted-foreground">Coverage</span>
               <span className="font-medium">{coverage.toFixed(1)}%</span>
             </div>
+            <Link
+              href={branchSummaryHref}
+              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary underline decoration-primary/30 underline-offset-2 transition-colors hover:decoration-primary"
+            >
+              Lihat ringkasan cabang
+              <IconArrowRight className="size-3.5" />
+            </Link>
           </CardContent>
         </Card>
 
@@ -542,7 +562,7 @@ export default async function AdminDashboardPage({
       </section>
 
       <section>
-        <Card>
+        <Card size="sm">
           <CardHeader>
             <CardTitle>Tren PLN, Baseline & STD</CardTitle>
             <CardDescription>
@@ -556,19 +576,19 @@ export default async function AdminDashboardPage({
       </section>
 
       <section>
-        <Card>
+        <Card size="sm">
           <CardHeader>
             <CardTitle>Top 10 Wasteful Stores</CardTitle>
             <CardDescription>
               Toko boros dengan gap aktual PLN terbesar terhadap baseline.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-0">
             <div className="overflow-x-auto">
-              <Table className="min-w-[1040px]">
-                <TableHeader>
+              <Table className="min-w-[1040px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
+                <TableHeader className="bg-background shadow-[0_1px_0_var(--border)]">
                   <TableRow>
-                    <TableHead>Code</TableHead>
+                    <TableHead className="pl-6">Code</TableHead>
                     <TableHead>Store Name</TableHead>
                     <TableHead>Branch</TableHead>
                     <TableHead>Tipe</TableHead>
@@ -581,7 +601,7 @@ export default async function AdminDashboardPage({
                 <TableBody>
                   {topWastefulStores.map((store) => (
                     <TableRow key={store.id}>
-                      <TableCell className="font-medium">
+                      <TableCell className="pl-6 font-medium">
                         <Link
                           href={`/audit/${store.id}`}
                           className={tableLinkClass}

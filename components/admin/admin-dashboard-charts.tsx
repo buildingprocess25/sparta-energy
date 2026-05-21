@@ -90,7 +90,7 @@ export function ConsumptionTrendChart({
     >
       <AreaChart
         data={data}
-        margin={{ top: 12, right: 12, left: -24, bottom: 0 }}
+        margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
       >
         <defs>
           <linearGradient id="actualFill" x1="0" y1="0" x2="0" y2="1">

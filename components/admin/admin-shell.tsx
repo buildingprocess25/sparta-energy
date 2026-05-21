@@ -150,7 +150,6 @@ const navGroups: AdminNavGroup[] = [
         label: "Performa Cabang",
         href: "/admin/branches",
         icon: IconMapPin,
-        disabled: true,
       },
     ],
   },
@@ -327,14 +326,6 @@ function AdminSidebar({ user }: { user: AdminUser }) {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Mode Auditor">
-              <Link href="/dashboard">
-                <IconClipboardList />
-                <span>Mode Auditor</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
@@ -377,6 +368,12 @@ function AdminSidebar({ user }: { user: AdminUser }) {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard">
+                      <IconClipboardList />
+                      Pindah ke Mode Auditor
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem asChild disabled>
                     <Link href="#">
                       <IconKey />
@@ -475,6 +472,12 @@ function HeaderProfileMenu({ user }: { user: AdminUser }) {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard">
+              <IconClipboardList />
+              Pindah ke Mode Auditor
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem asChild disabled>
             <Link href="#">
               <IconKey />
@@ -668,14 +671,14 @@ function DashboardGlobalFilters() {
 
 function AdminHeaderActions({
   user,
-  showDashboardFilters,
+  showGlobalFilters,
 }: {
   user: AdminUser
-  showDashboardFilters: boolean
+  showGlobalFilters: boolean
 }) {
   return (
     <div className="ml-auto flex items-center gap-2">
-      {showDashboardFilters && (
+      {showGlobalFilters && (
         <Suspense fallback={null}>
           <DashboardGlobalFilters />
         </Suspense>
@@ -724,7 +727,8 @@ function AdminSidebarItem({
 function AdminSiteHeader({ user }: { user: AdminUser }) {
   const pathname = usePathname()
   const breadcrumbItems = getBreadcrumbItems(pathname)
-  const showDashboardFilters = pathname === "/admin/dashboard"
+  const showGlobalFilters =
+    pathname === "/admin/dashboard" || pathname === "/admin/branches"
 
   return (
     <header className="sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-border/60 bg-background/78 shadow-[0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) supports-[backdrop-filter]:bg-background/70">
@@ -760,10 +764,7 @@ function AdminSiteHeader({ user }: { user: AdminUser }) {
             })}
           </BreadcrumbList>
         </Breadcrumb>
-        <AdminHeaderActions
-          user={user}
-          showDashboardFilters={showDashboardFilters}
-        />
+        <AdminHeaderActions user={user} showGlobalFilters={showGlobalFilters} />
       </div>
     </header>
   )

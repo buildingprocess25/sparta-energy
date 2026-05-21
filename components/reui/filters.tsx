@@ -156,10 +156,11 @@ function replaceFilter<T extends string>(
 
 function updateFilter<T extends string>(
   filters: Filter<T>[],
+  currentId: string,
   nextFilter: Filter<T>
 ) {
   return filters.map((filter) =>
-    filter.id === nextFilter.id ? nextFilter : filter
+    filter.id === currentId ? nextFilter : filter
   )
 }
 
@@ -306,13 +307,13 @@ export function Filters<T extends string = string>({
                       className={option.className}
                       onClick={() => {
                         onChange(
-                          updateFilter(filters, {
-                            ...filter,
-                            id: [filter.field, filter.operator, option.value]
-                              .filter(Boolean)
-                              .join(":"),
-                            values: [option.value],
-                          })
+                          updateFilter(
+                            filters,
+                            filter.id,
+                            createFilter(filter.field, filter.operator, [
+                              option.value,
+                            ])
+                          )
                         )
                       }}
                     >
