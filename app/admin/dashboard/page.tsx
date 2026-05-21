@@ -465,7 +465,7 @@ export default async function AdminDashboardPage({
               href={branchSummaryHref}
               className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary underline decoration-primary/30 underline-offset-2 transition-colors hover:decoration-primary"
             >
-              Lihat ringkasan cabang
+              Lihat performa cabang
               <IconArrowRight className="size-3.5" />
             </Link>
           </CardContent>

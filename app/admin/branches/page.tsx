@@ -1,10 +1,12 @@
 import Link from "next/link"
+import type { ReactNode } from "react"
 import {
   IconAlertTriangle,
   IconBuildingStore,
-  IconChartBar,
   IconLeaf,
   IconProgressCheck,
+  IconSortAscending,
+  IconSortDescending,
 } from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -30,7 +32,22 @@ type SearchParams = Promise<{
   period?: string
   months?: string
   branch?: string
+  sort?: string
+  order?: string
 }>
+
+type BranchSortKey =
+  | "branch"
+  | "totalStores"
+  | "auditedStores"
+  | "notAuditedStores"
+  | "hematStores"
+  | "borosStores"
+  | "borosRate"
+  | "avgGap"
+  | "coverage"
+
+type SortOrder = "asc" | "desc"
 
 type BranchAuditSummaryRow = {
   branch: string
@@ -46,16 +63,6 @@ type BranchAuditSummaryRow = {
   avgGap: number
 }
 
-type TopWastefulStoreRow = {
-  id: string
-  code: string
-  name: string
-  branch: string
-  actual: number
-  baseline: number
-  gapPercent: number
-}
-
 type BranchDominantRow = {
   branch: string
   area: string
@@ -69,17 +76,9 @@ type RawBranchAuditSummaryRow = Omit<
   "coverage" | "borosRate" | "avgGap"
 >
 
-type RawTopWastefulStoreRow = Omit<TopWastefulStoreRow, "gapPercent">
-
 type RawBranchDominantRow = BranchDominantRow
 
 const numberFormat = new Intl.NumberFormat("id-ID")
-const compactNumberFormat = new Intl.NumberFormat("id-ID", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-})
-const tableLinkClass =
-  "text-primary underline underline-offset-2 decoration-chart-2 transition-colors hover:decoration-primary"
 
 const areaLabels: Record<string, string> = {
   PARKING: "Parkir",
@@ -115,10 +114,6 @@ function formatPercent(value: number) {
   return `${value.toFixed(1)}%`
 }
 
-function formatCompact(value: number) {
-  return compactNumberFormat.format(Math.round(value))
-}
-
 function formatKwh(value: number) {
   return `${formatNumber(value)} kWh`
 }
@@ -134,6 +129,78 @@ function getRate(numerator: number, denominator: number) {
 function calculateGapPercent(actual: number, baseline: number) {
   if (baseline <= 0) return 0
   return Math.round(((actual - baseline) / baseline) * 1000) / 10
+}
+
+function parseBranchSort(value: string | undefined): BranchSortKey {
+  const validSorts = new Set<BranchSortKey>([
+    "branch",
+    "totalStores",
+    "auditedStores",
+    "notAuditedStores",
+    "hematStores",
+    "borosStores",
+    "borosRate",
+    "avgGap",
+    "coverage",
+  ])
+
+  return validSorts.has(value as BranchSortKey)
+    ? (value as BranchSortKey)
+    : "branch"
+}
+
+function parseSortOrder(value: string | undefined): SortOrder {
+  return value === "desc" ? "desc" : "asc"
+}
+
+function getNextSortOrder({
+  currentSort,
+  currentOrder,
+  column,
+}: {
+  currentSort: BranchSortKey
+  currentOrder: SortOrder
+  column: BranchSortKey
+}) {
+  if (currentSort !== column) return column === "branch" ? "asc" : "desc"
+  return currentOrder === "asc" ? "desc" : "asc"
+}
+
+function sortBranchRows(
+  rows: BranchAuditSummaryRow[],
+  sort: BranchSortKey,
+  order: SortOrder
+) {
+  return [...rows].sort((a, b) => {
+    const modifier = order === "asc" ? 1 : -1
+
+    if (sort === "branch") {
+      return a.branch.localeCompare(b.branch, "id-ID") * modifier
+    }
+
+    return (a[sort] - b[sort]) * modifier
+  })
+}
+
+function getSortHref(
+  params: Awaited<SearchParams>,
+  column: BranchSortKey,
+  currentSort: BranchSortKey,
+  currentOrder: SortOrder
+) {
+  const nextParams = new URLSearchParams()
+
+  if (params.period) nextParams.set("period", params.period)
+  if (params.months) nextParams.set("months", params.months)
+  if (params.branch) nextParams.set("branch", params.branch)
+
+  nextParams.set("sort", column)
+  nextParams.set(
+    "order",
+    getNextSortOrder({ currentSort, currentOrder, column })
+  )
+
+  return `/admin/branches?${nextParams.toString()}`
 }
 
 function buildBranchesQueryParts(params: Awaited<SearchParams>) {
@@ -295,48 +362,6 @@ async function getBranchSummaryRows(params: Awaited<SearchParams>) {
   return rows.map(serializeBranchSummaryRow)
 }
 
-async function getTopWastefulStores(params: Awaited<SearchParams>) {
-  const { storeWhere, auditDateWhere, values } = buildBranchesQueryParts(params)
-  const rows = await prisma.$queryRawUnsafe<RawTopWastefulStoreRow[]>(
-    `
-      WITH
-        ${getStoreScopeSql(storeWhere)},
-        ${getLatestAuditSql(auditDateWhere)}
-      SELECT
-        la.id::text,
-        la.code,
-        la.name,
-        la.branch,
-        la.actual,
-        la.baseline
-      FROM latest_audits la
-      WHERE la.is_boros IS TRUE
-      ORDER BY
-        CASE
-          WHEN la.baseline > 0 THEN ((la.actual - la.baseline) / la.baseline) * 100
-          ELSE 0
-        END DESC
-      LIMIT 10
-    `,
-    ...values
-  )
-
-  return rows.map((row) => {
-    const actual = Number(row.actual ?? 0)
-    const baseline = Number(row.baseline ?? 0)
-
-    return {
-      id: row.id,
-      code: row.code,
-      name: row.name,
-      branch: row.branch,
-      actual,
-      baseline,
-      gapPercent: calculateGapPercent(actual, baseline),
-    } satisfies TopWastefulStoreRow
-  })
-}
-
 async function getBranchDominantRows(params: Awaited<SearchParams>) {
   const { storeWhere, auditDateWhere, values } = buildBranchesQueryParts(params)
   const rows = await prisma.$queryRawUnsafe<RawBranchDominantRow[]>(
@@ -412,7 +437,7 @@ function BentoMetric({
 }: {
   label: string
   value: string
-  icon: typeof IconChartBar
+  icon: typeof IconProgressCheck
   tone?: "default" | "primary" | "destructive"
   rows: Array<{ label: string; value: string }>
   className?: string
@@ -453,14 +478,52 @@ function BentoMetric({
   )
 }
 
+function SortableHeader({
+  children,
+  column,
+  currentSort,
+  currentOrder,
+  params,
+  align = "left",
+  className,
+}: {
+  children: ReactNode
+  column: BranchSortKey
+  currentSort: BranchSortKey
+  currentOrder: SortOrder
+  params: Awaited<SearchParams>
+  align?: "left" | "right"
+  className?: string
+}) {
+  const isActive = currentSort === column
+  const Icon = currentOrder === "asc" ? IconSortAscending : IconSortDescending
+
+  return (
+    <Link
+      href={getSortHref(params, column, currentSort, currentOrder)}
+      className={[
+        "inline-flex w-full items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground",
+        align === "right" ? "justify-end" : "justify-start",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <span>{children}</span>
+      {isActive && <Icon className="size-3.5" />}
+    </Link>
+  )
+}
+
 export default async function AdminBranchesPage({
   searchParams,
 }: {
   searchParams: SearchParams
 }) {
   const params = await searchParams
-  const rows = await getBranchSummaryRows(params)
-  const topWastefulStores = await getTopWastefulStores(params)
+  const sort = parseBranchSort(params.sort)
+  const order = parseSortOrder(params.order)
+  const rows = sortBranchRows(await getBranchSummaryRows(params), sort, order)
   const dominantRows = await getBranchDominantRows(params)
   const totalStores = rows.reduce((total, row) => total + row.totalStores, 0)
   const auditedStores = rows.reduce(
@@ -478,17 +541,17 @@ export default async function AdminBranchesPage({
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="-mx-4 flex min-h-0 flex-1 flex-col border-y md:-mx-6">
           <div className="grid auto-rows-fr gap-3 px-4 py-4 md:grid-cols-2 md:px-6 xl:grid-cols-4">
-            <Card size="sm" className="md:col-span-2">
+            <Card size="sm">
               <CardHeader>
                 <CardDescription>Performa Cabang</CardDescription>
-                <CardTitle className="text-3xl">
+                <CardTitle className="text-xl">
                   {formatPercent(coverage)}
                 </CardTitle>
                 <CardAction>
                   <IconProgressCheck className="size-5 text-muted-foreground" />
                 </CardAction>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-2">
                 <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
                   <div
                     className="rounded-full bg-primary"
@@ -498,19 +561,19 @@ export default async function AdminBranchesPage({
                 <div className="grid grid-cols-3 gap-3 text-xs">
                   <div>
                     <p className="text-muted-foreground">Cabang</p>
-                    <p className="mt-1 text-base font-semibold">
+                    <p className="mt-0.5 font-medium">
                       {formatNumber(rows.length)}
                     </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Toko</p>
-                    <p className="mt-1 text-base font-semibold">
+                    <p className="mt-0.5 font-medium">
                       {formatNumber(totalStores)}
                     </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Boros</p>
-                    <p className="mt-1 text-base font-semibold">
+                    <p className="mt-0.5 font-medium">
                       {formatNumber(borosStores)}
                     </p>
                   </div>
@@ -562,7 +625,6 @@ export default async function AdminBranchesPage({
               label="Coverage Terendah"
               value={lowCoverageBranch?.branch ?? "-"}
               icon={IconBuildingStore}
-              className="md:col-span-2 xl:col-span-1"
               rows={[
                 {
                   label: "Coverage",
@@ -575,33 +637,6 @@ export default async function AdminBranchesPage({
                   value: lowCoverageBranch
                     ? formatNumber(lowCoverageBranch.notAuditedStores)
                     : "-",
-                },
-              ]}
-            />
-
-            <BentoMetric
-              label="Rata-rata Konsumsi"
-              value={
-                auditedStores > 0
-                  ? `${formatCompact(
-                      rows.reduce(
-                        (total, row) =>
-                          total + row.avgActual * row.auditedStores,
-                        0
-                      ) / auditedStores
-                    )} kWh`
-                  : "-"
-              }
-              icon={IconChartBar}
-              className="md:col-span-2 xl:col-span-3"
-              rows={[
-                {
-                  label: "Toko Sudah Audit",
-                  value: formatNumber(auditedStores),
-                },
-                {
-                  label: "Toko Belum Audit",
-                  value: formatNumber(Math.max(totalStores - auditedStores, 0)),
                 },
               ]}
             />
@@ -621,19 +656,103 @@ export default async function AdminBranchesPage({
                   <Table className="min-w-[980px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
                     <TableHeader className="bg-background shadow-[0_1px_0_var(--border)]">
                       <TableRow>
-                        <TableHead className="pl-6">Cabang</TableHead>
-                        <TableHead className="text-right">Total Toko</TableHead>
-                        <TableHead className="text-right">
-                          Sudah Audit
+                        <TableHead className="pl-6">
+                          <SortableHeader
+                            column="branch"
+                            currentSort={sort}
+                            currentOrder={order}
+                            params={params}
+                          >
+                            Cabang
+                          </SortableHeader>
                         </TableHead>
                         <TableHead className="text-right">
-                          Belum Audit
+                          <SortableHeader
+                            column="totalStores"
+                            currentSort={sort}
+                            currentOrder={order}
+                            params={params}
+                            align="right"
+                          >
+                            Total Toko
+                          </SortableHeader>
                         </TableHead>
-                        <TableHead>Coverage</TableHead>
-                        <TableHead className="text-right">Hemat</TableHead>
-                        <TableHead className="text-right">Boros</TableHead>
-                        <TableHead className="text-right">Boros Rate</TableHead>
-                        <TableHead className="text-right">Avg Gap</TableHead>
+                        <TableHead className="text-right">
+                          <SortableHeader
+                            column="auditedStores"
+                            currentSort={sort}
+                            currentOrder={order}
+                            params={params}
+                            align="right"
+                          >
+                            Sudah Audit
+                          </SortableHeader>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <SortableHeader
+                            column="notAuditedStores"
+                            currentSort={sort}
+                            currentOrder={order}
+                            params={params}
+                            align="right"
+                          >
+                            Belum Audit
+                          </SortableHeader>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <SortableHeader
+                            column="hematStores"
+                            currentSort={sort}
+                            currentOrder={order}
+                            params={params}
+                            align="right"
+                          >
+                            Hemat
+                          </SortableHeader>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <SortableHeader
+                            column="borosStores"
+                            currentSort={sort}
+                            currentOrder={order}
+                            params={params}
+                            align="right"
+                          >
+                            Boros
+                          </SortableHeader>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <SortableHeader
+                            column="borosRate"
+                            currentSort={sort}
+                            currentOrder={order}
+                            params={params}
+                            align="right"
+                          >
+                            Boros Rate
+                          </SortableHeader>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <SortableHeader
+                            column="avgGap"
+                            currentSort={sort}
+                            currentOrder={order}
+                            params={params}
+                            align="right"
+                          >
+                            Avg Gap
+                          </SortableHeader>
+                        </TableHead>
+                        <TableHead>
+                          <SortableHeader
+                            column="coverage"
+                            currentSort={sort}
+                            currentOrder={order}
+                            params={params}
+                          >
+                            Coverage
+                          </SortableHeader>
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -650,19 +769,6 @@ export default async function AdminBranchesPage({
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">
                             {formatNumber(row.notAuditedStores)}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex min-w-32 items-center gap-2">
-                              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                                <div
-                                  className="h-full rounded-full bg-primary"
-                                  style={{ width: `${row.coverage}%` }}
-                                />
-                              </div>
-                              <span className="w-12 text-right text-xs font-medium tabular-nums">
-                                {formatPercent(row.coverage)}
-                              </span>
-                            </div>
                           </TableCell>
                           <TableCell className="text-right text-primary">
                             {formatNumber(row.hematStores)}
@@ -691,6 +797,19 @@ export default async function AdminBranchesPage({
                               {formatPercent(row.avgGap)}
                             </Badge>
                           </TableCell>
+                          <TableCell>
+                            <div className="flex min-w-32 items-center gap-2">
+                              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className="h-full rounded-full bg-primary"
+                                  style={{ width: `${row.coverage}%` }}
+                                />
+                              </div>
+                              <span className="w-12 text-right text-xs font-medium tabular-nums">
+                                {formatPercent(row.coverage)}
+                              </span>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -700,66 +819,7 @@ export default async function AdminBranchesPage({
             </Card>
           </div>
 
-          <div className="grid gap-4 px-4 pb-4 md:px-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Top Toko Boros per Cabang</CardTitle>
-                <CardDescription>
-                  Toko boros dengan gap actual PLN terbesar terhadap baseline.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="px-0">
-                <div className="overflow-x-auto">
-                  <Table className="min-w-[760px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
-                    <TableHeader className="bg-background shadow-[0_1px_0_var(--border)]">
-                      <TableRow>
-                        <TableHead className="pl-6">Toko</TableHead>
-                        <TableHead>Cabang</TableHead>
-                        <TableHead className="text-right">Actual PLN</TableHead>
-                        <TableHead className="text-right">Baseline</TableHead>
-                        <TableHead className="text-right">Gap</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {topWastefulStores.map((store) => (
-                        <TableRow key={store.id}>
-                          <TableCell className="pl-6">
-                            <div className="min-w-0">
-                              <p className="font-medium">
-                                <Link
-                                  href={`/audit/${store.id}`}
-                                  className={tableLinkClass}
-                                >
-                                  {store.code}
-                                </Link>
-                              </p>
-                              <p className="max-w-64 truncate text-muted-foreground">
-                                {store.name}
-                              </p>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {store.branch}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatKwh(store.actual)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatKwh(store.baseline)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant="destructive">
-                              +{formatPercent(store.gapPercent)}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
+          <div className="px-4 pb-4 md:px-6">
             <Card size="sm">
               <CardHeader>
                 <CardTitle>Dominan Area & Equipment</CardTitle>

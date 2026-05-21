@@ -17,7 +17,6 @@ import {
   IconKey,
   IconLayoutDashboard,
   IconLogout,
-  IconMapPin,
   IconMoon,
   IconSun,
   IconTool,
@@ -97,6 +96,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { signOut } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
+import { ChartNoAxesColumn } from "lucide-react"
 
 type AdminUser = {
   fullName: string | null
@@ -149,7 +149,7 @@ const navGroups: AdminNavGroup[] = [
       {
         label: "Performa Cabang",
         href: "/admin/branches",
-        icon: IconMapPin,
+        icon: ChartNoAxesColumn,
       },
     ],
   },
@@ -727,8 +727,7 @@ function AdminSidebarItem({
 function AdminSiteHeader({ user }: { user: AdminUser }) {
   const pathname = usePathname()
   const breadcrumbItems = getBreadcrumbItems(pathname)
-  const showGlobalFilters =
-    pathname === "/admin/dashboard" || pathname === "/admin/branches"
+  const showGlobalFilters = pathname === "/admin/dashboard"
 
   return (
     <header className="sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-border/60 bg-background/78 shadow-[0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) supports-[backdrop-filter]:bg-background/70">
