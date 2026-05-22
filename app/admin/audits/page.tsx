@@ -7,6 +7,8 @@ import {
   getAdminAuditCount,
   getAdminAuditRows,
   getAdminAuditYears,
+  parseAdminAuditOrder,
+  parseAdminAuditSort,
   type AdminAuditRecommendation,
   type AdminAuditFilters as AdminAuditFiltersValue,
   type AdminAuditStatus,
@@ -20,6 +22,8 @@ type SearchParams = Promise<{
   month?: string
   status?: string
   recommendation?: string
+  sort?: string
+  order?: string
 }>
 
 function getFilter(value: string | undefined) {
@@ -58,6 +62,8 @@ export default async function AdminAuditsPage({
     month: getFilter(params.month),
     status: parseStatus(params.status),
     recommendation: parseRecommendation(params.recommendation),
+    sort: parseAdminAuditSort(params.sort),
+    order: parseAdminAuditOrder(params.order),
   }
 
   const branches = await getAdminAuditBranches()
@@ -73,7 +79,7 @@ export default async function AdminAuditsPage({
   return (
     <div className="-mt-4 flex min-h-[calc(100svh-var(--header-height)-1rem)] flex-col md:-mt-6 md:min-h-[calc(100svh-var(--header-height))]">
       <section className="flex min-h-0 flex-1 flex-col">
-        <div className="sticky top-(--header-height) z-20 -mx-4 border-y bg-background/90 px-4 py-4 backdrop-blur md:-mx-6 md:px-6 supports-[backdrop-filter]:bg-background/75">
+        <div className="sticky top-(--header-height) z-20 -mx-4 border-y bg-background/90 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:-mx-6 md:px-6">
           <AdminAuditFilters
             branches={branches}
             auditors={auditors}

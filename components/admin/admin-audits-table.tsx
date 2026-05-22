@@ -1,12 +1,15 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import {
   IconAlertTriangle,
   IconClipboardCheck,
   IconLeaf,
   IconLoader2,
+  IconSortAscending,
+  IconSortDescending,
 } from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -22,6 +25,8 @@ import {
 import type {
   AdminAuditFilters,
   AdminAuditRow,
+  AdminAuditSortKey,
+  AdminAuditSortOrder,
 } from "@/lib/admin-audit-queries"
 
 const numberFormat = new Intl.NumberFormat("id-ID")
@@ -39,6 +44,11 @@ function formatDate(value: string) {
 function formatKwh(value: number | null) {
   if (value === null) return "-"
   return `${numberFormat.format(Math.round(value))} kWh`
+}
+
+function formatStd(value: number | null) {
+  if (value === null) return "-"
+  return numberFormat.format(Math.round(value))
 }
 
 function calculateGapPercent(actual: number | null, baseline: number | null) {
@@ -73,6 +83,19 @@ function getRecommendationLabel(type: string) {
   return type
 }
 
+function getNextSortOrder({
+  currentSort,
+  currentOrder,
+  column,
+}: {
+  currentSort: AdminAuditSortKey
+  currentOrder: AdminAuditSortOrder
+  column: AdminAuditSortKey
+}) {
+  if (currentSort !== column) return column === "auditDate" ? "desc" : "asc"
+  return currentOrder === "asc" ? "desc" : "asc"
+}
+
 export function AdminAuditsTable({
   initialRows,
   initialHasMore,
@@ -84,11 +107,60 @@ export function AdminAuditsTable({
   totalRows: number
   filters: AdminAuditFilters
 }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [rows, setRows] = useState(initialRows)
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [loading, setLoading] = useState(false)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const filterKey = JSON.stringify(filters)
+
+  function updateSort(column: AdminAuditSortKey) {
+    const params = new URLSearchParams(searchParams)
+    const nextOrder = getNextSortOrder({
+      currentSort: filters.sort,
+      currentOrder: filters.order,
+      column,
+    })
+
+    params.set("sort", column)
+    params.set("order", nextOrder)
+
+    router.push(`${pathname}?${params.toString()}`)
+  }
+
+  function SortableHeader({
+    column,
+    children,
+    align = "left",
+  }: {
+    column: AdminAuditSortKey
+    children: string
+    align?: "left" | "right"
+  }) {
+    const active = filters.sort === column
+    const Icon = active
+      ? filters.order === "asc"
+        ? IconSortAscending
+        : IconSortDescending
+      : null
+
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        className={align === "right" ? "ml-auto" : "-ml-2"}
+        aria-label={`Urutkan berdasarkan ${children}`}
+        aria-pressed={active}
+        onClick={() => updateSort(column)}
+      >
+        {children}
+        {Icon && <Icon data-icon="inline-end" />}
+      </Button>
+    )
+  }
 
   useEffect(() => {
     setRows(initialRows)
@@ -122,6 +194,8 @@ export function AdminAuditsTable({
         month: filters.month,
         status: filters.status,
         recommendation: filters.recommendation,
+        sort: filters.sort,
+        order: filters.order,
       })
 
       const response = await fetch(`/admin/audits/data?${params.toString()}`)
@@ -142,17 +216,44 @@ export function AdminAuditsTable({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-auto bg-background">
-        <Table className="min-w-[1180px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
+        <Table className="min-w-[1280px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
           <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
             <TableRow>
-              <TableHead>Tanggal</TableHead>
-              <TableHead>Toko</TableHead>
-              <TableHead>Cabang</TableHead>
-              <TableHead>Auditor</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actual PLN</TableHead>
-              <TableHead className="text-right">Baseline</TableHead>
-              <TableHead className="text-right">Gap</TableHead>
+              <TableHead>
+                <SortableHeader column="auditDate">Tanggal</SortableHeader>
+              </TableHead>
+              <TableHead>
+                <SortableHeader column="store">Toko</SortableHeader>
+              </TableHead>
+              <TableHead>
+                <SortableHeader column="branch">Cabang</SortableHeader>
+              </TableHead>
+              <TableHead>
+                <SortableHeader column="auditor">Auditor</SortableHeader>
+              </TableHead>
+              <TableHead>
+                <SortableHeader column="status">Status</SortableHeader>
+              </TableHead>
+              <TableHead className="text-right">
+                <SortableHeader column="std" align="right">
+                  STD
+                </SortableHeader>
+              </TableHead>
+              <TableHead className="text-right">
+                <SortableHeader column="actualPln" align="right">
+                  Actual PLN
+                </SortableHeader>
+              </TableHead>
+              <TableHead className="text-right">
+                <SortableHeader column="baseline" align="right">
+                  Baseline
+                </SortableHeader>
+              </TableHead>
+              <TableHead className="text-right">
+                <SortableHeader column="gap" align="right">
+                  Gap
+                </SortableHeader>
+              </TableHead>
               <TableHead>Rekomendasi</TableHead>
             </TableRow>
           </TableHeader>
@@ -199,6 +300,9 @@ export function AdminAuditsTable({
                     </div>
                   </TableCell>
                   <TableCell>{getStatusBadge(audit.isBoros)}</TableCell>
+                  <TableCell className="text-right">
+                    {formatStd(audit.std)}
+                  </TableCell>
                   <TableCell className="text-right">
                     {formatKwh(audit.actualPln)}
                   </TableCell>

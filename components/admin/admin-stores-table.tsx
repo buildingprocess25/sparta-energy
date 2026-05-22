@@ -50,6 +50,11 @@ function formatKwh(value: string | number | null) {
   return `${numberFormat.format(Math.round(Number(value)))} kWh`
 }
 
+function formatStd(value: string | number | null) {
+  if (value === null) return "-"
+  return numberFormat.format(Math.round(Number(value)))
+}
+
 function calculateGapPercent(
   actual: string | number | null,
   baseline: string | number | null
@@ -222,7 +227,7 @@ export function AdminStoresTable({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-auto bg-background">
-        <Table className="min-w-[900px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
+        <Table className="min-w-[980px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
           <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
             <TableRow>
               <TableHead>
@@ -240,6 +245,11 @@ export function AdminStoresTable({
               <TableHead>
                 <SortableHeader column="auditDate">
                   Audit Terakhir
+                </SortableHeader>
+              </TableHead>
+              <TableHead className="text-right">
+                <SortableHeader column="std" align="right">
+                  STD
                 </SortableHeader>
               </TableHead>
               <TableHead className="text-right">
@@ -299,6 +309,9 @@ export function AdminStoresTable({
                       <IconClipboardCheck className="size-4" />
                       <span>{formatDate(store.latest_audit_date)}</span>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatStd(store.std)}
                   </TableCell>
                   <TableCell className="text-right">
                     {formatKwh(store.actual_pln)}

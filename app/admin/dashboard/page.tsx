@@ -29,9 +29,10 @@ import {
 import { prisma } from "@/lib/prisma"
 
 type SearchParams = Promise<{
-  period?: string
-  months?: string
+  year?: string
+  month?: string
   branch?: string
+  type?: string
 }>
 
 const numberFormat = new Intl.NumberFormat("id-ID")
@@ -105,32 +106,21 @@ function parseMonthValue(value: string) {
 
 function getAuditDateFilter(params: Awaited<SearchParams>) {
   const now = new Date()
-  const period = params.period ?? "ytd"
+  const parsedYear = Number(params.year)
+  const year = Number.isInteger(parsedYear) ? parsedYear : now.getFullYear()
+  const month = params.month ? parseMonthValue(`${year}-${params.month}`) : null
 
-  if (period === "month") {
+  if (month) {
     return {
-      gte: getStartOfMonth(now.getFullYear(), now.getMonth()),
-      lt: getStartOfNextMonth(now.getFullYear(), now.getMonth()),
+      gte: getStartOfMonth(month.year, month.monthIndex),
+      lt: getStartOfNextMonth(month.year, month.monthIndex),
     }
   }
 
-  if (period === "custom") {
-    const monthRanges = (params.months ?? "")
-      .split(",")
-      .map((item) => parseMonthValue(item.trim()))
-      .filter((item): item is { year: number; monthIndex: number } =>
-        Boolean(item)
-      )
-
-    if (monthRanges.length > 0) {
-      return {
-        OR: monthRanges.map((item) => ({
-          auditDate: {
-            gte: getStartOfMonth(item.year, item.monthIndex),
-            lt: getStartOfNextMonth(item.year, item.monthIndex),
-          },
-        })),
-      }
+  if (params.year) {
+    return {
+      gte: new Date(year, 0, 1, 0, 0, 0, 0),
+      lt: new Date(year + 1, 0, 1, 0, 0, 0, 0),
     }
   }
 
@@ -142,14 +132,18 @@ function getAuditDateFilter(params: Awaited<SearchParams>) {
 
 function getStoreFilter(params: Awaited<SearchParams>): Prisma.StoreWhereInput {
   const branch = params.branch?.trim()
+  const type = params.type?.trim()
+  const conditions: Prisma.StoreWhereInput[] = [storeBranchFilter]
 
   if (branch && branch !== "all") {
-    return {
-      AND: [{ branch }, { branch: { notIn: excludedBranchNames } }],
-    }
+    conditions.push({ branch })
   }
 
-  return storeBranchFilter
+  if (type && type !== "all") {
+    conditions.push({ type })
+  }
+
+  return { AND: conditions }
 }
 
 function formatNumber(value: number) {
@@ -312,17 +306,6 @@ function formatOperatingHours(
   return "-"
 }
 
-function getBranchSummaryHref(params: Awaited<SearchParams>) {
-  const nextParams = new URLSearchParams()
-
-  if (params.period) nextParams.set("period", params.period)
-  if (params.months) nextParams.set("months", params.months)
-  if (params.branch) nextParams.set("branch", params.branch)
-
-  const query = nextParams.toString()
-  return query ? `/admin/branches?${query}` : "/admin/branches"
-}
-
 export default async function AdminDashboardPage({
   searchParams,
 }: {
@@ -334,12 +317,7 @@ export default async function AdminDashboardPage({
   const auditWhere: Prisma.AuditWhereInput = {
     status: "COMPLETED",
     store: storeFilter,
-  }
-
-  if ("OR" in auditDateFilter) {
-    auditWhere.OR = auditDateFilter.OR
-  } else {
-    auditWhere.auditDate = auditDateFilter
+    auditDate: auditDateFilter,
   }
 
   const [totalStores, completedAudits] = await Promise.all([
@@ -413,8 +391,7 @@ export default async function AdminDashboardPage({
       : 0
 
   const consumptionGap = calculateGapPercent(avgActual, avgBaseline)
-  const consumptionTrend = getConsumptionTrend(completedAudits)
-  const branchSummaryHref = getBranchSummaryHref(params)
+  const consumptionTrend = getConsumptionTrend(latestAudits)
 
   const topWastefulStores = latestAudits
     .filter((audit) => audit.isBoros)
@@ -454,7 +431,7 @@ export default async function AdminDashboardPage({
           ]}
         >
           <Link
-            href={branchSummaryHref}
+            href="/admin/branches"
             className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary underline decoration-primary/30 underline-offset-2 transition-colors hover:decoration-primary"
           >
             Lihat performa cabang
@@ -540,7 +517,7 @@ export default async function AdminDashboardPage({
           <CardHeader>
             <CardTitle>Tren PLN, Baseline & STD</CardTitle>
             <CardDescription>
-              Rata-rata actual PLN, baseline audit, dan STD.
+              Rata-rata dari audit terakhir tiap toko.
             </CardDescription>
           </CardHeader>
           <CardContent>

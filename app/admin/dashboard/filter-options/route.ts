@@ -30,21 +30,44 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const branches = await prisma.store.findMany({
-    where: {
-      branch: {
-        not: null,
-        notIn: excludedBranchNames,
+  const [branches, storeTypes, years] = await Promise.all([
+    prisma.store.findMany({
+      where: {
+        branch: {
+          not: null,
+          notIn: excludedBranchNames,
+        },
       },
-    },
-    distinct: ["branch"],
-    orderBy: { branch: "asc" },
-    select: { branch: true },
-  })
+      distinct: ["branch"],
+      orderBy: { branch: "asc" },
+      select: { branch: true },
+    }),
+    prisma.store.findMany({
+      where: {
+        type: { not: "" },
+        branch: {
+          notIn: excludedBranchNames,
+        },
+      },
+      distinct: ["type"],
+      orderBy: { type: "asc" },
+      select: { type: true },
+    }),
+    prisma.$queryRaw<Array<{ year: number }>>`
+      SELECT DISTINCT EXTRACT(YEAR FROM audit_date)::int AS year
+      FROM audits
+      WHERE status = 'COMPLETED'
+      ORDER BY year DESC
+    `,
+  ])
 
   return NextResponse.json({
     branches: branches
       .map((item) => item.branch?.trim())
       .filter((item): item is string => Boolean(item)),
+    storeTypes: storeTypes
+      .map((item) => item.type?.trim())
+      .filter((item): item is string => Boolean(item)),
+    years: years.map((item) => String(item.year)),
   })
 }

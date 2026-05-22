@@ -5,6 +5,17 @@ import { prisma } from "@/lib/prisma"
 
 export type AdminAuditStatus = "hemat" | "boros"
 export type AdminAuditRecommendation = RecommendationType
+export type AdminAuditSortKey =
+  | "auditDate"
+  | "store"
+  | "branch"
+  | "auditor"
+  | "status"
+  | "std"
+  | "actualPln"
+  | "baseline"
+  | "gap"
+export type AdminAuditSortOrder = "asc" | "desc"
 
 export type AdminAuditFilters = {
   q: string
@@ -14,6 +25,8 @@ export type AdminAuditFilters = {
   month: string
   status: AdminAuditStatus | "all"
   recommendation: AdminAuditRecommendation | "all"
+  sort: AdminAuditSortKey
+  order: AdminAuditSortOrder
 }
 
 export type AdminAuditRow = {
@@ -22,6 +35,7 @@ export type AdminAuditRow = {
   isBoros: boolean | null
   actualPln: number | null
   baseline: number | null
+  std: number | null
   store: {
     code: string
     name: string
@@ -58,6 +72,18 @@ type RawYearOption = {
   year: string
 }
 
+type RawAdminAuditRow = {
+  id: string
+  auditDate: Date
+  isBoros: boolean | null
+  actualPln: { toString(): string } | string | number | null
+  baseline: { toString(): string } | string | number | null
+  std: { toString(): string } | string | number | null
+  store: AdminAuditRow["store"]
+  auditor: AdminAuditRow["auditor"]
+  recommendations: AdminAuditRow["recommendations"]
+}
+
 const excludedBranchNames = [
   "DEMO",
   "Demo",
@@ -68,6 +94,8 @@ const excludedBranchNames = [
 ]
 
 export const adminAuditsPageSize = 20
+export const defaultAdminAuditSort: AdminAuditSortKey = "auditDate"
+export const defaultAdminAuditOrder: AdminAuditSortOrder = "desc"
 
 const activeStoreFilter: Prisma.StoreWhereInput = {
   OR: [{ branch: null }, { branch: { notIn: excludedBranchNames } }],
@@ -75,6 +103,32 @@ const activeStoreFilter: Prisma.StoreWhereInput = {
 
 const activeStoreWhereSql =
   "s.branch IS NULL OR lower(s.branch) NOT IN ('demo', 'head office')"
+
+export function parseAdminAuditSort(
+  value: string | null | undefined
+): AdminAuditSortKey {
+  if (
+    value === "auditDate" ||
+    value === "store" ||
+    value === "branch" ||
+    value === "auditor" ||
+    value === "status" ||
+    value === "std" ||
+    value === "actualPln" ||
+    value === "baseline" ||
+    value === "gap"
+  ) {
+    return value
+  }
+
+  return defaultAdminAuditSort
+}
+
+export function parseAdminAuditOrder(
+  value: string | null | undefined
+): AdminAuditSortOrder {
+  return value === "asc" || value === "desc" ? value : defaultAdminAuditOrder
+}
 
 function addAuditWhereAnd(
   where: Prisma.AuditWhereInput,
@@ -90,7 +144,9 @@ function addAuditWhereAnd(
   where.AND = [...currentItems, condition]
 }
 
-function getAdminAuditWhere(filters: AdminAuditFilters): Prisma.AuditWhereInput {
+function getAdminAuditWhere(
+  filters: AdminAuditFilters
+): Prisma.AuditWhereInput {
   const where: Prisma.AuditWhereInput = {
     status: "COMPLETED",
     store: activeStoreFilter,
@@ -143,19 +199,19 @@ function getAdminAuditWhere(filters: AdminAuditFilters): Prisma.AuditWhereInput 
   return where
 }
 
-function serializeAudit(row: Awaited<ReturnType<typeof getAdminAuditRowsRaw>>[number]) {
+function toNullableNumber(value: RawAdminAuditRow["actualPln"]) {
+  if (value === null) return null
+  return Number(value)
+}
+
+function serializeAudit(row: RawAdminAuditRow) {
   return {
     id: row.id,
     auditDate: row.auditDate.toISOString(),
     isBoros: row.isBoros,
-    actualPln:
-      row.avgActualPlnKwhPerMonth === null
-        ? null
-        : Number(row.avgActualPlnKwhPerMonth),
-    baseline:
-      row.totalEstimatedKwhPerMonth === null
-        ? null
-        : Number(row.totalEstimatedKwhPerMonth),
+    actualPln: toNullableNumber(row.actualPln),
+    baseline: toNullableNumber(row.baseline),
+    std: toNullableNumber(row.std),
     store: row.store,
     auditor: row.auditor,
     recommendations: row.recommendations.map((item) => ({
@@ -163,6 +219,113 @@ function serializeAudit(row: Awaited<ReturnType<typeof getAdminAuditRowsRaw>>[nu
       title: item.title,
     })),
   } satisfies AdminAuditRow
+}
+
+function getDateRange(filters: AdminAuditFilters) {
+  if (filters.year === "all") return null
+  const year = Number(filters.year)
+  if (!Number.isInteger(year)) return null
+
+  if (filters.month !== "all") {
+    const month = Number(filters.month)
+    if (!Number.isInteger(month) || month < 1 || month > 12) return null
+    return {
+      start: new Date(year, month - 1, 1, 0, 0, 0, 0),
+      end: new Date(year, month, 1, 0, 0, 0, 0),
+    }
+  }
+
+  return {
+    start: new Date(year, 0, 1, 0, 0, 0, 0),
+    end: new Date(year + 1, 0, 1, 0, 0, 0, 0),
+  }
+}
+
+function getAuditRowsWhereSql(filters: AdminAuditFilters, values: unknown[]) {
+  const clauses = ["a.status = 'COMPLETED'", `(${activeStoreWhereSql})`]
+
+  if (filters.q) {
+    values.push(`%${filters.q.toLowerCase()}%`)
+    clauses.push(
+      `(lower(s.code) LIKE $${values.length} OR lower(s.name) LIKE $${values.length})`
+    )
+  }
+
+  if (filters.branch !== "all") {
+    values.push(filters.branch)
+    clauses.push(`s.branch = $${values.length}`)
+  }
+
+  if (filters.auditor !== "all") {
+    values.push(filters.auditor)
+    clauses.push(`a.auditor_id = $${values.length}::uuid`)
+  }
+
+  if (filters.status !== "all") {
+    clauses.push(
+      filters.status === "boros"
+        ? "a.is_boros IS TRUE"
+        : "a.is_boros IS NOT TRUE"
+    )
+  }
+
+  if (filters.recommendation !== "all") {
+    values.push(filters.recommendation)
+    clauses.push(`EXISTS (
+      SELECT 1
+      FROM audit_recommendations ar_filter
+      WHERE ar_filter.audit_id = a.id
+        AND ar_filter.type = $${values.length}
+    )`)
+  }
+
+  const dateRange = getDateRange(filters)
+  if (dateRange) {
+    values.push(dateRange.start)
+    const startIndex = values.length
+    values.push(dateRange.end)
+    clauses.push(
+      `a.audit_date >= $${startIndex} AND a.audit_date < $${values.length}`
+    )
+  }
+
+  return `WHERE ${clauses.join(" AND ")}`
+}
+
+function getAuditRowsOrderBySql(filters: AdminAuditFilters) {
+  const direction = filters.order === "asc" ? "ASC" : "DESC"
+  const nulls = filters.order === "asc" ? "NULLS FIRST" : "NULLS LAST"
+  const statusSql = `
+    CASE
+      WHEN a.is_boros IS TRUE THEN 1
+      ELSE 0
+    END ${direction}
+  `
+
+  const sortSqlByKey: Record<AdminAuditSortKey, string> = {
+    auditDate: `a.audit_date ${direction}, a.created_at ${direction}`,
+    store: `lower(s.code) ${direction}, lower(s.name) ${direction}`,
+    branch: `lower(s.branch) ${direction} ${nulls}, lower(s.code) ASC`,
+    auditor: `lower(coalesce(u.full_name, u.email)) ${direction}, lower(u.email) ${direction}`,
+    status: `${statusSql}, a.audit_date DESC`,
+    std: `std.avg_std ${direction} ${nulls}, a.audit_date DESC`,
+    actualPln: `a.avg_actual_pln_kwh_per_month ${direction} ${nulls}, a.audit_date DESC`,
+    baseline: `a.total_estimated_kwh_per_month ${direction} ${nulls}, a.audit_date DESC`,
+    gap: `
+      CASE
+        WHEN a.total_estimated_kwh_per_month IS NULL
+          OR a.total_estimated_kwh_per_month = 0
+        THEN NULL
+        ELSE (
+          (a.avg_actual_pln_kwh_per_month - a.total_estimated_kwh_per_month)
+          / a.total_estimated_kwh_per_month
+        )
+      END ${direction} ${nulls},
+      a.audit_date DESC
+    `,
+  }
+
+  return `ORDER BY ${sortSqlByKey[filters.sort]}, a.id ASC`
 }
 
 async function getAdminAuditRowsRaw({
@@ -174,40 +337,59 @@ async function getAdminAuditRowsRaw({
   offset: number
   limit: number
 }) {
-  return prisma.audit.findMany({
-    where: getAdminAuditWhere(filters),
-    orderBy: [{ auditDate: "desc" }, { createdAt: "desc" }],
-    skip: offset,
-    take: limit,
-    select: {
-      id: true,
-      auditDate: true,
-      isBoros: true,
-      totalEstimatedKwhPerMonth: true,
-      avgActualPlnKwhPerMonth: true,
-      store: {
-        select: {
-          code: true,
-          name: true,
-          branch: true,
-          type: true,
-        },
-      },
-      auditor: {
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-        },
-      },
-      recommendations: {
-        select: {
-          type: true,
-          title: true,
-        },
-      },
-    },
-  })
+  const values: unknown[] = []
+  const whereSql = getAuditRowsWhereSql(filters, values)
+  const orderBySql = getAuditRowsOrderBySql(filters)
+
+  values.push(limit)
+  const limitIndex = values.length
+  values.push(offset)
+  const offsetIndex = values.length
+
+  return prisma.$queryRawUnsafe<RawAdminAuditRow[]>(
+    `
+      SELECT
+        a.id,
+        a.audit_date AS "auditDate",
+        a.is_boros AS "isBoros",
+        a.avg_actual_pln_kwh_per_month AS "actualPln",
+        a.total_estimated_kwh_per_month AS baseline,
+        std.avg_std AS std,
+        json_build_object(
+          'code', s.code,
+          'name', s.name,
+          'branch', s.branch,
+          'type', s.type
+        ) AS store,
+        json_build_object(
+          'id', u.id,
+          'fullName', u.full_name,
+          'email', u.email
+        ) AS auditor,
+        COALESCE(recs.recommendations, '[]'::json) AS recommendations
+      FROM audits a
+      INNER JOIN stores s ON s.id = a.store_id
+      INNER JOIN users u ON u.id = a.auditor_id
+      LEFT JOIN LATERAL (
+        SELECT AVG(h.sales_transaction_per_day) AS avg_std
+        FROM audit_pln_std_history h
+        WHERE h.audit_id = a.id
+      ) std ON true
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object('type', ar.type, 'title', ar.title)
+          ORDER BY ar.id ASC
+        ) AS recommendations
+        FROM audit_recommendations ar
+        WHERE ar.audit_id = a.id
+      ) recs ON true
+      ${whereSql}
+      ${orderBySql}
+      LIMIT $${limitIndex}
+      OFFSET $${offsetIndex}
+    `,
+    ...values
+  )
 }
 
 export async function getAdminAuditRows({

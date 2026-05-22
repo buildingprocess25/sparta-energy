@@ -2,12 +2,10 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
-  IconBuildingCommunity,
   IconBuildingStore,
-  IconCalendarStats,
   IconCheck,
   IconChevronRight,
   IconClipboardList,
@@ -29,11 +27,11 @@ import {
   type CSSProperties,
   type ReactNode,
   useEffect,
-  useMemo,
   useState,
   useSyncExternalStore,
 } from "react"
 
+import { AdminDashboardFilters } from "@/components/admin/admin-dashboard-filters"
 import { Logo } from "@/components/logo"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -46,14 +44,6 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
@@ -62,19 +52,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import {
   Sidebar,
@@ -188,12 +165,6 @@ const navItems = [
   ...navGroups.flatMap((group) => group.items),
 ]
 
-const periodOptions = [
-  { value: "ytd", label: "YTD" },
-  { value: "month", label: "Bulan ini" },
-  { value: "custom", label: "Custom" },
-]
-
 const themeOptions = [
   { value: "light", label: "Terang", icon: IconSun },
   { value: "dark", label: "Gelap", icon: IconMoon },
@@ -241,28 +212,6 @@ function getBreadcrumbItems(pathname: string) {
   }
 
   return [{ label: "Dashboard" }]
-}
-
-function getMonthOptions() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const formatter = new Intl.DateTimeFormat("id-ID", {
-    month: "short",
-    year: "numeric",
-  })
-
-  return Array.from({ length: 12 }, (_, index) => {
-    const date = new Date(year, index, 1)
-    return {
-      value: `${year}-${String(index + 1).padStart(2, "0")}`,
-      label: formatter.format(date),
-    }
-  })
-}
-
-function getCurrentMonthValue() {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 }
 
 async function handleLogout() {
@@ -525,34 +474,36 @@ function HeaderProfileMenu({ user }: { user: AdminUser }) {
 }
 
 function DashboardGlobalFilters() {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
   const [branches, setBranches] = useState<string[]>([])
-  const [isMonthOpen, setIsMonthOpen] = useState(false)
-  const monthOptions = useMemo(() => getMonthOptions(), [])
-
-  const period = searchParams.get("period") ?? "ytd"
-  const branch = searchParams.get("branch") ?? "all"
-  const selectedMonths = useMemo(
-    () =>
-      (searchParams.get("months") ?? "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    [searchParams]
-  )
+  const [storeTypes, setStoreTypes] = useState<string[]>([])
+  const [years, setYears] = useState<string[]>([])
 
   useEffect(() => {
     let isMounted = true
 
     fetch("/admin/dashboard/filter-options")
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: { branches?: string[] } | null) => {
-        if (isMounted) setBranches(data?.branches ?? [])
-      })
+      .then(
+        (
+          data: {
+            branches?: string[]
+            storeTypes?: string[]
+            years?: string[]
+          } | null
+        ) => {
+          if (!isMounted) return
+
+          setBranches(data?.branches ?? [])
+          setStoreTypes(data?.storeTypes ?? [])
+          setYears(data?.years ?? [])
+        }
+      )
       .catch(() => {
-        if (isMounted) setBranches([])
+        if (!isMounted) return
+
+        setBranches([])
+        setStoreTypes([])
+        setYears([])
       })
 
     return () => {
@@ -560,142 +511,12 @@ function DashboardGlobalFilters() {
     }
   }, [])
 
-  function updateParams(next: {
-    period?: string
-    branch?: string
-    months?: string[]
-  }) {
-    const params = new URLSearchParams(searchParams)
-    const nextPeriod = next.period ?? period
-    const nextBranch = next.branch ?? branch
-    const nextMonths = next.months ?? selectedMonths
-
-    if (nextPeriod === "ytd") params.delete("period")
-    else params.set("period", nextPeriod)
-
-    if (nextPeriod === "custom") {
-      const months =
-        nextMonths.length > 0 ? nextMonths : [getCurrentMonthValue()]
-      params.set("months", months.join(","))
-    } else {
-      params.delete("months")
-    }
-
-    if (nextBranch !== "all") params.set("branch", nextBranch)
-    else params.delete("branch")
-
-    const qs = params.toString()
-    router.push(qs ? `${pathname}?${qs}` : pathname)
-  }
-
-  function toggleMonth(value: string) {
-    const nextMonths = selectedMonths.includes(value)
-      ? selectedMonths.filter((item) => item !== value)
-      : [...selectedMonths, value].sort()
-
-    updateParams({
-      period: "custom",
-      months: nextMonths.length > 0 ? nextMonths : [value],
-    })
-  }
-
-  const selectedMonthLabels = selectedMonths
-    .map((value) => monthOptions.find((month) => month.value === value)?.label)
-    .filter(Boolean)
-
   return (
-    <div className="hidden items-center gap-2 lg:flex">
-      <Select
-        value={period}
-        onValueChange={(value) => updateParams({ period: value })}
-      >
-        <SelectTrigger size="sm" className="w-32 bg-background/60">
-          <IconCalendarStats className="size-4" />
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent align="end">
-          <SelectGroup>
-            {periodOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-
-      {period === "custom" && (
-        <Popover open={isMonthOpen} onOpenChange={setIsMonthOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="max-w-44 justify-start bg-background/60"
-            >
-              <span className="truncate">
-                {selectedMonthLabels.length > 0
-                  ? selectedMonthLabels.join(", ")
-                  : "Pilih bulan"}
-              </span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-64 p-1">
-            <Command>
-              <CommandInput placeholder="Cari bulan..." />
-              <CommandList>
-                <CommandEmpty>Bulan tidak ditemukan.</CommandEmpty>
-                <CommandGroup>
-                  {monthOptions.map((month) => {
-                    const isSelected = selectedMonths.includes(month.value)
-
-                    return (
-                      <CommandItem
-                        key={month.value}
-                        data-checked={isSelected}
-                        onSelect={() => toggleMonth(month.value)}
-                      >
-                        <span
-                          className={cn(
-                            "flex size-4 items-center justify-center rounded border",
-                            isSelected
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border"
-                          )}
-                        >
-                          {isSelected && <IconCheck className="size-3" />}
-                        </span>
-                        {month.label}
-                      </CommandItem>
-                    )
-                  })}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      )}
-
-      <Select
-        value={branch}
-        onValueChange={(value) => updateParams({ branch: value })}
-      >
-        <SelectTrigger size="sm" className="w-44 bg-background/60">
-          <IconBuildingCommunity className="size-4" />
-          <SelectValue placeholder="Semua Cabang" />
-        </SelectTrigger>
-        <SelectContent align="end">
-          <SelectGroup>
-            <SelectItem value="all">Semua Cabang</SelectItem>
-            {branches.map((item) => (
-              <SelectItem key={item} value={item}>
-                {item}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-    </div>
+    <AdminDashboardFilters
+      branches={branches}
+      storeTypes={storeTypes}
+      years={years}
+    />
   )
 }
 

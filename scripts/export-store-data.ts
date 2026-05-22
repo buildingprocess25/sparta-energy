@@ -42,6 +42,8 @@ async function main() {
     SELECT
       s.code AS kode_toko,
       s.name AS nama_toko,
+      s.branch AS cabang,
+      s.type AS tipe_toko,
       aph.billing_month AS bulan,
       aph.sales_transaction_per_day AS std,
       aph.pln_usage_kwh AS pln_kwh,
@@ -67,6 +69,8 @@ async function main() {
   const header = [
     "Kode Toko",
     "Nama Toko",
+    "Cabang",
+    "Tipe Toko",
     "Bulan",
     "STD",
     "PLN kWh",
@@ -77,6 +81,8 @@ async function main() {
     [
       escapeCsv(r.kode_toko),
       escapeCsv(r.nama_toko),
+      escapeCsv(r.cabang),
+      escapeCsv(r.tipe_toko),
       escapeCsv(r.bulan),
       escapeCsv(formatDecimal(r.std)),
       escapeCsv(formatDecimal(r.pln_kwh)),

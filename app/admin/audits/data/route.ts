@@ -4,6 +4,8 @@ import { NextResponse } from "next/server"
 import {
   adminAuditsPageSize,
   getAdminAuditRows,
+  parseAdminAuditOrder,
+  parseAdminAuditSort,
   type AdminAuditFilters,
   type AdminAuditRecommendation,
   type AdminAuditStatus,
@@ -56,6 +58,8 @@ export async function GET(request: Request) {
     month: getFilter(url.searchParams, "month"),
     status: parseStatus(url.searchParams.get("status")),
     recommendation: parseRecommendation(url.searchParams.get("recommendation")),
+    sort: parseAdminAuditSort(url.searchParams.get("sort")),
+    order: parseAdminAuditOrder(url.searchParams.get("order")),
   }
 
   const result = await getAdminAuditRows({

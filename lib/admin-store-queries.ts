@@ -7,6 +7,7 @@ export type AdminStoreSortKey =
   | "type"
   | "status"
   | "auditDate"
+  | "std"
   | "actualPln"
   | "baseline"
   | "gap"
@@ -23,6 +24,7 @@ export type AdminStoreRow = {
   is_boros: boolean | null
   actual_pln: number | null
   baseline: number | null
+  std: number | null
 }
 
 export type StoreStats = {
@@ -55,11 +57,12 @@ type StoreTypeRow = {
 
 type RawAdminStoreRow = Omit<
   AdminStoreRow,
-  "latest_audit_date" | "actual_pln" | "baseline"
+  "latest_audit_date" | "actual_pln" | "baseline" | "std"
 > & {
   latest_audit_date: Date | string | null
   actual_pln: { toString(): string } | string | number | null
   baseline: { toString(): string } | string | number | null
+  std: { toString(): string } | string | number | null
 }
 
 const activeStoreWhereSql =
@@ -77,6 +80,7 @@ export function parseAdminStoreSort(value: string | null | undefined) {
     value === "type" ||
     value === "status" ||
     value === "auditDate" ||
+    value === "std" ||
     value === "actualPln" ||
     value === "baseline" ||
     value === "gap"
@@ -104,6 +108,7 @@ function serializeStoreRow(row: RawAdminStoreRow): AdminStoreRow {
       : null,
     actual_pln: toNullableNumber(row.actual_pln),
     baseline: toNullableNumber(row.baseline),
+    std: toNullableNumber(row.std),
   }
 }
 
@@ -119,6 +124,11 @@ function latestAuditCte() {
           a.is_boros,
           a.total_estimated_kwh_per_month,
           a.avg_actual_pln_kwh_per_month,
+          (
+            SELECT AVG(h.sales_transaction_per_day)
+            FROM audit_pln_std_history h
+            WHERE h.audit_id = a.id
+          ) AS std,
           ROW_NUMBER() OVER (
             PARTITION BY a.store_id
             ORDER BY a.audit_date DESC, a.created_at DESC
@@ -187,6 +197,7 @@ function getOrderBySql(filters: AdminStoreFilters) {
     type: `lower(s.type) ${direction}, lower(s.code) ASC`,
     status: `${statusSql}, la.audit_date DESC NULLS LAST`,
     auditDate: `la.audit_date ${direction} ${nulls}, s.code ASC`,
+    std: `la.std ${direction} ${nulls}, s.code ASC`,
     actualPln: `la.avg_actual_pln_kwh_per_month ${direction} ${nulls}, s.code ASC`,
     baseline: `la.total_estimated_kwh_per_month ${direction} ${nulls}, s.code ASC`,
     gap: `
@@ -304,7 +315,8 @@ export async function getAdminStoreRows({
         la.audit_date AS latest_audit_date,
         la.is_boros,
         la.avg_actual_pln_kwh_per_month AS actual_pln,
-        la.total_estimated_kwh_per_month AS baseline
+        la.total_estimated_kwh_per_month AS baseline,
+        la.std
       FROM stores s
       LEFT JOIN latest_audits la ON la.store_id = s.id
       ${whereSql}
