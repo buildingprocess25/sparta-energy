@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import { Suspense } from "react"
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { HeroCard } from "@/components/dashboard/hero-card"
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/components/dashboard/recent-audit-section"
 import { Header } from "@/components/header"
 import { AcEstimationCard } from "@/components/dashboard/ac-estimation-card"
+import { AcEstimationUnavailableNotice } from "@/components/dashboard/ac-estimation-unavailable-notice"
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -98,6 +100,9 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
+      <Suspense fallback={null}>
+        <AcEstimationUnavailableNotice />
+      </Suspense>
       <Header
         variant="dashboard"
         title={dbUser?.fullName ?? "Dashboard"}

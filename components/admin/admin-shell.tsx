@@ -152,7 +152,6 @@ const navGroups: AdminNavGroup[] = [
         label: "Master Data",
         href: "/admin/master-data",
         icon: IconDatabase,
-        disabled: true,
       },
     ],
   },
