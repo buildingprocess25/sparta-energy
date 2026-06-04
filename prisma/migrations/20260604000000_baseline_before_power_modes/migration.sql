@@ -1,3 +1,6 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('USER', 'ADMIN');
 
@@ -82,7 +85,7 @@ CREATE TABLE "stores" (
 );
 
 -- CreateTable
-CREATE TABLE "equipments_master" (
+CREATE TABLE "equipment_types" (
     "id" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "category" TEXT NOT NULL,
@@ -90,7 +93,18 @@ CREATE TABLE "equipments_master" (
     "store_type" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "equipments_master_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "equipment_types_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "equipment_brands" (
+    "id" UUID NOT NULL,
+    "equipment_type_id" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+    "base_kw" DECIMAL(65,30) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "equipment_brands_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -113,9 +127,11 @@ CREATE TABLE "audits" (
 CREATE TABLE "audit_items" (
     "id" UUID NOT NULL,
     "audit_id" UUID NOT NULL,
-    "equipment_id" UUID,
+    "equipment_type_id" UUID,
+    "equipment_brand_id" UUID,
     "area_target" "AreaTarget" NOT NULL,
     "custom_name" TEXT,
+    "brand_name" TEXT NOT NULL DEFAULT '',
     "qty" INTEGER NOT NULL,
     "operational_hours" DECIMAL(65,30) NOT NULL,
     "base_kw" DECIMAL(65,30) NOT NULL,
@@ -163,6 +179,9 @@ ALTER TABLE "session" ADD CONSTRAINT "session_user_id_fkey" FOREIGN KEY ("user_i
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "equipment_brands" ADD CONSTRAINT "equipment_brands_equipment_type_id_fkey" FOREIGN KEY ("equipment_type_id") REFERENCES "equipment_types"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "audits" ADD CONSTRAINT "audits_auditor_id_fkey" FOREIGN KEY ("auditor_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -172,7 +191,10 @@ ALTER TABLE "audits" ADD CONSTRAINT "audits_store_id_fkey" FOREIGN KEY ("store_i
 ALTER TABLE "audit_items" ADD CONSTRAINT "audit_items_audit_id_fkey" FOREIGN KEY ("audit_id") REFERENCES "audits"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "audit_items" ADD CONSTRAINT "audit_items_equipment_id_fkey" FOREIGN KEY ("equipment_id") REFERENCES "equipments_master"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "audit_items" ADD CONSTRAINT "audit_items_equipment_type_id_fkey" FOREIGN KEY ("equipment_type_id") REFERENCES "equipment_types"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "audit_items" ADD CONSTRAINT "audit_items_equipment_brand_id_fkey" FOREIGN KEY ("equipment_brand_id") REFERENCES "equipment_brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "audit_pln_std_history" ADD CONSTRAINT "audit_pln_std_history_audit_id_fkey" FOREIGN KEY ("audit_id") REFERENCES "audits"("id") ON DELETE CASCADE ON UPDATE CASCADE;
