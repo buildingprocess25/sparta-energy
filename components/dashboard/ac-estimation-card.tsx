@@ -1,7 +1,7 @@
 "use client"
 
+import Link from "next/link"
 import { IconAirConditioning, IconArrowRight } from "@tabler/icons-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,12 +15,6 @@ const acUnavailableMessage =
   "Fitur Kalkulator AC untuk sementara belum bisa digunakan. Mohon gunakan kalkulator AC versi Excel yang sudah dibagikan ke pengguna atau auditor."
 
 function AcEstimationCard() {
-  const showUnavailableNotice = () => {
-    toast.info("Kalkulator AC sementara dinonaktifkan", {
-      description: acUnavailableMessage,
-    })
-  }
-
   return (
     <Card className="relative overflow-hidden border-blue-100 bg-linear-to-tr from-blue-50 to-indigo-50/50 dark:border-blue-900/30 dark:from-blue-950/20 dark:to-indigo-950/10">
       <div className="pointer-events-none absolute -top-6 -right-4 opacity-5 dark:opacity-10">
@@ -38,14 +32,15 @@ function AcEstimationCard() {
             </CardDescription>
           </div>
           <Button
-            type="button"
+            asChild
             size="sm"
             variant="secondary"
             className="shrink-0 rounded-full border-none bg-white/60 text-blue-600 shadow-sm backdrop-blur-sm hover:bg-white dark:bg-black/20 dark:text-blue-400 dark:hover:bg-black/40"
-            onClick={showUnavailableNotice}
           >
-            Mulai
-            <IconArrowRight className="size-4" />
+            <Link href="/ac-estimation">
+              Mulai
+              <IconArrowRight className="size-4" />
+            </Link>
           </Button>
         </div>
       </CardHeader>

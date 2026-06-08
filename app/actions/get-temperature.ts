@@ -39,9 +39,15 @@ export async function getTemperature(lat: string, lng: string) {
       throw new Error("Data suhu tidak ditemukan")
     }
 
-    const suhuTertinggiAbsolut = Math.max(...suhuTersaring)
+    // Urutkan suhu dari tertinggi ke terendah untuk menghindari anomali suhu puncak ekstrem tunggal
+    const suhuTerurut = [...suhuTersaring].sort((a, b) => b - a)
 
-    return { maxTemp: suhuTertinggiAbsolut }
+    // Pilih peringkat suhu tertinggi ke-4 (indeks ke-3)
+    // Jika data kurang dari 4, gunakan suhu tertinggi absolut (indeks ke-0)
+    const RANK_INDEX = 3
+    const maxTemp = suhuTerurut[RANK_INDEX] !== undefined ? suhuTerurut[RANK_INDEX] : suhuTerurut[0]
+
+    return { maxTemp }
   } catch (error) {
     console.error("Gagal mendapatkan suhu:", error)
     return {
