@@ -143,11 +143,23 @@ function addCommonWhere({
   ]
 
   // TEMPORARY_HIDE_GAP_GT_30
+  // Menghilangkan data gap > 35% atau < -35%, serta rata-rata STD < 100 atau > 600. Data NULL juga dihilangkan.
   clauses.push(`(
-    ${auditAlias}.total_estimated_kwh_per_month IS NULL 
-    OR ${auditAlias}.total_estimated_kwh_per_month = 0 
-    OR (${auditAlias}.avg_actual_pln_kwh_per_month - ${auditAlias}.total_estimated_kwh_per_month) / ${auditAlias}.total_estimated_kwh_per_month <= 0.3
+    ${auditAlias}.total_estimated_kwh_per_month IS NOT NULL 
+    AND ${auditAlias}.total_estimated_kwh_per_month > 0 
+    AND (${auditAlias}.avg_actual_pln_kwh_per_month - ${auditAlias}.total_estimated_kwh_per_month) / ${auditAlias}.total_estimated_kwh_per_month >= -0.35
+    AND (${auditAlias}.avg_actual_pln_kwh_per_month - ${auditAlias}.total_estimated_kwh_per_month) / ${auditAlias}.total_estimated_kwh_per_month <= 0.35
   )`)
+  clauses.push(`(
+    SELECT AVG(h.sales_transaction_per_day) 
+    FROM audit_pln_std_history h 
+    WHERE h.audit_id = ${auditAlias}.id
+  ) >= 100`)
+  clauses.push(`(
+    SELECT AVG(h.sales_transaction_per_day) 
+    FROM audit_pln_std_history h 
+    WHERE h.audit_id = ${auditAlias}.id
+  ) <= 600`)
 
   const dateRange = getDateRange(filters)
 

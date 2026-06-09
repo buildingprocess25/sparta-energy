@@ -368,9 +368,26 @@ export default async function AdminDashboardPage({
   const completedAudits = completedAuditsRaw.filter((audit) => {
     const baseline = Number(audit.totalEstimatedKwhPerMonth ?? 0)
     const actual = Number(audit.avgActualPlnKwhPerMonth ?? 0)
-    if (baseline <= 0) return true
+    
+    // Hide if baseline/estimasi is NULL or <= 0
+    if (baseline <= 0) return false
+    
+    // Gap check: must be between -35% and +35%
     const gapPercent = ((actual - baseline) / baseline) * 100
-    return gapPercent <= 30
+    if (gapPercent < -35 || gapPercent > 35) return false
+
+    // STD check: average salesTransactionPerDay must be between 100 and 600
+    const stdHistory = audit.plnHistory
+      .map((h) => Number(h.salesTransactionPerDay))
+      .filter((val) => !isNaN(val) && val !== null)
+    
+    // Hide if no STD history data is found
+    if (stdHistory.length === 0) return false
+    
+    const avgStd = stdHistory.reduce((acc, val) => acc + val, 0) / stdHistory.length
+    if (avgStd < 100 || avgStd > 600) return false
+
+    return true
   })
 
   const latestAudits = getLatestAuditByStore(completedAudits)
