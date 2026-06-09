@@ -87,14 +87,14 @@ export function AdminDashboardFilters({
       {
         key: "branch",
         label: "Cabang",
-        type: "select",
+        type: "multiselect",
         icon: <IconBuildingStore />,
         options: branches.map((item) => ({ value: item, label: item })),
       },
       {
         key: "type",
         label: "Tipe Toko",
-        type: "select",
+        type: "multiselect",
         icon: <IconTag />,
         options: storeTypes.map((item) => ({ value: item, label: item })),
       }
@@ -111,7 +111,8 @@ export function AdminDashboardFilters({
 
       const value = getParam(params, key)
       if (!value || value === "all") return []
-      return [createFilter(key, "is", [value])]
+      const values = value.split(",").map((v) => v.trim()).filter(Boolean)
+      return [createFilter(key, "is", values)]
     })
   }, [hasYearFilter, searchParamKey])
 
@@ -138,7 +139,7 @@ export function AdminDashboardFilters({
       if (!filterParamKeySet.has(filter.field)) continue
       if (filter.field === "month" && !nextYear) continue
 
-      const value = filter.values[0]
+      const value = filter.values.join(",")
       if (value) params.set(filter.field, value)
     }
 

@@ -281,13 +281,25 @@ function getStoreWhereSql(filters: MasterStoreFilters, values: unknown[]) {
   }
 
   if (filters.branch !== "all") {
-    values.push(filters.branch)
-    clauses.push(`s.branch = $${values.length}`)
+    const branches = filters.branch.split(",").map((b) => b.trim()).filter(Boolean)
+    if (branches.length > 0) {
+      const placeholders = branches.map((b) => {
+        values.push(b)
+        return `$${values.length}`
+      })
+      clauses.push(`s.branch IN (${placeholders.join(", ")})`)
+    }
   }
 
   if (filters.type !== "all") {
-    values.push(filters.type)
-    clauses.push(`s.type = $${values.length}`)
+    const types = filters.type.split(",").map((t) => t.trim()).filter(Boolean)
+    if (types.length > 0) {
+      const placeholders = types.map((t) => {
+        values.push(t)
+        return `$${values.length}`
+      })
+      clauses.push(`s.type IN (${placeholders.join(", ")})`)
+    }
   }
 
   if (filters.hours === "24h") {
@@ -335,13 +347,25 @@ function getEquipmentWhereSql(
   }
 
   if (filters.category !== "all") {
-    values.push(filters.category)
-    clauses.push(`et.category = $${values.length}`)
+    const categories = filters.category.split(",").map((c) => c.trim()).filter(Boolean)
+    if (categories.length > 0) {
+      const placeholders = categories.map((c) => {
+        values.push(c)
+        return `$${values.length}`
+      })
+      clauses.push(`et.category IN (${placeholders.join(", ")})`)
+    }
   }
 
   if (filters.storeType !== "all") {
-    values.push(filters.storeType)
-    clauses.push(`et.store_type = $${values.length}`)
+    const storeTypes = filters.storeType.split(",").map((t) => t.trim()).filter(Boolean)
+    if (storeTypes.length > 0) {
+      const placeholders = storeTypes.map((t) => {
+        values.push(t)
+        return `$${values.length}`
+      })
+      clauses.push(`et.store_type IN (${placeholders.join(", ")})`)
+    }
   }
 
   if (filters.area !== "all") {

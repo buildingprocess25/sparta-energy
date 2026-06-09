@@ -159,13 +159,25 @@ function addCommonWhere({
   }
 
   if (filters.branch !== "all") {
-    values.push(filters.branch)
-    clauses.push(`${storeAlias}.branch = $${values.length}`)
+    const branches = filters.branch.split(",").map((b) => b.trim()).filter(Boolean)
+    if (branches.length > 0) {
+      const placeholders = branches.map((b) => {
+        values.push(b)
+        return `$${values.length}`
+      })
+      clauses.push(`${storeAlias}.branch IN (${placeholders.join(", ")})`)
+    }
   }
 
   if (filters.storeType !== "all") {
-    values.push(filters.storeType)
-    clauses.push(`${storeAlias}.type = $${values.length}`)
+    const types = filters.storeType.split(",").map((t) => t.trim()).filter(Boolean)
+    if (types.length > 0) {
+      const placeholders = types.map((t) => {
+        values.push(t)
+        return `$${values.length}`
+      })
+      clauses.push(`${storeAlias}.type IN (${placeholders.join(", ")})`)
+    }
   }
 
   if (includeStatus && filters.status === "hemat") {

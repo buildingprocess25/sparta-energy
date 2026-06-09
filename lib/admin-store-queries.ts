@@ -165,13 +165,25 @@ function getFilteredWhereSql({
   }
 
   if (filters.branch !== "all") {
-    values.push(filters.branch)
-    clauses.push(`s.branch = $${values.length}`)
+    const branches = filters.branch.split(",").map((b) => b.trim()).filter(Boolean)
+    if (branches.length > 0) {
+      const placeholders = branches.map((b) => {
+        values.push(b)
+        return `$${values.length}`
+      })
+      clauses.push(`s.branch IN (${placeholders.join(", ")})`)
+    }
   }
 
   if (filters.type !== "all") {
-    values.push(filters.type)
-    clauses.push(`s.type = $${values.length}`)
+    const types = filters.type.split(",").map((t) => t.trim()).filter(Boolean)
+    if (types.length > 0) {
+      const placeholders = types.map((t) => {
+        values.push(t)
+        return `$${values.length}`
+      })
+      clauses.push(`s.type IN (${placeholders.join(", ")})`)
+    }
   }
 
   if (filters.status === "hemat") {

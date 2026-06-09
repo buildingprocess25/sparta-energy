@@ -211,8 +211,14 @@ function buildBranchesQueryParts(params: Awaited<SearchParams>) {
   const branch = params.branch?.trim()
 
   if (branch && branch !== "all") {
-    values.push(branch)
-    storeConditions.push(`s.branch = $${values.length}`)
+    const branches = branch.split(",").map((b) => b.trim()).filter(Boolean)
+    if (branches.length > 0) {
+      const placeholders = branches.map((b) => {
+        values.push(b)
+        return `$${values.length}`
+      })
+      storeConditions.push(`s.branch IN (${placeholders.join(", ")})`)
+    }
   }
 
   const now = new Date()

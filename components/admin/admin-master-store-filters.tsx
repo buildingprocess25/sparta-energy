@@ -58,14 +58,14 @@ export function AdminMasterStoreFilters({
       {
         key: "branch",
         label: "Cabang",
-        type: "select",
+        type: "multiselect",
         icon: <IconBuildingStore />,
         options: branches.map((item) => ({ value: item, label: item })),
       },
       {
         key: "type",
         label: "Tipe Toko",
-        type: "select",
+        type: "multiselect",
         icon: <IconTag />,
         options: storeTypes.map((item) => ({ value: item, label: item })),
       },
@@ -89,7 +89,8 @@ export function AdminMasterStoreFilters({
     return filterParamKeys.flatMap((key) => {
       const value = getParam(params, key)
       if (!value || value === "all") return []
-      return [createFilter(key, "is", [value])]
+      const values = value.split(",").map((v) => v.trim()).filter(Boolean)
+      return [createFilter(key, "is", values)]
     })
   }, [searchParamKey])
 
@@ -112,7 +113,7 @@ export function AdminMasterStoreFilters({
     for (const filter of nextFilters) {
       if (!filterParamKeySet.has(filter.field)) continue
 
-      const value = filter.values[0]
+      const value = filter.values.join(",")
       if (value) params.set(filter.field, value)
     }
 

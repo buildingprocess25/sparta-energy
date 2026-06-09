@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -235,28 +236,75 @@ export function Filters<T extends string = string>({
                   <DropdownMenuSubContent className="max-h-80 w-64 overflow-y-auto">
                     <DropdownMenuGroup>
                       {field.options?.length ? (
-                        field.options.map((option) => (
-                          <DropdownMenuItem
-                            key={option.value}
-                            className={option.className}
-                            onClick={() => {
-                              onChange(
-                                replaceFilter(
-                                  filters,
-                                  createFilter(
-                                    field.key,
-                                    field.defaultOperator ?? "is",
-                                    [option.value]
-                                  ),
-                                  allowMultiple
+                        field.options.map((option) => {
+                          if (field.type === "multiselect") {
+                            const existingFilter = filters.find((f) => f.field === field.key)
+                            const isChecked = existingFilter?.values.includes(option.value) ?? false
+                            return (
+                              <DropdownMenuCheckboxItem
+                                key={option.value}
+                                className={option.className}
+                                checked={isChecked}
+                                onSelect={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  if (existingFilter) {
+                                    const nextValues = existingFilter.values.includes(option.value)
+                                      ? existingFilter.values.filter((v) => v !== option.value)
+                                      : [...existingFilter.values, option.value]
+                                    onChange(
+                                      nextValues.length === 0
+                                        ? removeFilter(filters, existingFilter.id)
+                                        : updateFilter(
+                                            filters,
+                                            existingFilter.id,
+                                            createFilter(
+                                              field.key,
+                                              existingFilter.operator,
+                                              nextValues
+                                            )
+                                          )
+                                    )
+                                  } else {
+                                    onChange([
+                                      ...filters,
+                                      createFilter(
+                                        field.key,
+                                        field.defaultOperator ?? "is",
+                                        [option.value]
+                                      ),
+                                    ])
+                                  }
+                                }}
+                              >
+                                {option.icon}
+                                <span className="truncate">{option.label}</span>
+                              </DropdownMenuCheckboxItem>
+                            )
+                          }
+
+                          return (
+                            <DropdownMenuItem
+                              key={option.value}
+                              className={option.className}
+                              onClick={() => {
+                                onChange(
+                                  replaceFilter(
+                                    filters,
+                                    createFilter(
+                                      field.key,
+                                      field.defaultOperator ?? "is",
+                                      [option.value]
+                                    ),
+                                    allowMultiple
+                                  )
                                 )
-                              )
-                            }}
-                          >
-                            {option.icon}
-                            <span className="truncate">{option.label}</span>
-                          </DropdownMenuItem>
-                        ))
+                              }}
+                            >
+                              {option.icon}
+                              <span className="truncate">{option.label}</span>
+                            </DropdownMenuItem>
+                          )
+                        })
                       ) : (
                         <DropdownMenuItem disabled>
                           Belum ada opsi
@@ -301,29 +349,60 @@ export function Filters<T extends string = string>({
               <DropdownMenuContent align="start" className="w-64">
                 <DropdownMenuLabel>{field.label}</DropdownMenuLabel>
                 <DropdownMenuGroup>
-                  {field.options?.map((option) => (
-                    <DropdownMenuItem
-                      key={option.value}
-                      className={option.className}
-                      onClick={() => {
-                        onChange(
-                          updateFilter(
-                            filters,
-                            filter.id,
-                            createFilter(filter.field, filter.operator, [
-                              option.value,
-                            ])
+                  {field.options?.map((option) => {
+                    if (field.type === "multiselect") {
+                      const isChecked = filter.values.includes(option.value)
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={option.value}
+                          className={option.className}
+                          checked={isChecked}
+                          onSelect={(e) => e.preventDefault()}
+                          onClick={() => {
+                            const nextValues = filter.values.includes(option.value)
+                              ? filter.values.filter((v) => v !== option.value)
+                              : [...filter.values, option.value]
+                            onChange(
+                              nextValues.length === 0
+                                ? removeFilter(filters, filter.id)
+                                : updateFilter(
+                                    filters,
+                                    filter.id,
+                                    createFilter(filter.field, filter.operator, nextValues)
+                                  )
+                            )
+                          }}
+                        >
+                          {option.icon}
+                          <span className="truncate">{option.label}</span>
+                        </DropdownMenuCheckboxItem>
+                      )
+                    }
+
+                    return (
+                      <DropdownMenuItem
+                        key={option.value}
+                        className={option.className}
+                        onClick={() => {
+                          onChange(
+                            updateFilter(
+                              filters,
+                              filter.id,
+                              createFilter(filter.field, filter.operator, [
+                                option.value,
+                              ])
+                            )
                           )
-                        )
-                      }}
-                    >
-                      {option.icon}
-                      <span className="truncate">{option.label}</span>
-                      {selectedValue === option.value && (
-                        <IconCheck className="ml-auto" />
-                      )}
-                    </DropdownMenuItem>
-                  ))}
+                        }}
+                      >
+                        {option.icon}
+                        <span className="truncate">{option.label}</span>
+                        {selectedValue === option.value && (
+                          <IconCheck className="ml-auto" />
+                        )}
+                      </DropdownMenuItem>
+                    )
+                  })}
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

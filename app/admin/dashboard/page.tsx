@@ -136,11 +136,17 @@ function getStoreFilter(params: Awaited<SearchParams>): Prisma.StoreWhereInput {
   const conditions: Prisma.StoreWhereInput[] = [storeBranchFilter]
 
   if (branch && branch !== "all") {
-    conditions.push({ branch })
+    const branches = branch.split(",").map((b) => b.trim()).filter(Boolean)
+    if (branches.length > 0) {
+      conditions.push({ branch: { in: branches } })
+    }
   }
 
   if (type && type !== "all") {
-    conditions.push({ type })
+    const types = type.split(",").map((t) => t.trim()).filter(Boolean)
+    if (types.length > 0) {
+      conditions.push({ type: { in: types } })
+    }
   }
 
   return { AND: conditions }

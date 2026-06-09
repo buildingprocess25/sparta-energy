@@ -117,8 +117,10 @@ function buildWhereClause(filters: AdminUserFilters): string {
   }
 
   if (filters.branch && filters.branch !== "all") {
-    const branch = filters.branch.replace(/'/g, "''")
-    conditions.push(`u.branch = '${branch}'`)
+    const branches = filters.branch.split(",").map((b) => b.trim().replace(/'/g, "''")).filter(Boolean)
+    if (branches.length > 0) {
+      conditions.push(`u.branch IN (${branches.map((b) => `'${b}'`).join(", ")})`)
+    }
   }
 
   return conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""

@@ -167,8 +167,9 @@ function getAdminAuditWhere(
   }
 
   if (filters.branch !== "all") {
+    const branches = filters.branch.split(",").map((b) => b.trim()).filter(Boolean)
     where.store = {
-      AND: [where.store as Prisma.StoreWhereInput, { branch: filters.branch }],
+      AND: [where.store as Prisma.StoreWhereInput, { branch: { in: branches } }],
     }
   }
 
@@ -259,8 +260,14 @@ function getAuditRowsWhereSql(filters: AdminAuditFilters, values: unknown[]) {
   }
 
   if (filters.branch !== "all") {
-    values.push(filters.branch)
-    clauses.push(`s.branch = $${values.length}`)
+    const branches = filters.branch.split(",").map((b) => b.trim()).filter(Boolean)
+    if (branches.length > 0) {
+      const placeholders = branches.map((b) => {
+        values.push(b)
+        return `$${values.length}`
+      })
+      clauses.push(`s.branch IN (${placeholders.join(", ")})`)
+    }
   }
 
   if (filters.auditor !== "all") {
