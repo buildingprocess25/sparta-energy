@@ -141,6 +141,14 @@ function addCommonWhere({
     `${auditAlias}.status = 'COMPLETED'`,
     `(${activeStoreWhereSql.replaceAll("s.", `${storeAlias}.`)})`,
   ]
+
+  // TEMPORARY_HIDE_GAP_GT_30
+  clauses.push(`(
+    ${auditAlias}.total_estimated_kwh_per_month IS NULL 
+    OR ${auditAlias}.total_estimated_kwh_per_month = 0 
+    OR (${auditAlias}.avg_actual_pln_kwh_per_month - ${auditAlias}.total_estimated_kwh_per_month) / ${auditAlias}.total_estimated_kwh_per_month <= 0.3
+  )`)
+
   const dateRange = getDateRange(filters)
 
   if (dateRange) {

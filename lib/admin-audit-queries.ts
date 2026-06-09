@@ -244,6 +244,13 @@ function getDateRange(filters: AdminAuditFilters) {
 function getAuditRowsWhereSql(filters: AdminAuditFilters, values: unknown[]) {
   const clauses = ["a.status = 'COMPLETED'", `(${activeStoreWhereSql})`]
 
+  // TEMPORARY_HIDE_GAP_GT_30
+  clauses.push(`(
+    a.total_estimated_kwh_per_month IS NULL 
+    OR a.total_estimated_kwh_per_month = 0 
+    OR (a.avg_actual_pln_kwh_per_month - a.total_estimated_kwh_per_month) / a.total_estimated_kwh_per_month <= 0.3
+  )`)
+
   if (filters.q) {
     values.push(`%${filters.q.toLowerCase()}%`)
     clauses.push(
@@ -414,9 +421,18 @@ export async function getAdminAuditRows({
 }
 
 export async function getAdminAuditCount(filters: AdminAuditFilters) {
-  return prisma.audit.count({
-    where: getAdminAuditWhere(filters),
-  })
+  // TEMPORARY_HIDE_GAP_GT_30
+  // Menggunakan queryRawUnsafe agar sinkron dengan getAdminAuditRowsRaw yang difilter gap > 30%
+  const values: unknown[] = []
+  const whereSql = getAuditRowsWhereSql(filters, values)
+  const result = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(`
+    SELECT COUNT(*)::bigint AS count
+    FROM audits a
+    INNER JOIN stores s ON s.id = a.store_id
+    INNER JOIN users u ON u.id = a.auditor_id
+    ${whereSql}
+  `, ...values)
+  return Number(result[0]?.count ?? 0)
 }
 
 export async function getAdminAuditBranches() {

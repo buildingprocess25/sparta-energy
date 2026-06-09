@@ -286,6 +286,12 @@ function getLatestAuditSql(auditDateWhere: string) {
       INNER JOIN store_scope ss ON ss.id = a.store_id
       INNER JOIN stores s ON s.id = a.store_id
       WHERE a.status = 'COMPLETED'
+        -- TEMPORARY_HIDE_GAP_GT_30
+        AND (
+          a.total_estimated_kwh_per_month IS NULL 
+          OR a.total_estimated_kwh_per_month = 0 
+          OR (a.avg_actual_pln_kwh_per_month - a.total_estimated_kwh_per_month) / a.total_estimated_kwh_per_month <= 0.3
+        )
         AND ${auditDateWhere}
       ORDER BY a.store_id, a.audit_date DESC, a.created_at DESC
     )

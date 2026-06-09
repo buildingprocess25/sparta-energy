@@ -320,7 +320,7 @@ export default async function AdminDashboardPage({
     auditDate: auditDateFilter,
   }
 
-  const [totalStores, completedAudits] = await Promise.all([
+  const [totalStores, completedAuditsRaw] = await Promise.all([
     prisma.store.count({
       where: storeFilter,
     }),
@@ -357,6 +357,15 @@ export default async function AdminDashboardPage({
       },
     }),
   ])
+
+  // TEMPORARY_HIDE_GAP_GT_30
+  const completedAudits = completedAuditsRaw.filter((audit) => {
+    const baseline = Number(audit.totalEstimatedKwhPerMonth ?? 0)
+    const actual = Number(audit.avgActualPlnKwhPerMonth ?? 0)
+    if (baseline <= 0) return true
+    const gapPercent = ((actual - baseline) / baseline) * 100
+    return gapPercent <= 30
+  })
 
   const latestAudits = getLatestAuditByStore(completedAudits)
   const auditedStores = latestAudits.length
