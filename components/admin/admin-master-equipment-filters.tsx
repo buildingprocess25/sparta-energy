@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input"
 
 type AdminMasterEquipmentFiltersProps = {
   categories: string[]
+  deviceCategories: string[]
   storeTypes: string[]
   equipmentTypeOptions: MasterEquipmentTypeOption[]
 }
@@ -38,6 +39,7 @@ function getParam(searchParams: URLSearchParams, key: string) {
 
 export function AdminMasterEquipmentFilters({
   categories,
+  deviceCategories,
   storeTypes,
   equipmentTypeOptions,
 }: AdminMasterEquipmentFiltersProps) {
@@ -222,6 +224,7 @@ export function AdminMasterEquipmentFilters({
         onOpenChange={setDialogOpen}
         equipmentTypeOptions={equipmentTypeOptions}
         categories={categories}
+        deviceCategories={deviceCategories}
         storeTypes={storeTypes}
         onSuccess={() => router.refresh()}
       />

@@ -15,6 +15,7 @@ import { AdminMetricCard } from "@/components/admin/admin-metric-card"
 import {
   getMasterDataSummary,
   getMasterEquipmentCategories,
+  getMasterEquipmentDeviceCategories,
   getMasterEquipmentCount,
   getMasterEquipmentRows,
   getMasterEquipmentStoreTypes,
@@ -91,12 +92,14 @@ export default async function AdminMasterDataPage({
     storeBranches,
     storeTypes,
     equipmentCategories,
+    equipmentDeviceCategories,
     equipmentStoreTypes,
     equipmentTypeOptions,
   ] = await Promise.all([
       getMasterStoreBranches(),
       getMasterStoreTypes(),
       getMasterEquipmentCategories(),
+      getMasterEquipmentDeviceCategories(),
       getMasterEquipmentStoreTypes(),
       getMasterEquipmentTypeOptions(),
     ])
@@ -127,7 +130,7 @@ export default async function AdminMasterDataPage({
   return (
     <div className="-mt-4 flex min-h-[calc(100svh-var(--header-height)-1rem)] flex-col md:-mt-6 md:min-h-[calc(100svh-var(--header-height))]">
       <section className="flex min-h-0 flex-1 flex-col">
-        <div className="-mx-4 flex min-h-0 flex-1 flex-col border-y md:-mx-6">
+        <div className="-mx-4 flex min-h-0 w-full min-w-0 flex-1 flex-col border-y md:-mx-6">
           <div className="grid gap-3 px-4 py-4 md:grid-cols-2 md:px-6 xl:grid-cols-4">
             <AdminMetricCard
               label="Master Toko"
@@ -209,12 +212,12 @@ export default async function AdminMasterDataPage({
                   storeTypes={storeTypes}
                 />
               </div>
-              <div className="flex min-h-0 flex-1 flex-col px-3 md:px-4">
+              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-3 md:px-4">
                 <div className="py-3 text-xs text-muted-foreground">
                   Menampilkan {formatNumber(storeData[0])} master toko sesuai
                   filter.
                 </div>
-                <div className="flex min-h-0 flex-1 flex-col border-t">
+                <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col border-t">
                   <AdminMasterStoresTable
                     initialRows={storeData[1].rows}
                     initialHasMore={storeData[1].hasMore}
@@ -231,16 +234,17 @@ export default async function AdminMasterDataPage({
               <div className="sticky top-(--header-height) z-20 border-b bg-background/90 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:px-6">
                 <AdminMasterEquipmentFilters
                   categories={equipmentCategories}
+                  deviceCategories={equipmentDeviceCategories}
                   storeTypes={equipmentStoreTypes}
                   equipmentTypeOptions={equipmentTypeOptions}
                 />
               </div>
-              <div className="flex min-h-0 flex-1 flex-col px-3 md:px-4">
+              <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-3 md:px-4">
                 <div className="py-3 text-xs text-muted-foreground">
                   Menampilkan {formatNumber(equipmentData[0])} master equipment
                   sesuai filter.
                 </div>
-                <div className="flex min-h-0 flex-1 flex-col border-t">
+                <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col border-t">
                   <AdminMasterEquipmentTable
                     initialRows={equipmentData[1].rows}
                     initialHasMore={equipmentData[1].hasMore}
@@ -248,6 +252,7 @@ export default async function AdminMasterDataPage({
                     filters={equipmentFilters}
                     equipmentTypeOptions={equipmentTypeOptions}
                     categories={equipmentCategories}
+                    deviceCategories={equipmentDeviceCategories}
                     storeTypes={equipmentStoreTypes}
                   />
                 </div>

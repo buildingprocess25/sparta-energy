@@ -22,46 +22,46 @@ const prisma = new PrismaClient({ adapter })
 // ─── Equipment Master Data ───────────────────────────────────────────────────
 const equipmentData = [
   // PARKIRAN
-  { name: "Shop Sign TL LED", category: "PARKIRAN", defaultKw: "0.084", storeType: null, brands: [] },
-  { name: "Listplank TL LED", category: "PARKIRAN", defaultKw: "0.0154", storeType: null, brands: [] },
-  { name: "Lampu Sorot LED 50 W", category: "PARKIRAN", defaultKw: "0.05", storeType: null, brands: [] },
-  { name: "Polesign", category: "PARKIRAN", defaultKw: "0.35", storeType: null, brands: [] },
+  { name: "Shop Sign TL LED", category: "PARKIRAN", deviceCategory: "Pencahayaan", defaultKw: "0.084", storeType: null, brands: [] },
+  { name: "Listplank TL LED", category: "PARKIRAN", deviceCategory: "Pencahayaan", defaultKw: "0.0154", storeType: null, brands: [] },
+  { name: "Lampu Sorot LED 50 W", category: "PARKIRAN", deviceCategory: "Pencahayaan", defaultKw: "0.05", storeType: null, brands: [] },
+  { name: "Polesign", category: "PARKIRAN", deviceCategory: "Pencahayaan", defaultKw: "0.35", storeType: null, brands: [] },
 
   // TERAS
-  { name: "Lampu area Teras TL", category: "TERAS", defaultKw: "0.0154", storeType: null, brands: [] },
-  { name: "Pompa Air", category: "TERAS", defaultKw: "0.032", storeType: null, brands: ["Shimizu PC-375 BIT"] },
+  { name: "Lampu area Teras TL", category: "TERAS", deviceCategory: "Pencahayaan", defaultKw: "0.0154", storeType: null, brands: [] },
+  { name: "Pompa Air", category: "TERAS", deviceCategory: "Lainnya", defaultKw: "0.032", storeType: null, brands: ["Shimizu PC-375 BIT"] },
 
   // SALES
-  { name: "Paket Kasir", category: "SALES", defaultKw: "0.05", storeType: null, brands: [] },
-  { name: "Air Conditioner", category: "SALES", defaultKw: "1.07125", storeType: null, brands: ["Daikin", "Panasonic", "Sharp"] },
-  { name: "Lampu area sales TL", category: "SALES", defaultKw: "0.0154", storeType: null, brands: [] },
-  { name: "Display Cooler (Chiller)", category: "SALES", defaultKw: "0.494", storeType: null, brands: [] },
-  { name: "Freezer Chest Showcase", category: "SALES", defaultKw: "0.309", storeType: null, brands: ["Walls Hiron", "So Good"] },
-  { name: "Freezer", category: "SALES", defaultKw: "0.133", storeType: null, brands: ["Campina", "GEA Benfarm", "Belfoods Sanwoo"] },
-  { name: "Freezer Standing", category: "SALES", defaultKw: "0.348", storeType: null, brands: ["Aice"] },
-  { name: "Mesin ATM", category: "SALES", defaultKw: "0.347", storeType: null, brands: [] },
-  { name: "Exhaust Fan Ceiling 10 inch (Chiller)", category: "SALES", defaultKw: "0.026", storeType: null, brands: [] },
+  { name: "Paket Kasir", category: "SALES", deviceCategory: "Lainnya", defaultKw: "0.05", storeType: null, brands: [] },
+  { name: "Air Conditioner", category: "SALES", deviceCategory: "Sistem HVAC", defaultKw: "1.07125", storeType: null, brands: ["Daikin", "Panasonic", "Sharp"] },
+  { name: "Lampu area sales TL", category: "SALES", deviceCategory: "Pencahayaan", defaultKw: "0.0154", storeType: null, brands: [] },
+  { name: "Display Cooler (Chiller)", category: "SALES", deviceCategory: "Sistem Pendingin Produk", defaultKw: "0.494", storeType: null, brands: [] },
+  { name: "Freezer Chest Showcase", category: "SALES", deviceCategory: "Sistem Pendingin Produk", defaultKw: "0.309", storeType: null, brands: ["Walls Hiron", "So Good"] },
+  { name: "Freezer", category: "SALES", deviceCategory: "Sistem Pendingin Produk", defaultKw: "0.133", storeType: null, brands: ["Campina", "GEA Benfarm", "Belfoods Sanwoo"] },
+  { name: "Freezer Standing", category: "SALES", deviceCategory: "Sistem Pendingin Produk", defaultKw: "0.348", storeType: null, brands: ["Aice"] },
+  { name: "Mesin ATM", category: "SALES", deviceCategory: "Lainnya", defaultKw: "0.347", storeType: null, brands: [] },
+  { name: "Exhaust Fan Ceiling 10 inch (Chiller)", category: "SALES", deviceCategory: "Lainnya", defaultKw: "0.026", storeType: null, brands: [] },
 
   // GUDANG, TOILET & SELASAR
-  { name: "Exhaust Fan Ceiling 10 inch", category: "GUDANG", defaultKw: "0.026", storeType: null, brands: [] },
-  { name: "Lampu Bohlam 9 Watt (Sensor)", category: "GUDANG", defaultKw: "0.009", storeType: null, brands: ["Hannochs"] },
-  { name: "Bell Toko", category: "GUDANG", defaultKw: "0.0095", storeType: null, brands: [] },
-  { name: "Lampu TL Waterproof", category: "GUDANG", defaultKw: "0.0154", storeType: null, brands: [] },
-  { name: "Paket CCTV", category: "GUDANG", defaultKw: "0.182", storeType: null, brands: [] },
+  { name: "Exhaust Fan Ceiling 10 inch", category: "GUDANG", deviceCategory: "Lainnya", defaultKw: "0.026", storeType: null, brands: [] },
+  { name: "Lampu Bohlam 9 Watt (Sensor)", category: "GUDANG", deviceCategory: "Pencahayaan", defaultKw: "0.009", storeType: null, brands: ["Hannochs"] },
+  { name: "Bell Toko", category: "GUDANG", deviceCategory: "Lainnya", defaultKw: "0.0095", storeType: null, brands: [] },
+  { name: "Lampu TL Waterproof", category: "GUDANG", deviceCategory: "Pencahayaan", defaultKw: "0.0154", storeType: null, brands: [] },
+  { name: "Paket CCTV", category: "GUDANG", deviceCategory: "Lainnya", defaultKw: "0.182", storeType: null, brands: [] },
 
   // BEANSPOT
-  { name: "Coffee Maker", category: "BEANSPOT", defaultKw: "0.058919803601", storeType: "Beanspot", brands: ["Delonghi"] },
-  { name: "Oden Warmer", category: "BEANSPOT", defaultKw: "0.0059", storeType: "Beanspot", brands: [] },
-  { name: "Cup Sealer", category: "BEANSPOT", defaultKw: "0.0546875", storeType: "Beanspot", brands: [] },
-  { name: "Mesin Popcorn", category: "BEANSPOT", defaultKw: "0.003630555556", storeType: "Beanspot", brands: ["Sharp Jolly Time"] },
-  { name: "Oven", category: "BEANSPOT", defaultKw: "0.1142857143", storeType: "Beanspot", brands: ["Eka"] },
-  { name: "Mini Bar Chiller", category: "BEANSPOT", defaultKw: "0.009375", storeType: "Beanspot", brands: ["RS 06 DR"] },
-  { name: "Led TV", category: "BEANSPOT", defaultKw: "0.04", storeType: "Beanspot", brands: [] },
-  { name: "Chest Freezer Sosis", category: "BEANSPOT", defaultKw: "0.0338028169", storeType: "Beanspot", brands: [] },
-  { name: "Water Boiler", category: "BEANSPOT", defaultKw: "0.1390625", storeType: "Beanspot", brands: ["Akebono"] },
-  { name: "Display Cooler", category: "BEANSPOT", defaultKw: "0.1028169014", storeType: "Beanspot", brands: ["Expo"] },
-  { name: "Chest Freezer 460 L", category: "BEANSPOT", defaultKw: "0.1183098592", storeType: "Beanspot", brands: ["RSA"] },
-  { name: "Sliding Flat Glass Freezer", category: "BEANSPOT", defaultKw: "0.1377012771", storeType: "Beanspot", brands: [] },
+  { name: "Coffee Maker", category: "BEANSPOT", deviceCategory: "Lainnya", defaultKw: "0.058919803601", storeType: "Beanspot", brands: ["Delonghi"] },
+  { name: "Oden Warmer", category: "BEANSPOT", deviceCategory: "Lainnya", defaultKw: "0.0059", storeType: "Beanspot", brands: [] },
+  { name: "Cup Sealer", category: "BEANSPOT", deviceCategory: "Lainnya", defaultKw: "0.0546875", storeType: "Beanspot", brands: [] },
+  { name: "Mesin Popcorn", category: "BEANSPOT", deviceCategory: "Lainnya", defaultKw: "0.003630555556", storeType: "Beanspot", brands: ["Sharp Jolly Time"] },
+  { name: "Oven", category: "BEANSPOT", deviceCategory: "Lainnya", defaultKw: "0.1142857143", storeType: "Beanspot", brands: ["Eka"] },
+  { name: "Mini Bar Chiller", category: "BEANSPOT", deviceCategory: "Sistem Pendingin Produk", defaultKw: "0.009375", storeType: "Beanspot", brands: ["RS 06 DR"] },
+  { name: "Led TV", category: "BEANSPOT", deviceCategory: "Lainnya", defaultKw: "0.04", storeType: "Beanspot", brands: [] },
+  { name: "Chest Freezer Sosis", category: "BEANSPOT", deviceCategory: "Sistem Pendingin Produk", defaultKw: "0.0338028169", storeType: "Beanspot", brands: [] },
+  { name: "Water Boiler", category: "BEANSPOT", deviceCategory: "Lainnya", defaultKw: "0.1390625", storeType: "Beanspot", brands: ["Akebono"] },
+  { name: "Display Cooler", category: "BEANSPOT", deviceCategory: "Sistem Pendingin Produk", defaultKw: "0.1028169014", storeType: "Beanspot", brands: ["Expo"] },
+  { name: "Chest Freezer 460 L", category: "BEANSPOT", deviceCategory: "Sistem Pendingin Produk", defaultKw: "0.1183098592", storeType: "Beanspot", brands: ["RSA"] },
+  { name: "Sliding Flat Glass Freezer", category: "BEANSPOT", deviceCategory: "Sistem Pendingin Produk", defaultKw: "0.1377012771", storeType: "Beanspot", brands: [] },
 ]
 
 function hashPassword(password: string): string {
@@ -86,6 +86,7 @@ async function main() {
       data: {
         name: eq.name,
         category: eq.category,
+        deviceCategory: eq.deviceCategory,
         defaultKw: eq.defaultKw,
         storeType: eq.storeType,
       },
@@ -249,7 +250,7 @@ async function main() {
   })
 
   const demoStore2 = await prisma.store.upsert({
-    where: { code: "DEMO2" },
+    where: { code: "DEM2" },
     update: { branch: "DEMO" },
     create: {
       code: "DEM2",

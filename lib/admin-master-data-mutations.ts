@@ -80,13 +80,16 @@ function getStorePayload(data: Record<string, unknown>) {
 function getEquipmentTypePayload(data: Record<string, unknown>) {
   const name = getString(data, "equipmentName")
   const category = getString(data, "category")
+  const deviceCategory = getString(data, "deviceCategory")
 
   if (!name) throw new Error("Nama equipment wajib diisi")
   if (!category) throw new Error("Kategori wajib diisi")
+  if (!deviceCategory) throw new Error("Kategori jenis wajib diisi")
 
   return {
     name,
     category,
+    deviceCategory,
     storeType: getOptionalString(data, "storeType"),
     defaultKw: requireNonNegativeNumber(data, "defaultKw"),
   }

@@ -72,6 +72,7 @@ export type MasterEquipmentRow = {
   equipmentName: string
   brandName: string
   category: string
+  deviceCategory: string
   area: EquipmentArea
   defaultKw: number
   baseKw: number
@@ -85,6 +86,7 @@ export type MasterEquipmentTypeOption = {
   id: string
   name: string
   category: string
+  deviceCategory: string
   storeType: string | null
   defaultKw: number
 }
@@ -406,9 +408,9 @@ export async function getMasterDataSummary(): Promise<MasterDataSummary> {
       (SELECT COUNT(*)::int FROM equipment_types) AS total_equipment_types,
       (SELECT COUNT(*)::int FROM equipment_brands) AS total_brands,
       (
-        SELECT COUNT(DISTINCT et.category)::int
+        SELECT COUNT(DISTINCT et.device_category)::int
         FROM equipment_types et
-        WHERE et.category IS NOT NULL
+        WHERE et.device_category IS NOT NULL
       ) AS categories,
       (SELECT COALESCE(AVG(et.default_kw), 0) FROM equipment_types et) AS avg_default_kw
   `)
@@ -563,6 +565,7 @@ export async function getMasterEquipmentTypeOptions(): Promise<
       id: true,
       name: true,
       category: true,
+      deviceCategory: true,
       storeType: true,
       defaultKw: true,
     },
@@ -572,6 +575,7 @@ export async function getMasterEquipmentTypeOptions(): Promise<
     id: row.id,
     name: row.name,
     category: row.category,
+    deviceCategory: row.deviceCategory,
     storeType: row.storeType,
     defaultKw: Number(row.defaultKw),
   }))
@@ -618,6 +622,7 @@ export async function getMasterEquipmentRows({
         et.name AS "equipmentName",
         eb.name AS "brandName",
         et.category,
+        et.device_category AS "deviceCategory",
         eb.area_target::text AS area,
         et.default_kw AS "defaultKw",
         eb.base_kw AS "baseKw",
@@ -638,4 +643,18 @@ export async function getMasterEquipmentRows({
     rows: rows.slice(0, limit).map(serializeEquipmentRow),
     hasMore: rows.length > limit,
   }
+}
+
+export async function getMasterEquipmentDeviceCategories() {
+  const rows = await prisma.$queryRawUnsafe<OptionRow[]>(`
+    SELECT DISTINCT trim(et.device_category) AS value
+    FROM equipment_types et
+    WHERE et.device_category IS NOT NULL
+      AND trim(et.device_category) <> ''
+    ORDER BY trim(et.device_category) ASC
+  `)
+
+  return rows
+    .map((row) => row.value?.trim())
+    .filter((item): item is string => Boolean(item))
 }

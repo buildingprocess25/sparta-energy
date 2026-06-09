@@ -33,6 +33,7 @@ type AdminMasterEquipmentDialogProps = {
   equipment?: MasterEquipmentRow | null // If null/undefined, we are in Create mode
   equipmentTypeOptions: MasterEquipmentTypeOption[]
   categories: string[]
+  deviceCategories: string[]
   storeTypes: string[]
   onSuccess?: () => void
 }
@@ -43,12 +44,16 @@ export function AdminMasterEquipmentDialog({
   equipment,
   equipmentTypeOptions,
   categories,
+  deviceCategories,
   storeTypes,
   onSuccess,
 }: AdminMasterEquipmentDialogProps) {
   const [equipmentTypeId, setEquipmentTypeId] = useState("")
   const [equipmentName, setEquipmentName] = useState("")
   const [category, setCategory] = useState("")
+  const [deviceCategory, setDeviceCategory] = useState("")
+  const [selectDeviceCategory, setSelectDeviceCategory] = useState("")
+  const [customDeviceCategory, setCustomDeviceCategory] = useState("")
   const [storeType, setStoreType] = useState("all") // "all" maps to null in DB
   const [defaultKw, setDefaultKw] = useState<number | "">("")
 
@@ -66,11 +71,32 @@ export function AdminMasterEquipmentDialog({
   useEffect(() => {
     if (!open) return
 
+    const uniqueCats = Array.from(
+      new Set([
+        ...deviceCategories,
+        "Pencahayaan",
+        "Sistem HVAC",
+        "Sistem Pendingin Produk",
+        "Lainnya",
+      ])
+    ).map((c) => c.trim()).filter(Boolean)
+
     if (equipment) {
       // Edit mode: Populate everything from the existing row
       setEquipmentTypeId(equipment.equipmentTypeId)
       setEquipmentName(equipment.equipmentName)
       setCategory(equipment.category)
+      
+      const devCat = equipment.deviceCategory || ""
+      setDeviceCategory(devCat)
+      if (uniqueCats.includes(devCat)) {
+        setSelectDeviceCategory(devCat)
+        setCustomDeviceCategory("")
+      } else {
+        setSelectDeviceCategory(devCat ? "custom_input" : "")
+        setCustomDeviceCategory(devCat)
+      }
+      
       setStoreType(equipment.storeType || "all")
       setDefaultKw(equipment.defaultKw)
 
@@ -84,6 +110,9 @@ export function AdminMasterEquipmentDialog({
       setEquipmentTypeId("")
       setEquipmentName("")
       setCategory("")
+      setDeviceCategory("")
+      setSelectDeviceCategory("")
+      setCustomDeviceCategory("")
       setStoreType("all")
       setDefaultKw("")
 
@@ -93,7 +122,7 @@ export function AdminMasterEquipmentDialog({
       setStandbyKw(0)
       setRunningKw(0)
     }
-  }, [open, equipment])
+  }, [open, equipment, deviceCategories])
 
   // Watch for equipment type selection in Create mode
   // to auto-fill (but keep read-only/hidden if selecting existing)
@@ -104,6 +133,26 @@ export function AdminMasterEquipmentDialog({
       if (selectedType) {
         setEquipmentName(selectedType.name)
         setCategory(selectedType.category)
+        
+        const devCat = selectedType.deviceCategory || ""
+        setDeviceCategory(devCat)
+        const uniqueCats = Array.from(
+          new Set([
+            ...deviceCategories,
+            "Pencahayaan",
+            "Sistem HVAC",
+            "Sistem Pendingin Produk",
+            "Lainnya",
+          ])
+        ).map((c) => c.trim()).filter(Boolean)
+        if (uniqueCats.includes(devCat)) {
+          setSelectDeviceCategory(devCat)
+          setCustomDeviceCategory("")
+        } else {
+          setSelectDeviceCategory(devCat ? "custom_input" : "")
+          setCustomDeviceCategory(devCat)
+        }
+        
         setStoreType(selectedType.storeType || "all")
         setDefaultKw(selectedType.defaultKw)
         // Auto-fill baseKw with defaultKw of type for convenience
@@ -112,6 +161,9 @@ export function AdminMasterEquipmentDialog({
     } else {
       setEquipmentName("")
       setCategory("")
+      setDeviceCategory("")
+      setSelectDeviceCategory("")
+      setCustomDeviceCategory("")
       setStoreType("all")
       setDefaultKw("")
       setBaseKw("")
@@ -136,6 +188,7 @@ export function AdminMasterEquipmentDialog({
     const needsTypeValidation = isNewTypeSelected || !isCreateMode
     const cleanEquipmentName = equipmentName.trim()
     const cleanCategory = category.trim()
+    const cleanDeviceCategory = deviceCategory.trim()
 
     if (needsTypeValidation) {
       if (!cleanEquipmentName) {
@@ -143,7 +196,11 @@ export function AdminMasterEquipmentDialog({
         return
       }
       if (!cleanCategory) {
-        toast.error("Kategori wajib diisi")
+        toast.error("Area penempatan wajib diisi")
+        return
+      }
+      if (!cleanDeviceCategory) {
+        toast.error("Kategori jenis wajib diisi")
         return
       }
       if (defaultKw === "" || isNaN(Number(defaultKw)) || Number(defaultKw) < 0) {
@@ -180,6 +237,7 @@ export function AdminMasterEquipmentDialog({
       if (needsTypeValidation) {
         payload.equipmentName = cleanEquipmentName
         payload.category = cleanCategory
+        payload.deviceCategory = cleanDeviceCategory
         payload.storeType = storeType === "all" ? null : storeType
         payload.defaultKw = Number(defaultKw)
       }
@@ -251,7 +309,7 @@ export function AdminMasterEquipmentDialog({
                     </SelectItem>
                     {equipmentTypeOptions.map((t) => (
                       <SelectItem key={t.id} value={t.id}>
-                        {t.name} ({t.category})
+                        {t.name} ({t.deviceCategory} · {t.category})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -284,21 +342,79 @@ export function AdminMasterEquipmentDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="eq-category">Kategori *</Label>
-                  <Input
-                    id="eq-category"
-                    placeholder="Contoh: SALES, PARKIRAN, BEANSPOT"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
+                  <Label htmlFor="eq-device-category">Kategori Jenis *</Label>
+                  <Select
+                    value={selectDeviceCategory}
+                    onValueChange={(val) => {
+                      setSelectDeviceCategory(val)
+                      if (val === "custom_input") {
+                        setDeviceCategory(customDeviceCategory)
+                      } else {
+                        setDeviceCategory(val)
+                      }
+                    }}
                     disabled={isSubmitting}
-                    required
-                    list="existing-categories"
-                  />
-                  <datalist id="existing-categories">
-                    {categories.map((c) => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
+                  >
+                    <SelectTrigger id="eq-device-category">
+                      <SelectValue placeholder="Pilih kategori jenis..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(
+                        new Set([
+                          ...deviceCategories,
+                          "Pencahayaan",
+                          "Sistem HVAC",
+                          "Sistem Pendingin Produk",
+                          "Lainnya",
+                        ])
+                      )
+                        .map((c) => c.trim())
+                        .filter(Boolean)
+                        .map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      <SelectItem value="custom_input" className="font-semibold text-primary">
+                        + Tulis Kategori Baru...
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {selectDeviceCategory === "custom_input" && (
+                    <Input
+                      id="eq-custom-device-category"
+                      placeholder="Contoh: Pompa Air, Komputer, dll."
+                      value={customDeviceCategory}
+                      onChange={(e) => {
+                        setCustomDeviceCategory(e.target.value)
+                        setDeviceCategory(e.target.value)
+                      }}
+                      disabled={isSubmitting}
+                      className="mt-2"
+                      required
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="eq-category">Area Penempatan *</Label>
+                  <Select
+                    value={category}
+                    onValueChange={setCategory}
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger id="eq-category">
+                      <SelectValue placeholder="Pilih area penempatan..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SALES">SALES (Area Sales)</SelectItem>
+                      <SelectItem value="PARKIRAN">PARKIRAN (Parkiran)</SelectItem>
+                      <SelectItem value="TERAS">TERAS (Teras)</SelectItem>
+                      <SelectItem value="GUDANG">GUDANG (Gudang, Toilet & Selasar)</SelectItem>
+                      <SelectItem value="BEANSPOT">BEANSPOT (Beanspot)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">

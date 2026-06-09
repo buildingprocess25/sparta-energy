@@ -80,12 +80,13 @@ model Store {
 }
 
 model EquipmentType {
-  id          String           @id @default(uuid()) @db.Uuid
-  name        String
-  category    String
-  defaultKw   Decimal          @map("default_kw")
-  storeType   String?          @map("store_type")
-  createdAt   DateTime         @default(now()) @map("created_at")
+  id             String           @id @default(uuid()) @db.Uuid
+  name           String
+  category       String
+  deviceCategory String           @default("Lainnya") @map("device_category")
+  defaultKw      Decimal          @map("default_kw")
+  storeType      String?          @map("store_type")
+  createdAt      DateTime         @default(now()) @map("created_at")
   
   brands      EquipmentBrand[]
   auditItems  AuditItem[]

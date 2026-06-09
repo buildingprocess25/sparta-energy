@@ -40,6 +40,8 @@ import type {
   SortOrder,
 } from "@/lib/admin-master-data-queries"
 
+import { cn } from "@/lib/utils"
+
 const numberFormat = new Intl.NumberFormat("id-ID")
 
 function formatDate(date: Date | string | null) {
@@ -76,6 +78,7 @@ export function AdminMasterEquipmentTable({
   filters,
   equipmentTypeOptions,
   categories,
+  deviceCategories,
   storeTypes,
 }: {
   initialRows: MasterEquipmentRow[]
@@ -84,6 +87,7 @@ export function AdminMasterEquipmentTable({
   filters: MasterEquipmentFilters
   equipmentTypeOptions: MasterEquipmentTypeOption[]
   categories: string[]
+  deviceCategories: string[]
   storeTypes: string[]
 }) {
   const router = useRouter()
@@ -100,6 +104,49 @@ export function AdminMasterEquipmentTable({
   const [deleteItem, setDeleteItem] = useState<MasterEquipmentRow | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Grab-to-Scroll refs and state
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const activeContainerRef = useRef<HTMLDivElement | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const startX = useRef(0)
+  const scrollLeft = useRef(0)
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const root = containerRef.current
+    if (!root) return
+    const container = root.querySelector('[data-slot="table-container"]') as HTMLDivElement | null
+    if (!container) return
+    if (e.button !== 0) return // Left click only
+    const target = e.target as HTMLElement
+    if (
+      target.closest("button") ||
+      target.closest("a") ||
+      target.closest("input") ||
+      target.closest("select")
+    ) {
+      return
+    }
+    setIsDragging(true)
+    activeContainerRef.current = container
+    startX.current = e.pageX - container.offsetLeft
+    scrollLeft.current = container.scrollLeft
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return
+    e.preventDefault()
+    const container = activeContainerRef.current
+    if (!container) return
+    const x = e.pageX - container.offsetLeft
+    const walk = (x - startX.current) * 1.5
+    container.scrollLeft = scrollLeft.current - walk
+  }
+
+  const handleMouseUpOrLeave = () => {
+    setIsDragging(false)
+    activeContainerRef.current = null
+  }
 
   function handleEdit(item: MasterEquipmentRow) {
     setEditItem(item)
@@ -236,9 +283,19 @@ export function AdminMasterEquipmentTable({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-auto bg-background">
-        <Table className="min-w-[1080px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+      <div
+        ref={containerRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUpOrLeave}
+        onMouseLeave={handleMouseUpOrLeave}
+        className={cn(
+          "min-h-0 w-full flex-1 overflow-auto bg-background max-h-[45vh] min-h-[300px] border rounded-md transition-all",
+          isDragging ? "cursor-grabbing select-none" : "cursor-grab"
+        )}
+      >
+        <Table className="min-w-[1200px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
           <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
             <TableRow>
               <TableHead>
@@ -247,14 +304,15 @@ export function AdminMasterEquipmentTable({
               <TableHead>
                 <SortableHeader column="brand">Brand</SortableHeader>
               </TableHead>
+              <TableHead>Kategori Jenis</TableHead>
               <TableHead>
-                <SortableHeader column="category">Kategori</SortableHeader>
+                <SortableHeader column="category">Area Penempatan</SortableHeader>
               </TableHead>
               <TableHead>
                 <SortableHeader column="storeType">Tipe Toko</SortableHeader>
               </TableHead>
               <TableHead>
-                <SortableHeader column="area">Area</SortableHeader>
+                <SortableHeader column="area">Target Area Brand</SortableHeader>
               </TableHead>
               <TableHead className="text-right">
                 <SortableHeader column="baseKw" align="right">
@@ -285,26 +343,21 @@ export function AdminMasterEquipmentTable({
                     <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                       <IconTool className="size-3.5" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="max-w-64 truncate font-medium">
-                        {item.equipmentName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.equipmentTypeId}
-                      </p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="min-w-0">
-                    <p className="max-w-48 truncate font-medium">
-                      {item.brandName}
+                    <p className="max-w-64 truncate font-medium">
+                      {item.equipmentName}
                     </p>
-                    <p className="text-xs text-muted-foreground">{item.id}</p>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{item.category}</Badge>
+                  <p className="max-w-48 truncate font-medium">
+                    {item.brandName}
+                  </p>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary">{item.deviceCategory}</Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {item.category}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {item.storeType ?? "Semua tipe"}
@@ -378,6 +431,7 @@ export function AdminMasterEquipmentTable({
         equipment={editItem}
         equipmentTypeOptions={equipmentTypeOptions}
         categories={categories}
+        deviceCategories={deviceCategories}
         storeTypes={storeTypes}
         onSuccess={() => {
           router.refresh()

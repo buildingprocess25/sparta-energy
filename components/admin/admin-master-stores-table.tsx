@@ -41,6 +41,8 @@ import type {
   SortOrder,
 } from "@/lib/admin-master-data-queries"
 
+import { cn } from "@/lib/utils"
+
 const numberFormat = new Intl.NumberFormat("id-ID")
 const tableLinkClass =
   "text-primary underline underline-offset-2 decoration-chart-2 transition-colors hover:decoration-primary"
@@ -120,6 +122,49 @@ export function AdminMasterStoresTable({
   const [deleteStore, setDeleteStore] = useState<MasterStoreRow | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Grab-to-Scroll refs and state
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const activeContainerRef = useRef<HTMLDivElement | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const startX = useRef(0)
+  const scrollLeft = useRef(0)
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const root = containerRef.current
+    if (!root) return
+    const container = root.querySelector('[data-slot="table-container"]') as HTMLDivElement | null
+    if (!container) return
+    if (e.button !== 0) return // Left click only
+    const target = e.target as HTMLElement
+    if (
+      target.closest("button") ||
+      target.closest("a") ||
+      target.closest("input") ||
+      target.closest("select")
+    ) {
+      return
+    }
+    setIsDragging(true)
+    activeContainerRef.current = container
+    startX.current = e.pageX - container.offsetLeft
+    scrollLeft.current = container.scrollLeft
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return
+    e.preventDefault()
+    const container = activeContainerRef.current
+    if (!container) return
+    const x = e.pageX - container.offsetLeft
+    const walk = (x - startX.current) * 1.5
+    container.scrollLeft = scrollLeft.current - walk
+  }
+
+  const handleMouseUpOrLeave = () => {
+    setIsDragging(false)
+    activeContainerRef.current = null
+  }
 
   function handleEdit(store: MasterStoreRow) {
     setEditStore(store)
@@ -255,8 +300,18 @@ export function AdminMasterStoresTable({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-auto bg-background">
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+      <div
+        ref={containerRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUpOrLeave}
+        onMouseLeave={handleMouseUpOrLeave}
+        className={cn(
+          "min-h-0 w-full flex-1 overflow-auto bg-background max-h-[45vh] min-h-[300px] border rounded-md transition-all",
+          isDragging ? "cursor-grabbing select-none" : "cursor-grab"
+        )}
+      >
         <Table className="min-w-[1280px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
           <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
             <TableRow>
