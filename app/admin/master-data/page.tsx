@@ -1,9 +1,10 @@
 import {
-  IconBolt,
   IconBuildingStore,
   IconDatabase,
   IconTag,
   IconTool,
+  IconClock,
+  IconCategory,
 } from "@tabler/icons-react"
 
 import { AdminMasterDataNav } from "@/components/admin/admin-master-data-nav"
@@ -43,10 +44,12 @@ type SearchParams = Promise<{
   branch?: string
   type?: string
   hours?: string
+  deviceCategory?: string
   category?: string
   storeType?: string
   area?: string
   powerMode?: string
+  hasBrands?: string
   sort?: string
   order?: string
 }>
@@ -80,10 +83,12 @@ export default async function AdminMasterDataPage({
   }
   const equipmentFilters: MasterEquipmentFilters = {
     q: params.q?.trim() ?? "",
+    deviceCategory: getFilter(params.deviceCategory),
     category: getFilter(params.category),
     storeType: getFilter(params.storeType),
     area: parseMasterEquipmentArea(params.area),
     powerMode: parseMasterEquipmentPowerMode(params.powerMode),
+    hasBrands: (params.hasBrands === "with-brands" || params.hasBrands === "without-brands") ? params.hasBrands : "all",
     sort: parseMasterEquipmentSort(params.sort),
     order: parseSortOrder(params.order),
   }
@@ -144,21 +149,14 @@ export default async function AdminMasterDataPage({
               ]}
             />
             <AdminMetricCard
-              label="Total Daya PLN"
-              value={formatNumber(summary.totalPlnPowerVa, " VA")}
-              icon={IconBolt}
+              label="Operasional Toko"
+              value={formatNumber(summary.stores24h, " Toko 24h")}
+              icon={IconClock}
               tone="default"
               valueClassName="text-xl"
               rows={[
-                {
-                  label: "Rata-rata/toko",
-                  value: formatNumber(
-                    summary.totalStores
-                      ? summary.totalPlnPowerVa / summary.totalStores
-                      : 0,
-                    " VA"
-                  ),
-                },
+                { label: "Toko non-24h", value: formatNumber(summary.storesNon24h) },
+                { label: "Rerata luas", value: formatNumber(summary.avgStoreArea, " m²") },
               ]}
             />
             <AdminMetricCard
@@ -168,26 +166,20 @@ export default async function AdminMasterDataPage({
               tone="success"
               valueClassName="text-xl"
               rows={[
-                { label: "Kategori", value: formatNumber(summary.categories) },
-                { label: "Brand", value: formatNumber(summary.totalBrands) },
+                { label: "Area penempatan", value: formatNumber(summary.categories) },
+                { label: "Brand terdaftar", value: formatNumber(summary.totalBrands) },
               ]}
             />
             <AdminMetricCard
-              label="Rata-rata Default kW"
-              value={formatNumber(summary.avgDefaultKw)}
-              icon={IconTag}
+              label="Top Kategori Jenis"
+              value={formatNumber(summary.topCategories.length ? summary.topCategories[0].count : 0, ` Brand ${summary.topCategories.length ? summary.topCategories[0].name : "-"}`)}
+              icon={IconCategory}
               tone="default"
               valueClassName="text-xl"
-              rows={[
-                {
-                  label: "Brand/equipment",
-                  value: formatNumber(
-                    summary.totalEquipmentTypes
-                      ? summary.totalBrands / summary.totalEquipmentTypes
-                      : 0
-                  ),
-                },
-              ]}
+              rows={summary.topCategories.slice(1).map((cat) => ({
+                label: cat.name,
+                value: formatNumber(cat.count, " Brand"),
+              }))}
             />
           </div>
 

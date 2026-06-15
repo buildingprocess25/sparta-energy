@@ -19,14 +19,17 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url)
   const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0) || 0)
+  const hasBrandsRaw = url.searchParams.get("hasBrands")
   const filters = {
     q: url.searchParams.get("q")?.trim() ?? "",
+    deviceCategory: getFilter(url.searchParams, "deviceCategory"),
     category: getFilter(url.searchParams, "category"),
     storeType: getFilter(url.searchParams, "storeType"),
     area: parseMasterEquipmentArea(url.searchParams.get("area")),
     powerMode: parseMasterEquipmentPowerMode(
       url.searchParams.get("powerMode")
     ),
+    hasBrands: (hasBrandsRaw === "with-brands" || hasBrandsRaw === "without-brands") ? hasBrandsRaw : "all" as const,
     sort: parseMasterEquipmentSort(url.searchParams.get("sort")),
     order: parseSortOrder(url.searchParams.get("order")),
   }

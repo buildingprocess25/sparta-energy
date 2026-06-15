@@ -58,10 +58,12 @@ export type MasterEquipmentSortKey =
 
 export type MasterEquipmentFilters = {
   q: string
+  deviceCategory: string
   category: string
   storeType: string
   area: EquipmentArea | "all"
   powerMode: MasterEquipmentPowerModeFilter | "all"
+  hasBrands: "with-brands" | "without-brands" | "all"
   sort: MasterEquipmentSortKey
   order: SortOrder
 }
@@ -96,10 +98,14 @@ export type MasterDataSummary = {
   branches: number
   storeTypes: number
   totalPlnPowerVa: number
+  stores24h: number
+  storesNon24h: number
+  avgStoreArea: number
   totalEquipmentTypes: number
   totalBrands: number
   categories: number
   avgDefaultKw: number
+  topCategories: { name: string; count: number }[]
 }
 
 type CountRow = {
@@ -341,9 +347,21 @@ function getEquipmentWhereSql(
     clauses.push(`(
       lower(et.name) LIKE $${index}
       OR lower(et.category) LIKE $${index}
+      OR lower(coalesce(et.device_category, '')) LIKE $${index}
       OR lower(coalesce(et.store_type, '')) LIKE $${index}
       OR lower(eb.name) LIKE $${index}
     )`)
+  }
+
+  if (filters.deviceCategory && filters.deviceCategory !== "all") {
+    const deviceCategories = filters.deviceCategory.split(",").map((c) => c.trim()).filter(Boolean)
+    if (deviceCategories.length > 0) {
+      const placeholders = deviceCategories.map((c) => {
+        values.push(c)
+        return `$${values.length}`
+      })
+      clauses.push(`et.device_category IN (${placeholders.join(", ")})`)
+    }
   }
 
   if (filters.category !== "all") {
@@ -381,6 +399,12 @@ function getEquipmentWhereSql(
     clauses.push("eb.standby_kw = 0 AND eb.running_kw = 0")
   }
 
+  if (filters.hasBrands === "with-brands") {
+    clauses.push("EXISTS (SELECT 1 FROM equipment_brands eb2 WHERE eb2.equipment_type_id = et.id)")
+  } else if (filters.hasBrands === "without-brands") {
+    clauses.push("NOT EXISTS (SELECT 1 FROM equipment_brands eb2 WHERE eb2.equipment_type_id = et.id)")
+  }
+
   return clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""
 }
 
@@ -411,7 +435,7 @@ function getEquipmentFromSql() {
 }
 
 export async function getMasterDataSummary(): Promise<MasterDataSummary> {
-  const rows = await prisma.$queryRawUnsafe<SummaryRow[]>(`
+  const rows = await prisma.$queryRawUnsafe<any[]>(`
     SELECT
       (SELECT COUNT(*)::int FROM stores s WHERE ${activeStoreWhereSql}) AS total_stores,
       (
@@ -429,6 +453,21 @@ export async function getMasterDataSummary(): Promise<MasterDataSummary> {
         FROM stores s
         WHERE ${activeStoreWhereSql}
       ) AS total_pln_power_va,
+      (
+        SELECT COUNT(*)::int
+        FROM stores s
+        WHERE s.is_24_hours IS TRUE AND ${activeStoreWhereSql}
+      ) AS stores_24h,
+      (
+        SELECT COUNT(*)::int
+        FROM stores s
+        WHERE s.is_24_hours IS NOT TRUE AND ${activeStoreWhereSql}
+      ) AS stores_non_24h,
+      (
+        SELECT COALESCE(AVG(s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2), 0)
+        FROM stores s
+        WHERE ${activeStoreWhereSql}
+      ) AS avg_store_area,
       (SELECT COUNT(*)::int FROM equipment_types) AS total_equipment_types,
       (SELECT COUNT(*)::int FROM equipment_brands) AS total_brands,
       (
@@ -441,15 +480,34 @@ export async function getMasterDataSummary(): Promise<MasterDataSummary> {
 
   const row = rows[0]
 
+  const topCategories = await prisma.$queryRawUnsafe<{ name: string; count: number }[]>(`
+    SELECT 
+      et.device_category AS name,
+      COUNT(eb.id)::int AS count
+    FROM equipment_types et
+    INNER JOIN equipment_brands eb ON eb.equipment_type_id = et.id
+    WHERE et.device_category IS NOT NULL AND trim(et.device_category) <> ''
+    GROUP BY et.device_category
+    ORDER BY count DESC, name ASC
+    LIMIT 3
+  `)
+
   return {
     totalStores: Number(row?.total_stores ?? 0),
     branches: Number(row?.branches ?? 0),
     storeTypes: Number(row?.store_types ?? 0),
     totalPlnPowerVa: Number(row?.total_pln_power_va ?? 0),
+    stores24h: Number(row?.stores_24h ?? 0),
+    storesNon24h: Number(row?.stores_non_24h ?? 0),
+    avgStoreArea: toNumber(row?.avg_store_area),
     totalEquipmentTypes: Number(row?.total_equipment_types ?? 0),
     totalBrands: Number(row?.total_brands ?? 0),
     categories: Number(row?.categories ?? 0),
     avgDefaultKw: toNumber(row?.avg_default_kw),
+    topCategories: topCategories.map(c => ({
+      name: c.name || "Lainnya",
+      count: Number(c.count ?? 0)
+    }))
   }
 }
 

@@ -257,10 +257,12 @@ export function AdminMasterEquipmentTable({
       const params = new URLSearchParams({
         offset: String(rows.length),
         q: filters.q,
+        deviceCategory: filters.deviceCategory,
         category: filters.category,
         storeType: filters.storeType,
         area: filters.area,
         powerMode: filters.powerMode,
+        hasBrands: filters.hasBrands,
         sort: filters.sort,
         order: filters.order,
       })

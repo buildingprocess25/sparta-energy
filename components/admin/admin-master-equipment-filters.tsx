@@ -9,6 +9,7 @@ import {
   IconTag,
   IconTool,
   IconVersions,
+  IconMapPin,
   IconPlus,
 } from "@tabler/icons-react"
 import { AdminMasterEquipmentDialog } from "@/components/admin/admin-master-equipment-dialog"
@@ -30,7 +31,7 @@ type AdminMasterEquipmentFiltersProps = {
   equipmentTypeOptions: MasterEquipmentTypeOption[]
 }
 
-const filterParamKeys = ["category", "storeType", "hasBrands"] as const
+const filterParamKeys = ["deviceCategory", "category", "storeType", "hasBrands"] as const
 const filterParamKeySet = new Set<string>(filterParamKeys)
 
 function getParam(searchParams: URLSearchParams, key: string) {
@@ -61,10 +62,17 @@ export function AdminMasterEquipmentFilters({
   const fields = useMemo<FilterFieldConfig<string>[]>(
     () => [
       {
-        key: "category",
-        label: "Kategori",
+        key: "deviceCategory",
+        label: "Kategori Jenis",
         type: "multiselect",
-        icon: <IconTool />,
+        icon: <IconVersions />,
+        options: deviceCategories.map((item) => ({ value: item, label: item })),
+      },
+      {
+        key: "category",
+        label: "Area Penempatan",
+        type: "multiselect",
+        icon: <IconMapPin />,
         options: categories.map((item) => ({ value: item, label: item })),
       },
       {
@@ -78,14 +86,14 @@ export function AdminMasterEquipmentFilters({
         key: "hasBrands",
         label: "Data Brand",
         type: "select",
-        icon: <IconVersions />,
+        icon: <IconTool />,
         options: [
           { value: "with-brands", label: "Ada brand" },
           { value: "without-brands", label: "Belum ada brand" },
         ],
       },
     ],
-    [categories, storeTypes]
+    [deviceCategories, categories, storeTypes]
   )
 
   const activeFilters = useMemo<Filter<string>[]>(() => {
