@@ -2,6 +2,8 @@
 
 import * as React from "react"
 import { IconArrowRight } from "@tabler/icons-react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 import { AuditStepSkeleton } from "@/components/audit/step-skeleton"
 import { Header } from "@/components/header"
@@ -15,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useAuditStore, type StoreType } from "@/store/use-audit-store"
+import { saveAuditDraft } from "@/app/actions/save-draft"
 import type {
   AuditStepNavigate,
   StoreData,
@@ -41,7 +44,11 @@ export function AuditStep1({
   onSelectStore,
   showSkeleton = false,
 }: Props) {
+  const router = useRouter()
+  const [isSavingDraft, setIsSavingDraft] = React.useState(false)
+
   const {
+    auditId,
     storeType,
     is24Hours,
     openTime,
@@ -76,6 +83,47 @@ export function AuditStep1({
     if (!isStep1Valid) return
     onNavigate("step-2")
   }, [isStep1Valid, onNavigate])
+
+  const handleSaveDraft = async () => {
+    if (!selectedStore) return
+    setIsSavingDraft(true)
+    try {
+      const result = await saveAuditDraft({
+        auditId: auditId,
+        storeCode: selectedStore.code,
+        storeType: storeType,
+        is24Hours: is24Hours,
+        openTime: openTime,
+        closeTime: closeTime,
+        plnPowerVa: plnPowerVa,
+        areas: areas,
+      })
+
+      if ("error" in result && result.error) {
+        toast.error(result.error.message)
+        setIsSavingDraft(false)
+        return
+      }
+
+      toast.success("Draf audit berhasil disimpan!")
+      
+      // Reset the Zustand store
+      useAuditStore.setState({
+        auditId: null,
+        storeCode: "",
+        storeName: "",
+        equipments: [],
+        plnHistory: [],
+        savedAreas: [],
+        demoAuditResult: null,
+      })
+
+      router.push("/dashboard")
+    } catch (e) {
+      toast.error("Gagal menyimpan draf.")
+      setIsSavingDraft(false)
+    }
+  }
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
@@ -379,10 +427,20 @@ export function AuditStep1({
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border/60 bg-background/90 p-4 backdrop-blur">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm flex flex-col gap-2">
+          {selectedStore && (
+            <Button
+              variant="outline"
+              className="h-10 w-full rounded-xl text-xs"
+              onClick={handleSaveDraft}
+              disabled={showSkeleton || isSavingDraft}
+            >
+              {isSavingDraft ? "Menyimpan Draf..." : "Simpan Draf"}
+            </Button>
+          )}
           <Button
-            className="h-11 w-full"
-            disabled={!isStep1Valid || showSkeleton}
+            className="h-11 w-full rounded-full"
+            disabled={!isStep1Valid || showSkeleton || isSavingDraft}
             onClick={handleNext}
           >
             Lanjut ke Input Equipment

@@ -12,6 +12,8 @@ import {
 import { Header } from "@/components/header"
 import { AcEstimationCard } from "@/components/dashboard/ac-estimation-card"
 import { AcEstimationUnavailableNotice } from "@/components/dashboard/ac-estimation-unavailable-notice"
+import { DraftListSection } from "@/components/dashboard/draft-list-section"
+
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -25,6 +27,32 @@ export default async function DashboardPage() {
 
   if (!dbUser) redirect("/forbidden")
   const isAdmin = dbUser.role === "ADMIN"
+
+  // Fetch draft audits for this user
+  const draftAudits = await prisma.audit.findMany({
+    where: {
+      status: "DRAFT",
+      auditorId: session.user.id,
+    },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      updatedAt: true,
+      store: {
+        select: {
+          name: true,
+          code: true,
+        },
+      },
+    },
+  })
+
+  const drafts = draftAudits.map((d) => ({
+    id: d.id,
+    storeName: d.store.name,
+    storeCode: d.store.code,
+    updatedAt: d.updatedAt,
+  }))
 
   // Fetch 5 most recent COMPLETED audits for this user
   const branches =
@@ -115,6 +143,7 @@ export default async function DashboardPage() {
       </section>
 
       <section className="mt-5 flex flex-col gap-5">
+        <DraftListSection drafts={drafts} />
         <RecentAuditSection items={auditItems} />
       </section>
 

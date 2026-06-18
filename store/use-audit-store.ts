@@ -63,6 +63,7 @@ export type DemoAuditResult = {
 
 interface AuditState {
   // session tracking
+  auditId: string | null
   storeCode: string
   storeName: string
 
@@ -99,6 +100,7 @@ interface AuditState {
 export const useAuditStore = create<AuditState>()(
   persist(
     (set) => ({
+      auditId: null,
       storeCode: "",
       storeName: "",
 

@@ -20,6 +20,7 @@ function toAreaTarget(areaName: string): AreaTarget {
 }
 
 type SubmitAuditInput = {
+  auditId?: string | null
   // Step 1
   storeCode: string
   storeType: string
@@ -221,17 +222,39 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
       plnPowerVa: input.plnPowerVa,
     })
 
-    // ── 5. Create Audit record ──────────────────────────────────────────────────
-    const audit = await prisma.audit.create({
-      data: {
-        storeId,
-        auditorId: userId,
-        status: "COMPLETED",
-        isBoros: calc.isBoros,
-        totalEstimatedKwhPerMonth: calc.equipmentEstimateKwhPerMonth,
-        avgActualPlnKwhPerMonth: calc.avgActualPlnKwhPerMonth,
-      },
-    })
+    // ── 5. Create or Update Audit record ─────────────────────────────────────────
+    let audit
+    if (input.auditId) {
+      // Clear existing child items first to avoid duplications
+      await prisma.auditItem.deleteMany({ where: { auditId: input.auditId } })
+      await prisma.auditPlnStdHistory.deleteMany({ where: { auditId: input.auditId } })
+      await prisma.auditRecommendation.deleteMany({ where: { auditId: input.auditId } })
+
+      audit = await prisma.audit.update({
+        where: { id: input.auditId },
+        data: {
+          storeId,
+          auditorId: userId,
+          status: "COMPLETED",
+          isBoros: calc.isBoros,
+          totalEstimatedKwhPerMonth: calc.equipmentEstimateKwhPerMonth,
+          avgActualPlnKwhPerMonth: calc.avgActualPlnKwhPerMonth,
+          auditDate: new Date(),
+        },
+      })
+    } else {
+      audit = await prisma.audit.create({
+        data: {
+          storeId,
+          auditorId: userId,
+          status: "COMPLETED",
+          isBoros: calc.isBoros,
+          totalEstimatedKwhPerMonth: calc.equipmentEstimateKwhPerMonth,
+          avgActualPlnKwhPerMonth: calc.avgActualPlnKwhPerMonth,
+          auditDate: new Date(),
+        },
+      })
+    }
 
     // ── 6. Create AuditItems (per equipment unit) ───────────────────────────────
     const selectedEquipments = input.equipments.filter((eq) => eq.selected)

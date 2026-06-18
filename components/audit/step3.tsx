@@ -10,6 +10,7 @@ import {
   type PlnRowState,
 } from "@/store/use-audit-store"
 import { submitAudit } from "@/app/actions/submit-audit"
+import { saveAuditDraft } from "@/app/actions/save-draft"
 import { calculateAudit, getHoursBetween } from "@/lib/audit-kalkulator"
 import { getDemoAiRecommendation } from "@/app/actions/get-demo-ai-recommendation"
 
@@ -259,14 +260,47 @@ export function AuditStep3({
 }: AuditStep3Props) {
   const router = useRouter()
   const [isPending, setIsPending] = React.useState(false)
+  const [isSavingDraft, setIsSavingDraft] = React.useState(false)
   const [submitError, setSubmitError] = React.useState<string | null>(null)
 
   const zustandPln = useAuditStore((state) => state.plnHistory)
   const setPlnHistory = useAuditStore((state) => state.setPlnHistory)
 
   const [rows, setRows] = React.useState<PlnRowState[]>(() => {
-    if (zustandPln.length > 0) return zustandPln
-    return makeBlankRows()
+    const defaultRows = makeBlankRows()
+    if (zustandPln.length === 0) return defaultRows
+    if (zustandPln.length >= 6) return zustandPln
+
+    const savedMap = new Map<string, PlnRowState>()
+    zustandPln.forEach((r) => {
+      savedMap.set(r.month.trim().toLowerCase(), r)
+    })
+
+    const merged = defaultRows.map((defRow) => {
+      const saved = savedMap.get(defRow.month.trim().toLowerCase())
+      if (saved) {
+        savedMap.delete(defRow.month.trim().toLowerCase())
+        return saved
+      }
+      return defRow
+    })
+
+    const unusedSaved = Array.from(savedMap.values())
+    if (unusedSaved.length > 0) {
+      let unusedIdx = 0
+      for (let i = 0; i < merged.length && unusedIdx < unusedSaved.length; i++) {
+        if (merged[i].kwh === 0 && merged[i].std === 0) {
+          merged[i] = unusedSaved[unusedIdx]
+          unusedIdx++
+        }
+      }
+      while (unusedIdx < unusedSaved.length) {
+        merged.push(unusedSaved[unusedIdx])
+        unusedIdx++
+      }
+    }
+
+    return merged
   })
 
   function updateRow(
@@ -337,6 +371,7 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
       }
 
       const result = await submitAudit({
+        auditId: auditState.auditId,
         storeCode: auditState.storeCode,
         storeType: auditState.storeType,
         is24Hours: auditState.is24Hours,
@@ -387,6 +422,48 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Terjadi kesalahan.")
       setIsPending(false)
+    }
+  }
+
+  const handleSaveDraft = async () => {
+    setIsSavingDraft(true)
+    try {
+      const result = await saveAuditDraft({
+        auditId: auditState.auditId,
+        storeCode: auditState.storeCode,
+        storeType: auditState.storeType,
+        is24Hours: auditState.is24Hours,
+        openTime: auditState.openTime,
+        closeTime: auditState.closeTime,
+        plnPowerVa: auditState.plnPowerVa,
+        areas: auditState.areas,
+        equipments: auditState.equipments,
+        plnHistory: rows,
+      })
+
+      if ("error" in result && result.error) {
+        toast.error(result.error.message)
+        setIsSavingDraft(false)
+        return
+      }
+
+      toast.success("Draf audit berhasil disimpan!")
+
+      // Reset the Zustand store
+      useAuditStore.setState({
+        auditId: null,
+        storeCode: "",
+        storeName: "",
+        equipments: [],
+        plnHistory: [],
+        savedAreas: [],
+        demoAuditResult: null,
+      })
+
+      router.push("/dashboard")
+    } catch (e) {
+      toast.error("Gagal menyimpan draf.")
+      setIsSavingDraft(false)
     }
   }
 
@@ -509,12 +586,23 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
               {submitError}
             </p>
           )}
+          {mode !== "demo" && (
+            <Button
+              variant="outline"
+              className="h-10 w-full rounded-xl text-xs"
+              onClick={handleSaveDraft}
+              disabled={showSkeleton || isPending || isSavingDraft}
+            >
+              {isSavingDraft ? "Menyimpan Draf..." : "Simpan Draf"}
+            </Button>
+          )}
           <Button
             className="h-11 w-full rounded-full"
             onClick={handleSubmit}
             disabled={
               showSkeleton ||
               isPending ||
+              isSavingDraft ||
               rows.some((r) => !r.kwh || r.kwh <= 0)
             }
           >

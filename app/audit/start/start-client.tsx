@@ -95,18 +95,19 @@ export function AuditStartClient({
     if (hasInitialized.current) return
     hasInitialized.current = true
 
-    const isNew = searchParams.get("new") === "1"
-    if (isNew) {
-      useAuditStore.setState({
-        storeCode: "",
-        storeName: "",
-        equipments: [],
-        plnHistory: [],
-        savedAreas: [],
-        demoAuditResult: null,
-      })
-      router.replace(basePath, { scroll: false })
-    }
+      const isNew = searchParams.get("new") === "1"
+      if (isNew) {
+        useAuditStore.setState({
+          auditId: null,
+          storeCode: "",
+          storeName: "",
+          equipments: [],
+          plnHistory: [],
+          savedAreas: [],
+          demoAuditResult: null,
+        })
+        router.replace(basePath, { scroll: false })
+      }
   }, [searchParams, router, basePath])
 
   // Resolve the currently selected store from Zustand storeCode
@@ -167,6 +168,7 @@ export function AuditStartClient({
       showSkeleton={showSkeleton}
       onSelectStore={(store) => {
         useAuditStore.setState({
+          auditId: null,
           equipments: [],
           plnHistory: [],
           savedAreas: [],

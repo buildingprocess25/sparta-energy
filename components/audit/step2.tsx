@@ -8,6 +8,8 @@ import {
   IconCircle,
 } from "@tabler/icons-react"
 import * as React from "react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 import { AuditStep2Detail } from "./step2-detail"
 import { AuditStepSkeleton } from "@/components/audit/step-skeleton"
@@ -20,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import { useAuditStore } from "@/store/use-audit-store"
+import { saveAuditDraft } from "@/app/actions/save-draft"
 import type { AuditStepNavigate } from "@/app/audit/start/start-client"
 
 type AreaItem = {
@@ -109,13 +112,57 @@ export function AuditStep2({
   showSkeleton = false,
   masterItems = [],
 }: AuditStep2Props) {
-  const { savedAreas } = useAuditStore()
+  const router = useRouter()
+  const [isSavingDraft, setIsSavingDraft] = React.useState(false)
+  const auditState = useAuditStore()
+  const { savedAreas } = auditState
 
   const completedAreas = areaItems.filter((item) =>
     savedAreas.includes(item.name)
   ).length
   const progressValue =
     totalAreas > 0 ? Math.round((completedAreas / totalAreas) * 100) : 0
+
+  const handleSaveDraft = async () => {
+    setIsSavingDraft(true)
+    try {
+      const result = await saveAuditDraft({
+        auditId: auditState.auditId,
+        storeCode: auditState.storeCode,
+        storeType: auditState.storeType,
+        is24Hours: auditState.is24Hours,
+        openTime: auditState.openTime,
+        closeTime: auditState.closeTime,
+        plnPowerVa: auditState.plnPowerVa,
+        areas: auditState.areas,
+        equipments: auditState.equipments,
+      })
+
+      if ("error" in result && result.error) {
+        toast.error(result.error.message)
+        setIsSavingDraft(false)
+        return
+      }
+
+      toast.success("Draf audit berhasil disimpan!")
+      
+      // Reset the Zustand store
+      useAuditStore.setState({
+        auditId: null,
+        storeCode: "",
+        storeName: "",
+        equipments: [],
+        plnHistory: [],
+        savedAreas: [],
+        demoAuditResult: null,
+      })
+
+      router.push("/dashboard")
+    } catch (e) {
+      toast.error("Gagal menyimpan draf.")
+      setIsSavingDraft(false)
+    }
+  }
 
   if (selectedArea) {
     const areaName =
@@ -211,10 +258,18 @@ export function AuditStep2({
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border/60 bg-background/90 p-4 backdrop-blur">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm flex flex-col gap-2">
           <Button
-            className="h-11 w-full"
-            disabled={completedAreas < totalAreas || showSkeleton}
+            variant="outline"
+            className="h-10 w-full rounded-xl text-xs"
+            onClick={handleSaveDraft}
+            disabled={showSkeleton || isSavingDraft}
+          >
+            {isSavingDraft ? "Menyimpan Draf..." : "Simpan Draf"}
+          </Button>
+          <Button
+            className="h-11 w-full rounded-full"
+            disabled={completedAreas < totalAreas || showSkeleton || isSavingDraft}
             onClick={() => onNavigate("step-3")}
           >
             Lanjut ke History kWh
