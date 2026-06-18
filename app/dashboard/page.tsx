@@ -12,6 +12,7 @@ import {
 import { Header } from "@/components/header"
 import { AcEstimationCard } from "@/components/dashboard/ac-estimation-card"
 import { AcEstimationUnavailableNotice } from "@/components/dashboard/ac-estimation-unavailable-notice"
+import { hasFullBranchAccess } from "@/lib/permissions"
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -20,11 +21,11 @@ export default async function DashboardPage() {
   // Get all audits for stores in user's branch
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { branch: true, fullName: true, role: true },
+    select: { email: true, branch: true, fullName: true, role: true },
   })
 
   if (!dbUser) redirect("/forbidden")
-  const isAdmin = dbUser.role === "ADMIN"
+  const canAccessAll = hasFullBranchAccess(dbUser)
 
   // Fetch 5 most recent COMPLETED audits for this user
   const branches =
@@ -32,16 +33,17 @@ export default async function DashboardPage() {
       ?.split(",")
       .map((b) => b.trim())
       .filter(Boolean) ?? []
-  const headerSubtitle = isAdmin
-    ? undefined
+  const headerSubtitle = canAccessAll
+    ? (dbUser.role === "ADMIN" ? undefined : "Auditor")
     : branches.length > 2
       ? undefined
       : (dbUser.branch ?? "")
+
   const recentAudits = await prisma.audit.findMany({
     where: {
       status: "COMPLETED",
       auditorId: session.user.id,
-      ...(isAdmin
+      ...(canAccessAll
         ? {}
         : {
             store: {

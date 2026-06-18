@@ -2,6 +2,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { hasFullBranchAccess } from "@/lib/permissions"
 import { AcEstimationClient } from "./ac-estimation-client"
 import type { StoreData } from "@/app/audit/start/start-client"
 
@@ -20,11 +21,11 @@ export default async function AcEstimationPage() {
 
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { branch: true, role: true },
+    select: { email: true, branch: true, role: true },
   })
 
   if (!dbUser) redirect("/forbidden")
-  const isAdmin = dbUser.role === "ADMIN"
+  const canAccessAll = hasFullBranchAccess(dbUser)
 
   const branches =
     dbUser?.branch
@@ -32,7 +33,7 @@ export default async function AcEstimationPage() {
       .map((b) => b.trim())
       .filter(Boolean) ?? []
   const stores = await prisma.store.findMany({
-    where: isAdmin
+    where: canAccessAll
       ? {
           branch: {
             notIn: excludedBranchNames,

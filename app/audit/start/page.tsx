@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getAllEquipmentMaster } from "@/lib/get-equipment-for-area"
+import { hasFullBranchAccess } from "@/lib/permissions"
 import { AuditStartClient } from "./start-client"
 
 const excludedBranchNames = [
@@ -22,11 +23,11 @@ export default async function AuditStartPage() {
   // Find user with branch info
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { branch: true, role: true },
+    select: { email: true, branch: true, role: true },
   })
 
   if (!dbUser) redirect("/forbidden")
-  const isAdmin = dbUser.role === "ADMIN"
+  const canAccessAll = hasFullBranchAccess(dbUser)
 
   // Find all stores in the user's branches (comma-separated for multi-branch support)
   const branches =
@@ -35,7 +36,7 @@ export default async function AuditStartPage() {
       .map((b) => b.trim())
       .filter(Boolean) ?? []
   const stores = await prisma.store.findMany({
-    where: isAdmin
+    where: canAccessAll
       ? {
           branch: {
             notIn: excludedBranchNames,
