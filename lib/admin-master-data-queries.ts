@@ -81,6 +81,8 @@ export type MasterEquipmentRow = {
   standbyKw: number
   runningKw: number
   storeType: string | null
+  productPhotoUrl: string | null
+  nameplatePhotoUrl: string | null
   createdAt: string
 }
 
@@ -761,6 +763,8 @@ export async function getMasterEquipmentRows({
         eb.standby_kw AS "standbyKw",
         eb.running_kw AS "runningKw",
         et.store_type AS "storeType",
+        eb.product_photo_url AS "productPhotoUrl",
+        eb.nameplate_photo_url AS "nameplatePhotoUrl",
         eb.created_at AS "createdAt"
       ${getEquipmentFromSql()}
       ${whereSql}

@@ -1,6 +1,22 @@
 import { Prisma } from "@prisma/client"
+import { UTApi } from "uploadthing/server"
 
 import { prisma } from "@/lib/prisma"
+
+const utapi = new UTApi()
+
+export async function deleteUploadThingFile(url: string | null | undefined) {
+  if (!url) return
+  try {
+    const fileKey = url.substring(url.lastIndexOf("/") + 1)
+    if (fileKey) {
+      await utapi.deleteFiles(fileKey)
+      console.log(`[UploadThing] Berhasil menghapus file key: ${fileKey}`)
+    }
+  } catch (error) {
+    console.error(`[UploadThing] Gagal menghapus file dari URL ${url}:`, error)
+  }
+}
 
 export type ApiMutationResult =
   | { ok: true }
@@ -108,6 +124,8 @@ function getEquipmentBrandPayload(data: Record<string, unknown>) {
     baseKw: requireNonNegativeNumber(data, "baseKw"),
     standbyKw: requireNonNegativeNumber(data, "standbyKw"),
     runningKw: requireNonNegativeNumber(data, "runningKw"),
+    productPhotoUrl: getOptionalString(data, "productPhotoUrl"),
+    nameplatePhotoUrl: getOptionalString(data, "nameplatePhotoUrl"),
   }
 }
 
@@ -214,7 +232,11 @@ export async function updateMasterEquipment(
 
     const existingBrand = await prisma.equipmentBrand.findUnique({
       where: { id },
-      select: { equipmentTypeId: true },
+      select: { 
+        equipmentTypeId: true,
+        productPhotoUrl: true,
+        nameplatePhotoUrl: true,
+      },
     })
     if (!existingBrand) {
       return { ok: false, status: 404, message: "Brand equipment tidak ada" }
@@ -230,6 +252,14 @@ export async function updateMasterEquipment(
         data: brand,
       }),
     ])
+
+    // Bersihkan file foto lama di UploadThing jika diganti/dihapus
+    if (existingBrand.productPhotoUrl && existingBrand.productPhotoUrl !== brand.productPhotoUrl) {
+      await deleteUploadThingFile(existingBrand.productPhotoUrl)
+    }
+    if (existingBrand.nameplatePhotoUrl && existingBrand.nameplatePhotoUrl !== brand.nameplatePhotoUrl) {
+      await deleteUploadThingFile(existingBrand.nameplatePhotoUrl)
+    }
 
     return { ok: true }
   } catch (error) {
@@ -251,8 +281,25 @@ export async function deleteMasterEquipment(
     }
   }
 
+  // Ambil url foto lama sebelum brand dihapus dari DB
+  const existingBrand = await prisma.equipmentBrand.findUnique({
+    where: { id },
+    select: { productPhotoUrl: true, nameplatePhotoUrl: true },
+  })
+
   try {
     await prisma.equipmentBrand.delete({ where: { id } })
+
+    // Bersihkan file foto di UploadThing setelah berhasil didelete dari DB
+    if (existingBrand) {
+      if (existingBrand.productPhotoUrl) {
+        await deleteUploadThingFile(existingBrand.productPhotoUrl)
+      }
+      if (existingBrand.nameplatePhotoUrl) {
+        await deleteUploadThingFile(existingBrand.nameplatePhotoUrl)
+      }
+    }
+
     return { ok: true }
   } catch (error) {
     return { ok: false, status: 400, message: getPrismaErrorMessage(error) }

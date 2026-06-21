@@ -1,8 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { IconLoader2, IconPhoto, IconUpload } from "@tabler/icons-react"
+import { IconLoader2, IconPhoto, IconUpload, IconX } from "@tabler/icons-react"
 import { toast } from "sonner"
+import { cn, slugify } from "@/lib/utils"
+import { uploadFiles } from "@/lib/uploadthing"
+import { compressImage } from "@/lib/image-compression"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -49,6 +52,74 @@ export function AdminMasterEquipmentDialog({
   onSuccess,
 }: AdminMasterEquipmentDialogProps) {
   const [equipmentTypeId, setEquipmentTypeId] = useState("")
+  const [productPhotoUrl, setProductPhotoUrl] = useState("")
+  const [nameplatePhotoUrl, setNameplatePhotoUrl] = useState("")
+  const [isUploading, setIsUploading] = useState(false)
+  const [isUploadingNameplate, setIsUploadingNameplate] = useState(false)
+
+  const handleProductPhotoRemove = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setProductPhotoUrl("")
+  }
+
+  const handleNameplatePhotoRemove = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setNameplatePhotoUrl("")
+  }
+
+  const onProductFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsUploading(true)
+    try {
+      const compressed = await compressImage(file)
+      const brandSlug = slugify(brandName || equipmentName || "equipment")
+      const renamedFile = new File(
+        [compressed],
+        `${brandSlug}-product-${Date.now()}.webp`,
+        { type: "image/webp" }
+      )
+      const res = await uploadFiles("brandImage", {
+        files: [renamedFile]
+      })
+      if (res?.[0]) {
+        setProductPhotoUrl(res[0].url)
+        toast.success("Foto produk berhasil diunggah")
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal mengunggah foto produk")
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const onNameplateFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsUploadingNameplate(true)
+    try {
+      const compressed = await compressImage(file)
+      const brandSlug = slugify(brandName || equipmentName || "equipment")
+      const renamedFile = new File(
+        [compressed],
+        `${brandSlug}-nameplate-${Date.now()}.webp`,
+        { type: "image/webp" }
+      )
+      const res = await uploadFiles("nameplateImage", {
+        files: [renamedFile]
+      })
+      if (res?.[0]) {
+        setNameplatePhotoUrl(res[0].url)
+        toast.success("Foto name plate berhasil diunggah")
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal mengunggah foto name plate")
+    } finally {
+      setIsUploadingNameplate(false)
+    }
+  }
   const [equipmentName, setEquipmentName] = useState("")
   const [category, setCategory] = useState("")
   const [deviceCategory, setDeviceCategory] = useState("")
@@ -118,6 +189,8 @@ export function AdminMasterEquipmentDialog({
       setBaseKw(equipment.baseKw)
       setStandbyKw(equipment.standbyKw)
       setRunningKw(equipment.runningKw)
+      setProductPhotoUrl(equipment.productPhotoUrl || "")
+      setNameplatePhotoUrl(equipment.nameplatePhotoUrl || "")
     } else {
       // Create mode: Empty fields
       setEquipmentTypeId("")
@@ -134,6 +207,8 @@ export function AdminMasterEquipmentDialog({
       setBaseKw("")
       setStandbyKw(0)
       setRunningKw(0)
+      setProductPhotoUrl("")
+      setNameplatePhotoUrl("")
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, equipment])
@@ -255,6 +330,8 @@ export function AdminMasterEquipmentDialog({
         baseKw: Number(baseKw),
         standbyKw: standbyKw === "" ? 0 : Number(standbyKw),
         runningKw: runningKw === "" ? 0 : Number(runningKw),
+        productPhotoUrl: productPhotoUrl || null,
+        nameplatePhotoUrl: nameplatePhotoUrl || null,
       }
 
       if (needsTypeValidation) {
@@ -592,35 +669,102 @@ export function AdminMasterEquipmentDialog({
               </div>
             </div>
 
-            {/* ── SECTION 3: Documentation (Mock / Inactive) ── */}
-            <div className="border-t pt-3 space-y-3 opacity-60">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-                <span>Dokumentasi & Referensi</span>
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground uppercase select-none">
-                  Segera Hadir
-                </span>
+            {/* ── SECTION 3: Dokumentasi (UploadThing) ── */}
+            <div className="border-t pt-3 space-y-3">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Dokumentasi & Referensi
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Fitur integrasi Google Drive perusahaan untuk dokumentasi foto brand dan name plate.
+                Unggah foto produk dan foto name plate untuk referensi saat melakukan audit di lapangan.
               </p>
 
               <div className="grid grid-cols-2 gap-3">
+                {/* Foto Produk */}
                 <div className="space-y-1.5">
-                  <Label className="text-muted-foreground text-[11px] font-medium">Foto Produk</Label>
-                  <div className="flex flex-col items-center justify-center border border-dashed border-muted-foreground/30 rounded-lg p-3 bg-muted/10 cursor-not-allowed select-none min-h-[5.5rem]">
-                    <IconPhoto className="size-5 text-muted-foreground/50 mb-1" />
-                    <span className="text-[10px] font-semibold text-muted-foreground text-center">Pilih atau Seret Foto</span>
-                    <span className="text-[9px] text-muted-foreground/60 mt-0.5">Maks. 5MB (Nonaktif)</span>
-                  </div>
+                  <Label htmlFor="product-photo-upload" className="text-muted-foreground text-[11px] font-medium">Foto Produk</Label>
+                  {productPhotoUrl ? (
+                    <div className="relative group border rounded-lg overflow-hidden min-h-[5.5rem] flex items-center justify-center bg-muted/20">
+                      <img src={productPhotoUrl} alt="Foto Produk" className="absolute inset-0 size-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={handleProductPhotoRemove}
+                        className="absolute top-1 right-1 size-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/90 shadow-sm"
+                        title="Hapus foto"
+                      >
+                        <IconX className="size-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className={cn(
+                      "flex flex-col items-center justify-center border border-dashed border-muted-foreground/30 rounded-lg p-3 bg-muted/5 min-h-[5.5rem] transition-colors",
+                      isUploading ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted/10 hover:border-primary/40"
+                    )}>
+                      {isUploading ? (
+                        <>
+                          <IconLoader2 className="size-5 text-primary animate-spin mb-1" />
+                          <span className="text-[10px] font-semibold text-muted-foreground text-center">Mengunggah...</span>
+                        </>
+                      ) : (
+                        <>
+                          <IconPhoto className="size-5 text-muted-foreground/50 mb-1" />
+                          <span className="text-[10px] font-semibold text-muted-foreground text-center">Pilih Foto Produk</span>
+                          <span className="text-[9px] text-muted-foreground/60 mt-0.5">Maks. 4MB</span>
+                          <input
+                            id="product-photo-upload"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={onProductFileChange}
+                            disabled={isUploading || isSubmitting}
+                          />
+                        </>
+                      )}
+                    </label>
+                  )}
                 </div>
 
+                {/* Foto Name Plate */}
                 <div className="space-y-1.5">
-                  <Label className="text-muted-foreground text-[11px] font-medium">Foto Name Plate</Label>
-                  <div className="flex flex-col items-center justify-center border border-dashed border-muted-foreground/30 rounded-lg p-3 bg-muted/10 cursor-not-allowed select-none min-h-[5.5rem]">
-                    <IconUpload className="size-5 text-muted-foreground/50 mb-1" />
-                    <span className="text-[10px] font-semibold text-muted-foreground text-center">Pilih atau Seret Foto</span>
-                    <span className="text-[9px] text-muted-foreground/60 mt-0.5">Maks. 5MB (Nonaktif)</span>
-                  </div>
+                  <Label htmlFor="nameplate-photo-upload" className="text-muted-foreground text-[11px] font-medium">Foto Name Plate</Label>
+                  {nameplatePhotoUrl ? (
+                    <div className="relative group border rounded-lg overflow-hidden min-h-[5.5rem] flex items-center justify-center bg-muted/20">
+                      <img src={nameplatePhotoUrl} alt="Foto Name Plate" className="absolute inset-0 size-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={handleNameplatePhotoRemove}
+                        className="absolute top-1 right-1 size-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/90 shadow-sm"
+                        title="Hapus foto"
+                      >
+                        <IconX className="size-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className={cn(
+                      "flex flex-col items-center justify-center border border-dashed border-muted-foreground/30 rounded-lg p-3 bg-muted/5 min-h-[5.5rem] transition-colors",
+                      isUploadingNameplate ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted/10 hover:border-primary/40"
+                    )}>
+                      {isUploadingNameplate ? (
+                        <>
+                          <IconLoader2 className="size-5 text-primary animate-spin mb-1" />
+                          <span className="text-[10px] font-semibold text-muted-foreground text-center">Mengunggah...</span>
+                        </>
+                      ) : (
+                        <>
+                          <IconUpload className="size-5 text-muted-foreground/50 mb-1" />
+                          <span className="text-[10px] font-semibold text-muted-foreground text-center">Pilih Foto Plate</span>
+                          <span className="text-[9px] text-muted-foreground/60 mt-0.5">Maks. 4MB</span>
+                          <input
+                            id="nameplate-photo-upload"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={onNameplateFileChange}
+                            disabled={isUploadingNameplate || isSubmitting}
+                          />
+                        </>
+                      )}
+                    </label>
+                  )}
                 </div>
               </div>
             </div>

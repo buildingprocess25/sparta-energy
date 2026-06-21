@@ -102,6 +102,8 @@ model EquipmentBrand {
   standbyKw       Decimal       @default(0) @map("standby_kw")
   runningKw       Decimal       @default(0) @map("running_kw")
   areaTarget      AreaTarget    @default(SALES) @map("area_target")
+  productPhotoUrl   String?       @map("product_photo_url")
+  nameplatePhotoUrl String?       @map("nameplate_photo_url")
   createdAt       DateTime      @default(now()) @map("created_at")
   
   type            EquipmentType @relation(fields: [equipmentTypeId], references: [id], onDelete: Cascade)

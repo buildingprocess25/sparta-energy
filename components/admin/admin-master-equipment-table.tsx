@@ -10,6 +10,8 @@ import {
   IconPencil,
   IconTrash,
   IconAlertTriangle,
+  IconPhoto,
+  IconFileText,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 import { AdminMasterEquipmentDialog } from "@/components/admin/admin-master-equipment-dialog"
@@ -104,6 +106,17 @@ export function AdminMasterEquipmentTable({
   const [deleteItem, setDeleteItem] = useState<MasterEquipmentRow | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  
+  // Lightbox Modal states
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxSrc, setLightboxSrc] = useState("")
+  const [lightboxTitle, setLightboxTitle] = useState("")
+
+  function handleViewPhoto(src: string, title: string) {
+    setLightboxSrc(src)
+    setLightboxTitle(title)
+    setLightboxOpen(true)
+  }
 
   // Grab-to-Scroll refs and state
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -351,9 +364,40 @@ export function AdminMasterEquipmentTable({
                   </div>
                 </TableCell>
                 <TableCell>
-                  <p className="max-w-48 truncate font-medium">
-                    {item.brandName}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    {item.productPhotoUrl ? (
+                      <div 
+                        className="relative size-8 shrink-0 cursor-pointer overflow-hidden rounded-md border bg-muted/30 transition hover:opacity-80 group"
+                        onClick={() => handleViewPhoto(item.productPhotoUrl!, `Foto Produk - ${item.brandName}`)}
+                        title="Klik untuk memperbesar"
+                      >
+                        <img 
+                          src={item.productPhotoUrl} 
+                          alt={item.brandName} 
+                          className="size-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-muted bg-muted/10 text-muted-foreground/30">
+                        <IconPhoto className="size-4" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="max-w-48 truncate font-medium" title={item.brandName}>
+                        {item.brandName}
+                      </p>
+                      {item.nameplatePhotoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => handleViewPhoto(item.nameplatePhotoUrl!, `Name Plate - ${item.brandName}`)}
+                          className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"
+                        >
+                          <IconFileText className="size-3" />
+                          <span>Name Plate</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary">{item.deviceCategory}</Badge>
@@ -474,6 +518,23 @@ export function AdminMasterEquipmentTable({
               Hapus
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Lightbox Preview Dialog */}
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent className="max-w-lg overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="truncate">{lightboxTitle}</DialogTitle>
+            <DialogDescription className="sr-only">Pratinjau foto dokumentasi equipment</DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 flex items-center justify-center rounded-lg border bg-muted/20 p-2 min-h-[300px]">
+            <img
+              src={lightboxSrc}
+              alt={lightboxTitle}
+              className="max-h-[60vh] w-auto max-w-full rounded-md object-contain shadow-sm"
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>
