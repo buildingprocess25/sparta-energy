@@ -5,13 +5,15 @@ import { prisma } from "@/lib/prisma"
 // Guest-only routes: accessible only when not logged in.
 const guestOnlyRoutes = new Set(["/", "/login"])
 
-// Prefix-match public routes
 const publicPrefixes = [
   "/api/auth",
   "/_next",
   "/favicon.ico",
   "/assets",
   "/demo",
+  "/manifest.json",
+  "/sw.js",
+  "/workbox-"
 ]
 
 export async function proxy(request: NextRequest) {
