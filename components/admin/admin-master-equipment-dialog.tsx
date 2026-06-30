@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { IconLoader2, IconPhoto, IconUpload, IconX } from "@tabler/icons-react"
+import { IconLoader2, IconPhoto, IconUpload, IconX, IconInfoCircle } from "@tabler/icons-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "sonner"
 import { cn, slugify } from "@/lib/utils"
 import { uploadFiles } from "@/lib/uploadthing"
@@ -562,7 +563,21 @@ export function AdminMasterEquipmentDialog({
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="eq-category">Area Penempatan *</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="eq-category">Area Penempatan *</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                          <IconInfoCircle className="h-3.5 w-3.5" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-[220px] text-xs font-normal">
+                            Klasifikasi menu pencarian untuk memudahkan auditor saat melakukan pendataan di lapangan.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <Select
                     value={category}
                     onValueChange={handleCategoryChange}
@@ -603,7 +618,21 @@ export function AdminMasterEquipmentDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="eq-calc-method">Metode Kalkulasi *</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="eq-calc-method">Metode Kalkulasi *</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                          <IconInfoCircle className="h-3.5 w-3.5" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-[220px] text-xs font-normal">
+                            Rumus yang digunakan untuk menghitung konsumsi listrik harian (Standard, Transaksi, atau Batch).
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <Select
                     value={calcMethod}
                     onValueChange={setCalcMethod}
@@ -622,9 +651,23 @@ export function AdminMasterEquipmentDialog({
 
                 {calcMethod !== "STANDARD" && (
                   <div className="space-y-2">
-                    <Label htmlFor="eq-calc-duration">
-                      Durasi ({calcMethod === "TRANSACTION" ? "Detik/Transaksi" : "Menit/Batch"}) *
-                    </Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor="eq-calc-duration">
+                        Durasi ({calcMethod === "TRANSACTION" ? "Detik/Transaksi" : "Menit/Batch"}) *
+                      </Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                            <IconInfoCircle className="h-3.5 w-3.5" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="max-w-[220px] text-xs font-normal">
+                              Durasi waktu aktif alat untuk setiap satu kali transaksi atau siklus memasak (batch).
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <Input
                       id="eq-calc-duration"
                       type="number"
@@ -659,7 +702,21 @@ export function AdminMasterEquipmentDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="eq-area">Area Penempatan *</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="eq-area">Area Penempatan *</Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                        <IconInfoCircle className="h-3.5 w-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[220px] text-xs font-normal">
+                          Target lokasi fisik di toko yang digunakan untuk perhitungan beban energi (kWh/m²) pada dashboard statistik.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <Select
                   value={area}
                   onValueChange={(val) =>
@@ -680,7 +737,21 @@ export function AdminMasterEquipmentDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="eq-base-kw">Base kW *</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="eq-base-kw">Base kW *</Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                        <IconInfoCircle className="h-3.5 w-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[220px] text-xs font-normal">
+                          Daya listrik standar (dalam kW) saat alat beroperasi penuh (1 kW = 1000 Watt).
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <Input
                   id="eq-base-kw"
                   type="number"
@@ -696,7 +767,21 @@ export function AdminMasterEquipmentDialog({
                 />
               </div>              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="eq-standby-kw">Standby kW</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="eq-standby-kw">Standby kW</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                          <IconInfoCircle className="h-3.5 w-3.5" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-[220px] text-xs font-normal">
+                            Daya siaga (dalam kW) ketika alat terhubung listrik namun sedang standby / tidak aktif penuh.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <Input
                     id="eq-standby-kw"
                     type="number"
@@ -713,7 +798,21 @@ export function AdminMasterEquipmentDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="eq-running-kw">Running kW</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="eq-running-kw">Running kW</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                          <IconInfoCircle className="h-3.5 w-3.5" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-[220px] text-xs font-normal">
+                            Daya aktif (dalam kW) saat alat sedang beroperasi dalam siklus transaksi/batch (opsional).
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <Input
                     id="eq-running-kw"
                     type="number"

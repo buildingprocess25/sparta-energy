@@ -12,7 +12,9 @@ import {
   IconAlertTriangle,
   IconPhoto,
   IconFileText,
+  IconInfoCircle,
 } from "@tabler/icons-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "sonner"
 import { AdminMasterEquipmentDialog } from "@/components/admin/admin-master-equipment-dialog"
 import {
@@ -321,29 +323,99 @@ export function AdminMasterEquipmentTable({
               </TableHead>
               <TableHead>Kategori Jenis</TableHead>
               <TableHead>
-                <SortableHeader column="category">Area Penempatan</SortableHeader>
+                <div className="flex items-center gap-1">
+                  <SortableHeader column="category">Area Penempatan</SortableHeader>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                        <IconInfoCircle className="h-3.5 w-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[220px] text-xs font-normal">
+                          Klasifikasi menu pencarian untuk memudahkan auditor saat melakukan pendataan di lapangan.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </TableHead>
               <TableHead>
                 <SortableHeader column="storeType">Tipe Toko</SortableHeader>
               </TableHead>
               <TableHead>
-                <SortableHeader column="area">Target Area Brand</SortableHeader>
+                <div className="flex items-center gap-1">
+                  <SortableHeader column="area">Target Area Brand</SortableHeader>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                        <IconInfoCircle className="h-3.5 w-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-[220px] text-xs font-normal">
+                          Target lokasi fisik di toko yang digunakan untuk perhitungan beban energi (kWh/m²) pada dashboard statistik.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </TableHead>
               <TableHead>Metode Kalkulasi</TableHead>
               <TableHead className="text-right">
-                <SortableHeader column="baseKw" align="right">
-                  Default kW
-                </SortableHeader>
+                <div className="flex items-center justify-end gap-1">
+                  <SortableHeader column="baseKw" align="right">
+                    Default kW
+                  </SortableHeader>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                        <IconInfoCircle className="h-3.5 w-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent align="end">
+                        <p className="max-w-[200px] text-xs font-normal text-left">
+                          Daya listrik standar (dalam kW) saat alat beroperasi penuh (1 kW = 1000 Watt).
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </TableHead>
               <TableHead className="text-right">
-                <SortableHeader column="standbyKw" align="right">
-                  Standby kW
-                </SortableHeader>
+                <div className="flex items-center justify-end gap-1">
+                  <SortableHeader column="standbyKw" align="right">
+                    Standby kW
+                  </SortableHeader>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                        <IconInfoCircle className="h-3.5 w-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent align="end">
+                        <p className="max-w-[200px] text-xs font-normal text-left">
+                          Daya siaga (dalam kW) ketika alat standby / tidak aktif penuh.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </TableHead>
               <TableHead className="text-right">
-                <SortableHeader column="runningKw" align="right">
-                  Running kW
-                </SortableHeader>
+                <div className="flex items-center justify-end gap-1">
+                  <SortableHeader column="runningKw" align="right">
+                    Running kW
+                  </SortableHeader>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
+                        <IconInfoCircle className="h-3.5 w-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent align="end">
+                        <p className="max-w-[200px] text-xs font-normal text-left">
+                          Daya aktif (dalam kW) saat beroperasi dalam siklus transaksi/batch.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </TableHead>
               <TableHead>
                 <SortableHeader column="createdAt">Dibuat</SortableHeader>
