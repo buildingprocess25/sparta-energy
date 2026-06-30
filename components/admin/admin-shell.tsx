@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
+  IconBolt,
   IconBuildingStore,
   IconCheck,
   IconChevronRight,
@@ -91,6 +92,7 @@ type AdminNavItem = {
   href: string
   icon: ComponentType<React.ComponentProps<"svg">>
   disabled?: boolean
+  external?: boolean
 }
 
 type AdminNavGroup = {
@@ -127,6 +129,12 @@ const navGroups: AdminNavGroup[] = [
         label: "Performa Cabang",
         href: "/admin/branches",
         icon: ChartNoAxesColumn,
+      },
+      {
+        label: "Smart Energy Meter",
+        href: "https://energy-meter-un89.onrender.com/",
+        icon: IconBolt,
+        external: true,
       },
     ],
   },
@@ -569,6 +577,11 @@ function AdminSidebarItem({
             <Icon />
             <span>{item.label}</span>
           </>
+        ) : item.external ? (
+          <a href={item.href} target="_blank" rel="noopener noreferrer">
+            <Icon />
+            <span>{item.label}</span>
+          </a>
         ) : (
           <Link href={item.href}>
             <Icon />
