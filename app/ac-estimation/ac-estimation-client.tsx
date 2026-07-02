@@ -103,9 +103,6 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
     }
   }, [coordInput])
 
-  // Temperature States
-  const [manualTemp, setManualTemp] = useState<number | "">("")
-
   // UI / Logic States
   const [isPending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -113,7 +110,6 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
   const [result, setResult] = useState<{
     area: number
     maxTemp: number
-    bmkgTemp: number | null // manual input (diasumsikan dari BMKG)
     openMeteoTemp: number | null // dari Open-Meteo API
     clusterBtu: number
     totalBtu: number
@@ -185,17 +181,10 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       return
     }
 
-    if (!manualTemp || manualTemp <= 0) {
-      setErrorMsg("Suhu BMKG (manual) harus diisi.")
-      return
-    }
-
     setErrorMsg(null)
     setResult(null)
 
     startTransition(async () => {
-      const bmkgTemp: number = Number(manualTemp)
-
       const res = await getTemperature(
         position[0].toString(),
         position[1].toString()
@@ -208,7 +197,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       }
 
       const openMeteoTemp = res.maxTemp as number
-      const maxTemp = Math.max(openMeteoTemp, bmkgTemp)
+      const maxTemp = openMeteoTemp
 
       // Menentukan Cluster BTU
       let clusterBtu = 0
@@ -240,7 +229,6 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       setResult({
         area,
         maxTemp,
-        bmkgTemp,
         openMeteoTemp,
         clusterBtu,
         totalBtu,
@@ -479,39 +467,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
               </div>
             </Field>
 
-            <div className="flex flex-col gap-4">
-              <Field>
-                <div className="space-y-1">
-                  <FieldLabel htmlFor="manual_temp">
-                    Suhu Luar Tertinggi berdasarkan BMKG
-                  </FieldLabel>
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    Suhu referensi manual yang bersumber dari data BMKG di
-                    sekitar lokasi toko.
-                  </p>
-                </div>
-                <div className="relative">
-                  <Input
-                    id="manual_temp"
-                    type="number"
-                    step="0.1"
-                    placeholder="0"
-                    value={manualTemp}
-                    onChange={(e) =>
-                      setManualTemp(
-                        e.target.value ? Number(e.target.value) : ""
-                      )
-                    }
-                    className="bg-background/50 pr-12 focus:bg-background"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                    <span className="rounded-md bg-orange-500/10 px-2 py-0.5 text-xs font-bold text-orange-600 dark:text-orange-400">
-                      °C
-                    </span>
-                  </div>
-                </div>
-              </Field>
-            </div>
+
 
             <div className="space-y-3">
               <div className="space-y-1">
@@ -638,7 +594,6 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
             disabled={
               isPending ||
               !salesArea ||
-              !manualTemp ||
               !coordInput ||
               (storeMode === "existing"
                 ? !selectedStore
@@ -671,7 +626,6 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
             position,
             salesArea: result.area,
             maxTemp: result.maxTemp,
-            bmkgTemp: result.bmkgTemp,
             openMeteoTemp: result.openMeteoTemp,
             clusterBtu: result.clusterBtu,
             totalBtu: result.totalBtu,
