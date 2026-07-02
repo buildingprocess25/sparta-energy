@@ -9,7 +9,6 @@ export type EstimationResultCardData = {
   position: [number, number]
   salesArea: number
   maxTemp: number
-  bmkgTemp: number | null // suhu manual (BMKG)
   openMeteoTemp: number | null // suhu dari Open-Meteo
   clusterBtu: number
   totalBtu: number
@@ -60,55 +59,7 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
-function SubTempRow({
-  label,
-  value,
-  isUsed,
-}: {
-  label: string
-  value: number
-  isUsed: boolean
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "4px 0 4px 12px",
-        gap: "8px",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-        <span
-          style={{
-            fontSize: "10px",
-            color: "#6b7280",
-            fontWeight: 400,
-          }}
-        >
-          {label}
-        </span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-        {isUsed && (
-          <span style={{ fontSize: "10px", color: "#16a34a", fontWeight: 700 }}>
-            ✓
-          </span>
-        )}
-        <span
-          style={{
-            fontSize: "11px",
-            color: isUsed ? "#166534" : "#9ca3af",
-            fontWeight: isUsed ? 600 : 400,
-          }}
-        >
-          {value}°C
-        </span>
-      </div>
-    </div>
-  )
-}
+
 
 export function EstimationResultCard({ cardRef, data }: Props) {
   const {
@@ -118,7 +69,6 @@ export function EstimationResultCard({ cardRef, data }: Props) {
     position,
     salesArea,
     maxTemp,
-    bmkgTemp,
     openMeteoTemp,
     totalBtu,
     acUnits,
@@ -307,31 +257,8 @@ export function EstimationResultCard({ cardRef, data }: Props) {
             <Row label="Lat, Lng" value={`${lat}, ${lng}`} />
             <Row label="Luas Sales Area" value={`${salesArea} m²`} />
 
-            {/* Suhu Luar — main row + sub-rows */}
-            <Row label="Suhu Luar Tertinggi" value={`${maxTemp}°C`} />
-            {(openMeteoTemp !== null || bmkgTemp !== null) && (
-              <div
-                style={{
-                  borderBottom: "1px solid #e5e7eb",
-                  paddingBottom: "4px",
-                }}
-              >
-                {openMeteoTemp !== null && (
-                  <SubTempRow
-                    label="Open-Meteo (otomatis, historis satu tahun)"
-                    value={openMeteoTemp}
-                    isUsed={bmkgTemp === null || openMeteoTemp >= bmkgTemp}
-                  />
-                )}
-                {bmkgTemp !== null && (
-                  <SubTempRow
-                    label="BMKG (input manual)"
-                    value={bmkgTemp}
-                    isUsed={openMeteoTemp === null || bmkgTemp > openMeteoTemp}
-                  />
-                )}
-              </div>
-            )}
+            {/* Suhu Luar */}
+            <Row label="Suhu Luar Tertinggi (Open-Meteo)" value={`${maxTemp}°C`} />
 
             <Row
               label="Total Beban BTU"
