@@ -1,5 +1,4 @@
 import { headers } from "next/headers"
-import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { hasFullBranchAccess } from "@/lib/permissions"
@@ -17,29 +16,34 @@ const excludedBranchNames = [
 
 export default async function AcEstimationPage() {
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) redirect("/login?reason=session-expired")
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { email: true, branch: true, role: true },
-  })
-
-  if (!dbUser) redirect("/forbidden")
-  const canAccessAll = hasFullBranchAccess(dbUser)
-
+  const dbUser = session?.user
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { email: true, branch: true, role: true },
+      })
+    : null
+  const canAccessAll = dbUser ? hasFullBranchAccess(dbUser) : false
   const branches =
     dbUser?.branch
       ?.split(",")
       .map((b) => b.trim())
       .filter(Boolean) ?? []
+
   const stores = await prisma.store.findMany({
-    where: canAccessAll
-      ? {
+    where: dbUser
+      ? canAccessAll
+        ? {
+            branch: {
+              notIn: excludedBranchNames,
+            },
+          }
+        : { branch: { in: branches } }
+      : {
           branch: {
-            notIn: excludedBranchNames,
+            equals: "DEMO",
+            mode: "insensitive",
           },
-        }
-      : { branch: { in: branches } },
+        },
     orderBy: { code: "asc" },
     select: {
       id: true,

@@ -10,6 +10,7 @@ const publicPrefixes = [
   "/_next",
   "/favicon.ico",
   "/assets",
+  "/ac-estimation",
   "/demo",
   "/manifest.json",
   "/sw.js",
