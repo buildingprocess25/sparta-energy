@@ -14,9 +14,10 @@ function getPositiveIntegerEnv(name: string, fallback: number) {
 function createDbPool() {
   return new Pool(
     getPoolConfig({
+      // ponytail: keep default low; raise DB_POOL_MAX only with a pooler.
       max: getPositiveIntegerEnv(
         "DB_POOL_MAX",
-        process.env.NODE_ENV === "production" ? 3 : 5
+        1
       ),
       idleTimeoutMillis: getPositiveIntegerEnv("DB_IDLE_TIMEOUT_MS", 10000),
       connectionTimeoutMillis: getPositiveIntegerEnv(
