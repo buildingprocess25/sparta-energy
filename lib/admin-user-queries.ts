@@ -209,11 +209,12 @@ export async function getAdminUserRows(params: {
 
 export async function getAdminUserBranches(): Promise<string[]> {
   const sql = `
-    SELECT DISTINCT u.branch
-    FROM users u
-    WHERE u.branch IS NOT NULL
-      AND lower(u.branch) NOT IN ('demo', 'head office')
-    ORDER BY u.branch ASC
+    SELECT DISTINCT trim(s.branch) AS branch
+    FROM stores s
+    WHERE s.branch IS NOT NULL
+      AND trim(s.branch) <> ''
+      AND lower(s.branch) NOT IN ('demo', 'head office')
+    ORDER BY branch ASC
   `
 
   const result = await prisma.$queryRawUnsafe<BranchRow[]>(sql)

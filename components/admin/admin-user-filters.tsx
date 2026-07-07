@@ -8,6 +8,7 @@ import {
   IconFilterOff,
   IconSearch,
   IconShield,
+  IconUserPlus,
 } from "@tabler/icons-react"
 
 import {
@@ -18,6 +19,7 @@ import {
 } from "@/components/reui/filters"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CreateUserDialog } from "@/components/admin/admin-user-create-dialog"
 
 type AdminUserFiltersProps = {
   branches: string[]
@@ -42,6 +44,7 @@ export function AdminUserFilters({ branches, roles }: AdminUserFiltersProps) {
   )
 
   const [query, setQuery] = useState(queryFromParams)
+  const [createOpen, setCreateOpen] = useState(false)
 
   useEffect(() => {
     setQuery(queryFromParams)
@@ -194,7 +197,23 @@ export function AdminUserFilters({ branches, roles }: AdminUserFiltersProps) {
             Reset
           </Button>
         )}
+
+        <Button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="ml-auto shrink-0"
+        >
+          <IconUserPlus aria-hidden="true" data-icon="inline-start" />
+          Tambah User
+        </Button>
       </div>
+
+      <CreateUserDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        branches={branches}
+        onSuccess={() => router.refresh()}
+      />
     </div>
   )
 }

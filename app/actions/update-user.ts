@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { isRedirectError } from "next/dist/client/components/redirect-error"
 
 import { requireAdmin } from "@/lib/admin-auth"
 import { prisma } from "@/lib/prisma"
@@ -148,6 +149,7 @@ export async function updateUser(
       message: `Data user berhasil diperbarui (${changes.join(", ")})`,
     }
   } catch (error) {
+    if (isRedirectError(error)) throw error
     // Handle Prisma unique constraint violation (P2002)
     if (error instanceof Error && "code" in error) {
       const prismaError = error as { code: string }

@@ -6,6 +6,7 @@ import {
   IconShield,
   IconBuildingStore,
   IconUser,
+  IconKey,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 
@@ -28,50 +29,41 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 
-export function EditUserDialog({
+export function CreateUserDialog({
   open,
   onOpenChange,
-  user,
   branches,
   onSuccess,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  user: {
-    id: string
-    email: string
-    fullName: string | null
-    role: "USER" | "ADMIN"
-    branch: string | null
-  }
   branches: string[]
   onSuccess?: () => void
 }) {
-  const [email, setEmail] = useState(user.email)
-  const [fullName, setFullName] = useState(user.fullName || "")
-  const [role, setRole] = useState<"USER" | "ADMIN">(user.role)
-  const [branch, setBranch] = useState<string>(user.branch || "none")
+  const [email, setEmail] = useState("")
+  const [fullName, setFullName] = useState("")
+  const [password, setPassword] = useState("")
+  const [role, setRole] = useState<"USER" | "ADMIN">("USER")
+  const [branch, setBranch] = useState<string>("none")
   const [isSubmitting, setIsSubmitting] = useState(false)
+
   const normalizedBranch =
     role === "ADMIN" ? null : branch === "none" ? null : branch
 
-  const hasChanges =
-    email.trim().toLowerCase() !== user.email.toLowerCase() ||
-    fullName.trim() !== (user.fullName || "") ||
-    role !== user.role ||
-    normalizedBranch !== user.branch
-
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  const isPasswordValid = password.length >= 6
 
+  // Reset form states when opened
   useEffect(() => {
-    if (!open) return
-
-    setEmail(user.email)
-    setFullName(user.fullName || "")
-    setRole(user.role)
-    setBranch(user.branch || "none")
-    setIsSubmitting(false)
-  }, [open, user.branch, user.email, user.fullName, user.role])
+    if (open) {
+      setEmail("")
+      setFullName("")
+      setPassword("")
+      setRole("USER")
+      setBranch("none")
+      setIsSubmitting(false)
+    }
+  }, [open])
 
   function handleRoleChange(value: "USER" | "ADMIN") {
     setRole(value)
@@ -81,8 +73,8 @@ export function EditUserDialog({
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
 
-    if (!hasChanges) {
-      toast.error("Tidak ada perubahan yang dilakukan")
+    if (!email.trim() || !password) {
+      toast.error("Email dan password wajib diisi")
       return
     }
 
@@ -91,15 +83,20 @@ export function EditUserDialog({
       return
     }
 
+    if (!isPasswordValid) {
+      toast.error("Password minimal harus 6 karakter")
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
-      const { updateUser } = await import("@/app/actions/update-user")
+      const { createUser } = await import("@/app/actions/create-user")
 
-      const result = await updateUser({
-        userId: user.id,
+      const result = await createUser({
         email: email.trim().toLowerCase(),
         fullName: fullName.trim() || null,
+        password,
         role,
         branch: normalizedBranch,
       })
@@ -112,7 +109,7 @@ export function EditUserDialog({
         toast.error(result.message)
       }
     } catch {
-      toast.error("Gagal mengubah data user")
+      toast.error("Gagal menambahkan user baru")
     } finally {
       setIsSubmitting(false)
     }
@@ -120,41 +117,58 @@ export function EditUserDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Ubah User</DialogTitle>
+            <DialogTitle>Tambah User Baru</DialogTitle>
             <DialogDescription>
-              Ubah data akses untuk {user.fullName || user.email}.
+              Buat akun pengguna baru dan atur hak aksesnya.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="create-email">Email *</Label>
               <Input
-                id="email"
+                id="create-email"
                 type="email"
+                placeholder="email@domain.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isSubmitting}
+                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="fullName">Nama Lengkap</Label>
+              <Label htmlFor="create-fullName">Nama Lengkap</Label>
               <Input
-                id="fullName"
+                id="create-fullName"
                 type="text"
+                placeholder="Nama lengkap user"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="Masukkan nama lengkap"
                 disabled={isSubmitting}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="role">Role *</Label>
+              <Label htmlFor="create-password">Password *</Label>
+              <div className="relative">
+                <Input
+                  id="create-password"
+                  type="password"
+                  placeholder="Min. 6 karakter"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isSubmitting}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="create-role">Role *</Label>
               <Select
                 value={role}
                 onValueChange={(value) =>
@@ -162,7 +176,7 @@ export function EditUserDialog({
                 }
                 disabled={isSubmitting}
               >
-                <SelectTrigger id="role">
+                <SelectTrigger id="create-role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -183,13 +197,13 @@ export function EditUserDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="branch">Cabang</Label>
+              <Label htmlFor="create-branch">Cabang</Label>
               <Select
                 value={branch}
                 onValueChange={setBranch}
                 disabled={isSubmitting || role === "ADMIN"}
               >
-                <SelectTrigger id="branch">
+                <SelectTrigger id="create-branch">
                   <SelectValue placeholder="Pilih cabang..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -224,7 +238,7 @@ export function EditUserDialog({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground leading-normal">
                 {role === "ADMIN"
                   ? "Admin dapat mengakses dashboard admin dan audit semua cabang."
                   : "User hanya dapat mengakses cabang yang ditetapkan."}
@@ -243,15 +257,15 @@ export function EditUserDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !hasChanges || !isEmailValid}
+              disabled={isSubmitting || !email.trim() || !password || !isEmailValid || !isPasswordValid}
             >
               {isSubmitting && (
                 <IconLoader2
                   aria-hidden="true"
-                  className="size-4 animate-spin"
+                  className="size-4 animate-spin mr-1.5"
                 />
               )}
-              Simpan
+              Tambah User
             </Button>
           </DialogFooter>
         </form>

@@ -30,18 +30,23 @@ export async function searchStoresAction(query: string = "") {
     }
 
     const isAdmin = dbUser.role === "ADMIN"
-    const branches =
-      dbUser?.branch
-        ?.split(",")
-        .map((b) => b.trim())
-        .filter(Boolean) ?? []
+    const isSuperAuditor =
+      !isAdmin &&
+      (dbUser?.branch === "*" || dbUser?.branch?.toLowerCase() === "all")
+
+    const branches = isSuperAuditor
+      ? []
+      : dbUser?.branch
+          ?.split(",")
+          .map((b) => b.trim())
+          .filter(Boolean) ?? []
 
     const trimmedQuery = query.trim()
 
     const stores = await prisma.store.findMany({
       where: {
         AND: [
-          isAdmin
+          isAdmin || isSuperAuditor
             ? {
                 branch: {
                   notIn: excludedBranchNames,

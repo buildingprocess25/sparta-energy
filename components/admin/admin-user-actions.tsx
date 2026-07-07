@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { EditUserDialog } from "@/components/admin/admin-user-edit-dialog"
+import { DeleteUserConfirmDialog } from "@/components/admin/admin-user-delete-dialog"
 import type { AdminUserRow } from "@/lib/admin-user-queries"
 
 type AdminUserActionsProps = {
@@ -34,6 +35,7 @@ export function AdminUserActions({
 }: AdminUserActionsProps) {
   const router = useRouter()
   const [editUserOpen, setEditUserOpen] = useState(false)
+  const [deleteUserOpen, setDeleteUserOpen] = useState(false)
 
   function handleSuccess() {
     router.refresh()
@@ -65,7 +67,7 @@ export function AdminUserActions({
             Disable User
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled variant="destructive">
+          <DropdownMenuItem onClick={() => setDeleteUserOpen(true)} variant="destructive">
             <IconTrash aria-hidden="true" className="mr-2 size-4" />
             Hapus User
           </DropdownMenuItem>
@@ -83,6 +85,18 @@ export function AdminUserActions({
           branch: user.branch,
         }}
         branches={branches}
+        onSuccess={handleSuccess}
+      />
+
+      <DeleteUserConfirmDialog
+        open={deleteUserOpen}
+        onOpenChange={setDeleteUserOpen}
+        user={{
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          auditCount: user.auditCount,
+        }}
         onSuccess={handleSuccess}
       />
     </>

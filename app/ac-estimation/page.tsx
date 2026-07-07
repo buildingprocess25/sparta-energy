@@ -26,15 +26,32 @@ export default async function AcEstimationPage() {
   if (!dbUser) redirect("/forbidden")
   const isAdmin = dbUser.role === "ADMIN"
 
-  const branches =
-    dbUser?.branch
-      ?.split(",")
-      .map((b) => b.trim())
-      .filter(Boolean) ?? []
+  const isSuperAuditor =
+    !isAdmin &&
+    (dbUser?.branch === "*" || dbUser?.branch?.toLowerCase() === "all")
+
+  const branches = isSuperAuditor
+    ? []
+    : dbUser?.branch
+        ?.split(",")
+        .map((b) => b.trim())
+        .filter(Boolean) ?? []
+
+  const excludedBranchNames = [
+    "DEMO",
+    "Demo",
+    "demo",
+    "HEAD OFFICE",
+    "Head Office",
+    "head office",
+  ]
+
   const stores = isAdmin
     ? []
     : await prisma.store.findMany({
-        where: { branch: { in: branches } },
+        where: isSuperAuditor
+          ? { branch: { notIn: excludedBranchNames } }
+          : { branch: { in: branches } },
         orderBy: { code: "asc" },
         select: {
           id: true,

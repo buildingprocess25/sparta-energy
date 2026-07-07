@@ -55,22 +55,29 @@ export default async function DashboardPage() {
     updatedAt: d.updatedAt,
   }))
 
+  const isSuperAuditor =
+    !isAdmin &&
+    (dbUser?.branch === "*" || dbUser?.branch?.toLowerCase() === "all")
+
   // Fetch 5 most recent COMPLETED audits for this user
-  const branches =
-    dbUser?.branch
-      ?.split(",")
-      .map((b) => b.trim())
-      .filter(Boolean) ?? []
+  const branches = isSuperAuditor
+    ? []
+    : dbUser?.branch
+        ?.split(",")
+        .map((b) => b.trim())
+        .filter(Boolean) ?? []
   const headerSubtitle = isAdmin
     ? undefined
-    : branches.length > 2
-      ? undefined
-      : (dbUser.branch ?? "")
+    : isSuperAuditor
+      ? "Semua Cabang"
+      : branches.length > 2
+        ? undefined
+        : (dbUser.branch ?? "")
   const recentAudits = await prisma.audit.findMany({
     where: {
       status: "COMPLETED",
       auditorId: session.user.id,
-      ...(isAdmin
+      ...(isAdmin || isSuperAuditor
         ? {}
         : {
             store: {
