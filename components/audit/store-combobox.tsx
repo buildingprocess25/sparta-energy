@@ -10,6 +10,7 @@ import {
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import type { StoreData } from "@/app/audit/start/start-client"
+import { searchStoresAction } from "@/app/actions/store-actions"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 10
@@ -55,7 +56,7 @@ function StoreComboboxTrigger({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 type StoreComboboxProps = {
-  stores: StoreData[]
+  stores?: StoreData[]
   value: StoreData | null
   onSelect: (store: StoreData) => void
   placeholder?: string
@@ -69,25 +70,68 @@ export function StoreCombobox({
 }: StoreComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
+  const [debouncedQuery, setDebouncedQuery] = React.useState("")
+  const [dynamicStores, setDynamicStores] = React.useState<StoreData[]>([])
+  const [isLoading, setIsLoading] = React.useState(false)
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE)
   const [isLoadingMore, setIsLoadingMore] = React.useState(false)
 
   const listRef = React.useRef<HTMLDivElement>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
-  // Filter stores based on search query
+  const isDynamic = !stores || stores.length === 0
+
+  // Debounce search query for dynamic fetching
+  React.useEffect(() => {
+    if (!isDynamic) return
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [query, isDynamic])
+
+  // Dynamic store fetch
+  React.useEffect(() => {
+    if (!isDynamic) return
+    if (!open) return
+
+    let active = true
+    setIsLoading(true)
+
+    searchStoresAction(debouncedQuery)
+      .then((res) => {
+        if (active) {
+          setDynamicStores(res)
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch stores dynamically:", err)
+      })
+      .finally(() => {
+        if (active) setIsLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [debouncedQuery, open, isDynamic])
+
+  const actualStores = isDynamic ? dynamicStores : stores
+
+  // Filter stores based on search query (only client-side if static stores are provided)
   const filtered = React.useMemo(() => {
+    if (isDynamic) return actualStores
     const q = query.toLowerCase().trim()
     if (!q) return stores
     return stores.filter(
       (s) =>
         s.code.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
     )
-  }, [stores, query])
+  }, [stores, actualStores, query, isDynamic])
 
-  // Visible slice (for pagination)
-  const visible = filtered.slice(0, visibleCount)
-  const hasMore = visibleCount < filtered.length
+  // Visible slice (for pagination/scrolling)
+  const visible = !isDynamic ? filtered.slice(0, visibleCount) : filtered
+  const hasMore = !isDynamic ? visibleCount < filtered.length : false
 
   // Reset pagination when query changes
   React.useEffect(() => {
@@ -103,7 +147,6 @@ export function StoreCombobox({
 
     if (nearBottom) {
       setIsLoadingMore(true)
-      // Small delay to simulate async feel
       setTimeout(() => {
         setVisibleCount((prev) => prev + PAGE_SIZE)
         setIsLoadingMore(false)
@@ -124,6 +167,7 @@ export function StoreCombobox({
       setTimeout(() => inputRef.current?.focus(), 0)
     } else {
       setQuery("")
+      setDebouncedQuery("")
       setVisibleCount(PAGE_SIZE)
     }
   }, [open])
@@ -161,6 +205,9 @@ export function StoreCombobox({
               placeholder={placeholder}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
+            {isLoading && (
+              <IconLoader2 className="size-4 animate-spin text-muted-foreground" />
+            )}
           </div>
 
           {/* List */}
@@ -173,7 +220,7 @@ export function StoreCombobox({
           >
             {visible.length === 0 ? (
               <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                Tidak ada toko yang cocok.
+                {isLoading ? "Mencari toko..." : "Tidak ada toko yang cocok."}
               </div>
             ) : (
               <>
@@ -230,3 +277,4 @@ export function StoreCombobox({
     </PopoverPrimitive.Root>
   )
 }
+

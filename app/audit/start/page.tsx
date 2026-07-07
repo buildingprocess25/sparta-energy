@@ -34,34 +34,30 @@ export default async function AuditStartPage() {
       ?.split(",")
       .map((b) => b.trim())
       .filter(Boolean) ?? []
-  const stores = await prisma.store.findMany({
-    where: isAdmin
-      ? {
-          branch: {
-            notIn: excludedBranchNames,
-          },
-        }
-      : { branch: { in: branches } },
-    orderBy: { code: "asc" },
-    select: {
-      id: true,
-      code: true,
-      name: true,
-      branch: true,
-      plnCustomerId: true,
-      type: true,
-      is24Hours: true,
-      openTime: true,
-      closeTime: true,
-      plnPowerVa: true,
-      parkingAreaM2: true,
-      terraceAreaM2: true,
-      salesAreaM2: true,
-      warehouseAreaM2: true,
-    },
-  })
+  const stores = isAdmin
+    ? []
+    : await prisma.store.findMany({
+        where: { branch: { in: branches } },
+        orderBy: { code: "asc" },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          branch: true,
+          plnCustomerId: true,
+          type: true,
+          is24Hours: true,
+          openTime: true,
+          closeTime: true,
+          plnPowerVa: true,
+          parkingAreaM2: true,
+          terraceAreaM2: true,
+          salesAreaM2: true,
+          warehouseAreaM2: true,
+        },
+      })
 
-  if (stores.length === 0) {
+  if (!isAdmin && stores.length === 0) {
     return (
       <div className="p-4 text-center">
         Tidak ada toko yang tersedia untuk cabang Anda.

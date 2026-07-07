@@ -12,6 +12,7 @@ import {
 import { Header } from "@/components/header"
 import { AcEstimationCard } from "@/components/dashboard/ac-estimation-card"
 import { AcEstimationUnavailableNotice } from "@/components/dashboard/ac-estimation-unavailable-notice"
+import { LightEstimationCard } from "@/components/dashboard/light-estimation-card"
 import { DraftListSection } from "@/components/dashboard/draft-list-section"
 
 
@@ -140,6 +141,7 @@ export default async function DashboardPage() {
       <section className="mt-2 flex flex-col gap-4">
         <HeroCard />
         <AcEstimationCard />
+        <LightEstimationCard isAdmin={isAdmin} />
       </section>
 
       <section className="mt-5 flex flex-col gap-5">

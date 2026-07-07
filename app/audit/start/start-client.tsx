@@ -8,6 +8,7 @@ import { AuditStep3 } from "@/components/audit/step3"
 import type { EquipmentMasterItem } from "@/lib/get-equipment-for-area"
 import { useAuditStore, type StoreType } from "@/store/use-audit-store"
 import * as React from "react"
+import { getStoreByCodeAction } from "@/app/actions/store-actions"
 
 export type StoreData = {
   id: string
@@ -69,6 +70,36 @@ export function AuditStartClient({
   const storeCode = useAuditStore((s) => s.storeCode)
   const hasInitialized = React.useRef(false)
 
+  const [localStores, setLocalStores] = React.useState<StoreData[]>(stores)
+  const [isResolvingStore, setIsResolvingStore] = React.useState(false)
+
+  React.useEffect(() => {
+    setLocalStores(stores)
+  }, [stores])
+
+  React.useEffect(() => {
+    if (!storeCode) return
+    const exists = localStores.some((s) => s.code === storeCode)
+    if (exists) return
+
+    setIsResolvingStore(true)
+    getStoreByCodeAction(storeCode)
+      .then((store) => {
+        if (store) {
+          setLocalStores((prev) => {
+            if (prev.some((s) => s.id === store.id)) return prev
+            return [...prev, store]
+          })
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to resolve selected store code:", err)
+      })
+      .finally(() => {
+        setIsResolvingStore(false)
+      })
+  }, [storeCode, localStores])
+
   const navigate = React.useCallback<AuditStepNavigate>(
     (target, options) => {
       const nextUrl =
@@ -111,7 +142,7 @@ export function AuditStartClient({
   }, [searchParams, router, basePath])
 
   // Resolve the currently selected store from Zustand storeCode
-  const selectedStore = stores.find((s) => s.code === storeCode) ?? null
+  const selectedStore = localStores.find((s) => s.code === storeCode) ?? null
 
   // If no store selected yet, always show Step 1
   const effectiveStep = selectedStore ? stepNum : 1
@@ -120,7 +151,7 @@ export function AuditStartClient({
     setPendingNavigation(null)
   }, [step, selectedArea])
 
-  const showSkeleton = Boolean(pendingNavigation)
+  const showSkeleton = Boolean(pendingNavigation) || isResolvingStore
   const viewStep = pendingNavigation
     ? pendingNavigation.step === "step-1"
       ? 1
@@ -161,12 +192,16 @@ export function AuditStartClient({
 
   return (
     <AuditStep1
-      stores={stores}
+      stores={localStores}
       selectedStore={selectedStore}
       backHref={dashboardPath}
       onNavigate={navigate}
       showSkeleton={showSkeleton}
       onSelectStore={(store) => {
+        setLocalStores((prev) => {
+          if (prev.some((s) => s.id === store.id)) return prev
+          return [...prev, store]
+        })
         useAuditStore.setState({
           auditId: null,
           equipments: [],
