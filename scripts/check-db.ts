@@ -2,14 +2,9 @@ import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
 import "dotenv/config"
+import { getPoolConfig } from "../lib/db-utils"
 
-const rawUrl = process.env.DATABASE_URL!
-const cleanUrl = rawUrl.replace(/[?&]sslmode=[^&]*/g, "").replace(/\?$/, "")
-
-const pool = new Pool({
-  connectionString: cleanUrl,
-  ssl: { rejectUnauthorized: false },
-})
+const pool = new Pool(getPoolConfig())
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 

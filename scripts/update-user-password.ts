@@ -8,17 +8,12 @@ import path from "path"
 import crypto from "crypto"
 import { Pool } from "pg"
 import * as dotenv from "dotenv"
+import { getPoolConfig } from "../lib/db-utils"
 
 dotenv.config({ path: path.join(process.cwd(), ".env.local") })
 dotenv.config({ path: path.join(process.cwd(), ".env") })
 
-const rawUrl = process.env.DATABASE_URL
-if (!rawUrl) throw new Error("DATABASE_URL is not set")
-
-const pool = new Pool({
-  connectionString: rawUrl.replace("?sslmode=require", ""),
-  ssl: { rejectUnauthorized: false },
-})
+const pool = new Pool(getPoolConfig())
 
 function sha256(input: string) {
   return crypto.createHash("sha256").update(input).digest("hex")

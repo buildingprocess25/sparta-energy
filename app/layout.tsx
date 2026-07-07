@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Suspense } from "react"
 
+// All pages use database queries — render at runtime, not during Docker build
+export const dynamic = "force-dynamic"
+
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { OfflineIndicator } from "@/components/offline-indicator"

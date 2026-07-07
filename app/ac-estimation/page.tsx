@@ -1,7 +1,7 @@
 import { headers } from "next/headers"
-import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { hasFullBranchAccess } from "@/lib/permissions"
 import { AcEstimationClient } from "./ac-estimation-client"
 import type { StoreData } from "@/app/audit/start/start-client"
 
@@ -16,60 +16,52 @@ const excludedBranchNames = [
 
 export default async function AcEstimationPage() {
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) redirect("/login?reason=session-expired")
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { branch: true, role: true },
-  })
-
-  if (!dbUser) redirect("/forbidden")
-  const isAdmin = dbUser.role === "ADMIN"
-
-  const isSuperAuditor =
-    !isAdmin &&
-    (dbUser?.branch === "*" || dbUser?.branch?.toLowerCase() === "all")
-
-  const branches = isSuperAuditor
-    ? []
-    : dbUser?.branch
-        ?.split(",")
-        .map((b) => b.trim())
-        .filter(Boolean) ?? []
-
-  const excludedBranchNames = [
-    "DEMO",
-    "Demo",
-    "demo",
-    "HEAD OFFICE",
-    "Head Office",
-    "head office",
-  ]
-
-  const stores = isAdmin
-    ? []
-    : await prisma.store.findMany({
-        where: isSuperAuditor
-          ? { branch: { notIn: excludedBranchNames } }
-          : { branch: { in: branches } },
-        orderBy: { code: "asc" },
-        select: {
-          id: true,
-          code: true,
-          name: true,
-          branch: true,
-          plnCustomerId: true,
-          type: true,
-          is24Hours: true,
-          openTime: true,
-          closeTime: true,
-          plnPowerVa: true,
-          parkingAreaM2: true,
-          terraceAreaM2: true,
-          salesAreaM2: true,
-          warehouseAreaM2: true,
-        },
+  const dbUser = session?.user
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { email: true, branch: true, role: true },
       })
+    : null
+  const canAccessAll = dbUser ? hasFullBranchAccess(dbUser) : false
+  const branches =
+    dbUser?.branch
+      ?.split(",")
+      .map((b) => b.trim())
+      .filter(Boolean) ?? []
+
+  const stores = await prisma.store.findMany({
+    where: dbUser
+      ? canAccessAll
+        ? {
+            branch: {
+              notIn: excludedBranchNames,
+            },
+          }
+        : { branch: { in: branches } }
+      : {
+          branch: {
+            equals: "DEMO",
+            mode: "insensitive",
+          },
+        },
+    orderBy: { code: "asc" },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      branch: true,
+      plnCustomerId: true,
+      type: true,
+      is24Hours: true,
+      openTime: true,
+      closeTime: true,
+      plnPowerVa: true,
+      parkingAreaM2: true,
+      terraceAreaM2: true,
+      salesAreaM2: true,
+      warehouseAreaM2: true,
+    },
+  })
 
   const formattedStores: StoreData[] = stores.map((s) => ({
     ...s,

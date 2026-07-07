@@ -5,14 +5,9 @@
 import "dotenv/config"
 import { Pool } from "pg"
 import crypto from "crypto"
+import { getPoolConfig } from "../lib/db-utils"
 
-const rawUrl = process.env.DATABASE_URL!
-const cleanUrl = rawUrl.replace(/[?&]sslmode=[^&]*/g, "").replace(/\?$/, "")
-
-const pool = new Pool({
-  connectionString: cleanUrl,
-  ssl: { rejectUnauthorized: false },
-})
+const pool = new Pool(getPoolConfig())
 
 function sha256(password: string) {
   return crypto.createHash("sha256").update(password).digest("hex")

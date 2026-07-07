@@ -8,19 +8,15 @@ import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
 import * as crypto from "crypto"
 import "dotenv/config"
+import { getPoolConfig } from "../lib/db-utils"
 
-const rawUrl = process.env.DATABASE_URL!
-const cleanUrl = rawUrl.replace(/[?&]sslmode=[^&]*/g, "").replace(/\?$/, "")
-
-const pool = new Pool({
-  connectionString: cleanUrl,
-  ssl: { rejectUnauthorized: false },
-})
+const pool = new Pool(getPoolConfig())
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
 // ─── Equipment Master Data ───────────────────────────────────────────────────
-const equipmentData = [
+type BrandEntry = string | { name: string; runningKw: string; standbyKw: string }
+const equipmentData: { name: string; category: string; deviceCategory: string; defaultKw: string; storeType: string | null; brands: BrandEntry[]; calcMethod: string; calcDuration: number | null }[] = [
   // PARKIRAN
   { name: "Shop Sign TL LED", category: "PARKIRAN", deviceCategory: "Pencahayaan", defaultKw: "0.084", storeType: null, brands: [], calcMethod: "STANDARD", calcDuration: null },
   { name: "Listplank TL LED", category: "PARKIRAN", deviceCategory: "Pencahayaan", defaultKw: "0.0154", storeType: null, brands: [], calcMethod: "STANDARD", calcDuration: null },
@@ -142,9 +138,9 @@ async function main() {
     if (eq.brands && eq.brands.length > 0) {
       for (const brand of eq.brands) {
         const isObj = typeof brand === "object" && brand !== null
-        const bName = isObj ? (brand as any).name : brand
-        const running = isObj ? (brand as any).runningKw : eq.defaultKw
-        const standby = isObj ? (brand as any).standbyKw : "0.0"
+        const bName = isObj ? brand.name : brand
+        const running = isObj ? brand.runningKw : eq.defaultKw
+        const standby = isObj ? brand.standbyKw : "0.0"
 
         const existingBrand = await prisma.equipmentBrand.findFirst({
           where: {

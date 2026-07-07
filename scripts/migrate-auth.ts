@@ -6,14 +6,9 @@ import "dotenv/config"
 import { Pool } from "pg"
 import fs from "fs"
 import path from "path"
+import { getPoolConfig } from "../lib/db-utils"
 
-const rawUrl = process.env.DATABASE_URL!
-const cleanUrl = rawUrl.replace(/[?&]sslmode=[^&]*/g, "").replace(/\?$/, "")
-
-const pool = new Pool({
-  connectionString: cleanUrl,
-  ssl: { rejectUnauthorized: false },
-})
+const pool = new Pool(getPoolConfig())
 
 async function main() {
   const sql = fs.readFileSync(

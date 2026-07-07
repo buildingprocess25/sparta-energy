@@ -13,17 +13,12 @@ import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
 import * as dotenv from "dotenv"
+import { getPoolConfig } from "../lib/db-utils"
 
 dotenv.config({ path: path.join(process.cwd(), ".env.local") })
 dotenv.config({ path: path.join(process.cwd(), ".env") })
 
-const rawUrl = process.env.DATABASE_URL
-if (!rawUrl) throw new Error("DATABASE_URL is not set")
-
-const pool = new Pool({
-  connectionString: rawUrl.replace("?sslmode=require", ""),
-  ssl: { rejectUnauthorized: false },
-})
+const pool = new Pool(getPoolConfig())
 
 const adapter = new PrismaPg(pool)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
