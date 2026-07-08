@@ -4,15 +4,14 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { BottomNavigation } from "@/components/bottom-navigation"
-import { HeroCard } from "@/components/dashboard/hero-card"
 import {
   RecentAuditSection,
   type RecentAuditItem,
 } from "@/components/dashboard/recent-audit-section"
 import { Header } from "@/components/header"
-import { AcEstimationCard } from "@/components/dashboard/ac-estimation-card"
 import { AcEstimationUnavailableNotice } from "@/components/dashboard/ac-estimation-unavailable-notice"
-import { LightEstimationCard } from "@/components/dashboard/light-estimation-card"
+import { HeroCard } from "@/components/dashboard/hero-card"
+import { CalculatorGrid } from "@/components/dashboard/calculator-grid"
 import { DraftListSection } from "@/components/dashboard/draft-list-section"
 
 
@@ -147,8 +146,7 @@ export default async function DashboardPage() {
 
       <section className="mt-2 flex flex-col gap-4">
         <HeroCard />
-        <AcEstimationCard />
-        <LightEstimationCard isAdmin={isAdmin} />
+        <CalculatorGrid isAdmin={isAdmin} />
       </section>
 
       <section className="mt-5 flex flex-col gap-5">
