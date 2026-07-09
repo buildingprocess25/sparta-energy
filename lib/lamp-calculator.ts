@@ -51,10 +51,10 @@ export function placeLamps(
 
   if (orient === "h") {
     const nY = Math.max(1, Math.floor((H - 2 * margin) / jarak) + 1)
-    const dY = nY > 1 ? (H - 2 * margin) / (nY - 1) : 0
+    const dY = H / (nY + 1)
 
     for (let r = 0; r < nY; r++) {
-      const y = minY + margin + r * dY
+      const y = minY + (r + 1) * dY
       let leftX: number | null = null,
         rightX: number | null = null
       for (let x = minX; x <= maxX; x += 0.1) {
@@ -89,10 +89,10 @@ export function placeLamps(
     }
   } else {
     const nX = Math.max(1, Math.floor((W - 2 * margin) / jarak) + 1)
-    const dX = nX > 1 ? (W - 2 * margin) / (nX - 1) : 0
+    const dX = W / (nX + 1)
 
     for (let c = 0; c < nX; c++) {
-      const x = minX + margin + c * dX
+      const x = minX + (c + 1) * dX
       let topY: number | null = null,
         bottomY: number | null = null
       for (let y = minY; y <= maxY; y += 0.1) {
@@ -159,6 +159,10 @@ export function offsetPolygon(pts: Point[], d: number): Point[] | null {
 export interface ShapeParams {
   rP: number
   rL: number
+  rTop: number
+  rBot: number
+  rLeft: number
+  rRight: number
   tTop: number
   tBot: number
   tH: number
@@ -179,9 +183,9 @@ export function buildPolygon(
     case "rect":
       return [
         { x: 0, y: 0 },
-        { x: p.rP, y: 0 },
-        { x: p.rP, y: p.rL },
-        { x: 0, y: p.rL },
+        { x: p.rTop, y: 0 },
+        { x: p.rBot, y: p.rRight },
+        { x: 0, y: p.rLeft },
       ]
     case "trap":
       return [
