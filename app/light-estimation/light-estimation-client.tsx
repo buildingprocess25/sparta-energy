@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link"
-import { IconBulb, IconArrowLeft, IconRefresh, IconGrid3x3, IconPolygon, IconSquare, IconChevronRight, IconDownload } from "@tabler/icons-react"
+import { IconBulb, IconArrowLeft, IconRefresh, IconGrid3x3, IconPolygon, IconSquare, IconChevronRight, IconDownload, IconInfoCircle } from "@tabler/icons-react"
 import { Header } from "@/components/header"
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,8 +12,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { StoreCombobox } from "@/components/audit/store-combobox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toPng } from "html-to-image"
 import { toast } from "sonner"
+import { useTheme } from "next-themes"
 import { LightEstimationResultCard, type LightEstimationResultCardData } from "@/components/audit/light-estimation-result-card"
 import {
   calcSimetris,
@@ -48,12 +50,16 @@ const SHAPES = [
 ]
 
 export function LightEstimationClient({ stores }: LightEstimationClientProps) {
+  const { resolvedTheme } = useTheme()
   // Common states
   const [activeTab, setActiveTab] = useState<string>("simetris")
   const [selectedStore, setSelectedStore] = useState<StoreData | null>(null)
   const [lampLen, setLampLen] = useState<number>(1.2)
   const [isSaving, setIsSaving] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
   const exportCardRef = useRef<HTMLDivElement | null>(null)
+
+  const isSvgDark = resolvedTheme === "dark" && !isSaving
 
   // ── Symmetrical Mode States ──
   const [simForm, setSimForm] = useState({ lebar: "", panjang: "", area: "" })
@@ -129,8 +135,13 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       <div className="space-y-1.5 mt-2">
         <div className="flex justify-between text-[11px] font-medium">
           <span className="text-muted-foreground">3.5 W/m²</span>
-          <span style={{ color }} className="font-semibold text-xs">
+          <span
+            style={{ color }}
+            className="font-semibold text-xs flex items-center gap-1 cursor-pointer select-none hover:opacity-80 active:opacity-60"
+            onClick={() => setInfoOpen(true)}
+          >
             {rasio.toFixed(2)} W/m² {ok ? " (Sesuai Standar)" : " (Di Luar Standar)"}
+            <IconInfoCircle className="inline size-3.5 opacity-80" />
           </span>
           <span className="text-muted-foreground">5.5 W/m²</span>
         </div>
@@ -158,15 +169,68 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     )
   }
 
+  // ── SmartSuggestions Component ──
+  const SmartSuggestions = ({ rasio }: { rasio: number }) => {
+    const [isOpen, setIsOpen] = useState(false)
+    if (rasio >= 4.0 && rasio <= 5.0) return null
+
+    const isOver = rasio > 5.0
+    return (
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-2.5 text-[11px] leading-relaxed text-amber-800 dark:text-amber-300 space-y-1.5 mt-3 transition-all duration-200">
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full flex items-center justify-between font-bold text-xs text-amber-700 dark:text-amber-400 focus:outline-hidden"
+        >
+          <span className="flex items-center gap-1.5">
+            💡 Rekomendasi Solusi Pintar
+          </span>
+          <span className="text-[10px] text-amber-600 dark:text-amber-300 underline font-normal">
+            {isOpen ? "Sembunyikan" : "Tampilkan"}
+          </span>
+        </button>
+        {isOpen && (
+          <div className="border-t border-amber-500/10 pt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+            {isOver ? (
+              <div className="space-y-1.5">
+                <p>
+                  Kerapatan daya saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>, melebihi batas standar maksimal 5.0 W/m² (Potensi pemborosan energi).
+                </p>
+                <ul className="list-disc pl-4 space-y-1 mt-1 text-muted-foreground">
+                  <li>
+                    <b>Ganti Watt Lampu:</b> Gunakan lampu TL LED dengan daya lebih rendah (misal: <b>10W s/d 12W</b>). Hal ini menjaga kerataan pencahayaan sekaligus menurunkan konsumsi listrik.
+                  </li>
+                  <li>
+                    <b>Kurangi Baris Lampu:</b> Jika jarak baris saat ini masih sangat rapat, Anda dapat mencoba mengurangi jumlah baris lampu (pastikan jarak antar baris baru tidak melebihi 1.9 meter agar tidak ada area gelap).
+                  </li>
+                </ul>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <p>
+                  Kerapatan daya saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>, di bawah batas standar minimal 4.0 W/m² (Kondisi pencahayaan berpotensi terlalu redup).
+                </p>
+                <ul className="list-disc pl-4 space-y-1 mt-1 text-muted-foreground">
+                  <li>
+                    <b>Ganti Watt Lampu:</b> Gunakan lampu TL LED dengan daya lebih tinggi (misal: <b>16W s/d 18W</b>) tanpa mengubah posisi titik instalasi atau kabel.
+                  </li>
+                  <li>
+                    <b>Tambah Titik Cahaya:</b> Tambah jumlah baris lampu untuk meningkatkan fluks cahaya di area sales, dengan catatan jarak antar baris disesuaikan kembali.
+                  </li>
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // ── Irregular Mode States ──
   const [shape, setShape] = useState<string>("rect")
-  const [orient, setOrient] = useState<"h" | "v">("h")
   const [watt, setWatt] = useState<number>(LAMP_WATT)
   const [wmin, setWmin] = useState<number>(4.0)
   const [wmax, setWmax] = useState<number>(5.0)
-  const [jarak, setJarak] = useState<number>(1.75)
-  const [spasi, setSpasi] = useState<number>(0)
-  const [margin, setMargin] = useState<number>(0.45)
   const [p, setP] = useState({
     rP: 10,
     rL: 8,
@@ -252,7 +316,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   // Reset calculations when inputs change
   useEffect(() => {
     setIsCalculated(false)
-  }, [shape, orient, watt, wmin, wmax, jarak, spasi, margin, p, customPts, customClosed, lampLen])
+  }, [shape, watt, wmin, wmax, p, customPts, customClosed, lampLen])
 
   const [exportCardData, setExportCardData] = useState<LightEstimationResultCardData | null>(null)
 
@@ -275,7 +339,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       const canvas = resultCanvasRef.current || canvasRef.current
       if (!canvas) return null
       try {
-        return canvas.toDataURL("image/png")
+        // Redraw in forceLight mode (white background) for the report card export
+        drawCanvas(canvas, true, true)
+        const url = canvas.toDataURL("image/png")
+        // Restore standard theme drawing (either dark or light depending on system resolved theme)
+        drawCanvas(canvas, true, false)
+        return url
       } catch (e) {
         console.error(e)
         return null
@@ -321,7 +390,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         rows: stats.nRow,
         lampsPerRow: stats.nPerRow,
         rowSpacing: stats.rowSpacing,
-        sideMargin: margin,
+        sideMargin: calcResult?.jarakSamping ?? 0.45,
         rasio: Number(stats.luas > 0 ? (stats.n * watt) / stats.luas : 0),
         layoutSnapshot: getCanvasDataUrl(),
       }
@@ -356,7 +425,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   const setParam = (key: string, val: number) => setP(prev => ({ ...prev, [key]: val }))
 
   // ── Irregular Canvas Drawing ──
-  const drawCanvas = useCallback((canvas: HTMLCanvasElement | null, showLamps: boolean) => {
+  // ── Irregular Canvas Drawing ──
+  const drawCanvas = useCallback((canvas: HTMLCanvasElement | null, showLamps: boolean, forceLight: boolean = false) => {
     if (!canvas) return
     const W = canvas.offsetWidth || 340
     canvas.width = W * (window.devicePixelRatio || 1)
@@ -369,12 +439,33 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, W, CANVAS_H)
 
-    // Dark Background for Canvas Grid
-    ctx.fillStyle = "#0c0d12"
+    const isDark = !forceLight && resolvedTheme === "dark"
+
+    // Theme-based style variables
+    const bgFill = isDark ? "#0c0d12" : "#ffffff"
+    const gridStroke = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)"
+    const meterGridStroke = isDark ? "rgba(245,158,11,0.05)" : "rgba(245,158,11,0.12)"
+    const meterLabelFill = isDark ? "rgba(245,158,11,0.3)" : "rgba(180,83,9,0.6)"
+    const textFill = isDark ? "#a1a1aa" : "#4b5563"
+    const subTextFill = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.4)"
+    const subTextFill2 = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.25)"
+    const ptLabelFill = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.55)"
+
+    const polyFill = isDark ? "rgba(245,158,11,0.06)" : "rgba(245,158,11,0.04)"
+    const polyStroke = isDark ? "rgba(245,158,11,0.6)" : "rgba(217,119,6,0.8)"
+    const wallInsetStroke = isDark ? "rgba(16,185,129,0.35)" : "rgba(5,150,105,0.5)"
+
+    const dimensionTextFill = isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.5)"
+    const legendStroke = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"
+    const legendTextFill = isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.5)"
+    const nodeTextFill = isDark ? "#a1a1aa" : "#4b5563"
+
+    // Background for Canvas Grid
+    ctx.fillStyle = bgFill
     ctx.fillRect(0, 0, W, CANVAS_H)
 
     // Fine grid
-    ctx.strokeStyle = "rgba(255,255,255,0.03)"
+    ctx.strokeStyle = gridStroke
     ctx.lineWidth = 0.5
     for (let x = 0; x < W; x += 20) {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CANVAS_H); ctx.stroke()
@@ -387,7 +478,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
     if (!pts) {
       // Drawing Mode: Draw Grid Meters
-      ctx.strokeStyle = "rgba(245,158,11,0.05)"
+      ctx.strokeStyle = meterGridStroke
       ctx.lineWidth = 0.5
       for (let m = 0; m <= 20; m++) {
         const sx = FIXED_OX + m * FIXED_SCALE
@@ -397,7 +488,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       }
 
       // Grid labels
-      ctx.fillStyle = "rgba(245,158,11,0.3)"
+      ctx.fillStyle = meterLabelFill
       ctx.font = "8px sans-serif"
       ctx.textAlign = "center"
       for (let m = 0; m <= 15; m += 2) {
@@ -411,12 +502,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       }
 
       if (adjustedPts.length === 0) {
-        ctx.fillStyle = "rgba(255,255,255,0.25)"
+        ctx.fillStyle = subTextFill
         ctx.font = "11px sans-serif"
         ctx.textAlign = "center"
         ctx.fillText("Sentuh canvas untuk menambah sudut dinding", W / 2, CANVAS_H / 2 - 10)
         ctx.font = "9px sans-serif"
-        ctx.fillStyle = "rgba(255,255,255,0.12)"
+        ctx.fillStyle = subTextFill2
         ctx.fillText("Skala: 1 kotak = 1 meter · Minimal 3 sudut", W / 2, CANVAS_H / 2 + 8)
       }
 
@@ -439,7 +530,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           ctx.strokeStyle = idx === 0 ? "#f59e0b" : "#7c3aed"
           ctx.lineWidth = 1.5
           ctx.stroke()
-          ctx.fillStyle = "rgba(255,255,255,0.5)"
+          ctx.fillStyle = ptLabelFill
           ctx.font = "8px sans-serif"
           ctx.textAlign = "left"
           ctx.fillText(`T${idx + 1} (${adjustedPts[idx].x.toFixed(1)},${adjustedPts[idx].y.toFixed(1)})`, sp.cx + 6, sp.cy - 3)
@@ -468,21 +559,26 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     ctx.beginPath()
     sPts.forEach((sp, idx) => idx === 0 ? ctx.moveTo(sp.cx, sp.cy) : ctx.lineTo(sp.cx, sp.cy))
     ctx.closePath()
-    ctx.fillStyle = "rgba(245,158,11,0.06)"
+    ctx.fillStyle = polyFill
     ctx.fill()
-    ctx.strokeStyle = "rgba(245,158,11,0.6)"
+    ctx.strokeStyle = polyStroke
     ctx.lineWidth = 1.5
     ctx.stroke()
 
+    const usedMargin = calcResult ? calcResult.jarakSamping : 0.45
+    const usedJarak = calcResult ? calcResult.jarakPerbaris : 1.9
+    const usedOrient = "h"
+    const usedSpasi = 0
+
     // Draw wall margin inset line
-    const inset = offsetPolygon(pts, margin)
+    const inset = offsetPolygon(pts, usedMargin)
     if (inset && inset.length >= 3) {
       const sInset = inset.map(toC)
       ctx.beginPath()
       sInset.forEach((sp, idx) => idx === 0 ? ctx.moveTo(sp.cx, sp.cy) : ctx.lineTo(sp.cx, sp.cy))
       ctx.closePath()
       ctx.setLineDash([3, 3])
-      ctx.strokeStyle = "rgba(16,185,129,0.35)"
+      ctx.strokeStyle = wallInsetStroke
       ctx.lineWidth = 0.8
       ctx.stroke()
       ctx.setLineDash([])
@@ -490,7 +586,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
     // Place and draw lamps if calculated
     if (showLamps) {
-      const lamps = placeLamps(pts, jarak, margin, orient, lampLen, spasi)
+      const lamps = placeLamps(pts, usedJarak, usedMargin, usedOrient, lampLen, usedSpasi)
       const lampLen_px = lampLen * sc.scale
       const lampW_px = Math.max(3, LAMP_TUBE_W * sc.scale)
 
@@ -520,7 +616,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     }
 
     // Dimensions labels
-    ctx.fillStyle = "rgba(255,255,255,0.3)"
+    ctx.fillStyle = dimensionTextFill
     ctx.font = "9px sans-serif"
     ctx.textAlign = "center"
     ctx.fillText(`${sc.rW.toFixed(1)} m (W)`, sc.offX + (sc.rW * sc.scale) / 2, sc.offY + sc.rH * sc.scale + 16)
@@ -532,9 +628,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     ctx.restore()
 
     // Subtle coordinate system legend (visual guide)
-    ctx.strokeStyle = "rgba(255,255,255,0.15)"
+    ctx.strokeStyle = legendStroke
     ctx.lineWidth = 1
-    ctx.fillStyle = "rgba(255,255,255,0.3)"
+    ctx.fillStyle = legendTextFill
     ctx.font = "8px sans-serif"
     
     const ax = 20
@@ -546,7 +642,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     ctx.lineTo(ax + 25, ay)
     ctx.stroke()
     // W arrow head
-    ctx.fillStyle = "rgba(255,255,255,0.3)"
+    ctx.fillStyle = legendTextFill
     ctx.beginPath()
     ctx.moveTo(ax + 25, ay)
     ctx.lineTo(ax + 21, ay - 2.5)
@@ -577,17 +673,17 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (shape === "custom") {
       sPts.forEach((sp, idx) => {
         ctx.beginPath(); ctx.arc(sp.cx, sp.cy, idx === 0 ? 5 : 3.5, 0, Math.PI * 2)
-        ctx.fillStyle = idx === 0 ? "rgba(245,158,11,0.5)" : "rgba(255,255,255,0.2)"
+        ctx.fillStyle = idx === 0 ? "rgba(245,158,11,0.5)" : (isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)")
         ctx.fill()
-        ctx.strokeStyle = idx === 0 ? "#f59e0b" : "rgba(255,255,255,0.5)"
+        ctx.strokeStyle = idx === 0 ? "#f59e0b" : (isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.25)")
         ctx.lineWidth = 1
         ctx.stroke()
-        ctx.fillStyle = "#a1a1aa"
+        ctx.fillStyle = nodeTextFill
         ctx.font = "8px sans-serif"
         ctx.fillText(`T${idx + 1}`, sp.cx + 5, sp.cy - 5)
       })
     }
-  }, [shape, p, adjustedPts, customClosed, margin, jarak, orient, lampLen, spasi])
+  }, [shape, p, adjustedPts, customClosed, lampLen, calcResult, resolvedTheme])
 
   const updateStats = useCallback(() => {
     const pts = buildPolygon(shape, p, adjustedPts, customClosed)
@@ -599,21 +695,27 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     const luas = calcPolygonArea(pts)
     const { minLamps, maxLamps } = calcLampRange(luas, watt, wmin, wmax)
     
+    let res: any = null
+    if (isCalculated && luas > 0) {
+      const W2 = Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x))
+      const H2 = Math.max(...pts.map(p => p.y)) - Math.min(...pts.map(p => p.y))
+      const lebar = W2
+      const panjang = H2
+      res = calcIregular(luas, lebar, panjang, watt, lampLen)
+    }
+    setCalcResult(res)
+
     let lamps: any[] = []
     let nRow = 0
     let nPerRow = 0
-    let rowSpacing = jarak
+    let rowSpacing = 0
 
-    if (isCalculated) {
-      lamps = placeLamps(pts, jarak, margin, orient, lampLen, spasi)
+    if (isCalculated && res) {
+      lamps = placeLamps(pts, res.jarakPerbaris, res.jarakSamping, "h", lampLen, 0)
       if (lamps.length > 0) {
-        const ys = [...new Set(lamps.map(l => orient === "h" ? l.y : l.x))]
-        nRow = ys.length
-        if (nRow > 1) {
-          ys.sort((a, b) => a - b)
-          rowSpacing = ys[1] - ys[0]
-        }
-        nPerRow = Math.round(lamps.length / nRow)
+        nRow = res.baris
+        nPerRow = res.lampuPerbaris
+        rowSpacing = res.jarakPerbaris
       }
     }
 
@@ -626,18 +728,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       nPerRow,
       rowSpacing: isCalculated ? rowSpacing.toFixed(2) : "0.00"
     })
-
-    if (isCalculated && luas > 0) {
-      const W2 = Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x))
-      const H2 = Math.max(...pts.map(p => p.y)) - Math.min(...pts.map(p => p.y))
-      const lebar = orient === "h" ? W2 : H2
-      const panjang = orient === "h" ? H2 : W2
-      const res = calcIregular(luas, lebar, panjang, watt, lampLen)
-      setCalcResult(res)
-    } else {
-      setCalcResult(null)
-    }
-  }, [shape, p, adjustedPts, customClosed, watt, wmin, wmax, jarak, margin, orient, lampLen, spasi, isCalculated])
+  }, [shape, p, adjustedPts, customClosed, watt, wmin, wmax, lampLen, isCalculated])
 
   useEffect(() => {
     updateStats()
@@ -645,13 +736,13 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
   useEffect(() => {
     drawCanvas(canvasRef.current, false)
-  }, [drawCanvas, shape, p, adjustedPts, customClosed, margin, jarak, orient, lampLen, spasi])
+  }, [drawCanvas, shape, p, adjustedPts, customClosed, lampLen])
 
   useEffect(() => {
     if (isCalculated) {
       drawCanvas(resultCanvasRef.current, true)
     }
-  }, [drawCanvas, isCalculated, shape, p, adjustedPts, customClosed, margin, jarak, orient, lampLen, spasi])
+  }, [drawCanvas, isCalculated, shape, p, adjustedPts, customClosed, lampLen])
 
   // Canvas click handler
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -727,8 +818,16 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               {/* Visualisasi Dimensi Toko (Simetris) */}
               <div className="bg-muted/20 border border-border/60 rounded-xl p-3 flex flex-col gap-2.5">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Petunjuk Dimensi Ruangan</div>
-                <div className="relative w-full h-[110px] rounded-lg bg-[#0c0d12] border border-border/80 flex items-center justify-center overflow-hidden">
-                  <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:12px_12px]" />
+                <div className="relative w-full h-[110px] rounded-lg bg-slate-50 dark:bg-[#0c0d12] border border-border/80 flex items-center justify-center overflow-hidden">
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage: resolvedTheme === "dark"
+                        ? "linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px)"
+                        : "linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px)",
+                      backgroundSize: "12px 12px"
+                    }}
+                  />
                   
                   <div className="relative w-[150px] h-[55px] border-2 border-dashed border-amber-500/30 bg-amber-500/5 rounded-sm flex items-center justify-center">
                     <span className="text-[9px] font-semibold text-amber-500/80">Area Toko</span>
@@ -759,7 +858,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     id="lebar"
                     name="lebar"
                     type="number"
-                    placeholder="12"
+                    placeholder="Contoh: 12"
                     value={simForm.lebar}
                     onChange={simChange => handleSimChange(simChange)}
                     className="h-9 pr-6 text-xs"
@@ -772,7 +871,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     id="panjang"
                     name="panjang"
                     type="number"
-                    placeholder="10"
+                    placeholder="Contoh: 10"
                     value={simForm.panjang}
                     onChange={simChange => handleSimChange(simChange)}
                     className="h-9 pr-6 text-xs"
@@ -811,7 +910,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     id="area"
                     name="area"
                     type="number"
-                    placeholder="120"
+                    placeholder="Contoh: 120"
                     value={simForm.area}
                     onChange={simChange => handleSimChange(simChange)}
                     readOnly={autoArea}
@@ -822,20 +921,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs">Panjang Lampu LED</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[1.0, 1.2, 2.0].map(l => (
-                    <Button
-                      key={l}
-                      type="button"
-                      variant={lampLen === l ? "default" : "outline"}
-                      className="h-8 text-xs font-semibold"
-                      onClick={() => { setLampLen(l); setSimResult(null); }}
-                    >
-                      {l.toFixed(1)} m
-                    </Button>
-                  ))}
+              {/* Spesifikasi Lampu Read-Only (Standar Audit) */}
+              <div className="bg-muted/30 rounded-xl p-2.5 border border-border/50 text-[10px] text-muted-foreground leading-normal flex items-center gap-2 mt-1">
+                <IconBulb className="size-4 text-amber-500 shrink-0" />
+                <div>
+                  <span className="font-bold text-foreground block">Spesifikasi Lampu Standar Audit</span>
+                  TL LED 1.2 meter (13.5 Watt) per unit.
                 </div>
               </div>
 
@@ -868,16 +959,28 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <StatBox label="Rasio W/m²" value={simResult.rasio.toFixed(2)} unit=" W/m²" cls="border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" />
                   </div>
                   <RatioBar rasio={simResult.rasio} />
+                  <SmartSuggestions rasio={simResult.rasio} />
                 </CardContent>
               </Card>
 
               {/* Denah Penempatan Card (SVG layout) */}
               <Card className="border-border/80 overflow-hidden">
-                <CardHeader className="py-2.5 px-4 bg-muted/40 border-b border-border/80">
+                <CardHeader className="py-2.5 px-4 bg-muted/40 border-b border-border/80 flex flex-row justify-between items-center space-y-0">
                   <CardTitle className="text-xs font-bold">Denah Penempatan — LED {lampLen}m</CardTitle>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-semibold cursor-pointer flex items-center gap-1 ${
+                      simResult.rasio >= 4.0 && simResult.rasio <= 5.0
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    }`}
+                    onClick={() => setInfoOpen(true)}
+                  >
+                    {simResult.rasio >= 4.0 && simResult.rasio <= 5.0 ? "Dalam Standar" : "Di Luar Standar"}
+                    <IconInfoCircle className="size-3" />
+                  </span>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <div className="bg-[#0c0d12] p-2 flex flex-col items-center justify-center">
+                  <div className="p-3 flex flex-col items-center justify-center m-3 rounded-xl border border-border/30 bg-slate-50 dark:bg-[#0c0d12]">
                     <svg id="sim-svg" width="100%" height="160" viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="block">
                       {/* room bounds */}
                       <rect
@@ -885,8 +988,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         y={PAD}
                         width={simResult.lebar * scaleX}
                         height={simResult.panjang * scaleY}
-                        fill="rgba(245,158,11,0.03)"
-                        stroke="rgba(245,158,11,0.4)"
+                        fill={isSvgDark ? "rgba(245,158,11,0.03)" : "rgba(245,158,11,0.04)"}
+                        stroke={isSvgDark ? "rgba(245,158,11,0.4)" : "rgba(217,119,6,0.8)"}
                         strokeWidth={1.5}
                         rx={2}
                       />
@@ -898,7 +1001,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         const lh = Math.max(3, LAMP_TUBE_W * scaleY * 4)
                         return (
                           <g key={idx}>
-                            <ellipse cx={cx} cy={cy} rx={lw / 2 + 3} ry={lh + 2} fill="rgba(16,185,129,0.08)" />
+                            <ellipse cx={cx} cy={cy} rx={lw / 2 + 3} ry={lh + 2} fill={isSvgDark ? "rgba(16,185,129,0.08)" : "rgba(16,185,129,0.06)"} />
                             <rect
                               x={cx - lw / 2}
                               y={cy - lh / 2}
@@ -913,10 +1016,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         )
                       })}
                       {/* labels */}
-                      <text x={PAD + (simResult.lebar * scaleX) / 2} y={SVG_H - 4} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize={9}>
+                      <text x={PAD + (simResult.lebar * scaleX) / 2} y={SVG_H - 4} textAnchor="middle" fill={isSvgDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.5)"} fontSize={9}>
                         {simResult.lebar} m (W)
                       </text>
-                      <text x={12} y={PAD + (simResult.panjang * scaleY) / 2} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize={9} transform={`rotate(-90, 12, ${PAD + (simResult.panjang * scaleY) / 2})`}>
+                      <text x={12} y={PAD + (simResult.panjang * scaleY) / 2} textAnchor="middle" fill={isSvgDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.5)"} fontSize={9} transform={`rotate(-90, 12, ${PAD + (simResult.panjang * scaleY) / 2})`}>
                         {simResult.panjang} m (L)
                       </text>
                     </svg>
@@ -959,8 +1062,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               <CardTitle className="text-xs font-bold">Denah Penempatan — LED {lampLen}m</CardTitle>
               <div className="flex items-center gap-2">
                 {isCalculated && stats.n > 0 && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${inRange ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-semibold cursor-pointer flex items-center gap-1 ${inRange ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}
+                    onClick={() => setInfoOpen(true)}
+                  >
                     {inRange ? "Dalam Standar" : "Di Luar Standar"}
+                    <IconInfoCircle className="size-3" />
                   </span>
                 )}
               </div>
@@ -977,7 +1084,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               />
               <div className="p-3 text-[10px] text-muted-foreground border-t border-border/50 leading-relaxed">
                 {isCalculated && stats.n > 0
-                  ? `${stats.n} lampu terplot · ${stats.nRow} baris × ${stats.nPerRow}/baris · Jarak baris: ${stats.rowSpacing}m · Margin: ${margin.toFixed(2)}m · Luas: ${stats.luas}m²`
+                  ? `${stats.n} lampu terplot · ${stats.nRow} baris × ${stats.nPerRow}/baris · Jarak baris: ${stats.rowSpacing}m · Margin: ${(calcResult?.jarakSamping ?? 0.45).toFixed(2)}m · Luas: ${stats.luas}m²`
                   : "Atur parameter ruangan di bawah, lalu klik 'Hitung Penempatan' untuk melihat rancangan lampu."}
               </div>
             </CardContent>
@@ -1221,110 +1328,15 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 </div>
               )}
 
-              {/* Layout calculation tweaks */}
+              {/* Layout calculation tweaks (Fixed and Automatic) */}
               <div className="space-y-3.5 border-t border-border/60 pt-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Orientasi Lampu</Label>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <Button
-                        type="button"
-                        variant={orient === "h" ? "default" : "outline"}
-                        className="h-8 text-[10px]"
-                        onClick={() => setOrient("h")}
-                      >
-                        Horisontal
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={orient === "v" ? "default" : "outline"}
-                        className="h-8 text-[10px]"
-                        onClick={() => setOrient("v")}
-                      >
-                        Vertikal
-                      </Button>
-                    </div>
-                  </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="margin-val" className="text-xs">Jarak Dinding (m)</Label>
-                    <Input
-                      id="margin-val"
-                      type="number"
-                      value={margin}
-                      step={0.05}
-                      min={0.1}
-                      onChange={e => {
-                        const v = parseFloat(e.target.value)
-                        if (!isNaN(v) && v > 0) setMargin(v)
-                      }}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="jarak-val" className="text-xs">Jarak Baris (m)</Label>
-                    <Input
-                      id="jarak-val"
-                      type="number"
-                      value={jarak}
-                      step={0.1}
-                      min={1}
-                      onChange={e => {
-                        const v = parseFloat(e.target.value)
-                        if (!isNaN(v) && v >= 1) setJarak(v)
-                      }}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label htmlFor="spasi-val" className="text-xs">Celah Lampu (m)</Label>
-                    <Input
-                      id="spasi-val"
-                      type="number"
-                      value={spasi}
-                      step={0.05}
-                      min={0}
-                      onChange={e => {
-                        const v = parseFloat(e.target.value)
-                        if (!isNaN(v) && v >= 0) setSpasi(v)
-                      }}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                </div>
-
-                {/* Collapsible Lamp Settings */}
-                <div className="bg-muted/30 rounded-xl p-2.5 border border-border/50 space-y-2">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Parameter Uji Coba Lampu</div>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div className="space-y-1">
-                      <Label htmlFor="watt-val" className="text-[10px]">Daya Lampu (W)</Label>
-                      <Input
-                        id="watt-val"
-                        type="number"
-                        value={watt}
-                        step={0.5}
-                        onChange={e => setWatt(parseFloat(e.target.value) || 13.5)}
-                        className="h-7 text-[11px]"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px]">Panjang LED (m)</Label>
-                      <Select value={lampLen.toString()} onValueChange={val => setLampLen(parseFloat(val))}>
-                        <SelectTrigger className="h-7 text-[11px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1.0" className="text-xs">1.0 m</SelectItem>
-                          <SelectItem value="1.2" className="text-xs">1.2 m</SelectItem>
-                          <SelectItem value="2.0" className="text-xs">2.0 m</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                {/* Spesifikasi Lampu Read-Only (Standar Audit) */}
+                <div className="bg-muted/30 rounded-xl p-2.5 border border-border/50 text-[10px] text-muted-foreground leading-normal flex items-center gap-2">
+                  <IconBulb className="size-4 text-amber-500 shrink-0" />
+                  <div>
+                    <span className="font-bold text-foreground block">Spesifikasi Lampu Standar Audit</span>
+                    TL LED 1.2 meter (13.5 Watt) per unit.
                   </div>
                 </div>
               </div>
@@ -1349,7 +1361,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-sm font-semibold">Hasil Kalkulasi — Tidak Simetris</CardTitle>
                   <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${calcResult ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
-                    {calcResult ? "Rekomendasi Sistem" : "Penempatan Manual"}
+                    {calcResult ? "Rekomendasi Sistem" : "Tidak Sesuai Standar"}
                   </span>
                 </CardHeader>
                 <CardContent className="pt-0 pb-4 space-y-2.5">
@@ -1365,48 +1377,15 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         <StatBox label="Rasio W/m²" value={calcResult.rasio.toFixed(2)} unit=" W/m²" cls={calcResult.rasio >= 4.0 && calcResult.rasio <= 5.0 ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" : "border-rose-500/20 bg-rose-500/5 text-rose-700 dark:text-rose-400"} />
                       </div>
                       <RatioBar rasio={calcResult.rasio} />
+                      <SmartSuggestions rasio={calcResult.rasio} />
                       <div className="text-[10px] text-muted-foreground p-2.5 rounded-lg border border-border/80 bg-muted/40 leading-normal">
                         Rekomendasi Excel: <b className="text-foreground">{calcResult.total} unit</b> (Range {calcResult.minLamps}–{calcResult.maxLamps} u) dengan jarak baris {calcResult.jarakPerbaris?.toFixed(2)}m dan jarak samping {calcResult.jarakSamping?.toFixed(2)}m.
                       </div>
                     </>
                   ) : (
-                    // 2. User's Manual Placement stats
-                    (() => {
-                      const manualRasio = Number(stats.luas > 0 ? (stats.n * watt) / stats.luas : 0)
-                      const manualRasioOk = manualRasio >= 4.0 && manualRasio <= 5.0
-                      return (
-                        <>
-                          <div className="grid grid-cols-3 gap-2">
-                            <StatBox label="Total Lampu" value={stats.n} unit=" unit" cls="border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-300" />
-                            <StatBox label="Jumlah Baris" value={stats.nRow} unit=" baris" />
-                            <StatBox label="Per Baris" value={stats.nPerRow} unit=" unit" />
-                            <StatBox label="Jarak Baris" value={stats.rowSpacing} unit=" m" />
-                            <StatBox label="Jarak Samping" value={margin.toFixed(2)} unit=" m" cls="border-rose-500/20 bg-rose-500/5 text-rose-700 dark:text-rose-400" />
-                            <StatBox label="Rasio W/m²" value={manualRasio.toFixed(2)} unit=" W/m²" cls={manualRasioOk ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" : "border-rose-500/20 bg-rose-500/5 text-rose-700 dark:text-rose-400"} />
-                          </div>
-                          <RatioBar rasio={manualRasio} />
-                          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-2.5 text-[10px] text-amber-700 dark:text-amber-400 flex flex-col gap-1 leading-normal">
-                            <div 
-                              className="flex items-center justify-between cursor-pointer font-semibold"
-                              onClick={() => setShowAutoWarningDetail(prev => !prev)}
-                            >
-                              <span className="flex items-center gap-1.5">
-                                ⚠️ Konfigurasi otomatis tidak ditemukan
-                              </span>
-                              <span className="text-[9px] text-amber-600 dark:text-amber-300 underline font-normal">
-                                {showAutoWarningDetail ? "Sembunyikan detail" : "Pelajari selengkapnya"}
-                              </span>
-                            </div>
-                            {showAutoWarningDetail && (
-                              <p className="text-[9px] leading-relaxed border-t border-amber-500/10 pt-1 text-muted-foreground">
-                                Tidak ditemukan konfigurasi otomatis dalam rentang jarak samping 0.3–0.6m dan jarak baris 1.6–1.9m yang memenuhi syarat standar rasio {wmin} – {wmax} W/m².
-                                Silakan gunakan penempatan manual dengan menyesuaikan slider parameter jarak di atas.
-                              </p>
-                            )}
-                          </div>
-                        </>
-                      )
-                    })()
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
+                      Tidak ada konfigurasi otomatis yang memenuhi standar rasio 4.0 – 5.0 W/m² untuk dimensi ini. Coba sesuaikan koordinat atau bentuk bangunan.
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -1416,21 +1395,25 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 <CardHeader className="py-2.5 px-4 bg-muted/40 border-b border-border/80 flex flex-row justify-between items-center space-y-0">
                   <CardTitle className="text-xs font-bold">Denah Penempatan — LED {lampLen}m</CardTitle>
                   {stats.n > 0 && (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${inRange ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold cursor-pointer flex items-center gap-1 ${inRange ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}
+                      onClick={() => setInfoOpen(true)}
+                    >
                       {inRange ? "Dalam Standar" : "Di Luar Standar"}
+                      <IconInfoCircle className="size-3" />
                     </span>
                   )}
                 </CardHeader>
                 <CardContent className="p-0">
                   <canvas
                     ref={resultCanvasRef}
-                    className="w-full block bg-[#0c0d12]"
+                    className="w-full block"
                     style={{
                       height: `${CANVAS_H}px`
                     }}
                   />
                   <div className="p-3 text-[10px] text-muted-foreground border-t border-border/50 leading-relaxed">
-                    {stats.n} lampu terplot · {stats.nRow} baris × {stats.nPerRow}/baris · Jarak baris: {stats.rowSpacing}m · Margin: {margin.toFixed(2)}m · Luas: {stats.luas}m²
+                    {stats.n} lampu terplot · {stats.nRow} baris × {stats.nPerRow}/baris · Jarak baris: {stats.rowSpacing}m · Margin: {(calcResult?.jarakSamping ?? 0.45).toFixed(2)}m · Luas: {stats.luas}m²
                   </div>
                 </CardContent>
               </Card>
@@ -1459,6 +1442,39 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           data={exportCardData}
         />
       )}
+
+      {/* Dialog Penjelasan Standar Kerapatan Daya */}
+      <Dialog open={infoOpen} onOpenChange={setInfoOpen}>
+        <DialogContent className="max-w-xs sm:max-w-md rounded-2xl p-5 gap-4">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+              <IconInfoCircle className="size-4" /> Standar Kerapatan Daya Pencahayaan
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-xs text-muted-foreground leading-relaxed">
+            <p>
+              Berdasarkan standar audit energi toko, kerapatan daya pencahayaan (*lighting power density*) target untuk **area penjualan (sales area)** adalah:
+            </p>
+            <div className="bg-muted/50 p-2.5 rounded-lg border border-border/80 text-foreground font-semibold text-center text-xs">
+              4.0 s/d 5.0 Watt / m²
+            </div>
+            <p>
+              Perhitungan rasio daya dilakukan dengan rumus:
+            </p>
+            <code className="block bg-muted/60 p-2 rounded text-[10px] text-foreground text-center font-mono leading-normal">
+              Rasio = (Total Lampu × 13.5 Watt) ÷ Luas Area Sales
+            </code>
+            <ul className="list-disc pl-4 space-y-1.5 mt-1 text-[11px]">
+              <li>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">Dalam Standar:</span> Rentang kerapatan daya yang optimal untuk pencahayaan sales area.
+              </li>
+              <li>
+                <span className="font-semibold text-amber-600 dark:text-amber-400">Di Luar Standar:</span> Kurang dari 4.0 W/m² dianggap redup (kurang pencahayaan), sedangkan lebih dari 5.0 W/m² dianggap boros energi (over-lighting).
+              </li>
+            </ul>
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }

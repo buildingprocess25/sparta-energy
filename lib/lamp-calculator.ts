@@ -300,19 +300,21 @@ export function calcSimetris(
   const maxLamps = Math.ceil((5.0 * areaSales) / watt)
   const minLamps = Math.ceil((4.0 * areaSales) / watt)
 
-  const maxFitPerRow = Math.max(1, Math.floor(lebar / lampLen))
-  const C33 = Math.max(1, Math.ceil(minLamps / maxFitPerRow))
-
-  const lpbMax = Math.ceil(maxLamps / C33)
-  const lpbMin = Math.ceil(minLamps / C33)
+  // 1. Opsi jumlah lampu per baris berdasarkan Lebar Toko
+  const lpbMax = Math.ceil(lebar / lampLen)
+  const lpbMin = Math.floor(lebar / lampLen)
   const lpbM1 = Math.max(1, lpbMin - 1)
 
+  // Jarak samping untuk masing-masing opsi
   const jsMax = (lebar - lpbMax * lampLen) / 2
   const jsMin = (lebar - lpbMin * lampLen) / 2
   const jsM1 = (lebar - lpbM1 * lampLen) / 2
 
-  let lpb: number, jarakSamping: number
+  // 2. Memilih Lampu Per Baris (lpb) terpilih berdasarkan rentang ideal [0.3, 0.6]
+  let lpb: number
+  let jarakSamping: number
   const inRange = (v: number) => v >= 0.3 && v <= 0.6
+
   if (inRange(jsMin)) {
     lpb = lpbMin
     jarakSamping = jsMin
@@ -327,12 +329,26 @@ export function calcSimetris(
     jarakSamping = jsM1
   }
 
+  // 3. Jumlah Lampu Sampling (Cell C32)
+  // Formula Excel: =IF(FLOOR(TotalMax, LampuPerBaris) < TotalMin, CEILING(TotalMin, LampuPerBaris), FLOOR(TotalMax, LampuPerBaris))
+  const floorMax = Math.floor(maxLamps / lpb) * lpb
+  const ceilMin = Math.ceil(minLamps / lpb) * lpb
+  const jumlahLampuSampling = floorMax < minLamps ? ceilMin : floorMax
+
+  // 4. Jumlah Baris Sampling (Cell C33)
+  const C33 = Math.max(1, Math.round(jumlahLampuSampling / lpb))
+
+  // 5. Jarak Per Baris Sampling (Cell C34)
   const C34 = panjang / (C33 + 1)
+
+  // 6. Koreksi Jumlah Baris Aktual (Cell C15)
+  // Formula Excel: =IF(JarakPerBarisSampling > 1.9, JumlahBarisSampling + 1, JumlahBarisSampling)
   const baris = C34 > 1.9 ? C33 + 1 : C33
 
+  // 7. Nilai Final
   const total = baris * lpb
   const jarakPerbaris = panjang / (baris + 1)
-  const rasio = Math.round((total * watt / areaSales) * 100) / 100
+  const rasio = Math.round(((total * watt) / areaSales) * 100) / 100
 
   return {
     baris,
@@ -343,7 +359,16 @@ export function calcSimetris(
     rasio,
     minLamps,
     maxLamps,
-    sampling: { C33, lpbMax, lpbMin, lpbM1, jsMax, jsMin, jsM1, C34 },
+    sampling: {
+      C33,
+      lpbMax,
+      lpbMin,
+      lpbM1,
+      jsMax,
+      jsMin,
+      jsM1,
+      C34,
+    },
   }
 }
 
@@ -365,34 +390,24 @@ export function calcIregular(
   watt: number = LAMP_WATT,
   lampLen: number = LAMP_LEN
 ): IregularResult | null {
-  const maxLamps = Math.ceil((5.0 * area) / watt)
-  const minLamps = Math.ceil((4.0 * area) / watt)
+  const virtualArea = lebar * panjang
+  const sim = calcSimetris(lebar, panjang, virtualArea, watt, lampLen)
+  if (!sim) return null
 
-  let best: IregularResult | null = null
-  for (let js100 = 30; js100 <= 60; js100++) {
-    const js = js100 / 100
-    const lpb = Math.max(1, Math.floor((lebar - 2 * js) / lampLen) + 1)
-    const actualJs = (lebar - lpb * lampLen) / 2
-    if (actualJs < 0) continue
-    for (let jb100 = 160; jb100 <= 190; jb100++) {
-      const jb = jb100 / 100
-      const baris = Math.max(1, Math.floor((panjang - 2 * actualJs) / jb) + 1)
-      const total = baris * lpb
-      if (total < minLamps || total > maxLamps) continue
-      const rasio = Math.round((total * watt / area) * 100) / 100
-      if (!best || Math.abs(rasio - 4.5) < Math.abs(best.rasio - 4.5)) {
-        best = {
-          baris,
-          lampuPerbaris: lpb,
-          total,
-          jarakPerbaris: jb,
-          jarakSamping: actualJs,
-          rasio,
-          minLamps,
-          maxLamps,
-        }
-      }
-    }
+  // Calculate ratio based on actual polygon area
+  const rasio = Math.round(((sim.total * watt) / area) * 100) / 100
+  // Calculate min/max lamps based on actual polygon area
+  const minLamps = Math.ceil((4.0 * area) / watt)
+  const maxLamps = Math.ceil((5.0 * area) / watt)
+
+  return {
+    baris: sim.baris,
+    lampuPerbaris: sim.lampuPerbaris,
+    total: sim.total,
+    jarakPerbaris: sim.jarakPerbaris,
+    jarakSamping: sim.jarakSamping,
+    rasio,
+    minLamps,
+    maxLamps,
   }
-  return best
 }

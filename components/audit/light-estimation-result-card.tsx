@@ -204,7 +204,7 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
             overflow: "hidden",
             border: "1.5px solid #e5e7eb",
             height: "200px",
-            backgroundColor: "#0c0d12",
+            backgroundColor: "#f8fafc",
             position: "relative",
           }}
         >
@@ -273,63 +273,75 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
           </div>
 
           {/* Recommendation highlight */}
-          <div
-            style={{
-              margin: "0px 16px 12px",
-              borderRadius: "10px",
-              background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
-              border: "1.5px solid #bbf7d0",
-              padding: "10px 14px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <div>
+          {(() => {
+            const inRange = rasio >= 4.0 && rasio <= 5.0
+            const cardBg = inRange ? "linear-gradient(135deg, #f0fdf4, #dcfce7)" : "linear-gradient(135deg, #fffbeb, #fef3c7)"
+            const cardBorder = inRange ? "1.5px solid #bbf7d0" : "1.5px solid #fde68a"
+            const cardTitleColor = inRange ? "#15803d" : "#b45309"
+            const cardTitle = inRange ? "Rekomendasi Pemasangan" : "Kepadatan Di Luar Standar"
+            const cardCountColor = inRange ? "#166534" : "#92400e"
+            const cardUnitColor = inRange ? "#16a34a" : "#d97706"
+
+            return (
               <div
                 style={{
-                  fontSize: "9px",
-                  fontWeight: 700,
-                  color: "#15803d",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
+                  margin: "0px 16px 12px",
+                  borderRadius: "10px",
+                  background: cardBg,
+                  border: cardBorder,
+                  padding: "10px 14px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
               >
-                Rekomendasi Pemasangan
+                <div>
+                  <div
+                    style={{
+                      fontSize: "9px",
+                      fontWeight: 700,
+                      color: cardTitleColor,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    {cardTitle}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "#374151",
+                      marginTop: "2px",
+                    }}
+                  >
+                    Grid {rows}×{lampsPerRow} dengan daya {watt}W per unit menghasilkan kepadatan {Number(rasio).toFixed(2)} W/m² (Kebutuhan standar: {minLamps} - {maxLamps} unit).
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div
+                    style={{
+                      fontSize: "36px",
+                      fontWeight: 900,
+                      color: cardCountColor,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {totalLamps}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 600,
+                      color: cardUnitColor,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Unit LED
+                  </div>
+                </div>
               </div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: "#374151",
-                  marginTop: "2px",
-                }}
-              >
-                Grid {rows}×{lampsPerRow} dengan daya {watt}W per unit menghasilkan kepadatan {Number(rasio).toFixed(2)} W/m² (Kebutuhan standar: {minLamps} - {maxLamps} unit).
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div
-                style={{
-                  fontSize: "36px",
-                  fontWeight: 900,
-                  color: "#166534",
-                  lineHeight: 1,
-                }}
-              >
-                {totalLamps}
-              </div>
-              <div
-                style={{
-                  fontSize: "10px",
-                  fontWeight: 600,
-                  color: "#16a34a",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Unit LED
-              </div>
-            </div>
-          </div>
+            )
+          })()}
         </div>
 
         {/* ── Footer ── */}
