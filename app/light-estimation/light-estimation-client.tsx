@@ -1453,7 +1453,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           </DialogHeader>
           <div className="space-y-3 text-xs text-muted-foreground leading-relaxed">
             <p>
-              Berdasarkan standar audit energi toko, kerapatan daya pencahayaan (*lighting power density*) target untuk **area penjualan (sales area)** adalah:
+              Berdasarkan standar audit energi toko, kerapatan daya pencahayaan (<span className="italic">lighting power density</span>) target untuk <strong className="text-foreground font-semibold">area penjualan (sales area)</strong> adalah:
             </p>
             <div className="bg-muted/50 p-2.5 rounded-lg border border-border/80 text-foreground font-semibold text-center text-xs">
               4.0 s/d 5.0 Watt / m²
