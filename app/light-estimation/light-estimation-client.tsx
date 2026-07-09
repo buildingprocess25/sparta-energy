@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link"
-import { IconBulb, IconArrowLeft, IconRefresh, IconGrid3x3, IconPolygon, IconSquare, IconChevronRight, IconDownload, IconInfoCircle } from "@tabler/icons-react"
+import { IconBulb, IconArrowLeft, IconRefresh, IconGrid3x3, IconPolygon, IconSquare, IconChevronRight, IconDownload, IconInfoCircle, IconCheck } from "@tabler/icons-react"
 import { Header } from "@/components/header"
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { toPng } from "html-to-image"
 import { toast } from "sonner"
 import { useTheme } from "next-themes"
+import { getRabData } from "@/app/actions/get-rab-data"
 import { LightEstimationResultCard, type LightEstimationResultCardData } from "@/components/audit/light-estimation-result-card"
 import {
   calcSimetris,
@@ -54,6 +55,14 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   // Common states
   const [activeTab, setActiveTab] = useState<string>("simetris")
   const [selectedStore, setSelectedStore] = useState<StoreData | null>(null)
+  const [storeMode, setStoreMode] = useState<"existing" | "new">("existing")
+  const [newStoreCode, setNewStoreCode] = useState("")
+  const [newStoreName, setNewStoreName] = useState("")
+  const [newStoreBranch, setNewStoreBranch] = useState("")
+  const [newStoreArea, setNewStoreArea] = useState("")
+  const [ulokInput, setUlokInput] = useState("")
+  const [isFetchingUlok, setIsFetchingUlok] = useState(false)
+  const [fetchedRabData, setFetchedRabData] = useState(false)
   const [lampLen, setLampLen] = useState<number>(1.2)
   const [isSaving, setIsSaving] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
@@ -82,6 +91,48 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       })
     } else {
       setSimForm(prev => ({ ...prev, area: "" }))
+    }
+  }
+
+  const handleSearchRab = async () => {
+    if (!ulokInput) return
+    setIsFetchingUlok(true)
+    try {
+      const res = await getRabData(ulokInput)
+      if (res.error) {
+        toast.error(res.error)
+        return
+      }
+
+      if (res.data) {
+        setNewStoreCode(res.data.nomor_ulok)
+        setNewStoreName(res.data.nama_toko)
+        setNewStoreBranch(res.data.cabang || "")
+        if (
+          res.data.luas_area_sales !== undefined &&
+          !Number.isNaN(res.data.luas_area_sales)
+        ) {
+          const areaVal = res.data.luas_area_sales.toString()
+          setNewStoreArea(areaVal)
+          setSimForm(prev => {
+            const next = { ...prev, area: areaVal }
+            const l = parseFloat(prev.lebar)
+            const p = parseFloat(prev.panjang)
+            if (!isNaN(l) && !isNaN(p) && autoArea) {
+              next.area = (l * p).toFixed(2)
+            }
+            return next
+          })
+        } else {
+          setNewStoreArea("")
+        }
+        setFetchedRabData(true)
+        toast.success("Data RAB berhasil dimuat.")
+      }
+    } catch (e) {
+      toast.error("Terjadi kesalahan sistem saat mengambil data RAB.")
+    } finally {
+      setIsFetchingUlok(false)
     }
   }
 
@@ -355,12 +406,16 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       }
     }
 
+    const activeStoreCode = storeMode === "existing" ? (selectedStore?.code ?? "") : newStoreCode
+    const activeStoreName = storeMode === "existing" ? (selectedStore?.name ?? "") : newStoreName
+    const activeStoreBranch = storeMode === "existing" ? (selectedStore?.branch ?? "") : newStoreBranch
+
     if (mode === "simetris") {
       if (!simResult) return
       cardData = {
-        storeCode: selectedStore?.code ?? "",
-        storeName: selectedStore?.name ?? "",
-        storeBranch: selectedStore?.branch ?? "",
+        storeCode: activeStoreCode,
+        storeName: activeStoreName,
+        storeBranch: activeStoreBranch,
         mode: "simetris",
         shapeLabel: "Kotak",
         area: simResult.area,
@@ -380,9 +435,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       if (!stats.luas) return
       const shapeObj = SHAPES.find(s => s.id === shape)
       cardData = {
-        storeCode: selectedStore?.code ?? "",
-        storeName: selectedStore?.name ?? "",
-        storeBranch: selectedStore?.branch ?? "",
+        storeCode: activeStoreCode,
+        storeName: activeStoreName,
+        storeBranch: activeStoreBranch,
         mode: "tidak-simetris",
         shapeLabel: shapeObj?.label ?? shape,
         area: stats.luas,
@@ -411,7 +466,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
             cacheBust: true,
           })
           const link = document.createElement("a")
-          const storeLabel = selectedStore?.code || "toko"
+          const storeLabel = storeMode === "existing" ? (selectedStore?.code || "toko") : (newStoreCode || "toko-baru")
           link.download = `estimasi-lampu-${storeLabel}.png`
           link.href = dataUrl
           link.click()
@@ -792,15 +847,138 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         backHref="/dashboard"
       />
 
-      {/* Shared Store Selection Prefill */}
-      <div className="space-y-1 mb-4 bg-muted/30 border border-border/50 rounded-xl p-3">
-        <Label htmlFor="store-select" className="text-xs font-bold text-foreground/80">Identitas Toko Audit</Label>
-        <StoreCombobox
-          stores={stores}
-          value={selectedStore}
-          onSelect={handleStoreSelectShared}
-          placeholder="Pilih toko audit..."
-        />
+      {/* Shared Store Selection Prefill (Toko Terdaftar vs Toko Baru) */}
+      <div className="flex flex-col gap-3 mb-4 bg-muted/30 border border-border/50 rounded-xl p-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-bold text-foreground/80">Identitas Toko Audit</Label>
+        </div>
+
+        <div className="flex rounded-lg bg-muted/60 p-0.5">
+          <button
+            type="button"
+            onClick={() => setStoreMode("existing")}
+            className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${
+              storeMode === "existing"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Toko Terdaftar
+          </button>
+          <button
+            type="button"
+            onClick={() => setStoreMode("new")}
+            className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${
+              storeMode === "new"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Toko Baru
+          </button>
+        </div>
+
+        {storeMode === "existing" ? (
+          <div className="flex flex-col gap-2.5">
+            <StoreCombobox
+              stores={stores}
+              value={selectedStore}
+              onSelect={handleStoreSelectShared}
+              placeholder="Pilih toko audit..."
+            />
+            {selectedStore && (
+              <div className="grid grid-cols-3 gap-2 px-1 pt-1 text-[10px]">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-muted-foreground uppercase">Kode</span>
+                  <span className="font-semibold text-foreground">{selectedStore.code}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-muted-foreground uppercase">Nama</span>
+                  <span className="font-semibold text-foreground truncate max-w-[80px]">{selectedStore.name}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-muted-foreground uppercase">Cabang</span>
+                  <span className="font-semibold text-foreground">{selectedStore.branch || "-"}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {!fetchedRabData ? (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex gap-2">
+                  <Input
+                    id="ulok_input"
+                    placeholder="Nomor ULOK (Contoh: 7AZ1-0001)"
+                    value={ulokInput}
+                    onChange={(e) => setUlokInput(e.target.value.toUpperCase())}
+                    className="h-8 text-xs bg-background uppercase"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSearchRab()
+                    }}
+                  />
+                  <Button
+                    onClick={handleSearchRab}
+                    disabled={!ulokInput || isFetchingUlok}
+                    className="h-8 text-[10px] font-bold"
+                    size="sm"
+                  >
+                    {isFetchingUlok ? "Mencari..." : "Cari"}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-normal px-1">
+                  Hanya RAB dengan status &quot;Telah Disetujui&quot;.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 bg-primary/5 p-2.5 rounded-lg border border-primary/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-primary flex items-center gap-1">
+                    <IconCheck className="size-3.5" /> RAB Ditemukan
+                  </span>
+                  <button
+                    type="button"
+                    className="text-[9px] text-muted-foreground hover:text-foreground underline"
+                    onClick={() => {
+                      setFetchedRabData(false)
+                      setNewStoreCode("")
+                      setNewStoreName("")
+                      setNewStoreBranch("")
+                      setNewStoreArea("")
+                      setUlokInput("")
+                    }}
+                  >
+                    Ganti
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-[10px] pt-0.5">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Nomor ULOK</span>
+                    <span className="font-semibold text-foreground">{newStoreCode}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Nama Toko</span>
+                    <span className="font-semibold text-foreground truncate max-w-[120px]">{newStoreName}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Cabang</span>
+                    <span className="font-semibold text-foreground">{newStoreBranch || "-"}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Luas Area Sales</span>
+                    <span className="font-semibold text-foreground">{newStoreArea ? `${newStoreArea} m²` : "-"}</span>
+                  </div>
+                </div>
+                {newStoreArea && (
+                  <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                    💡 Luas area sales dari RAB otomatis disalin ke parameter input.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

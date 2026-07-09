@@ -95,6 +95,12 @@ export function StoreCombobox({
     if (!isDynamic) return
     if (!open) return
 
+    // Optimize: only run search if query is empty (initial 30 stores) or has >= 3 characters
+    if (debouncedQuery.trim().length > 0 && debouncedQuery.trim().length < 3) {
+      setIsLoading(false)
+      return
+    }
+
     let active = true
     setIsLoading(true)
 
@@ -218,7 +224,11 @@ export function StoreCombobox({
             onScroll={maybeLoadMore}
             className="max-h-64 overflow-y-auto py-1"
           >
-            {visible.length === 0 ? (
+            {query.trim().length > 0 && query.trim().length < 3 ? (
+              <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+                Ketik minimal 3 karakter untuk mencari toko...
+              </div>
+            ) : visible.length === 0 ? (
               <div className="px-3 py-6 text-center text-sm text-muted-foreground">
                 {isLoading ? "Mencari toko..." : "Tidak ada toko yang cocok."}
               </div>
