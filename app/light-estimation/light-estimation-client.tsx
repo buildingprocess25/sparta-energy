@@ -68,6 +68,15 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   const [infoOpen, setInfoOpen] = useState(false)
   const exportCardRef = useRef<HTMLDivElement | null>(null)
 
+  // ── Manual Overrides & Visibility States ──
+  const [showDimensions, setShowDimensions] = useState(true)
+  const [simOverrideBaris, setSimOverrideBaris] = useState<number | null>(null)
+  const [simOverrideLpb, setSimOverrideLpb] = useState<number | null>(null)
+  const [simDisabledLamps, setSimDisabledLamps] = useState<number[]>([])
+  const [irregOverrideBaris, setIrregOverrideBaris] = useState<number | null>(null)
+  const [irregOverrideLpb, setIrregOverrideLpb] = useState<number | null>(null)
+  const [irregDisabledLamps, setIrregDisabledLamps] = useState<number[]>([])
+
   const isSvgDark = resolvedTheme === "dark" && !isSaving
 
   // ── Symmetrical Mode States ──
@@ -163,13 +172,37 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       return
     }
     setSimResult({ ...res, range, lebar, panjang, area })
+    setSimOverrideBaris(null)
+    setSimOverrideLpb(null)
+    setSimDisabledLamps([])
   }
 
   const simCanCalc = simForm.lebar && simForm.panjang && simForm.area
 
+  const activeSimBaris = simOverrideBaris !== null ? simOverrideBaris : (simResult && !simResult.error ? simResult.baris : 0)
+  const activeSimLpb = simOverrideLpb !== null ? simOverrideLpb : (simResult && !simResult.error ? simResult.lampuPerbaris : 0)
+
+  const activeSimJarakPerbaris = (simResult && !simResult.error) ? (simResult.panjang / (activeSimBaris + 1)) : 0
+  const activeSimJarakSamping = (simResult && !simResult.error) ? ((simResult.lebar - activeSimLpb * lampLen) / 2) : 0
+
   const simPositions = simResult && !simResult.error
-    ? generateGridPositions(simResult.lebar, simResult.panjang, simResult.baris, simResult.lampuPerbaris, lampLen).positions
+    ? generateGridPositions(simResult.lebar, simResult.panjang, activeSimBaris, activeSimLpb, lampLen).positions
     : []
+
+  const activeSimTotalLamps = simPositions.length - simDisabledLamps.filter(idx => idx < simPositions.length).length
+  const activeSimRasio = (simResult && !simResult.error && simResult.area > 0)
+    ? (activeSimTotalLamps * LAMP_WATT) / simResult.area
+    : 0
+
+  const handleSimLampToggle = (idx: number) => {
+    setSimDisabledLamps(prev => {
+      if (prev.includes(idx)) {
+        return prev.filter(i => i !== idx)
+      } else {
+        return [...prev, idx]
+      }
+    })
+  }
 
   const SVG_W = 340, SVG_H = 200, PAD = 24
   const scaleX = simResult ? (SVG_W - PAD * 2) / simResult.lebar : 1
@@ -421,19 +454,23 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         area: simResult.area,
         watt: LAMP_WATT,
         lampLen: lampLen,
-        totalLamps: simResult.total,
+        totalLamps: activeSimTotalLamps,
         minLamps: simResult.range.minLamps,
         maxLamps: simResult.range.maxLamps,
-        rows: simResult.baris,
-        lampsPerRow: simResult.lampuPerbaris,
-        rowSpacing: simResult.jarakPerbaris,
-        sideMargin: simResult.jarakSamping,
-        rasio: simResult.rasio,
+        rows: activeSimBaris,
+        lampsPerRow: activeSimLpb,
+        rowSpacing: activeSimJarakPerbaris,
+        sideMargin: activeSimJarakSamping,
+        rasio: activeSimRasio,
         layoutSnapshot: getSvgDataUrlBase64(),
       }
     } else {
       if (!stats.luas) return
       const shapeObj = SHAPES.find(s => s.id === shape)
+      const pts = buildPolygon(shape, p, adjustedPts, customClosed)
+      const W2_val = pts ? (Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x))) : 1
+      const activeMargin = calcResult ? ((W2_val - stats.nPerRow * lampLen) / 2) : 0.45
+
       cardData = {
         storeCode: activeStoreCode,
         storeName: activeStoreName,
@@ -448,8 +485,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         maxLamps: stats.nmax,
         rows: stats.nRow,
         lampsPerRow: stats.nPerRow,
-        rowSpacing: stats.rowSpacing,
-        sideMargin: calcResult?.jarakSamping ?? 0.45,
+        rowSpacing: Number(stats.rowSpacing),
+        sideMargin: activeMargin,
         rasio: Number(stats.luas > 0 ? (stats.n * watt) / stats.luas : 0),
         layoutSnapshot: getCanvasDataUrl(),
       }
@@ -624,8 +661,15 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     ctx.lineWidth = 1.5
     ctx.stroke()
 
-    const usedMargin = calcResult ? calcResult.jarakSamping : 0.45
-    const usedJarak = calcResult ? calcResult.jarakPerbaris : 1.9
+    // Calculate active parameters with overrides
+    const activeBaris = irregOverrideBaris !== null ? irregOverrideBaris : (calcResult ? calcResult.baris : 0)
+    const activeLpb = irregOverrideLpb !== null ? irregOverrideLpb : (calcResult ? calcResult.lampuPerbaris : 0)
+
+    const W2 = Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x))
+    const H2 = Math.max(...pts.map(p => p.y)) - Math.min(...pts.map(p => p.y))
+
+    const usedMargin = calcResult ? ((W2 - activeLpb * lampLen) / 2) : 0.45
+    const usedJarak = calcResult ? (H2 / (activeBaris + 1)) : 1.9
     const usedOrient = "h"
     const usedSpasi = 0
 
@@ -643,22 +687,126 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       ctx.setLineDash([])
     }
 
+    // Arrow helper function for dimensions
+    const drawArrow = (x1: number, y1: number, x2: number, y2: number, color: string, label: string) => {
+      ctx.save()
+      ctx.strokeStyle = color
+      ctx.fillStyle = color
+      ctx.lineWidth = 0.8
+
+      ctx.beginPath()
+      ctx.moveTo(x1, y1)
+      ctx.lineTo(x2, y2)
+      ctx.stroke()
+
+      const angle = Math.atan2(y2 - y1, x2 - x1)
+      const headLen = 4
+
+      ctx.beginPath()
+      ctx.moveTo(x1, y1)
+      ctx.lineTo(x1 + headLen * Math.cos(angle - Math.PI / 6), y1 + headLen * Math.sin(angle - Math.PI / 6))
+      ctx.lineTo(x1 + headLen * Math.cos(angle + Math.PI / 6), y1 + headLen * Math.sin(angle + Math.PI / 6))
+      ctx.closePath()
+      ctx.fill()
+
+      ctx.beginPath()
+      ctx.moveTo(x2, y2)
+      ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6))
+      ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6))
+      ctx.closePath()
+      ctx.fill()
+
+      ctx.font = "bold 7px sans-serif"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+
+      const mx = (x1 + x2) / 2
+      const my = (y1 + y2) / 2
+
+      if (Math.abs(y2 - y1) > Math.abs(x2 - x1)) {
+        ctx.textAlign = "left"
+        ctx.fillText(label, mx + 4, my)
+      } else {
+        ctx.textBaseline = "bottom"
+        ctx.fillText(label, mx, my - 2)
+      }
+      ctx.restore()
+    }
+
     // Place and draw lamps if calculated
     if (showLamps) {
       const lamps = placeLamps(pts, usedJarak, usedMargin, usedOrient, lampLen, usedSpasi)
       const lampLen_px = lampLen * sc.scale
       const lampW_px = Math.max(3, LAMP_TUBE_W * sc.scale)
 
-      lamps.forEach(lamp => {
+      // Legenda & Koordinat grouping
+      const uniqueYs = Array.from(new Set(lamps.map(l => Number(l.y.toFixed(4))))).sort((a, b) => a - b)
+      const uniqueXs = Array.from(new Set(lamps.map(l => Number(l.x.toFixed(4))))).sort((a, b) => a - b)
+
+      const yToRowLetter: Record<number, string> = {}
+      uniqueYs.forEach((y, idx) => {
+        yToRowLetter[y] = String.fromCharCode(65 + idx)
+      })
+
+      const colNumbers: Record<number, number> = {}
+      uniqueYs.forEach(y => {
+        const rowLamps = lamps.map((lamp, idx) => ({ lamp, idx })).filter(item => Number(item.lamp.y.toFixed(4)) === y)
+        rowLamps.sort((a, b) => a.lamp.x - b.lamp.x)
+        rowLamps.forEach((rl, colIdx) => {
+          colNumbers[rl.idx] = colIdx + 1
+        })
+      })
+
+      // Draw Legend Rulers (Top column numbers & Left row letters)
+      if (showDimensions) {
+        ctx.save()
+        ctx.fillStyle = isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.6)"
+        ctx.font = "bold 8px sans-serif"
+
+        // Column headers (1, 2, 3...)
+        ctx.textAlign = "center"
+        ctx.textBaseline = "bottom"
+        uniqueXs.forEach((x, idx) => {
+          const cx = sc.offX + x * sc.scale
+          const labelY = sc.offY + (sc.minY ?? 0) * sc.scale - 8
+          ctx.fillText((idx + 1).toString(), cx, labelY)
+        })
+
+        // Row headers (A, B, C...)
+        ctx.textAlign = "right"
+        ctx.textBaseline = "middle"
+        uniqueYs.forEach((y, idx) => {
+          const cy = sc.offY + y * sc.scale
+          const labelX = sc.offX + (sc.minX ?? 0) * sc.scale - 10
+          ctx.fillText(String.fromCharCode(65 + idx), labelX, cy)
+        })
+        ctx.restore()
+      }
+
+      // Draw Lamps
+      lamps.forEach((lamp, idx) => {
         const cx = sc.offX + lamp.x * sc.scale
         const cy = sc.offY + lamp.y * sc.scale
+        const isDisabled = irregDisabledLamps.includes(idx)
+
         ctx.save()
         ctx.translate(cx, cy)
         if (lamp.dir === "v") ctx.rotate(Math.PI / 2)
 
-        // Outer light tube
-        ctx.fillStyle = "rgba(16,185,129,0.8)"
-        ctx.strokeStyle = "rgba(110,231,183,0.9)"
+        if (isDisabled) {
+          ctx.globalAlpha = 0.25
+        } else {
+          ctx.globalAlpha = 1.0
+        }
+
+        // Outer light tube glow
+        if (!isDisabled) {
+          ctx.fillStyle = "rgba(16,185,129,0.8)"
+          ctx.strokeStyle = "rgba(110,231,183,0.9)"
+        } else {
+          ctx.fillStyle = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
+          ctx.strokeStyle = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"
+        }
         ctx.lineWidth = 0.6
         const rr = lampW_px / 2
         ctx.beginPath()
@@ -666,15 +814,60 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         ctx.fill(); ctx.stroke()
 
         // Inner glowing core
-        ctx.fillStyle = "rgba(254,243,199,0.4)"
-        ctx.beginPath()
-        ctx.roundRect(-lampLen_px / 2 + 1.5, -rr + 1, lampLen_px - 3, lampW_px - 2, rr - 0.5)
-        ctx.fill()
+        if (!isDisabled) {
+          ctx.fillStyle = "rgba(254,243,199,0.4)"
+          ctx.beginPath()
+          ctx.roundRect(-lampLen_px / 2 + 1.5, -rr + 1, lampLen_px - 3, lampW_px - 2, rr - 0.5)
+          ctx.fill()
+        }
+
         ctx.restore()
+        ctx.globalAlpha = 1.0 // restore global alpha
+
+        // Draw Lamp Label (e.g. A1, A2...) above lamp shape
+        if (showDimensions) {
+          ctx.save()
+          ctx.fillStyle = isDisabled
+            ? (isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)")
+            : (isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.6)")
+          ctx.font = "bold 6.5px sans-serif"
+          ctx.textAlign = "center"
+          ctx.textBaseline = "bottom"
+
+          const rowYKey = Number(lamp.y.toFixed(4))
+          const rowLetter = yToRowLetter[rowYKey] || "A"
+          const colNum = colNumbers[idx] || 1
+          ctx.fillText(`${rowLetter}${colNum}`, cx, cy - lampW_px - 2)
+          ctx.restore()
+        }
       })
+
+      // Draw JS and JB dimension lines
+      if (showDimensions) {
+        // Draw JS
+        if (uniqueXs.length > 0) {
+          const leftWallX = sc.offX + (sc.minX ?? 0) * sc.scale
+          const firstColX = sc.offX + uniqueXs[0] * sc.scale
+          const jsY = sc.offY + (sc.minY ?? 0) * sc.scale + 15
+          drawArrow(leftWallX, jsY, firstColX, jsY, isDark ? "rgba(239,68,68,0.8)" : "rgba(220,38,38,0.9)", `JS ${usedMargin.toFixed(2)}m`)
+        }
+        // Draw JB
+        if (uniqueYs.length > 0) {
+          const jbX = sc.offX + (sc.minX ?? 0) * sc.scale + 20
+          if (uniqueYs.length > 1) {
+            const firstRowY = sc.offY + uniqueYs[0] * sc.scale
+            const secondRowY = sc.offY + uniqueYs[1] * sc.scale
+            drawArrow(jbX, firstRowY, jbX, secondRowY, isDark ? "rgba(16,185,129,0.8)" : "rgba(5,150,105,0.9)", `JB ${usedJarak.toFixed(2)}m`)
+          } else {
+            const topWallY = sc.offY + (sc.minY ?? 0) * sc.scale
+            const firstRowY = sc.offY + uniqueYs[0] * sc.scale
+            drawArrow(jbX, topWallY, jbX, firstRowY, isDark ? "rgba(16,185,129,0.8)" : "rgba(5,150,105,0.9)", `JB ${usedJarak.toFixed(2)}m`)
+          }
+        }
+      }
     }
 
-    // Dimensions labels
+    // Bounding Box Width/Length Dimension Labels
     ctx.fillStyle = dimensionTextFill
     ctx.font = "9px sans-serif"
     ctx.textAlign = "center"
@@ -742,7 +935,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         ctx.fillText(`T${idx + 1}`, sp.cx + 5, sp.cy - 5)
       })
     }
-  }, [shape, p, adjustedPts, customClosed, lampLen, calcResult, resolvedTheme])
+  }, [shape, p, adjustedPts, customClosed, lampLen, calcResult, resolvedTheme, irregOverrideBaris, irregOverrideLpb, irregDisabledLamps, showDimensions, isSaving])
 
   const updateStats = useCallback(() => {
     const pts = buildPolygon(shape, p, adjustedPts, customClosed)
@@ -770,24 +963,47 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     let rowSpacing = 0
 
     if (isCalculated && res) {
-      lamps = placeLamps(pts, res.jarakPerbaris, res.jarakSamping, "h", lampLen, 0)
+      const activeBaris = irregOverrideBaris !== null ? irregOverrideBaris : res.baris
+      const activeLpb = irregOverrideLpb !== null ? irregOverrideLpb : res.lampuPerbaris
+
+      const W2 = Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x))
+      const H2 = Math.max(...pts.map(p => p.y)) - Math.min(...pts.map(p => p.y))
+
+      const activeJarakPerbaris = H2 / (activeBaris + 1)
+      const activeJarakSamping = (W2 - activeLpb * lampLen) / 2
+
+      lamps = placeLamps(pts, activeJarakPerbaris, activeJarakSamping, "h", lampLen, 0)
       if (lamps.length > 0) {
-        nRow = res.baris
-        nPerRow = res.lampuPerbaris
-        rowSpacing = res.jarakPerbaris
+        nRow = activeBaris
+        nPerRow = activeLpb
+        rowSpacing = activeJarakPerbaris
       }
     }
+
+    const activeTotalLamps = isCalculated
+      ? lamps.length - irregDisabledLamps.filter(idx => idx < lamps.length).length
+      : 0
 
     setStats({
       luas: Number(luas.toFixed(1)),
       nmin: minLamps,
       nmax: maxLamps,
-      n: isCalculated ? lamps.length : 0,
+      n: activeTotalLamps,
       nRow,
       nPerRow,
       rowSpacing: isCalculated ? rowSpacing.toFixed(2) : "0.00"
     })
-  }, [shape, p, adjustedPts, customClosed, watt, wmin, wmax, lampLen, isCalculated])
+  }, [shape, p, adjustedPts, customClosed, watt, wmin, wmax, lampLen, isCalculated, irregOverrideBaris, irregOverrideLpb, irregDisabledLamps])
+
+  const activeMargin = useMemo(() => {
+    if (!calcResult) return 0.45
+    const pts = buildPolygon(shape, p, adjustedPts, customClosed)
+    if (!pts || pts.length === 0) return 0.45
+    const xs = pts.map(pt => pt.x)
+    const W2 = Math.max(...xs) - Math.min(...xs)
+    const margin = (W2 - stats.nPerRow * lampLen) / 2
+    return margin > 0 ? margin : 0.45
+  }, [calcResult, shape, p, adjustedPts, customClosed, stats.nPerRow, lampLen])
 
   useEffect(() => {
     updateStats()
@@ -801,9 +1017,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (isCalculated) {
       drawCanvas(resultCanvasRef.current, true)
     }
-  }, [drawCanvas, isCalculated, shape, p, adjustedPts, customClosed, lampLen])
+  }, [drawCanvas, isCalculated, shape, p, adjustedPts, customClosed, lampLen, showDimensions, irregOverrideBaris, irregOverrideLpb, irregDisabledLamps])
 
-  // Canvas click handler
+  // Canvas click handler for drawing coords
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (shape !== "custom" || customClosed || !canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
@@ -825,6 +1041,57 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (snapped.x < 0 || snapped.y < 0) return
     setCustomPts(prev => [...prev, snapped])
   }, [shape, customClosed, customPts])
+
+  // Canvas click handler to toggle specific lamps in calculated layout
+  const handleResultCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isCalculated || !resultCanvasRef.current || !calcResult) return
+    const canvas = resultCanvasRef.current
+    const rect = canvas.getBoundingClientRect()
+    const cx = e.clientX - rect.left
+    const cy = e.clientY - rect.top
+
+    // Get current scale information and lamps
+    const W = canvas.offsetWidth || 340
+    const pts = buildPolygon(shape, p, adjustedPts, customClosed)
+    if (!pts) return
+    const sc = getScaleInfo(pts, W, CANVAS_H)
+
+    // Calculate active layout spacing
+    const activeBaris = irregOverrideBaris !== null ? irregOverrideBaris : calcResult.baris
+    const activeLpb = irregOverrideLpb !== null ? irregOverrideLpb : calcResult.lampuPerbaris
+
+    const W2 = Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x))
+    const H2 = Math.max(...pts.map(p => p.y)) - Math.min(...pts.map(p => p.y))
+
+    const usedMargin = (W2 - activeLpb * lampLen) / 2
+    const usedJarak = H2 / (activeBaris + 1)
+
+    const lamps = placeLamps(pts, usedJarak, usedMargin, "h", lampLen, 0)
+
+    // Find closest lamp to (cx, cy)
+    let closestIdx = -1
+    let minDist = 15 // threshold in pixels
+
+    lamps.forEach((lamp, idx) => {
+      const lx = sc.offX + lamp.x * sc.scale
+      const ly = sc.offY + lamp.y * sc.scale
+      const dist = Math.hypot(cx - lx, cy - ly)
+      if (dist < minDist) {
+        minDist = dist
+        closestIdx = idx
+      }
+    })
+
+    if (closestIdx !== -1) {
+      setIrregDisabledLamps(prev => {
+        if (prev.includes(closestIdx)) {
+          return prev.filter(i => i !== closestIdx)
+        } else {
+          return [...prev, closestIdx]
+        }
+      })
+    }
+  }, [isCalculated, calcResult, shape, p, adjustedPts, customClosed, lampLen, irregOverrideBaris, irregOverrideLpb])
 
   const handleShapeChange = (s: string) => {
     setShape(s)
@@ -850,29 +1117,27 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       {/* Shared Store Selection Prefill (Toko Terdaftar vs Toko Baru) */}
       <div className="flex flex-col gap-3 mb-4 bg-muted/30 border border-border/50 rounded-xl p-3">
         <div className="flex items-center justify-between">
-          <Label className="text-xs font-bold text-foreground/80">Identitas Toko Audit</Label>
+          <Label className="text-xs font-bold text-foreground/80">Identitas Toko</Label>
         </div>
 
         <div className="flex rounded-lg bg-muted/60 p-0.5">
           <button
             type="button"
             onClick={() => setStoreMode("existing")}
-            className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${
-              storeMode === "existing"
+            className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${storeMode === "existing"
                 ? "bg-background text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             Toko Terdaftar
           </button>
           <button
             type="button"
             onClick={() => setStoreMode("new")}
-            className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${
-              storeMode === "new"
+            className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${storeMode === "new"
                 ? "bg-background text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             Toko Baru
           </button>
@@ -1133,15 +1398,75 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 </CardHeader>
                 <CardContent className="pt-0 pb-4 space-y-3">
                   <div className="grid grid-cols-3 gap-2">
-                    <StatBox label="Total Lampu" value={simResult.total} unit=" unit" cls="border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-300" />
-                    <StatBox label="Jumlah Baris" value={simResult.baris} unit=" baris" />
-                    <StatBox label="Per Baris" value={simResult.lampuPerbaris} unit=" unit" />
-                    <StatBox label="Jarak Baris" value={simResult.jarakPerbaris.toFixed(2)} unit=" m" />
-                    <StatBox label="Jarak Samping" value={simResult.jarakSamping.toFixed(2)} unit=" m" cls="border-rose-500/20 bg-rose-500/5 text-rose-700 dark:text-rose-400" />
-                    <StatBox label="Rasio W/m²" value={simResult.rasio.toFixed(2)} unit=" W/m²" cls="border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" />
+                    <StatBox label="Total Lampu" value={activeSimTotalLamps} unit=" unit" cls="border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-300" />
+                    <StatBox label="Jumlah Baris" value={activeSimBaris} unit=" baris" />
+                    <StatBox label="Per Baris" value={activeSimLpb} unit=" unit" />
+                    <StatBox label="Jarak Baris" value={activeSimJarakPerbaris.toFixed(2)} unit=" m" />
+                    <StatBox label="Jarak Samping" value={activeSimJarakSamping.toFixed(2)} unit=" m" cls="border-rose-500/20 bg-rose-500/5 text-rose-700 dark:text-rose-400" />
+                    <StatBox label="Rasio W/m²" value={activeSimRasio.toFixed(2)} unit=" W/m²" cls="border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" />
                   </div>
-                  <RatioBar rasio={simResult.rasio} />
-                  <SmartSuggestions rasio={simResult.rasio} />
+                  <RatioBar rasio={activeSimRasio} />
+                  <SmartSuggestions rasio={activeSimRasio} />
+
+                  {/* Symmetrical Grid Adjustment Steppers */}
+                  <div className="border-t border-border/60 pt-3.5 mt-2 space-y-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Penyesuaian Manual</div>
+                    <div className="flex gap-4 items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground">Baris:</span>
+                        <div className="flex items-center bg-muted rounded-md p-0.5 border border-border/40">
+                          <button
+                            type="button"
+                            onClick={() => setSimOverrideBaris(Math.max(1, activeSimBaris - 1))}
+                            className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                          >
+                            -
+                          </button>
+                          <span className="px-2 text-xs font-semibold w-5 text-center">{activeSimBaris}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSimOverrideBaris(activeSimBaris + 1)}
+                            className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground">Lampu/Baris:</span>
+                        <div className="flex items-center bg-muted rounded-md p-0.5 border border-border/40">
+                          <button
+                            type="button"
+                            onClick={() => setSimOverrideLpb(Math.max(1, activeSimLpb - 1))}
+                            className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                          >
+                            -
+                          </button>
+                          <span className="px-2 text-xs font-semibold w-5 text-center">{activeSimLpb}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSimOverrideLpb(activeSimLpb + 1)}
+                            className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      {(simOverrideBaris !== null || simOverrideLpb !== null || simDisabledLamps.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSimOverrideBaris(null)
+                            setSimOverrideLpb(null)
+                            setSimDisabledLamps([])
+                          }}
+                          className="text-[10px] text-primary hover:underline font-semibold"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -1150,19 +1475,35 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 <CardHeader className="py-2.5 px-4 bg-muted/40 border-b border-border/80 flex flex-row justify-between items-center space-y-0">
                   <CardTitle className="text-xs font-bold">Denah Penempatan — LED {lampLen}m</CardTitle>
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-semibold cursor-pointer flex items-center gap-1 ${simResult.rasio >= 4.0 && simResult.rasio <= 5.0
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-semibold cursor-pointer flex items-center gap-1 ${activeSimRasio >= 4.0 && activeSimRasio <= 5.0
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                       }`}
                     onClick={() => setInfoOpen(true)}
                   >
-                    {simResult.rasio >= 4.0 && simResult.rasio <= 5.0 ? "Dalam Standar" : "Di Luar Standar"}
+                    {activeSimRasio >= 4.0 && activeSimRasio <= 5.0 ? "Dalam Standar" : "Di Luar Standar"}
                     <IconInfoCircle className="size-3" />
                   </span>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="p-3 flex flex-col items-center justify-center m-3 rounded-xl border border-border/30 bg-slate-50 dark:bg-[#0c0d12]">
-                    <svg id="sim-svg" width="100%" height="160" viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="block">
+                    <svg id="sim-svg" width="100%" height="200" viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="block">
+                      {/* arrow markers definitions */}
+                      <defs>
+                        <marker id="arrow-start" markerWidth="6" markerHeight="6" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+                          <path d="M6,0 L0,3 L6,6" fill="rgba(239, 68, 68, 0.7)" stroke="none" />
+                        </marker>
+                        <marker id="arrow-end" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+                          <path d="M0,0 L6,3 L0,6" fill="rgba(239, 68, 68, 0.7)" stroke="none" />
+                        </marker>
+                        <marker id="arrow-start-green" markerWidth="6" markerHeight="6" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+                          <path d="M6,0 L0,3 L6,6" fill="rgba(16, 185, 129, 0.7)" stroke="none" />
+                        </marker>
+                        <marker id="arrow-end-green" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+                          <path d="M0,0 L6,3 L0,6" fill="rgba(16, 185, 129, 0.7)" stroke="none" />
+                        </marker>
+                      </defs>
+
                       {/* room bounds */}
                       <rect
                         x={PAD}
@@ -1174,28 +1515,176 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         strokeWidth={1.5}
                         rx={2}
                       />
+
+                      {/* Row coordinate labels (A, B, C...) on left margin */}
+                      {showDimensions && Array.from({ length: activeSimBaris }).map((_, r) => {
+                        const rowY = (r + 1) * activeSimJarakPerbaris
+                        const cy = PAD + rowY * scaleY
+                        return (
+                          <text
+                            key={`row-label-${r}`}
+                            x={PAD - 8}
+                            y={cy}
+                            dominantBaseline="middle"
+                            textAnchor="end"
+                            fontSize={8}
+                            fontWeight="bold"
+                            fill={isSvgDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.5)"}
+                          >
+                            {String.fromCharCode(65 + r)}
+                          </text>
+                        )
+                      })}
+
+                      {/* Column coordinate labels (1, 2, 3...) on top margin */}
+                      {showDimensions && Array.from({ length: activeSimLpb }).map((_, c) => {
+                        const firstX = activeSimJarakSamping + lampLen / 2
+                        const colX = activeSimLpb === 1 ? simResult.lebar / 2 : firstX + c * lampLen
+                        const cx = PAD + colX * scaleX
+                        return (
+                          <text
+                            key={`col-label-${c}`}
+                            x={cx}
+                            y={PAD - 6}
+                            textAnchor="middle"
+                            fontSize={8}
+                            fontWeight="bold"
+                            fill={isSvgDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.5)"}
+                          >
+                            {(c + 1).toString()}
+                          </text>
+                        )
+                      })}
+
+                      {/* Dimension Lines: JS (Jarak Samping) */}
+                      {showDimensions && activeSimLpb > 0 && (
+                        <>
+                          <line
+                            x1={PAD}
+                            y1={PAD + 15}
+                            x2={PAD + activeSimJarakSamping * scaleX}
+                            y2={PAD + 15}
+                            stroke="rgba(239, 68, 68, 0.6)"
+                            strokeWidth="0.8"
+                            strokeDasharray="2,2"
+                            markerStart="url(#arrow-start)"
+                            markerEnd="url(#arrow-end)"
+                          />
+                          <text
+                            x={PAD + (activeSimJarakSamping * scaleX) / 2}
+                            y={PAD + 12}
+                            textAnchor="middle"
+                            fontSize={7}
+                            fontWeight="bold"
+                            fill="rgba(239, 68, 68, 0.9)"
+                          >
+                            JS {activeSimJarakSamping.toFixed(2)}m
+                          </text>
+                        </>
+                      )}
+
+                      {/* Dimension Lines: JB (Jarak Baris) */}
+                      {showDimensions && activeSimBaris > 0 && (
+                        <>
+                          {activeSimBaris > 1 ? (
+                            <line
+                              x1={PAD + 20}
+                              y1={PAD + activeSimJarakPerbaris * scaleY}
+                              x2={PAD + 20}
+                              y2={PAD + activeSimJarakPerbaris * 2 * scaleY}
+                              stroke="rgba(16, 185, 129, 0.6)"
+                              strokeWidth="0.8"
+                              strokeDasharray="2,2"
+                              markerStart="url(#arrow-start-green)"
+                              markerEnd="url(#arrow-end-green)"
+                            />
+                          ) : (
+                            <line
+                              x1={PAD + 20}
+                              y1={PAD}
+                              x2={PAD + 20}
+                              y2={PAD + activeSimJarakPerbaris * scaleY}
+                              stroke="rgba(16, 185, 129, 0.6)"
+                              strokeWidth="0.8"
+                              strokeDasharray="2,2"
+                              markerStart="url(#arrow-start-green)"
+                              markerEnd="url(#arrow-end-green)"
+                            />
+                          )}
+                          <text
+                            x={PAD + 24}
+                            y={PAD + (activeSimBaris > 1 ? activeSimJarakPerbaris * 1.5 : activeSimJarakPerbaris * 0.5) * scaleY}
+                            dominantBaseline="middle"
+                            textAnchor="start"
+                            fontSize={7}
+                            fontWeight="bold"
+                            fill="rgba(16, 185, 129, 0.9)"
+                          >
+                            JB {activeSimJarakPerbaris.toFixed(2)}m
+                          </text>
+                        </>
+                      )}
+
                       {/* Symmetrical Grid placement lights */}
                       {simPositions.map((pos, idx) => {
                         const cx = PAD + pos.x * scaleX
                         const cy = PAD + pos.y * scaleY
                         const lw = Math.max(4, lampLen * scaleX)
                         const lh = Math.max(3, LAMP_TUBE_W * scaleY * 4)
+
+                        const rIdx = Math.floor(idx / activeSimLpb) + 1
+                        const cIdx = (idx % activeSimLpb) + 1
+                        const coordLabel = `${String.fromCharCode(64 + rIdx)}${cIdx}`
+                        const isDisabled = simDisabledLamps.includes(idx)
+
                         return (
-                          <g key={idx}>
-                            <ellipse cx={cx} cy={cy} rx={lw / 2 + 3} ry={lh + 2} fill={isSvgDark ? "rgba(16,185,129,0.08)" : "rgba(16,185,129,0.06)"} />
+                          <g
+                            key={idx}
+                            className="cursor-pointer transition-all duration-150 hover:opacity-90"
+                            onClick={() => handleSimLampToggle(idx)}
+                            opacity={isDisabled ? 0.35 : 1}
+                          >
+                            {!isDisabled && (
+                              <ellipse cx={cx} cy={cy} rx={lw / 2 + 3} ry={lh + 2} fill={isSvgDark ? "rgba(16,185,129,0.08)" : "rgba(16,185,129,0.06)"} />
+                            )}
                             <rect
                               x={cx - lw / 2}
                               y={cy - lh / 2}
                               width={lw}
                               height={lh}
                               rx={lh / 2}
-                              fill="rgba(16,185,129,0.8)"
-                              stroke="rgba(110,231,183,0.9)"
+                              fill={isDisabled ? (isSvgDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)") : "rgba(16,185,129,0.8)"}
+                              stroke={isDisabled ? (isSvgDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)") : "rgba(110,231,183,0.9)"}
                               strokeWidth={0.6}
+                              strokeDasharray={isDisabled ? "2,1" : undefined}
                             />
+                            {!isDisabled && (
+                              <rect
+                                x={cx - lw / 2 + 1.5}
+                                y={cy - lh / 2 + 0.5}
+                                width={lw - 3}
+                                height={lh - 1}
+                                rx={(lh - 1) / 2}
+                                fill="rgba(254,243,199,0.5)"
+                              />
+                            )}
+                            {/* Inner lamp code coordinate label */}
+                            {showDimensions && (
+                              <text
+                                x={cx}
+                                y={cy - lh / 2 - 2.5}
+                                textAnchor="middle"
+                                fontSize={6.5}
+                                fontWeight="bold"
+                                fill={isDisabled ? (isSvgDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)") : (isSvgDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.6)")}
+                              >
+                                {coordLabel}
+                              </text>
+                            )}
                           </g>
                         )
                       })}
+
                       {/* labels */}
                       <text x={PAD + (simResult.lebar * scaleX) / 2} y={SVG_H - 4} textAnchor="middle" fill={isSvgDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.5)"} fontSize={9}>
                         {simResult.lebar} m (W)
@@ -1207,10 +1696,22 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <div className="flex gap-4 mt-2 text-[9px] text-muted-foreground justify-center pb-2">
                       <span className="flex items-center gap-1.5">
                         <span className="inline-block w-4 h-1.5 bg-emerald-500 rounded-sm" />
-                        LED Strip {lampLen}m ({simResult.total} unit)
+                        LED Strip {lampLen}m ({activeSimTotalLamps} unit)
                       </span>
-                      <span>Grid: {simResult.baris} baris × {simResult.lampuPerbaris} kolom</span>
+                      <span>Grid: {activeSimBaris} baris × {activeSimLpb} kolom</span>
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2 mb-3 px-4">
+                    <input
+                      id="show-dimensions-sim"
+                      type="checkbox"
+                      checked={showDimensions}
+                      onChange={e => setShowDimensions(e.target.checked)}
+                      className="size-3.5 rounded-sm border-gray-300 accent-primary"
+                    />
+                    <label htmlFor="show-dimensions-sim" className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none">
+                      Tampilkan Dimensi & Legenda
+                    </label>
                   </div>
                 </CardContent>
               </Card>
@@ -1545,13 +2046,18 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 type="button"
                 className="w-full h-9 mt-4 text-xs font-semibold"
                 disabled={shape === "custom" && !customClosed}
-                onClick={() => setIsCalculated(true)}
+                onClick={() => {
+                  setIsCalculated(true)
+                  setIrregOverrideBaris(null)
+                  setIrregOverrideLpb(null)
+                  setIrregDisabledLamps([])
+                }}
               >
                 Hitung Penempatan
               </Button>
             </CardContent>
           </Card>
-
+ 
           {/* Irregular Calculation Result Card & Plotted Canvas */}
           {isCalculated && (
             <div className="space-y-4">
@@ -1565,18 +2071,77 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 </CardHeader>
                 <CardContent className="pt-0 pb-4 space-y-2.5">
                   {calcResult ? (
-                    // 1. Systems Automatic Recommendation stats
                     <>
                       <div className="grid grid-cols-3 gap-2">
                         <StatBox label="Total Lampu" value={stats.n} unit=" unit" cls="border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-300" />
                         <StatBox label="Jumlah Baris" value={stats.nRow} unit=" baris" />
                         <StatBox label="Per Baris" value={stats.nPerRow} unit=" unit" />
                         <StatBox label="Jarak Baris" value={Number(stats.rowSpacing)?.toFixed(2)} unit=" m" />
-                        <StatBox label="Jarak Samping" value={calcResult.jarakSamping?.toFixed(2)} unit=" m" cls="border-rose-500/20 bg-rose-500/5 text-rose-700 dark:text-rose-400" />
+                        <StatBox label="Jarak Samping" value={activeMargin.toFixed(2)} unit=" m" cls="border-rose-500/20 bg-rose-500/5 text-rose-700 dark:text-rose-400" />
                         <StatBox label="Rasio W/m²" value={Number(stats.luas > 0 ? (stats.n * watt) / stats.luas : 0).toFixed(2)} unit=" W/m²" cls={inRange ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" : "border-rose-500/20 bg-rose-500/5 text-rose-700 dark:text-rose-400"} />
                       </div>
                       <RatioBar rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} />
                       <SmartSuggestions rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} />
+
+                      {/* Irregular Grid Adjustment Steppers */}
+                      <div className="border-t border-border/60 pt-3.5 mt-2 space-y-2">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Penyesuaian Manual</div>
+                        <div className="flex gap-4 items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-muted-foreground">Baris:</span>
+                            <div className="flex items-center bg-muted rounded-md p-0.5 border border-border/40">
+                              <button
+                                type="button"
+                                onClick={() => setIrregOverrideBaris(Math.max(1, stats.nRow - 1))}
+                                className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                              >
+                                -
+                              </button>
+                              <span className="px-2 text-xs font-semibold w-5 text-center">{stats.nRow}</span>
+                              <button
+                                type="button"
+                                onClick={() => setIrregOverrideBaris(stats.nRow + 1)}
+                                className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-muted-foreground">Lampu/Baris:</span>
+                            <div className="flex items-center bg-muted rounded-md p-0.5 border border-border/40">
+                              <button
+                                type="button"
+                                onClick={() => setIrregOverrideLpb(Math.max(1, stats.nPerRow - 1))}
+                                className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                              >
+                                -
+                              </button>
+                              <span className="px-2 text-xs font-semibold w-5 text-center">{stats.nPerRow}</span>
+                              <button
+                                type="button"
+                                onClick={() => setIrregOverrideLpb(stats.nPerRow + 1)}
+                                className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                          {(irregOverrideBaris !== null || irregOverrideLpb !== null || irregDisabledLamps.length > 0) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIrregOverrideBaris(null)
+                                setIrregOverrideLpb(null)
+                                setIrregDisabledLamps([])
+                              }}
+                              className="text-[10px] text-primary hover:underline font-semibold"
+                            >
+                              Reset
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </>
                   ) : (
                     <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
@@ -1603,17 +2168,35 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 <CardContent className="p-0">
                   <canvas
                     ref={resultCanvasRef}
-                    className="w-full block"
+                    onClick={handleResultCanvasClick}
+                    className="w-full block cursor-pointer"
                     style={{
                       height: `${CANVAS_H}px`
                     }}
                   />
                   <div className="p-3 text-[10px] text-muted-foreground border-t border-border/50 leading-relaxed">
-                    {stats.n} lampu terplot · {stats.nRow} baris × {stats.nPerRow}/baris · Jarak baris: {stats.rowSpacing}m · Margin: {(calcResult?.jarakSamping ?? 0.45).toFixed(2)}m · Luas: {stats.luas}m²
+                    <div>
+                      {stats.n} lampu terplot · {stats.nRow} baris × {stats.nPerRow}/baris · Jarak baris: {stats.rowSpacing}m · Margin: {activeMargin.toFixed(2)}m · Luas: {stats.luas}m²
+                    </div>
+                    <div className="text-amber-600 dark:text-amber-400 font-medium mt-1">
+                      💡 Sentuh/klik lampu di denah untuk menonaktifkan atau mengaktifkan kembali lampu tertentu secara manual.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mb-3 px-4">
+                    <input
+                      id="show-dimensions-irreg"
+                      type="checkbox"
+                      checked={showDimensions}
+                      onChange={e => setShowDimensions(e.target.checked)}
+                      className="size-3.5 rounded-sm border-gray-300 accent-primary"
+                    />
+                    <label htmlFor="show-dimensions-irreg" className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none">
+                      Tampilkan Dimensi & Legenda
+                    </label>
                   </div>
                 </CardContent>
               </Card>
-
+ 
               {/* Big Download Button at Bottom */}
               <Button
                 type="button"
