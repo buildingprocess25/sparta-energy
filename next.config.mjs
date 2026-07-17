@@ -2,6 +2,7 @@ import withSerwistInit from "@serwist/next"
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   turbopack: {},
   allowedDevOrigins: [
     "localhost:*",
