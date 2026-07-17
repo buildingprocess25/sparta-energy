@@ -17,7 +17,7 @@ function createDbPool() {
       // ponytail: keep default low; raise DB_POOL_MAX only with a pooler.
       max: getPositiveIntegerEnv(
         "DB_POOL_MAX",
-        1
+        10
       ),
       idleTimeoutMillis: getPositiveIntegerEnv("DB_IDLE_TIMEOUT_MS", 10000),
       connectionTimeoutMillis: getPositiveIntegerEnv(
