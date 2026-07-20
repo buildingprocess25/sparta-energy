@@ -1,5 +1,10 @@
 "use server"
 
+import dns from "node:dns"
+// Memaksa Node.js untuk menggunakan IPv4 terlebih dahulu saat melakukan fetch.
+// Ini adalah solusi umum untuk mengatasi error "fetch failed" (IPv6 timeout) di Docker/VPS.
+dns.setDefaultResultOrder("ipv4first")
+
 export async function getTemperature(lat: string, lng: string) {
   try {
     const sekarang = new Date()
