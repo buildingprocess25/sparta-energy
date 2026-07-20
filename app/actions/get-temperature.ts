@@ -1,6 +1,8 @@
 "use server"
 
 import dns from "node:dns"
+import https from "node:https"
+
 // Memaksa Node.js untuk menggunakan IPv4 terlebih dahulu saat melakukan fetch.
 // Ini adalah solusi umum untuk mengatasi error "fetch failed" (IPv6 timeout) di Docker/VPS.
 dns.setDefaultResultOrder("ipv4first")
@@ -26,13 +28,30 @@ export async function getTemperature(lat: string, lng: string) {
     url.searchParams.append("hourly", "temperature_2m")
     url.searchParams.append("timezone", "Asia/Jakarta")
 
-    const response = await fetch(url.toString(), { cache: "no-store" })
-
-    if (!response.ok) {
-      throw new Error(`Open-Meteo API Error: ${response.status}`)
-    }
-
-    const data = await response.json()
+    // Menggunakan node:https asli untuk membypass masalah 'fetch failed' bawaan undici/Next.js
+    const data = await new Promise<{ hourly?: { temperature_2m?: (number | null)[] } }>((resolve, reject) => {
+      https
+        .get(url.toString(), {
+          headers: {
+            "User-Agent": "SpartaEnergy/1.0",
+          }
+        }, (res) => {
+          let body = ""
+          res.on("data", (chunk) => (body += chunk))
+          res.on("end", () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              try {
+                resolve(JSON.parse(body))
+              } catch (e) {
+                reject(new Error("Gagal memparsing JSON dari Open-Meteo"))
+              }
+            } else {
+              reject(new Error(`Open-Meteo API Error: ${res.statusCode} - ${body}`))
+            }
+          })
+        })
+        .on("error", reject)
+    })
 
     const suhuPerJam: (number | null)[] = data.hourly?.temperature_2m || []
     const suhuTersaring = suhuPerJam.filter(
