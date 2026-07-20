@@ -48,12 +48,7 @@ export async function createUser(
       }
     }
 
-    if (password.length < 6) {
-      return {
-        success: false,
-        message: "Password minimal harus 6 karakter",
-      }
-    }
+
 
     if (role !== "USER" && role !== "ADMIN") {
       return {

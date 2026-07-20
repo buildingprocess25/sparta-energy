@@ -91,10 +91,7 @@ export function CreateUserDialog({
       return
     }
 
-    if (password.length < 6) {
-      toast.error("Password minimal harus 6 karakter")
-      return
-    }
+
 
     if (password !== confirmPassword) {
       toast.error("Password dan Konfirmasi Password tidak cocok")
