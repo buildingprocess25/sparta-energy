@@ -11,17 +11,15 @@ const nextConfig = {
     "*.ngrok-free.dev",
     "*.ngrok-free.dev:*",
   ],
-  experimental: {
-    serverActions: {
-      allowedOrigins: [
-        "localhost:*",
-        "*.devtunnels.ms",
-        "*.devtunnels.ms:*",
-        "*.ngrok-free.dev",
-        "*.ngrok-free.dev:*",
-        "energy.sparta-alfamart.web.id"
-      ],
-    },
+  serverActions: {
+    allowedOrigins: [
+      "localhost:*",
+      "*.devtunnels.ms",
+      "*.devtunnels.ms:*",
+      "*.ngrok-free.dev",
+      "*.ngrok-free.dev:*",
+      "energy.sparta-alfamart.web.id"
+    ],
   },
 }
 
