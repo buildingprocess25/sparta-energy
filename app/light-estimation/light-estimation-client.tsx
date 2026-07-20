@@ -502,12 +502,23 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
             pixelRatio: 2,
             cacheBust: true,
           })
+
+          // Convert Base64 dataURL to Blob for iOS/Safari download compatibility
+          const res = await fetch(dataUrl)
+          const blob = await res.blob()
+          const blobUrl = URL.createObjectURL(blob)
+
           const link = document.createElement("a")
           const storeLabel = storeMode === "existing" ? (selectedStore?.code || "toko") : (newStoreCode || "toko-baru")
           link.download = `estimasi-lampu-${storeLabel}.png`
-          link.href = dataUrl
+          link.href = blobUrl
           link.click()
+
           toast.success("Gambar hasil estimasi berhasil diunduh!")
+
+          setTimeout(() => {
+            URL.revokeObjectURL(blobUrl)
+          }, 100)
         }
       } catch (err) {
         console.error(err)

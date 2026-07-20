@@ -250,10 +250,25 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
         pixelRatio: 2,
         cacheBust: true,
       })
+
+      // Convert Base64 dataURL to Blob for iOS/Safari download compatibility
+      const res = await fetch(dataUrl)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+
       const link = document.createElement("a")
       link.download = `estimasi-ac-${storeLabel}.png`
-      link.href = dataUrl
+      link.href = blobUrl
       link.click()
+
+      toast.success("Gambar hasil estimasi berhasil diunduh!")
+
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl)
+      }, 100)
+    } catch (err) {
+      console.error(err)
+      toast.error("Gagal mengunduh gambar hasil estimasi.")
     } finally {
       setIsSaving(false)
     }
