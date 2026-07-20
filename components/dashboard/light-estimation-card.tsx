@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { IconBulb, IconArrowRight, IconLock } from "@tabler/icons-react"
+import { IconBulb, IconArrowRight } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card"
 
 interface LightEstimationCardProps {
-  isAdmin: boolean
+  isAdmin?: boolean
 }
 
 function LightEstimationCard({ isAdmin }: LightEstimationCardProps) {
@@ -29,45 +29,22 @@ function LightEstimationCard({ isAdmin }: LightEstimationCardProps) {
               <CardTitle className="text-lg leading-tight text-amber-900 dark:text-amber-100">
                 Kalkulator Lampu
               </CardTitle>
-              {isAdmin ? (
-                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:bg-amber-400/10 dark:text-amber-400 uppercase tracking-wide">
-                  Beta
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-0.5 rounded-full bg-muted px-2 py-0.5 text-[9px] font-medium text-muted-foreground">
-                  <IconLock className="size-2.5" /> Dev
-                </span>
-              )}
             </div>
             <CardDescription className="max-w-50 text-xs text-amber-700/70 dark:text-amber-300/70">
-              {isAdmin 
-                ? "Simulasikan penempatan lampu TL/LED sesuai standar target W/m²."
-                : "Hitung kebutuhan lampu TL/LED sesuai standar (Dalam Pengembangan)."
-              }
+              Simulasikan penempatan lampu TL/LED sesuai standar target W/m².
             </CardDescription>
           </div>
-          {isAdmin ? (
-            <Button
-              asChild
-              size="sm"
-              variant="secondary"
-              className="shrink-0 rounded-full border-none bg-white/60 text-amber-700 shadow-sm backdrop-blur-sm hover:bg-white dark:bg-black/20 dark:text-amber-400 dark:hover:bg-black/40"
-            >
-              <Link href="/light-estimation">
-                Mulai
-                <IconArrowRight className="size-4" />
-              </Link>
-            </Button>
-          ) : (
-            <Button
-              disabled
-              size="sm"
-              variant="secondary"
-              className="shrink-0 rounded-full border-none bg-white/40 text-muted-foreground/60 shadow-none backdrop-blur-xs dark:bg-black/10"
-            >
-              Uji Coba
-            </Button>
-          )}
+          <Button
+            asChild
+            size="sm"
+            variant="secondary"
+            className="shrink-0 rounded-full border-none bg-white/60 text-amber-700 shadow-sm backdrop-blur-sm hover:bg-white dark:bg-black/20 dark:text-amber-400 dark:hover:bg-black/40"
+          >
+            <Link href="/light-estimation">
+              Mulai
+              <IconArrowRight className="size-4" />
+            </Link>
+          </Button>
         </div>
       </CardHeader>
     </Card>

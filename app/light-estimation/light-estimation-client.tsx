@@ -1110,7 +1110,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       <Header
         variant="dashboard-back"
         title="Kalkulator Lampu"
-        subtitle="Prototype Panel (Trial/Beta)"
+        subtitle="Simulasi penempatan lampu TL/LED"
         backHref="/dashboard"
       />
 
