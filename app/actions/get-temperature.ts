@@ -29,8 +29,7 @@ export async function getTemperature(lat: string, lng: string) {
 
     const data = await response.json()
 
-    const suhuPerJam: (number | null)[] =
-      data.hourly?.temperature_2m || []
+    const suhuPerJam: (number | null)[] = data.hourly?.temperature_2m || []
     const suhuTersaring = suhuPerJam.filter(
       (suhu): suhu is number => suhu !== null
     )
@@ -51,7 +50,10 @@ export async function getTemperature(lat: string, lng: string) {
     // Silakan ubah angka di bawah ini untuk mengambil urutan terbesar lainnya:
     const RANK_INDEX = 174
 
-    const maxTemp = suhuTerurut[RANK_INDEX] !== undefined ? suhuTerurut[RANK_INDEX] : suhuTerurut[0]
+    const maxTemp =
+      suhuTerurut[RANK_INDEX] !== undefined
+        ? suhuTerurut[RANK_INDEX]
+        : suhuTerurut[0]
 
     return { maxTemp }
   } catch (error) {
@@ -59,8 +61,7 @@ export async function getTemperature(lat: string, lng: string) {
     return {
       error: {
         type: "network",
-        message:
-          "Gagal mengambil data suhu lokasi. Pastikan koordinat valid dan koneksi stabil.",
+        message: `Gagal mengambil data suhu lokasi. Pastikan koordinat valid dan koneksi stabil.(Detail: ${error instanceof Error ? error.message : String(error)})`,
       },
     }
   }
