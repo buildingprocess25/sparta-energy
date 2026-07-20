@@ -19,6 +19,7 @@ const nextConfig = {
         "*.devtunnels.ms:*",
         "*.ngrok-free.dev",
         "*.ngrok-free.dev:*",
+        "energy.sparta-alfamart.web.id"
       ],
     },
   },
