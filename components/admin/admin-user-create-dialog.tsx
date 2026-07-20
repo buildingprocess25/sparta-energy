@@ -56,7 +56,7 @@ export function CreateUserDialog({
     role === "ADMIN" ? null : branch === "none" ? null : branch
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-  const isPasswordValid = password.length >= 6 && password === confirmPassword
+  const isPasswordValid = password === confirmPassword
 
   // Reset form states when opened
   useEffect(() => {
