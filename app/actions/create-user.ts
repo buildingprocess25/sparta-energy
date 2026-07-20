@@ -87,6 +87,7 @@ export async function createUser(
           role,
           fullName: trimmedFullName,
           branch: normalizedBranch,
+          emailVerified: true,
         },
       })
 
