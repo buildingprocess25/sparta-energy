@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { BranchCombobox } from "@/components/admin/admin-branch-combobox"
 
 export function EditUserDialog({
   open,
@@ -184,46 +185,12 @@ export function EditUserDialog({
 
             <div className="space-y-2">
               <Label htmlFor="branch">Cabang</Label>
-              <Select
+              <BranchCombobox
+                branches={branches}
                 value={branch}
-                onValueChange={setBranch}
+                onChange={setBranch}
                 disabled={isSubmitting || role === "ADMIN"}
-              >
-                <SelectTrigger id="branch">
-                  <SelectValue placeholder="Pilih cabang..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    <div className="flex items-center gap-2">
-                      <IconBuildingStore
-                        aria-hidden="true"
-                        className="size-4"
-                      />
-                      (Tidak ada cabang)
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="all">
-                    <div className="flex items-center gap-2">
-                      <IconBuildingStore
-                        aria-hidden="true"
-                        className="size-4"
-                      />
-                      Semua Cabang (Super Auditor)
-                    </div>
-                  </SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b} value={b}>
-                      <div className="flex items-center gap-2">
-                        <IconBuildingStore
-                          aria-hidden="true"
-                          className="size-4"
-                        />
-                        {b}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
               <p className="text-xs text-muted-foreground">
                 {role === "ADMIN"
                   ? "Admin dapat mengakses dashboard admin dan audit semua cabang."

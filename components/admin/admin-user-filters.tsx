@@ -9,6 +9,7 @@ import {
   IconSearch,
   IconShield,
   IconUserPlus,
+  IconFileSpreadsheet,
 } from "@tabler/icons-react"
 
 import {
@@ -20,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CreateUserDialog } from "@/components/admin/admin-user-create-dialog"
+import { ImportUserCsvDialog } from "@/components/admin/admin-user-import-dialog"
 
 type AdminUserFiltersProps = {
   branches: string[]
@@ -45,6 +47,7 @@ export function AdminUserFilters({ branches, roles }: AdminUserFiltersProps) {
 
   const [query, setQuery] = useState(queryFromParams)
   const [createOpen, setCreateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   useEffect(() => {
     setQuery(queryFromParams)
@@ -198,20 +201,35 @@ export function AdminUserFilters({ branches, roles }: AdminUserFiltersProps) {
           </Button>
         )}
 
-        <Button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="ml-auto shrink-0"
-        >
-          <IconUserPlus aria-hidden="true" data-icon="inline-start" />
-          Tambah User
-        </Button>
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setImportOpen(true)}
+          >
+            <IconFileSpreadsheet aria-hidden="true" data-icon="inline-start" />
+            Import CSV
+          </Button>
+          <Button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+          >
+            <IconUserPlus aria-hidden="true" data-icon="inline-start" />
+            Tambah User
+          </Button>
+        </div>
       </div>
 
       <CreateUserDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
         branches={branches}
+        onSuccess={() => router.refresh()}
+      />
+
+      <ImportUserCsvDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
         onSuccess={() => router.refresh()}
       />
     </div>
