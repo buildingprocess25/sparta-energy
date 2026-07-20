@@ -129,7 +129,7 @@ export function CreateUserDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} autoComplete="off">
           <DialogHeader>
             <DialogTitle>Tambah User Baru</DialogTitle>
             <DialogDescription>
@@ -147,6 +147,7 @@ export function CreateUserDialog({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isSubmitting}
+                autoComplete="new-email"
                 required
               />
             </div>
@@ -160,6 +161,7 @@ export function CreateUserDialog({
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 disabled={isSubmitting}
+                autoComplete="off"
               />
             </div>
 
@@ -174,6 +176,7 @@ export function CreateUserDialog({
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
                   className="pr-10"
+                  autoComplete="new-password"
                   required
                 />
                 <button
@@ -203,6 +206,7 @@ export function CreateUserDialog({
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={isSubmitting}
                   className="pr-10"
+                  autoComplete="new-password"
                   required
                 />
                 <button
