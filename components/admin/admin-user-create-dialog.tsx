@@ -168,7 +168,7 @@ export function CreateUserDialog({
                 <Input
                   id="create-password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Min. 6 karakter"
+                  placeholder="Masukkan password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
