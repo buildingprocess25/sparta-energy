@@ -281,14 +281,14 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
 
             const cardBg = isAllOk 
               ? "linear-gradient(135deg, #f0fdf4, #dcfce7)" 
-              : "linear-gradient(135deg, #fef2f2, #fee2e2)"
+              : "linear-gradient(135deg, #fffbeb, #fef3c7)"
             const cardBorder = isAllOk 
               ? "1.5px solid #bbf7d0" 
-              : "1.5px solid #fca5a5"
-            const cardTitleColor = isAllOk ? "#15803d" : "#b91c1c"
+              : "1.5px solid #fde68a"
+            const cardTitleColor = isAllOk ? "#15803d" : "#b45309"
             const cardTitle = isAllOk ? "Rekomendasi Pemasangan (Sesuai Standar)" : "Parameter Di Luar Standar"
-            const cardCountColor = isAllOk ? "#166534" : "#991b1b"
-            const cardUnitColor = isAllOk ? "#16a34a" : "#dc2626"
+            const cardCountColor = isAllOk ? "#166534" : "#92400e"
+            const cardUnitColor = isAllOk ? "#16a34a" : "#d97706"
 
             return (
               <div
@@ -326,7 +326,7 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
                     {isAllOk ? (
                       `Grid ${rows}×${lampsPerRow} (${totalLamps} unit) memenuhi semua standar layout dan energi (Rasio: ${Number(rasio).toFixed(2)} W/m², Jarak samping: ${Number(sideMargin).toFixed(2)}m, Jarak baris: ${Number(rowSpacing).toFixed(2)}m).`
                     ) : (
-                      <div style={{ color: "#7f1d1d" }}>
+                      <div style={{ color: "#92400e" }}>
                         Peringatan: 
                         {!checkRasio && ` Kerapatan daya di luar standar (${Number(rasio).toFixed(2)} W/m²).`}
                         {!checkSamping && ` Jarak samping di luar standar (${Number(sideMargin).toFixed(2)}m).`}
