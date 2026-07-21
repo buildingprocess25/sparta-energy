@@ -1950,7 +1950,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-wide">Lampu Max</div>
                 <div className="text-xs font-bold mt-0.5">{stats.nmax || "—"} u</div>
               </div>
-              <div className={`rounded-xl border p-2 text-center ${stats.n > 0 ? (inRange ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400" : "border-amber-500/20 bg-amber-500/5 text-amber-600 dark:text-amber-400") : "border-border/80 bg-muted/40"}`}>
+               <div className={`rounded-xl border p-2 text-center ${stats.n > 0 ? (irregCheck.rasioStatus === "ok" ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400" : "border-amber-500/20 bg-amber-500/5 text-amber-600 dark:text-amber-400") : "border-border/80 bg-muted/40"}`}>
                 <div className="text-[8px] font-bold uppercase tracking-wide">Terplot</div>
                 <div className="text-xs font-bold mt-0.5">{stats.n || "—"} u</div>
               </div>
