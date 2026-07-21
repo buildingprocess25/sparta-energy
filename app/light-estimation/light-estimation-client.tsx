@@ -1516,9 +1516,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   <CardTitle className="text-sm font-semibold">Hasil Kalkulasi — Simetris</CardTitle>
                   <span
                     onClick={() => setInfoOpen(true)}
-                    className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider cursor-pointer hover:opacity-80 active:opacity-60 ${simCheck.isAllOk ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}
+                    className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${simCheck.isAllOk ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}
                   >
                     {simCheck.isAllOk ? "Sesuai Standar" : "Di Luar Standar"}
+                    <IconInfoCircle className="size-3" />
                   </span>
                 </CardHeader>
                 <CardContent className="pt-0 pb-4 space-y-3">
@@ -1907,7 +1908,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               <div className="flex items-center gap-2">
                 {isCalculated && stats.n > 0 && (
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-semibold cursor-pointer flex items-center gap-1 ${inRange ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}
+                    className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 ${inRange ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}
                     onClick={() => setInfoOpen(true)}
                   >
                     {inRange ? "Dalam Standar" : "Di Luar Standar"}
@@ -2291,8 +2292,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   <CardTitle className="text-sm font-semibold">Hasil Kalkulasi — Tidak Simetris</CardTitle>
                   <span
                     onClick={() => setInfoOpen(true)}
-                    className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider cursor-pointer hover:opacity-80 active:opacity-60 ${inRange ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
+                    className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${inRange ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
                     {inRange ? "Sesuai Standar" : "Di Luar Standar"}
+                    <IconInfoCircle className="size-3" />
                   </span>
                 </CardHeader>
                 <CardContent className="pt-0 pb-4 space-y-2.5">
