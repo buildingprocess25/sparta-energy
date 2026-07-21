@@ -2261,7 +2261,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   <IconBulb className="size-4 text-amber-500 shrink-0" />
                   <div>
                     <span className="font-bold text-foreground block">Spesifikasi Lampu Standar Audit</span>
-                    TL LED 1.2 meter (13.5 Watt) per unit.
+                    TL LED 1.22 meter (13.5 Watt) per unit.
                   </div>
                 </div>
               </div>
