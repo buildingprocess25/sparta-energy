@@ -274,13 +274,21 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
 
           {/* Recommendation highlight */}
           {(() => {
-            const inRange = rasio >= 4.0 && rasio <= 5.0
-            const cardBg = inRange ? "linear-gradient(135deg, #f0fdf4, #dcfce7)" : "linear-gradient(135deg, #fffbeb, #fef3c7)"
-            const cardBorder = inRange ? "1.5px solid #bbf7d0" : "1.5px solid #fde68a"
-            const cardTitleColor = inRange ? "#15803d" : "#b45309"
-            const cardTitle = inRange ? "Rekomendasi Pemasangan" : "Kepadatan Di Luar Standar"
-            const cardCountColor = inRange ? "#166534" : "#92400e"
-            const cardUnitColor = inRange ? "#16a34a" : "#d97706"
+            const checkRasio = rasio >= 4.0 && rasio <= 5.0
+            const checkSamping = Number(sideMargin) >= 0.3 && Number(sideMargin) <= 0.6
+            const checkBaris = Number(rowSpacing) <= 1.9
+            const isAllOk = checkRasio && checkSamping && checkBaris
+
+            const cardBg = isAllOk 
+              ? "linear-gradient(135deg, #f0fdf4, #dcfce7)" 
+              : "linear-gradient(135deg, #fef2f2, #fee2e2)"
+            const cardBorder = isAllOk 
+              ? "1.5px solid #bbf7d0" 
+              : "1.5px solid #fca5a5"
+            const cardTitleColor = isAllOk ? "#15803d" : "#b91c1c"
+            const cardTitle = isAllOk ? "Rekomendasi Pemasangan (Sesuai Standar)" : "Parameter Di Luar Standar"
+            const cardCountColor = isAllOk ? "#166534" : "#991b1b"
+            const cardUnitColor = isAllOk ? "#16a34a" : "#dc2626"
 
             return (
               <div
@@ -312,9 +320,19 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
                       fontSize: "11px",
                       color: "#374151",
                       marginTop: "2px",
+                      lineHeight: "1.3"
                     }}
                   >
-                    Grid {rows}×{lampsPerRow} dengan daya {watt}W per unit menghasilkan kepadatan {Number(rasio).toFixed(2)} W/m² (Kebutuhan standar: {minLamps} - {maxLamps} unit).
+                    {isAllOk ? (
+                      `Grid ${rows}×${lampsPerRow} (${totalLamps} unit) memenuhi semua standar layout dan energi (Rasio: ${Number(rasio).toFixed(2)} W/m², Jarak samping: ${Number(sideMargin).toFixed(2)}m, Jarak baris: ${Number(rowSpacing).toFixed(2)}m).`
+                    ) : (
+                      <div style={{ color: "#7f1d1d" }}>
+                        Peringatan: 
+                        {!checkRasio && ` Kerapatan daya di luar standar (${Number(rasio).toFixed(2)} W/m²).`}
+                        {!checkSamping && ` Jarak samping di luar standar (${Number(sideMargin).toFixed(2)}m).`}
+                        {!checkBaris && ` Jarak baris terlalu lebar (${Number(rowSpacing).toFixed(2)}m).`}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>

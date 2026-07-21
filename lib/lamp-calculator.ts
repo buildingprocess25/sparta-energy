@@ -1,7 +1,7 @@
 import { pointInPolygon, Point } from "./polygon-utils"
 
 export const LAMP_WATT = 13.5
-export const LAMP_LEN = 1.2
+export const LAMP_LEN = 1.22
 export const LAMP_TUBE_W = 0.12
 export const MIN_RATIO = 4.0
 export const MAX_RATIO = 5.0
