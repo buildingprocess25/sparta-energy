@@ -950,12 +950,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     ctx.fillStyle = dimensionTextFill
     ctx.font = "9px sans-serif"
     ctx.textAlign = "center"
-    ctx.fillText(`${sc.rW.toFixed(1)} m (W)`, sc.offX + (sc.rW * sc.scale) / 2, sc.offY + sc.rH * sc.scale + 16)
+    ctx.fillText(`${sc.rW.toFixed(1)} m (L)`, sc.offX + (sc.rW * sc.scale) / 2, sc.offY + sc.rH * sc.scale + 16)
 
     ctx.save()
     ctx.translate(sc.offX - 14, sc.offY + (sc.rH * sc.scale) / 2)
     ctx.rotate(-Math.PI / 2)
-    ctx.fillText(`${sc.rH.toFixed(1)} m (L)`, 0, 0)
+    ctx.fillText(`${sc.rH.toFixed(1)} m (P)`, 0, 0)
     ctx.restore()
 
     // Subtle coordinate system legend (visual guide)
@@ -980,7 +980,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     ctx.lineTo(ax + 21, ay + 2.5)
     ctx.closePath()
     ctx.fill()
-    ctx.fillText("W (Lebar)", ax + 28, ay + 2.5)
+    ctx.fillText("L (Lebar)", ax + 28, ay + 2.5)
 
     // Draw L arrow
     ctx.beginPath()
@@ -998,7 +998,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     ctx.save()
     ctx.translate(ax - 4, ay - 8)
     ctx.rotate(-Math.PI / 2)
-    ctx.fillText("L (Panjang)", 0, 0)
+    ctx.fillText("P (Panjang)", 0, 0)
     ctx.restore()
 
     if (shape === "custom") {
@@ -1366,14 +1366,14 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
                     <div className="absolute -top-5 left-0 right-0 flex items-center justify-between text-muted-foreground px-0.5">
                       <span className="text-[8px] font-bold">&larr;</span>
-                      <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">Lebar Toko (W)</span>
+                      <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">Lebar Toko (L)</span>
                       <span className="text-[8px] font-bold">&rarr;</span>
                     </div>
 
                     <div className="absolute -right-[75px] top-0 bottom-0 flex items-center">
                       <div className="h-full flex flex-col justify-between items-center text-muted-foreground py-0.5">
                         <span className="text-[8px] font-bold">&uarr;</span>
-                        <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 [writing-mode:vertical-lr] rotate-180">Panjang / Kedalaman (L)</span>
+                        <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 [writing-mode:vertical-lr] rotate-180">Panjang / Kedalaman (P)</span>
                         <span className="text-[8px] font-bold">&darr;</span>
                       </div>
                     </div>
@@ -1382,8 +1382,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               </div>
 
               <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                <Label htmlFor="lebar" className="text-xs">Lebar Toko (W)</Label>
-                <Label htmlFor="panjang" className="text-xs">Panjang Toko (L)</Label>
+                <Label htmlFor="lebar" className="text-xs">Lebar Toko (L)</Label>
+                <Label htmlFor="panjang" className="text-xs">Panjang Toko (P)</Label>
 
                 <div className="relative">
                   <Input
@@ -1799,10 +1799,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
                       {/* labels */}
                       <text x={PAD + (simResult.lebar * scaleX) / 2} y={SVG_H - 4} textAnchor="middle" fill={isSvgDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.5)"} fontSize={9}>
-                        {simResult.lebar} m (W)
+                        {simResult.lebar} m (L)
                       </text>
                       <text x={12} y={PAD + (simResult.panjang * scaleY) / 2} textAnchor="middle" fill={isSvgDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.5)"} fontSize={9} transform={`rotate(-90, 12, ${PAD + (simResult.panjang * scaleY) / 2})`}>
-                        {simResult.panjang} m (L)
+                        {simResult.panjang} m (P)
                       </text>
                     </svg>
                     <div className="flex gap-4 mt-2 text-[9px] text-muted-foreground justify-center pb-2">
@@ -1944,8 +1944,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     </div>
                     {showDimensionGuide && (
                       <div className="border-t border-border/40 pt-1.5 space-y-1 animate-in fade-in slide-in-from-top-1">
-                        <div>• <b>Lebar (W) / Horizontal:</b> Arah kanan-kiri (Lebar Toko, Lebar Total, Lebar Sayap dsb)</div>
-                        <div>• <b>Panjang (L) / Vertikal:</b> Arah atas-bawah (Panjang/Kedalaman, Panjang Total, Panjang Sayap dsb)</div>
+                        <div>• <b>Lebar (L) / Horizontal:</b> Arah kanan-kiri (Lebar Toko, Lebar Total, Lebar Sayap dsb)</div>
+                        <div>• <b>Panjang (P) / Vertikal:</b> Arah atas-bawah (Panjang/Kedalaman, Panjang Total, Panjang Sayap dsb)</div>
                       </div>
                     )}
                   </div>
@@ -2035,7 +2035,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       className="h-8 text-xs"
                     />
 
-                    <Label className="text-xs mt-1.5">Panjang / Kedalaman (L)</Label>
+                    <Label className="text-xs mt-1.5">Panjang / Kedalaman (P)</Label>
                     <Label className="text-xs mt-1.5">Offset Kiri Atas</Label>
 
                     <Input
@@ -2065,8 +2065,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
                 {shape === "L" && (
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                    <Label className="text-[11px]">Lebar Total (W)</Label>
-                    <Label className="text-[11px]">Panjang Total (L)</Label>
+                    <Label className="text-[11px]">Lebar Total (L)</Label>
+                    <Label className="text-[11px]">Panjang Total (P)</Label>
 
                     <Input
                       type="number"
