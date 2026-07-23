@@ -197,11 +197,11 @@ export function buildPolygon(
     case "L":
       return [
         { x: 0, y: 0 },
-        { x: p.lP, y: 0 },
-        { x: p.lP, y: p.lH },
+        { x: p.lL, y: 0 },
+        { x: p.lL, y: p.lH },
         { x: p.lW, y: p.lH },
-        { x: p.lW, y: p.lL },
-        { x: 0, y: p.lL },
+        { x: p.lW, y: p.lP },
+        { x: 0, y: p.lP },
       ]
     case "custom":
       return customClosed && customPts.length >= 3 ? customPts : null
