@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link"
-import { IconBulb, IconArrowLeft, IconRefresh, IconGrid3x3, IconPolygon, IconSquare, IconChevronRight, IconDownload, IconInfoCircle, IconCheck } from "@tabler/icons-react"
+import { IconBulb, IconArrowLeft, IconRefresh, IconGrid3x3, IconPolygon, IconSquare, IconChevronRight, IconDownload, IconInfoCircle, IconCheck, IconEdit, IconTrash, IconX, IconPointer } from "@tabler/icons-react"
 import { Header } from "@/components/header"
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { StoreCombobox } from "@/components/audit/store-combobox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
 import { toPng } from "html-to-image"
 import { toast } from "sonner"
 import { useTheme } from "next-themes"
@@ -486,6 +487,85 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   const [customPts, setCustomPts] = useState<Point[]>([])
   const [customClosed, setCustomClosed] = useState<boolean>(false)
   const [segmentLengths, setSegmentLengths] = useState<(number | string)[]>([])
+  const [activeDragIdx, setActiveDragIdx] = useState<number | null>(null)
+  const [selectedNodeIdx, setSelectedNodeIdx] = useState<number | null>(null)
+  const [canvasEditTarget, setCanvasEditTarget] = useState<{
+    title: string
+    paramKey?: string
+    segmentIdx?: number
+    value: string
+  } | null>(null)
+
+  const clickableDimensionsRef = useRef<Array<{
+    label: string
+    paramKey?: string
+    segmentIdx?: number
+    value: number
+    cx: number
+    cy: number
+    radius: number
+  }>>([])
+
+  const handleDeleteCustomPoint = useCallback((idx: number) => {
+    setCustomPts(prev => {
+      const next = prev.filter((_, i) => i !== idx)
+      if (next.length < 3) setCustomClosed(false)
+      return next
+    })
+    setSegmentLengths(prev => prev.filter((_, i) => i !== idx))
+    setSelectedNodeIdx(null)
+    toast.info(`Titik T${idx + 1} berhasil dihapus.`)
+  }, [])
+
+  const handleSaveCanvasEdit = useCallback(() => {
+    if (!canvasEditTarget) return
+    const val = parseFloat(canvasEditTarget.value)
+    if (isNaN(val) || val <= 0) {
+      toast.error("Masukkan angka ukuran meteran yang valid (> 0)")
+      return
+    }
+
+    if (canvasEditTarget.paramKey) {
+      setParam(canvasEditTarget.paramKey, val.toString())
+      toast.success(`Ukuran ${canvasEditTarget.title} diubah menjadi ${val}m`)
+    } else if (canvasEditTarget.segmentIdx !== undefined) {
+      const idx = canvasEditTarget.segmentIdx
+      setCustomPts(prev => {
+        if (prev.length < 2) return prev
+        const n = prev.length
+        const p1 = prev[idx]
+        const p2Idx = (idx + 1) % n
+        const p2 = prev[p2Idx]
+
+        const dx = p2.x - p1.x
+        const dy = p2.y - p1.y
+        const currentLen = Math.hypot(dx, dy)
+        if (currentLen === 0) return prev
+
+        const scale = val / currentLen
+        const deltaX = dx * (scale - 1)
+        const deltaY = dy * (scale - 1)
+
+        return prev.map((pt, i) => {
+          if (i === p2Idx) {
+            return {
+              x: Number(Math.max(0, pt.x + deltaX).toFixed(1)),
+              y: Number(Math.max(0, pt.y + deltaY).toFixed(1))
+            }
+          }
+          return pt
+        })
+      })
+
+      setSegmentLengths(prev => {
+        const next = [...prev]
+        next[idx] = val
+        return next
+      })
+      toast.success(`Panjang Sisi ${idx + 1} diubah menjadi ${val}m`)
+    }
+    setCanvasEditTarget(null)
+  }, [canvasEditTarget])
 
   // Keep segmentLengths in sync with customPts and customClosed
   useEffect(() => {
@@ -495,49 +575,20 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     }
     const count = customClosed ? customPts.length : customPts.length - 1
     setSegmentLengths(prev => {
-      const next = [...prev]
-      for (let i = next.length; i < count; i++) {
+      const next: (number | string)[] = []
+      for (let i = 0; i < count; i++) {
         const p1 = customPts[i]
         const p2 = customPts[(i + 1) % customPts.length]
-        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
-        next.push(Number(dist.toFixed(1)))
-      }
-      if (next.length > count) {
-        next.length = count
+        if (p1 && p2) {
+          const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+          next.push(Number(dist.toFixed(1)))
+        }
       }
       return next
     })
   }, [customPts, customClosed])
 
-  // Compute adjusted points based on segment lengths
-  const adjustedPts = useMemo(() => {
-    if (customPts.length === 0) return []
-    if (customPts.length === 1) return customPts
-    if (segmentLengths.length === 0) return customPts
-
-    const result: Point[] = [{ ...customPts[0] }]
-
-    for (let i = 0; i < customPts.length - 1; i++) {
-      const p1 = customPts[i]
-      const p2 = customPts[i + 1]
-      const dx = p2.x - p1.x
-      const dy = p2.y - p1.y
-      const len = Math.hypot(dx, dy)
-      if (len === 0) {
-        result.push({ ...p2 })
-        continue
-      }
-      const rawUserLen = segmentLengths[i]
-      const userLen = (rawUserLen !== undefined && rawUserLen !== "") ? (parseFloat(String(rawUserLen)) || len) : len
-      const scale = userLen / len
-      const prevAdjusted = result[i]
-      result.push({
-        x: prevAdjusted.x + dx * scale,
-        y: prevAdjusted.y + dy * scale
-      })
-    }
-    return result
-  }, [customPts, segmentLengths])
+  const adjustedPts = customPts
   const [stats, setStats] = useState({
     luas: 0,
     nmin: 0,
@@ -1109,9 +1160,36 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       ctx.restore()
     }
 
+    // Clear previous click targets
+    clickableDimensionsRef.current = []
+
+    const registerTarget = (item: { label: string; paramKey?: string; segmentIdx?: number; value: number; cx: number; cy: number }) => {
+      if (forceLight || isSaving) return
+      clickableDimensionsRef.current.push({
+        ...item,
+        radius: 20
+      })
+    }
+
     // Render Bottom (LT) and Left (PT) Bounding Dimensions
-    drawHaloText(`${sc.rW.toFixed(1)}m (LT)`, sc.offX + (sc.rW * sc.scale) / 2, sc.offY + sc.rH * sc.scale + 14, isDark ? "#38bdf8" : "#0284c7", false)
-    drawHaloText(`${sc.rH.toFixed(1)}m (PT)`, sc.offX - 14, sc.offY + (sc.rH * sc.scale) / 2, isDark ? "#c4b5fd" : "#6d28d9", true)
+    const ltX = sc.offX + (sc.rW * sc.scale) / 2
+    const ltY = sc.offY + sc.rH * sc.scale + 14
+    const ptX = sc.offX - 14
+    const ptY = sc.offY + (sc.rH * sc.scale) / 2
+
+    drawHaloText(`${sc.rW.toFixed(1)}m (LT)`, ltX, ltY, isDark ? "#38bdf8" : "#0284c7", false)
+    drawHaloText(`${sc.rH.toFixed(1)}m (PT)`, ptX, ptY, isDark ? "#c4b5fd" : "#6d28d9", true)
+
+    if (shape === "rect") {
+      registerTarget({ label: "Lebar Atas (LA)", paramKey: "rTop", value: parsedP.rTop, cx: ltX, cy: ltY })
+      registerTarget({ label: "Panjang Kiri (PKi)", paramKey: "rLeft", value: parsedP.rLeft, cx: ptX, cy: ptY })
+    } else if (shape === "trap") {
+      registerTarget({ label: "Lebar Bawah (LB)", paramKey: "tBot", value: parsedP.tBot, cx: ltX, cy: ltY })
+      registerTarget({ label: "Panjang Total (PT)", paramKey: "tH", value: parsedP.tH, cx: ptX, cy: ptY })
+    } else if (shape === "L") {
+      registerTarget({ label: "Lebar Total (LT)", paramKey: "lL", value: parsedP.lL, cx: ltX, cy: ltY })
+      registerTarget({ label: "Panjang Total (PT)", paramKey: "lP", value: parsedP.lP, cx: ptX, cy: ptY })
+    }
 
     // Draw Shape Side Edge Labels on Canvas if showDimensions is enabled
     if (showDimensions && sPts.length >= 3) {
@@ -1171,6 +1249,50 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
           const labelX = mx + nx * 9
           const labelY = my + ny * 9
+
+          // Register click target for interactive canvas dimension editing
+          let paramKey: string | undefined = undefined
+          let segmentIdx: number | undefined = undefined
+          let valNum = 0
+          let displayTitle = label
+
+          if (shape === "rect") {
+            const keys = ["rTop", "rRight", "rBot", "rLeft"]
+            const titles = ["Lebar Atas (LA)", "Panjang Kanan (PKa)", "Lebar Bawah (LB)", "Panjang Kiri (PKi)"]
+            const vals = [parsedP.rTop, parsedP.rRight, parsedP.rBot, parsedP.rLeft]
+            paramKey = keys[idx]
+            displayTitle = titles[idx]
+            valNum = vals[idx]
+          } else if (shape === "trap") {
+            const keys = ["tTop", undefined, "tBot", "tH"]
+            const titles = ["Lebar Atas (LA)", "", "Lebar Bawah (LB)", "Panjang Total (PT)"]
+            const vals = [parsedP.tTop, 0, parsedP.tBot, parsedP.tH]
+            paramKey = keys[idx]
+            displayTitle = titles[idx]
+            valNum = vals[idx]
+          } else if (shape === "L") {
+            const keys = ["lL", "lH", "lW", undefined, undefined, "lP"]
+            const titles = ["Lebar Total (LT)", "Panjang Sayap (PS)", "Lebar Sayap (LS)", "", "", "Panjang Total (PT)"]
+            const vals = [parsedP.lL, parsedP.lH, parsedP.lW, 0, 0, parsedP.lP]
+            paramKey = keys[idx]
+            displayTitle = titles[idx]
+            valNum = vals[idx]
+          } else if (shape === "custom") {
+            segmentIdx = idx
+            displayTitle = `Panjang Dinding Sisi ${idx + 1}`
+            valNum = parseFloat(label) || 0
+          }
+
+          if (displayTitle && (paramKey || segmentIdx !== undefined)) {
+            registerTarget({
+              label: displayTitle,
+              paramKey,
+              segmentIdx,
+              value: valNum,
+              cx: labelX,
+              cy: labelY
+            })
+          }
 
           // Calculate wall angle and prevent upside-down text
           let angle = Math.atan2(dy, dx)
@@ -1245,18 +1367,60 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
     if (shape === "custom") {
       sPts.forEach((sp, idx) => {
-        ctx.beginPath(); ctx.arc(sp.cx, sp.cy, idx === 0 ? 5 : 3.5, 0, Math.PI * 2)
-        ctx.fillStyle = idx === 0 ? "rgba(245,158,11,0.5)" : (isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)")
+        const isSelected = selectedNodeIdx === idx
+        ctx.beginPath()
+        ctx.arc(sp.cx, sp.cy, isSelected ? 8 : (idx === 0 ? 5 : 3.5), 0, Math.PI * 2)
+        ctx.fillStyle = isSelected
+          ? "rgba(239,68,68,0.25)"
+          : (idx === 0 ? "rgba(245,158,11,0.5)" : (isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)"))
         ctx.fill()
-        ctx.strokeStyle = idx === 0 ? "#f59e0b" : (isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.25)")
-        ctx.lineWidth = 1
+        ctx.strokeStyle = isSelected
+          ? "#ef4444"
+          : (idx === 0 ? "#f59e0b" : (isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.25)"))
+        ctx.lineWidth = isSelected ? 1.8 : 1
         ctx.stroke()
+
         ctx.fillStyle = nodeTextFill
-        ctx.font = "8px sans-serif"
-        ctx.fillText(`T${idx + 1}`, sp.cx + 5, sp.cy - 5)
+        ctx.font = "bold 8px sans-serif"
+        ctx.fillText(`T${idx + 1}`, sp.cx + 6, sp.cy - 6)
+
+        // Draw Canvas Delete Popup Button for selected node
+        if (isSelected && !forceLight && !isSaving) {
+          const popX = sp.cx
+          const popY = Math.max(16, sp.cy - 18)
+          const popText = `🗑️ Hapus T${idx + 1}`
+
+          ctx.save()
+          ctx.font = "bold 8px sans-serif"
+          const tw = ctx.measureText(popText).width
+          const bw = tw + 8
+          const bh = 14
+
+          // Button background
+          ctx.fillStyle = "#ef4444"
+          ctx.beginPath()
+          ctx.roundRect(popX - bw / 2, popY - bh / 2, bw, bh, 4)
+          ctx.fill()
+
+          // Button text
+          ctx.fillStyle = "#ffffff"
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.fillText(popText, popX, popY)
+          ctx.restore()
+
+          // Register delete click target
+          registerTarget({
+            label: `delete_node_${idx}`,
+            segmentIdx: idx,
+            value: 0,
+            cx: popX,
+            cy: popY
+          })
+        }
       })
     }
-  }, [shape, parsedP, adjustedPts, customClosed, lampLen, calcResult, resolvedTheme, irregOverrideBaris, irregOverrideLpb, irregDisabledLamps, showDimensions, isSaving])
+  }, [shape, parsedP, adjustedPts, customClosed, lampLen, calcResult, resolvedTheme, irregOverrideBaris, irregOverrideLpb, irregDisabledLamps, showDimensions, isSaving, selectedNodeIdx])
 
   const updateStats = useCallback(() => {
     const pts = buildPolygon(shape, parsedP, adjustedPts, customClosed)
@@ -1358,28 +1522,128 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     }
   }, [drawCanvas, isCalculated, shape, parsedP, adjustedPts, customClosed, lampLen, showDimensions, irregOverrideBaris, irregOverrideLpb, irregDisabledLamps, activeTab])
 
-  // Canvas click handler for drawing coords
-  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (shape !== "custom" || customClosed || !canvasRef.current) return
-    const rect = canvasRef.current.getBoundingClientRect()
+  // Canvas pointer down handler for canvas dimension click & custom node dragging
+  const handleCanvasPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return
+    const canvas = canvasRef.current
+    const rect = canvas.getBoundingClientRect()
     const cx = e.clientX - rect.left
     const cy = e.clientY - rect.top
 
-    if (customPts.length >= 3) {
-      const firstSx = FIXED_OX + customPts[0].x * FIXED_SCALE
-      const firstSy = FIXED_OY + customPts[0].y * FIXED_SCALE
-      if (Math.hypot(cx - firstSx, cy - firstSy) < 14) {
-        setCustomClosed(true)
+    // 1. Check if user clicked on node delete popup target
+    const deleteTarget = clickableDimensionsRef.current.find(t => t.label.startsWith("delete_node_") && Math.hypot(cx - t.cx, cy - t.cy) <= t.radius)
+    if (deleteTarget) {
+      const nodeIdx = deleteTarget.segmentIdx
+      if (nodeIdx !== undefined) {
+        handleDeleteCustomPoint(nodeIdx)
+        setSelectedNodeIdx(null)
         return
       }
     }
 
-    const mx = (cx - FIXED_OX) / FIXED_SCALE
-    const my = (cy - FIXED_OY) / FIXED_SCALE
-    const snapped = { x: Math.round(mx * 2) / 2, y: Math.round(my * 2) / 2 }
-    if (snapped.x < 0 || snapped.y < 0) return
-    setCustomPts(prev => [...prev, snapped])
-  }, [shape, customClosed, customPts])
+    // 2. Check if user clicked on dimension text (ONLY IF shape !== "custom" OR customClosed === true)
+    const allowDimensionEdit = shape !== "custom" || customClosed
+    if (allowDimensionEdit) {
+      const hitTarget = clickableDimensionsRef.current.find(t => !t.label.startsWith("delete_node_") && Math.hypot(cx - t.cx, cy - t.cy) <= t.radius)
+      if (hitTarget) {
+        setCanvasEditTarget({
+          title: hitTarget.label,
+          paramKey: hitTarget.paramKey,
+          segmentIdx: hitTarget.segmentIdx,
+          value: hitTarget.value.toString()
+        })
+        return
+      }
+    }
+
+    if (shape !== "custom") return
+
+    // 3. Check scale & node positions for custom shape
+    const pts = buildPolygon(shape, parsedP, customPts, customClosed)
+    const W = canvas.offsetWidth || 340
+    const sc = (customClosed && pts) ? getScaleInfo(pts, W, CANVAS_H) : null
+
+    const scale = sc ? sc.scale : FIXED_SCALE
+    const offX = sc ? sc.offX : FIXED_OX
+    const offY = sc ? sc.offY : FIXED_OY
+
+    if (customPts.length > 0) {
+      const spts = customPts.map(pt => ({
+        cx: offX + pt.x * scale,
+        cy: offY + pt.y * scale
+      }))
+
+      for (let i = 0; i < spts.length; i++) {
+        if (Math.hypot(cx - spts[i].cx, cy - spts[i].cy) <= 16) {
+          // If touching point 0 and polygon has 3+ points and unclosed: close polygon!
+          if (i === 0 && customPts.length >= 3 && !customClosed) {
+            setCustomClosed(true)
+            toast.success("Poligon kustom ditutup!")
+            return
+          }
+
+          // Toggle node selection for delete button popup
+          setSelectedNodeIdx(prev => prev === i ? null : i)
+
+          // Start drag & drop for node i (works even when closed!)
+          setActiveDragIdx(i)
+          try {
+            (e.target as HTMLElement).setPointerCapture(e.pointerId)
+          } catch {}
+          return
+        }
+      }
+    }
+
+    // Unselect node if clicked outside
+    setSelectedNodeIdx(null)
+
+    // 4. If unclosed custom polygon, add new point
+    if (!customClosed) {
+      const mx = (cx - FIXED_OX) / FIXED_SCALE
+      const my = (cy - FIXED_OY) / FIXED_SCALE
+      const snapped = { x: Number(Math.max(0, mx).toFixed(1)), y: Number(Math.max(0, my).toFixed(1)) }
+      setCustomPts(prev => [...prev, snapped])
+    }
+  }, [shape, customClosed, customPts, parsedP, handleDeleteCustomPoint])
+
+  const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (activeDragIdx === null || !canvasRef.current) return
+    const canvas = canvasRef.current
+    const rect = canvas.getBoundingClientRect()
+    const cx = e.clientX - rect.left
+    const cy = e.clientY - rect.top
+
+    const pts = buildPolygon(shape, parsedP, customPts, customClosed)
+    const W = canvas.offsetWidth || 340
+    const sc = (customClosed && pts) ? getScaleInfo(pts, W, CANVAS_H) : null
+
+    const scale = sc ? sc.scale : FIXED_SCALE
+    const offX = sc ? sc.offX : FIXED_OX
+    const offY = sc ? sc.offY : FIXED_OY
+
+    const mx = (cx - offX) / scale
+    const my = (cy - offY) / scale
+    const newX = Number(Math.max(0, mx).toFixed(1))
+    const newY = Number(Math.max(0, my).toFixed(1))
+
+    setCustomPts(prev => {
+      const next = [...prev]
+      if (next[activeDragIdx]) {
+        next[activeDragIdx] = { x: newX, y: newY }
+      }
+      return next
+    })
+  }, [activeDragIdx, shape, parsedP, customPts, customClosed])
+
+  const handleCanvasPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (activeDragIdx !== null) {
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      } catch {}
+      setActiveDragIdx(null)
+    }
+  }, [activeDragIdx])
 
   // Canvas click handler to toggle specific lamps in calculated layout
   const handleResultCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -2150,13 +2414,13 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
         {/* ── TABS: TIDAK SIMETRIS ── */}
         <TabsContent value="tidak-simetris" className="space-y-4">
-          {/* Parameter Poligon & Jarak Card (Moved to Top for better UX) */}
+          {/* Parameter Poligon & Jarak Card */}
           <Card className="border-border/80">
             <CardHeader className="py-4">
               <CardTitle className="text-sm font-semibold">Parameter Poligon & Jarak</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3.5 pt-0 pb-4">
-              {/* Parameter sliders based on shape */}
+              {/* 1. Bentuk Bangunan Selector */}
               <div className="space-y-2">
                 <Label className="text-xs">Bentuk Bangunan</Label>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -2173,7 +2437,66 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   ))}
                 </div>
               </div>
-              {/* Preset parameter inputs */}
+
+              {/* 2. Pratinjau Bentuk Ruangan Canvas (STABLE TOP POSITION) */}
+              <div className="space-y-2 border-t border-border/60 pt-3">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs font-bold text-foreground">Pratinjau Bentuk Ruangan</Label>
+                  <span className="text-[10px] text-muted-foreground">
+                    {shape === "custom" ? `Mode Kustom (${customPts.length} titik)` : "Preset Otomatis"}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-border/80 overflow-hidden bg-background">
+                  <canvas
+                    ref={canvasRef}
+                    onPointerDown={handleCanvasPointerDown}
+                    onPointerMove={handleCanvasPointerMove}
+                    onPointerUp={handleCanvasPointerUp}
+                    className="w-full block select-none touch-none"
+                    style={{
+                      height: `${CANVAS_H}px`,
+                      cursor: shape === "custom" && !customClosed ? "crosshair" : "pointer"
+                    }}
+                  />
+
+                  {/* Mode Kustom Controls: Directly below canvas */}
+                  {shape === "custom" ? (
+                    <div className="p-2.5 space-y-2 border-t border-border/50 bg-muted/20">
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 flex-1 text-[11px] font-medium"
+                          onClick={() => { setCustomPts([]); setCustomClosed(false) }}
+                        >
+                          <IconRefresh className="size-3.5 mr-1" />
+                          Reset
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 flex-1 text-[11px] font-semibold"
+                          disabled={customPts.length < 3 || customClosed}
+                          onClick={() => setCustomClosed(true)}
+                        >
+                          {customClosed ? "Poligon Tertutup" : "Tutup Poligon"}
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <span>Terdaftar: <b>{customPts.length} titik</b> {customClosed ? "(Selesai)" : "(Belum ditutup)"}</span>
+                        <span className="text-[9px] text-amber-600 dark:text-amber-400 font-normal">💡 Klik titik untuk opsi hapus</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 text-[10px] text-muted-foreground border-t border-border/50 leading-relaxed bg-muted/20">
+                      💡 Sentuh/klik angka ukuran di kanvas untuk mengedit dimensinya secara cepat.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Parameter Inputs & Dynamic Segment Inputs (Below Canvas) */}
               <div className="space-y-3.5 border-t border-border/60 pt-3">
                 {shape !== "custom" && (
                   /* Petunjuk Arah Dimensi (Tidak Simetris) */
@@ -2366,114 +2689,43 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     />
                   </div>
                 )}
-              </div>
 
-              {shape === "custom" && (
-                <div className="space-y-2">
-                  <p className="text-[10px] text-muted-foreground leading-normal">
-                    Sentuh canvas di atas untuk menambahkan koordinat bangunan. Klik tombol di bawah setelah selesai menggambar.
-                  </p>
-                  <div className="flex gap-2.5">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-8 flex-1 text-xs"
-                      onClick={() => { setCustomPts([]); setCustomClosed(false) }}
-                    >
-                      Reset
-                    </Button>
-                    <Button
-                      type="button"
-                      className="h-8 flex-1 text-xs"
-                      disabled={customPts.length < 3 || customClosed}
-                      onClick={() => setCustomClosed(true)}
-                    >
-                      Tutup Poligon
-                    </Button>
-                  </div>
-                  {customPts.length > 0 && (
-                    <div className="text-[10px] font-semibold text-muted-foreground mt-1">
-                      Terdaftar: {customPts.length} titik {customClosed ? "(Selesai)" : "(Belum ditutup)"}
+                {/* Dynamic segment length inputs (Scrollable below canvas) */}
+                {shape === "custom" && customPts.length >= 2 && (
+                  <div className="bg-muted/30 border border-border/50 rounded-xl p-3 space-y-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Sesuaikan Panjang Sisi Dinding (m)</div>
+                    <div className="grid grid-cols-2 gap-2.5 max-h-44 overflow-y-auto pr-1">
+                      {segmentLengths.map((len, idx) => {
+                        const p1Name = `T${idx + 1}`
+                        const p2Name = `T${((idx + 1) % customPts.length) + 1}`
+                        const isClosing = idx === customPts.length - 1 && !customClosed
+
+                        return (
+                          <div key={idx} className="space-y-1">
+                            <Label className="text-[10px] font-semibold text-foreground/80">
+                              Sisi {p1Name} ke {p2Name} {isClosing ? "(Belum Tutup)" : ""}
+                            </Label>
+                            <Input
+                              type="number"
+                              step={0.5}
+                              min={0.5}
+                              value={len}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setSegmentLengths(prev => {
+                                  const next = [...prev]
+                                  next[idx] = val as any
+                                  return next
+                                })
+                              }}
+                              className="h-7 text-[11px]"
+                            />
+                          </div>
+                        )
+                      })}
                     </div>
-                  )}
-
-                  {/* Dynamic segment lengths inputs */}
-                  {customPts.length >= 2 && (
-                    <div className="bg-muted/30 border border-border/50 rounded-xl p-3 space-y-2 mt-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Sesuaikan Panjang Sisi Dinding (m)</div>
-                      <div className="grid grid-cols-2 gap-2.5">
-                        {segmentLengths.map((len, idx) => {
-                          const p1Name = `T${idx + 1}`
-                          const p2Name = `T${((idx + 1) % customPts.length) + 1}`
-                          const isClosing = idx === customPts.length - 1 && !customClosed
-
-                          return (
-                            <div key={idx} className="space-y-1">
-                              <Label className="text-[10px] font-semibold text-foreground/80">
-                                Sisi {p1Name} ke {p2Name} {isClosing ? "(Belum Tutup)" : ""}
-                              </Label>
-                              <Input
-                                type="number"
-                                step={0.5}
-                                min={0.5}
-                                value={len}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                  setSegmentLengths(prev => {
-                                    const next = [...prev]
-                                    next[idx] = val as any
-                                    return next
-                                  })
-                                }}
-                                onBlur={(e) => {
-                                  const val = parseFloat(e.target.value)
-                                  if (isNaN(val) || val <= 0) {
-                                    const p1 = customPts[idx]
-                                    const p2 = customPts[(idx + 1) % customPts.length]
-                                    const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
-                                    const defaultVal = Number(dist.toFixed(1))
-                                    setSegmentLengths(prev => {
-                                      const next = [...prev]
-                                      next[idx] = defaultVal
-                                      return next
-                                    })
-                                  }
-                                }}
-                                className="h-7 text-[11px]"
-                              />
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Pratinjau Bentuk Ruangan Canvas (Live Preview / Drawing Canvas) */}
-              <div className="space-y-1.5 border-t border-border/60 pt-3">
-                <div className="flex justify-between items-center">
-                  <Label className="text-xs font-bold text-foreground">Pratinjau Bentuk Ruangan</Label>
-                  <span className="text-[10px] text-muted-foreground">
-                    {shape === "custom" ? `Mode Kustom (${customPts.length} titik)` : "Preset Otomatis"}
-                  </span>
-                </div>
-                <div className="rounded-xl border border-border/80 overflow-hidden bg-background">
-                  <canvas
-                    ref={canvasRef}
-                    onClick={handleCanvasClick}
-                    className="w-full block"
-                    style={{
-                      height: `${CANVAS_H}px`,
-                      cursor: shape === "custom" && !customClosed ? "crosshair" : "default"
-                    }}
-                  />
-                  <div className="p-2.5 text-[10px] text-muted-foreground border-t border-border/50 leading-relaxed bg-muted/20">
-                    {shape === "custom" && !customClosed
-                      ? `💡 Sentuh/klik kanvas di atas untuk menambah titik sudut (${customPts.length} titik terpasang).`
-                      : "Pratinjau visual denah toko berdasarkan parameter dimensi di atas."}
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Layout calculation tweaks (Fixed and Automatic) */}
@@ -2870,6 +3122,47 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           </Dialog>
         )
       })()}
+
+      {/* Quick Edit Canvas Dimension Dialog */}
+      <Dialog open={!!canvasEditTarget} onOpenChange={open => !open && setCanvasEditTarget(null)}>
+        <DialogContent className="max-w-xs p-4 rounded-2xl">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+              <IconEdit className="size-4 text-primary" />
+              Ubah Ukuran Dinding
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {canvasEditTarget?.title}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 space-y-2">
+            <Label className="text-xs font-semibold text-foreground">Panjang Dinding Baru (meter)</Label>
+            <div className="relative">
+              <Input
+                type="number"
+                step={0.5}
+                min={0.5}
+                autoFocus
+                value={canvasEditTarget?.value ?? ""}
+                onChange={e => setCanvasEditTarget(prev => prev ? { ...prev, value: e.target.value } : null)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") handleSaveCanvasEdit()
+                }}
+                className="h-9 pr-7 text-xs font-bold"
+              />
+              <span className="absolute right-2.5 top-2.5 text-xs text-muted-foreground font-semibold">m</span>
+            </div>
+          </div>
+          <DialogFooter className="grid grid-cols-2 gap-2 pt-1">
+            <Button type="button" variant="outline" size="sm" onClick={() => setCanvasEditTarget(null)} className="h-8 text-xs">
+              Batal
+            </Button>
+            <Button type="button" size="sm" onClick={handleSaveCanvasEdit} className="h-8 text-xs font-semibold">
+              Simpan Ukuran
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
