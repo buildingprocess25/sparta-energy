@@ -796,6 +796,53 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           ctx.fillText(`T${idx + 1} (${adjustedPts[idx].x.toFixed(1)},${adjustedPts[idx].y.toFixed(1)})`, sp.cx + 6, sp.cy - 3)
         })
 
+        // Draw segment length labels parallel to dashed wall lines in drawing mode
+        if (spts.length >= 2) {
+          ctx.save()
+          ctx.font = "bold 8.5px sans-serif"
+
+          for (let i = 0; i < spts.length - 1; i++) {
+            const p1 = spts[i]
+            const p2 = spts[i + 1]
+            const mx = (p1.cx + p2.cx) / 2
+            const my = (p1.cy + p2.cy) / 2
+
+            const dx = p2.cx - p1.cx
+            const dy = p2.cy - p1.cy
+            const len = Math.hypot(dx, dy)
+            if (len === 0) continue
+
+            const rawLen = segmentLengths[i]
+            let lenVal = (rawLen !== undefined && rawLen !== "") ? (parseFloat(String(rawLen)) || (len / FIXED_SCALE)) : (len / FIXED_SCALE)
+
+            let angle = Math.atan2(dy, dx)
+            if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
+              angle += Math.PI
+            }
+
+            const segText = `${lenVal.toFixed(1)}m`
+
+            ctx.save()
+            ctx.translate(mx, my - 8)
+            ctx.rotate(angle)
+
+            // Halo stroke
+            ctx.strokeStyle = bgFill
+            ctx.lineWidth = 3
+            ctx.lineJoin = "round"
+            ctx.strokeText(segText, 0, 0)
+
+            // Crisp fill text
+            ctx.fillStyle = isDark ? "#34d399" : "#047857"
+            ctx.textAlign = "center"
+            ctx.textBaseline = "middle"
+            ctx.fillText(segText, 0, 0)
+
+            ctx.restore()
+          }
+          ctx.restore()
+        }
+
         if (adjustedPts.length >= 3) {
           // Glow ring around T1 to close polygon
           ctx.beginPath()
@@ -1031,20 +1078,130 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       }
     }
 
-    // Bounding Box Width/Length Dimension Labels
-    ctx.fillStyle = dimensionTextFill
-    ctx.font = "9px sans-serif"
-    ctx.textAlign = "center"
-    ctx.fillText(`${sc.rW.toFixed(1)} m (L)`, sc.offX + (sc.rW * sc.scale) / 2, sc.offY + sc.rH * sc.scale + 16)
+    // Bounding Box Width/Length Dimension Labels (LT & PT) - Clean Text with Halo Effect
+    const drawHaloText = (text: string, x: number, y: number, color: string, isVertical = false) => {
+      ctx.save()
+      ctx.font = "bold 9px sans-serif"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
 
-    ctx.save()
-    ctx.translate(sc.offX - 14, sc.offY + (sc.rH * sc.scale) / 2)
-    ctx.rotate(-Math.PI / 2)
-    ctx.fillText(`${sc.rH.toFixed(1)} m (P)`, 0, 0)
-    ctx.restore()
+      if (isVertical) {
+        ctx.translate(x, y)
+        ctx.rotate(-Math.PI / 2)
+        // Halo outline
+        ctx.strokeStyle = bgFill
+        ctx.lineWidth = 3.5
+        ctx.lineJoin = "round"
+        ctx.strokeText(text, 0, 0)
+        // Crisp fill text
+        ctx.fillStyle = color
+        ctx.fillText(text, 0, 0)
+      } else {
+        // Halo outline
+        ctx.strokeStyle = bgFill
+        ctx.lineWidth = 3.5
+        ctx.lineJoin = "round"
+        ctx.strokeText(text, x, y)
+        // Crisp fill text
+        ctx.fillStyle = color
+        ctx.fillText(text, x, y)
+      }
+      ctx.restore()
+    }
+
+    // Render Bottom (LT) and Left (PT) Bounding Dimensions
+    drawHaloText(`${sc.rW.toFixed(1)}m (LT)`, sc.offX + (sc.rW * sc.scale) / 2, sc.offY + sc.rH * sc.scale + 14, isDark ? "#38bdf8" : "#0284c7", false)
+    drawHaloText(`${sc.rH.toFixed(1)}m (PT)`, sc.offX - 14, sc.offY + (sc.rH * sc.scale) / 2, isDark ? "#c4b5fd" : "#6d28d9", true)
+
+    // Draw Shape Side Edge Labels on Canvas if showDimensions is enabled
+    if (showDimensions && sPts.length >= 3) {
+      ctx.save()
+      ctx.font = "bold 8.5px sans-serif"
+
+      let sideLabels: string[] = []
+      if (shape === "rect") {
+        sideLabels = [`LA ${p.rTop}m`, `PKa ${p.rRight}m`, `LB ${p.rBot}m`, `PKi ${p.rLeft}m`]
+      } else if (shape === "trap") {
+        sideLabels = [`LA ${p.tTop}m`, `Miring`, `LB ${p.tBot}m`, `PT ${p.tH}m`]
+      } else if (shape === "L") {
+        sideLabels = [`LT ${p.lL}m`, `PS ${p.lH}m`, `LS ${p.lW}m`, `Sisi L`, `Sisi Bawa`, `PT ${p.lP}m`]
+      } else if (shape === "custom") {
+        sideLabels = sPts.map((_, i) => {
+          const rawLen = segmentLengths[i]
+          let lenVal = 0
+          if (rawLen !== undefined && rawLen !== "") {
+            lenVal = parseFloat(String(rawLen)) || 0
+          }
+          if (!lenVal && adjustedPts.length > i) {
+            const pt1 = adjustedPts[i]
+            const pt2 = adjustedPts[(i + 1) % adjustedPts.length]
+            lenVal = Number(Math.hypot(pt2.x - pt1.x, pt2.y - pt1.y).toFixed(1))
+          }
+          return `${lenVal.toFixed(1)}m`
+        })
+      }
+
+      // Calculate centroid of scaled polygon for outward normal offset
+      const cxPoly = sPts.reduce((acc, p) => acc + p.cx, 0) / sPts.length
+      const cyPoly = sPts.reduce((acc, p) => acc + p.cy, 0) / sPts.length
+
+      sPts.forEach((p1, idx) => {
+        const p2 = sPts[(idx + 1) % sPts.length]
+        const label = sideLabels[idx]
+        if (label && label !== "Miring" && label !== "Sisi L" && label !== "Sisi Bawa") {
+          // Midpoint of segment
+          const mx = (p1.cx + p2.cx) / 2
+          const my = (p1.cy + p2.cy) / 2
+
+          // Segment vector & perpendicular normal
+          const dx = p2.cx - p1.cx
+          const dy = p2.cy - p1.cy
+          const len = Math.hypot(dx, dy)
+          if (len === 0) return
+
+          let nx = -dy / len
+          let ny = dx / len
+
+          // Ensure normal points outward away from polygon centroid
+          const dot = (mx + nx * 10 - cxPoly) * (mx - cxPoly) + (my + ny * 10 - cyPoly) * (my - cyPoly)
+          if (dot < 0) {
+            nx = -nx
+            ny = -ny
+          }
+
+          const labelX = mx + nx * 9
+          const labelY = my + ny * 9
+
+          // Calculate wall angle and prevent upside-down text
+          let angle = Math.atan2(dy, dx)
+          if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
+            angle += Math.PI
+          }
+
+          ctx.save()
+          ctx.translate(labelX, labelY)
+          ctx.rotate(angle)
+
+          // Halo stroke background for legibility without background boxes
+          ctx.strokeStyle = bgFill
+          ctx.lineWidth = 3
+          ctx.lineJoin = "round"
+          ctx.strokeText(label, 0, 0)
+
+          // Crisp filled text aligned parallel to wall
+          ctx.fillStyle = isDark ? "#34d399" : "#047857"
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.fillText(label, 0, 0)
+
+          ctx.restore()
+        }
+      })
+      ctx.restore()
+    }
 
     // Subtle coordinate system legend (visual guide)
-    ctx.strokeStyle = legendStroke
+    ctx.strokeStyle = isDark ? "#38bdf8" : "#0284c7"
     ctx.lineWidth = 1
     ctx.fillStyle = legendTextFill
     ctx.font = "8px sans-serif"
@@ -1052,27 +1209,27 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     const ax = 20
     const ay = CANVAS_H - 25
 
-    // Draw W arrow
+    // Draw W arrow (LT)
     ctx.beginPath()
     ctx.moveTo(ax, ay)
     ctx.lineTo(ax + 25, ay)
     ctx.stroke()
-    // W arrow head
-    ctx.fillStyle = legendTextFill
+    ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7"
     ctx.beginPath()
     ctx.moveTo(ax + 25, ay)
     ctx.lineTo(ax + 21, ay - 2.5)
     ctx.lineTo(ax + 21, ay + 2.5)
     ctx.closePath()
     ctx.fill()
-    ctx.fillText("L (Lebar)", ax + 28, ay + 2.5)
+    ctx.fillText("LT (Lebar Total)", ax + 28, ay + 2.5)
 
-    // Draw L arrow
+    // Draw L arrow (PT)
+    ctx.strokeStyle = isDark ? "#c4b5fd" : "#7c3aed"
     ctx.beginPath()
     ctx.moveTo(ax, ay)
     ctx.lineTo(ax, ay - 25)
     ctx.stroke()
-    // L arrow head
+    ctx.fillStyle = isDark ? "#c4b5fd" : "#7c3aed"
     ctx.beginPath()
     ctx.moveTo(ax, ay - 25)
     ctx.lineTo(ax - 2.5, ay - 21)
@@ -1083,7 +1240,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     ctx.save()
     ctx.translate(ax - 4, ay - 8)
     ctx.rotate(-Math.PI / 2)
-    ctx.fillText("P (Panjang)", 0, 0)
+    ctx.fillText("PT (Panjang Total)", 0, 0)
     ctx.restore()
 
     if (shape === "custom") {
@@ -1461,14 +1618,14 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
                     <div className="absolute -top-5 left-0 right-0 flex items-center justify-between text-muted-foreground px-0.5">
                       <span className="text-[8px] font-bold">&larr;</span>
-                      <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">Lebar Toko (L)</span>
+                      <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">Lebar Toko (LT)</span>
                       <span className="text-[8px] font-bold">&rarr;</span>
                     </div>
 
                     <div className="absolute -right-[75px] top-0 bottom-0 flex items-center">
                       <div className="h-full flex flex-col justify-between items-center text-muted-foreground py-0.5">
                         <span className="text-[8px] font-bold">&uarr;</span>
-                        <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 [writing-mode:vertical-lr] rotate-180">Panjang / Kedalaman (P)</span>
+                        <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 [writing-mode:vertical-lr] rotate-180">Panjang Toko (PT)</span>
                         <span className="text-[8px] font-bold">&darr;</span>
                       </div>
                     </div>
@@ -1477,8 +1634,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               </div>
 
               <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                <Label htmlFor="lebar" className="text-xs">Lebar Toko (L)</Label>
-                <Label htmlFor="panjang" className="text-xs">Panjang Toko (P)</Label>
+                <Label htmlFor="lebar" className="text-xs font-semibold">Lebar Toko (LT)</Label>
+                <Label htmlFor="panjang" className="text-xs font-semibold">Panjang Toko (PT)</Label>
 
                 <div className="relative">
                   <Input
@@ -1942,10 +2099,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
                       {/* labels */}
                       <text x={PAD + (simResult.lebar * scaleX) / 2} y={SVG_H - 4} textAnchor="middle" fill={isSvgDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.5)"} fontSize={9}>
-                        {simResult.lebar} m (L)
+                        {simResult.lebar} m (LT)
                       </text>
                       <text x={12} y={PAD + (simResult.panjang * scaleY) / 2} textAnchor="middle" fill={isSvgDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.5)"} fontSize={9} transform={`rotate(-90, 12, ${PAD + (simResult.panjang * scaleY) / 2})`}>
-                        {simResult.panjang} m (P)
+                        {simResult.panjang} m (PT)
                       </text>
                     </svg>
                     <div className="flex gap-4 mt-2 text-[9px] text-muted-foreground justify-center pb-2">
@@ -2025,15 +2182,18 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       className="font-bold text-foreground text-xs mb-0.5 flex items-center justify-between cursor-pointer"
                       onClick={() => setShowDimensionGuide(prev => !prev)}
                     >
-                      <span className="flex items-center gap-1">💡 Petunjuk Arah Dimensi</span>
+                      <span className="flex items-center gap-1">💡 Petunjuk Arah Dimensi & Inisial Sisi</span>
                       <span className="text-[10px] text-muted-foreground underline font-normal">
                         {showDimensionGuide ? "Sembunyikan" : "Tampilkan"}
                       </span>
                     </div>
                     {showDimensionGuide && (
                       <div className="border-t border-border/40 pt-1.5 space-y-1 animate-in fade-in slide-in-from-top-1">
-                        <div>• <b>Lebar (L) / Horizontal:</b> Arah kanan-kiri (Lebar Toko, Lebar Total, Lebar Sayap dsb)</div>
-                        <div>• <b>Panjang (P) / Vertikal:</b> Arah atas-bawah (Panjang/Kedalaman, Panjang Total, Panjang Sayap dsb)</div>
+                        <div>• <b>LT / PT:</b> Lebar Total / Panjang Total (Kedalaman Utama Toko)</div>
+                        <div>• <b>LA / LB:</b> Lebar Atas (Sisi Depan) / Lebar Bawah (Sisi Belakang)</div>
+                        <div>• <b>PKi / PKa:</b> Panjang Dinding Kiri / Panjang Dinding Kanan</div>
+                        <div>• <b>LS / PS:</b> Lebar Sayap / Panjang Sayap (Pada Bentuk L)</div>
+                        <div>• <b>OM:</b> Offset Miring Dinding (Pada Trapesium)</div>
                       </div>
                     )}
                   </div>
@@ -2041,8 +2201,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
                 {shape === "rect" && (
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                    <Label className="text-xs">Lebar Atas (T1 ke T2)</Label>
-                    <Label className="text-xs">Lebar Bawah (T4 ke T3)</Label>
+                    <Label className="text-xs font-semibold">Lebar Atas (LA)</Label>
+                    <Label className="text-xs font-semibold">Lebar Bawah (LB)</Label>
 
                     <Input
                       type="number"
@@ -2067,8 +2227,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       className="h-8 text-xs"
                     />
 
-                    <Label className="text-xs">Kedalaman Kiri (T1 ke T4)</Label>
-                    <Label className="text-xs">Kedalaman Kanan (T2 ke T3)</Label>
+                    <Label className="text-xs font-semibold mt-1">Panjang Kiri (PKi)</Label>
+                    <Label className="text-xs font-semibold mt-1">Panjang Kanan (PKa)</Label>
 
                     <Input
                       type="number"
@@ -2097,8 +2257,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
                 {shape === "trap" && (
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                    <Label className="text-xs">Lebar Atas (L1)</Label>
-                    <Label className="text-xs">Lebar Bawah (L2)</Label>
+                    <Label className="text-xs font-semibold">Lebar Atas (LA)</Label>
+                    <Label className="text-xs font-semibold">Lebar Bawah (LB)</Label>
 
                     <Input
                       type="number"
@@ -2123,8 +2283,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       className="h-8 text-xs"
                     />
 
-                    <Label className="text-xs mt-1.5">Panjang / Kedalaman (P)</Label>
-                    <Label className="text-xs mt-1.5">Offset Kiri Atas</Label>
+                    <Label className="text-xs font-semibold mt-1">Panjang Total (PT)</Label>
+                    <Label className="text-xs font-semibold mt-1">Offset Miring (OM)</Label>
 
                     <Input
                       type="number"
@@ -2153,20 +2313,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
                 {shape === "L" && (
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                    <Label className="text-[11px]">Lebar Total (L)</Label>
-                    <Label className="text-[11px]">Panjang Total (P)</Label>
+                    <Label className="text-xs font-semibold">Lebar Total (LT)</Label>
+                    <Label className="text-xs font-semibold">Panjang Total (PT)</Label>
 
-                    <Input
-                      type="number"
-                      value={p.lP}
-                      step={0.5}
-                      onChange={e => setParam("lP", e.target.value)}
-                      onBlur={e => {
-                        const val = parseFloat(e.target.value)
-                        if (isNaN(val) || val <= 0) setParam("lP", "1")
-                      }}
-                      className="h-8 text-xs"
-                    />
                     <Input
                       type="number"
                       value={p.lL}
@@ -2178,9 +2327,20 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       }}
                       className="h-8 text-xs"
                     />
+                    <Input
+                      type="number"
+                      value={p.lP}
+                      step={0.5}
+                      onChange={e => setParam("lP", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("lP", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
 
-                    <Label className="text-[11px] mt-1.5">Lebar Sayap (l)</Label>
-                    <Label className="text-[11px] mt-1.5">Panjang Sayap (p)</Label>
+                    <Label className="text-xs font-semibold mt-1">Lebar Sayap (LS)</Label>
+                    <Label className="text-xs font-semibold mt-1">Panjang Sayap (PS)</Label>
 
                     <Input
                       type="number"
