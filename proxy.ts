@@ -20,8 +20,11 @@ const publicPrefixes = [
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Allow prefix-match public paths
-  if (publicPrefixes.some((prefix) => pathname.startsWith(prefix))) {
+  // The cron route authenticates itself with CRON_SECRET.
+  if (
+    pathname === "/api/cron/sync-stores" ||
+    publicPrefixes.some((prefix) => pathname.startsWith(prefix))
+  ) {
     return NextResponse.next()
   }
 

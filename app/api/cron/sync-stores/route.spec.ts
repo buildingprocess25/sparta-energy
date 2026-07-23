@@ -1,5 +1,7 @@
 import assert from "node:assert/strict"
+import { NextRequest } from "next/server"
 
+import { POST } from "@/app/api/cron/sync-stores/route"
 import {
   filterNewStores,
   parseStoreSheetRows,
@@ -49,5 +51,47 @@ assert.throws(
     ]),
   /Kode toko duplikat U004/
 )
+
+const originalCronSecret = process.env.CRON_SECRET
+const requestUrl = "http://localhost/api/cron/sync-stores"
+
+try {
+  delete process.env.CRON_SECRET
+
+  let response = await POST(
+    new NextRequest(requestUrl, {
+      method: "POST",
+    })
+  )
+  assert.equal(response.status, 500)
+  assert.deepEqual(await response.json(), { error: "Server misconfigured" })
+
+  process.env.CRON_SECRET = "test-cron-secret"
+
+  response = await POST(
+    new NextRequest(requestUrl, {
+      method: "POST",
+    })
+  )
+  assert.equal(response.status, 401)
+  assert.deepEqual(await response.json(), { error: "Unauthorized" })
+
+  response = await POST(
+    new NextRequest(requestUrl, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer wrong-secret",
+      },
+    })
+  )
+  assert.equal(response.status, 401)
+  assert.deepEqual(await response.json(), { error: "Unauthorized" })
+} finally {
+  if (originalCronSecret === undefined) {
+    delete process.env.CRON_SECRET
+  } else {
+    process.env.CRON_SECRET = originalCronSecret
+  }
+}
 
 console.log("store sync self-check passed")
