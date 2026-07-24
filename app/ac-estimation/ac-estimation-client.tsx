@@ -171,8 +171,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       return
     }
 
-    if (storeMode === "new" && (!newStoreCode || !newStoreName)) {
-      setErrorMsg("Mohon lengkapi data toko baru.")
+    if (storeMode === "new" && (!newStoreName || !newStoreBranch)) {
+      setErrorMsg("Mohon lengkapi Nama Toko dan Cabang.")
       return
     }
 
@@ -362,87 +362,38 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
             </div>
           ) : (
             <div className="flex animate-in flex-col gap-3 fade-in slide-in-from-top-2">
-              {!fetchedRabData ? (
-                <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-muted/20 p-4">
-                  <Field>
-                    <FieldLabel htmlFor="ulok_input">Nomor ULOK</FieldLabel>
-                    <FieldDescription className="text-xs">
-                      Hanya RAB dengan status &quot;Telah Disetujui&quot;.
-                    </FieldDescription>
-                    <div className="flex gap-2">
-                      <Input
-                        id="ulok_input"
-                        placeholder="Contoh: 7AZ1-0001-0001"
-                        value={ulokInput}
-                        onChange={(e) =>
-                          setUlokInput(e.target.value.toUpperCase())
-                        }
-                        className="bg-background uppercase"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSearchRab()
-                        }}
-                      />
-                      <Button
-                        onClick={handleSearchRab}
-                        disabled={!ulokInput || isFetchingUlok}
-                      >
-                        {isFetchingUlok ? "Mencari..." : "Cari"}
-                      </Button>
-                    </div>
-                  </Field>
-                </div>
-              ) : (
-                <Card className="border-primary/20 bg-primary/5 shadow-none">
-                  <CardContent>
-                    <div className="mb-4 flex items-start justify-between">
-                      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-primary">
-                        <IconCheck className="size-4" />
-                        RAB Ditemukan
-                      </h3>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => {
-                          setFetchedRabData(false)
-                          setNewStoreCode("")
-                          setNewStoreName("")
-                          setNewStoreBranch("")
-                          setUlokInput("")
-                        }}
-                      >
-                        Ganti
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                          Nomor ULOK
-                        </span>
-                        <span className="text-xs font-semibold text-foreground">
-                          {newStoreCode}
-                        </span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                          Nama Toko
-                        </span>
-                        <span className="text-xs font-semibold text-foreground">
-                          {newStoreName}
-                        </span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                          Cabang
-                        </span>
-                        <span className="text-xs font-semibold text-foreground">
-                          {newStoreBranch || "-"}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              <div className="grid grid-cols-2 gap-3">
+                <Field>
+                  <FieldLabel htmlFor="new_store_name">Nama Toko</FieldLabel>
+                  <Input
+                    id="new_store_name"
+                    placeholder="Contoh: Supratman 2"
+                    value={newStoreName}
+                    onChange={(e) => setNewStoreName(e.target.value)}
+                    className="bg-background text-xs"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="new_store_branch">Cabang</FieldLabel>
+                  <Input
+                    id="new_store_branch"
+                    placeholder="Contoh: Cikokol"
+                    value={newStoreBranch}
+                    onChange={(e) => setNewStoreBranch(e.target.value)}
+                    className="bg-background text-xs"
+                  />
+                </Field>
+              </div>
+              <Field>
+                <FieldLabel htmlFor="new_store_code">Kode Toko <span className="text-muted-foreground font-normal">(Opsional)</span></FieldLabel>
+                <Input
+                  id="new_store_code"
+                  placeholder="Contoh: T001 (Kosongkan jika belum ada)"
+                  value={newStoreCode}
+                  onChange={(e) => setNewStoreCode(e.target.value)}
+                  className="bg-background text-xs"
+                />
+              </Field>
             </div>
           )}
         </section>

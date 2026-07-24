@@ -64,7 +64,7 @@ interface StandardCheckResult {
 
 function checkStandards(rasio: number, jarakSamping: number, jarakBaris: number): StandardCheckResult {
   const issues: string[] = []
-  
+
   let rasioStatus: "ok" | "low" | "high" = "ok"
   if (rasio < 4.0) {
     rasioStatus = "low"
@@ -323,20 +323,20 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   }
 
   // ── Symmetrical StatBox Component ──
-  const StatBox = ({ 
-    label, 
-    value, 
-    unit, 
-    variant = "default" 
-  }: { 
-    label: string, 
-    value: any, 
-    unit: string, 
-    variant?: "default" | "success" | "warning" | "info" 
+  const StatBox = ({
+    label,
+    value,
+    unit,
+    variant = "default"
+  }: {
+    label: string,
+    value: any,
+    unit: string,
+    variant?: "default" | "success" | "warning" | "info"
   }) => {
     let cardCls = "border-border/80 bg-muted/30"
     let textCls = "text-foreground"
-    
+
     if (variant === "success") {
       cardCls = "border-emerald-500/25 bg-emerald-50/40 dark:bg-emerald-950/15"
       textCls = "text-emerald-700 dark:text-emerald-400"
@@ -1600,7 +1600,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           setActiveDragIdx(i)
           try {
             (e.target as HTMLElement).setPointerCapture(e.pointerId)
-          } catch {}
+          } catch { }
           return
         }
       }
@@ -1651,7 +1651,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (activeDragIdx !== null) {
       try {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId)
-      } catch {}
+      } catch { }
       setActiveDragIdx(null)
     }
   }, [activeDragIdx])
@@ -1737,8 +1737,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
             type="button"
             onClick={() => setStoreMode("existing")}
             className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${storeMode === "existing"
-                ? "bg-background text-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground"
+              ? "bg-background text-foreground shadow-xs"
+              : "text-muted-foreground hover:text-foreground"
               }`}
           >
             Toko Terdaftar
@@ -1747,8 +1747,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
             type="button"
             onClick={() => setStoreMode("new")}
             className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${storeMode === "new"
-                ? "bg-background text-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground"
+              ? "bg-background text-foreground shadow-xs"
+              : "text-muted-foreground hover:text-foreground"
               }`}
           >
             Toko Baru
@@ -1782,78 +1782,38 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           </div>
         ) : (
           <div className="flex flex-col gap-2.5">
-            {!fetchedRabData ? (
-              <div className="flex flex-col gap-1.5">
-                <div className="flex gap-2">
-                  <Input
-                    id="ulok_input"
-                    placeholder="Nomor ULOK (Contoh: 7AZ1-0001)"
-                    value={ulokInput}
-                    onChange={(e) => setUlokInput(e.target.value.toUpperCase())}
-                    className="h-8 text-xs bg-background uppercase"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSearchRab()
-                    }}
-                  />
-                  <Button
-                    onClick={handleSearchRab}
-                    disabled={!ulokInput || isFetchingUlok}
-                    className="h-8 text-[10px] font-bold"
-                    size="sm"
-                  >
-                    {isFetchingUlok ? "Mencari..." : "Cari"}
-                  </Button>
-                </div>
-                <p className="text-[10px] text-muted-foreground leading-normal px-1">
-                  Hanya RAB dengan status &quot;Telah Disetujui&quot;.
-                </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="new_store_name" className="text-[10px] font-semibold">Nama Toko</Label>
+                <Input
+                  id="new_store_name"
+                  placeholder="Contoh: Supratman 2"
+                  value={newStoreName}
+                  onChange={(e) => setNewStoreName(e.target.value)}
+                  className="h-8 text-xs bg-background"
+                />
               </div>
-            ) : (
-              <div className="flex flex-col gap-2 bg-primary/5 p-2.5 rounded-lg border border-primary/20">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-primary flex items-center gap-1">
-                    <IconCheck className="size-3.5" /> RAB Ditemukan
-                  </span>
-                  <button
-                    type="button"
-                    className="text-[9px] text-muted-foreground hover:text-foreground underline"
-                    onClick={() => {
-                      setFetchedRabData(false)
-                      setNewStoreCode("")
-                      setNewStoreName("")
-                      setNewStoreBranch("")
-                      setNewStoreArea("")
-                      setUlokInput("")
-                    }}
-                  >
-                    Ganti
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-[10px] pt-0.5">
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Nomor ULOK</span>
-                    <span className="font-semibold text-foreground">{newStoreCode}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Nama Toko</span>
-                    <span className="font-semibold text-foreground truncate max-w-[120px]">{newStoreName}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Cabang</span>
-                    <span className="font-semibold text-foreground">{newStoreBranch || "-"}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Luas Area Sales</span>
-                    <span className="font-semibold text-foreground">{newStoreArea ? `${newStoreArea} m²` : "-"}</span>
-                  </div>
-                </div>
-                {newStoreArea && (
-                  <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                    💡 Luas area sales dari RAB otomatis disalin ke parameter input.
-                  </p>
-                )}
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="new_store_branch" className="text-[10px] font-semibold">Cabang</Label>
+                <Input
+                  id="new_store_branch"
+                  placeholder="Contoh: Cikokol"
+                  value={newStoreBranch}
+                  onChange={(e) => setNewStoreBranch(e.target.value)}
+                  className="h-8 text-xs bg-background"
+                />
               </div>
-            )}
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="new_store_code" className="text-[10px] font-semibold">Kode Toko <span className="text-muted-foreground font-normal">(Opsional)</span></Label>
+              <Input
+                id="new_store_code"
+                placeholder="Contoh: T001 (Kosongkan jika belum ada)"
+                value={newStoreCode}
+                onChange={(e) => setNewStoreCode(e.target.value)}
+                className="h-8 text-xs bg-background"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -2004,24 +1964,22 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           {simResult && !simResult.error && (
             <div className="space-y-4">
               {/* Hasil Kalkulasi Card */}
-              <Card className={`transition-all duration-300 ${
-                simCheck.overallStatus === "ideal" 
-                  ? "border-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15" 
-                  : simCheck.overallStatus === "toleransi"
+              <Card className={`transition-all duration-300 ${simCheck.overallStatus === "ideal"
+                ? "border-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15"
+                : simCheck.overallStatus === "toleransi"
                   ? "border-sky-500/25 bg-sky-50/30 dark:bg-sky-950/15"
                   : "border-amber-500/25 bg-amber-50/30 dark:bg-amber-950/15"
-              }`}>
+                }`}>
                 <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-sm font-semibold">Hasil Kalkulasi — Simetris</CardTitle>
                   <span
                     onClick={() => setInfoOpen(true)}
-                    className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${
-                      simCheck.overallStatus === "ideal"
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : simCheck.overallStatus === "toleransi"
+                    className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${simCheck.overallStatus === "ideal"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : simCheck.overallStatus === "toleransi"
                         ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                         : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    }`}
+                      }`}
                   >
                     {simCheck.statusLabel}
                     <IconInfoCircle className="size-3" />
@@ -2045,11 +2003,11 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <StatBox label="Per Baris" value={activeSimLpb} unit=" unit" />
                     <StatBox label="Jarak Baris" value={activeSimJarakPerbaris.toFixed(2)} unit=" m" variant={activeSimJarakPerbaris <= 1.9 ? "success" : activeSimJarakPerbaris <= 2.2 ? "info" : "warning"} />
                     <StatBox label="Jarak Samping" value={activeSimJarakSamping.toFixed(2)} unit=" m" variant={simCheck.sampingStatus === "ok" ? "success" : activeSimJarakSamping >= 0.2 && activeSimJarakSamping <= 0.8 ? "info" : "warning"} />
-                    <StatBox 
-                      label="Rasio W/m²" 
-                      value={`${((simResult.range.minLamps * LAMP_WATT) / simResult.area).toFixed(2)}–${((simResult.range.maxLamps * LAMP_WATT) / simResult.area).toFixed(2)}`} 
-                      unit=" W/m²" 
-                      variant={simCheck.rasioStatus === "ok" ? "success" : activeSimRasio >= 3.5 && activeSimRasio <= 5.5 ? "info" : "warning"} 
+                    <StatBox
+                      label="Rasio W/m²"
+                      value={`${((simResult.range.minLamps * LAMP_WATT) / simResult.area).toFixed(2)}–${((simResult.range.maxLamps * LAMP_WATT) / simResult.area).toFixed(2)}`}
+                      unit=" W/m²"
+                      variant={simCheck.rasioStatus === "ok" ? "success" : activeSimRasio >= 3.5 && activeSimRasio <= 5.5 ? "info" : "warning"}
                     />
                   </div>
                   <RatioBar rasio={activeSimRasio} check={simCheck} />
@@ -2115,13 +2073,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 <CardHeader className="py-2.5 px-4 bg-muted/40 border-b border-border/80 flex flex-row justify-between items-center space-y-0">
                   <CardTitle className="text-xs font-bold">Denah Penempatan — LED {lampLen}m</CardTitle>
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-semibold cursor-pointer flex items-center gap-1 ${
-                      simCheck.overallStatus === "ideal"
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : simCheck.overallStatus === "toleransi"
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-semibold cursor-pointer flex items-center gap-1 ${simCheck.overallStatus === "ideal"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : simCheck.overallStatus === "toleransi"
                         ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                         : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    }`}
+                      }`}
                     onClick={() => setInfoOpen(true)}
                   >
                     {simCheck.statusLabel}
@@ -2723,29 +2680,27 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               </Button>
             </CardContent>
           </Card>
- 
+
           {/* Irregular Calculation Result Card & Plotted Canvas */}
           {isCalculated && (
             <div className="space-y-4">
               {/* Hasil Kalkulasi Card */}
-              <Card className={`transition-all duration-300 ${
-                irregCheck.overallStatus === "ideal"
-                  ? "border-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15"
-                  : irregCheck.overallStatus === "toleransi"
+              <Card className={`transition-all duration-300 ${irregCheck.overallStatus === "ideal"
+                ? "border-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15"
+                : irregCheck.overallStatus === "toleransi"
                   ? "border-sky-500/25 bg-sky-50/30 dark:bg-sky-950/15"
                   : "border-amber-500/25 bg-amber-50/30 dark:bg-amber-950/15"
-              }`}>
+                }`}>
                 <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-sm font-semibold">Hasil Kalkulasi — Tidak Simetris</CardTitle>
                   <span
                     onClick={() => setInfoOpen(true)}
-                    className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${
-                      irregCheck.overallStatus === "ideal"
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : irregCheck.overallStatus === "toleransi"
+                    className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${irregCheck.overallStatus === "ideal"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : irregCheck.overallStatus === "toleransi"
                         ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                         : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    }`}>
+                      }`}>
                     {irregCheck.statusLabel}
                     <IconInfoCircle className="size-3" />
                   </span>
@@ -2770,11 +2725,11 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         <StatBox label="Per Baris" value={stats.nPerRow} unit=" unit" />
                         <StatBox label="Jarak Baris" value={Number(stats.rowSpacing)?.toFixed(2)} unit=" m" variant={Number(stats.rowSpacing) <= 1.9 ? "success" : Number(stats.rowSpacing) <= 2.2 ? "info" : "warning"} />
                         <StatBox label="Jarak Samping" value={activeMargin.toFixed(2)} unit=" m" variant={irregCheck.sampingStatus === "ok" ? "success" : activeMargin >= 0.2 && activeMargin <= 0.8 ? "info" : "warning"} />
-                        <StatBox 
-                          label="Rasio W/m²" 
-                          value={stats.luas > 0 ? `${((stats.nmin * watt) / stats.luas).toFixed(2)}–${((stats.nmax * watt) / stats.luas).toFixed(2)}` : "0.00"} 
-                          unit=" W/m²" 
-                          variant={irregCheck.rasioStatus === "ok" ? "success" : (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) >= 3.5 && (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) <= 5.5 ? "info" : "warning"} 
+                        <StatBox
+                          label="Rasio W/m²"
+                          value={stats.luas > 0 ? `${((stats.nmin * watt) / stats.luas).toFixed(2)}–${((stats.nmax * watt) / stats.luas).toFixed(2)}` : "0.00"}
+                          unit=" W/m²"
+                          variant={irregCheck.rasioStatus === "ok" ? "success" : (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) >= 3.5 && (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) <= 5.5 ? "info" : "warning"}
                         />
                       </div>
                       <RatioBar rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} check={irregCheck} />
@@ -2833,18 +2788,18 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         </div>
                       )}
 
-                        {irregDisabledLamps.length > 0 && (
-                          <div className="border-t border-border/60 pt-2 mt-2 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => setIrregDisabledLamps([])}
-                              className="text-[10px] text-primary hover:underline font-semibold"
-                            >
-                              Reset Lampu Nonaktif ({irregDisabledLamps.length})
-                            </button>
-                          </div>
-                        )}
-                      </>
+                      {irregDisabledLamps.length > 0 && (
+                        <div className="border-t border-border/60 pt-2 mt-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setIrregDisabledLamps([])}
+                            className="text-[10px] text-primary hover:underline font-semibold"
+                          >
+                            Reset Lampu Nonaktif ({irregDisabledLamps.length})
+                          </button>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
                       Tidak ada konfigurasi otomatis yang memenuhi standar rasio 4.0 – 5.0 W/m² untuk dimensi ini. Coba sesuaikan koordinat atau bentuk bangunan.
@@ -2905,7 +2860,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   </div>
                 </CardContent>
               </Card>
- 
+
               {/* Big Download Button at Bottom */}
               <Button
                 type="button"
@@ -2981,13 +2936,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   <div className="border border-border/60 rounded-xl p-3 bg-muted/20 space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-foreground">1. Kerapatan Daya (Target: 4.0 - 5.0 W/m²)</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        activeCheck.rasioStatus === "ok" 
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
-                          : currentRasio >= 3.5 && currentRasio <= 5.5
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeCheck.rasioStatus === "ok"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        : currentRasio >= 3.5 && currentRasio <= 5.5
                           ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                           : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                      }`}>
+                        }`}>
                         {activeCheck.rasioStatus === "ok" ? "Lolos Ideal" : currentRasio >= 3.5 && currentRasio <= 5.5 ? "Batas Toleransi" : activeCheck.rasioStatus === "low" ? "Terlalu Rendah" : "Terlalu Tinggi"}
                       </span>
                     </div>
@@ -2998,9 +2952,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       <p className={`text-[10px] font-medium ${currentRasio >= 3.5 && currentRasio <= 5.5 ? "text-sky-600 dark:text-sky-400" : "text-amber-600 dark:text-amber-400"}`}>
                         {currentRasio >= 3.5 && currentRasio <= 5.5
                           ? "ℹ️ Berada dalam batas toleransi wajar penyesuaian denah toko."
-                          : activeCheck.rasioStatus === "low" 
-                          ? "⚠️ Kerapatan daya terlalu rendah, toko berpotensi redup." 
-                          : "⚠️ Kerapatan daya terlalu tinggi, terjadi pemborosan energi."}
+                          : activeCheck.rasioStatus === "low"
+                            ? "⚠️ Kerapatan daya terlalu rendah, toko berpotensi redup."
+                            : "⚠️ Kerapatan daya terlalu tinggi, terjadi pemborosan energi."}
                       </p>
                     )}
                   </div>
@@ -3009,13 +2963,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   <div className="border border-border/60 rounded-xl p-3 bg-muted/20 space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-foreground">2. Jarak Samping (Target: 0.3 - 0.6 m)</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        activeCheck.sampingStatus === "ok" 
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
-                          : currentSamping >= 0.2 && currentSamping <= 0.8
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeCheck.sampingStatus === "ok"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        : currentSamping >= 0.2 && currentSamping <= 0.8
                           ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                           : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                      }`}>
+                        }`}>
                         {activeCheck.sampingStatus === "ok" ? "Lolos Ideal" : currentSamping >= 0.2 && currentSamping <= 0.8 ? "Batas Toleransi" : activeCheck.sampingStatus === "near" ? "Terlalu Dekat" : "Terlalu Jauh"}
                       </span>
                     </div>
@@ -3026,9 +2979,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       <p className={`text-[10px] font-medium ${currentSamping >= 0.2 && currentSamping <= 0.8 ? "text-sky-600 dark:text-sky-400" : "text-amber-600 dark:text-amber-400"}`}>
                         {currentSamping >= 0.2 && currentSamping <= 0.8
                           ? "ℹ️ Berada dalam batas toleransi wajar penyesuaian denah toko."
-                          : activeCheck.sampingStatus === "near" 
-                          ? "⚠️ Lampu terlalu mepet dinding, cahaya tidak efektif menerangi rak." 
-                          : "⚠️ Lampu terlalu jauh dari dinding, sudut ruangan/rak samping berpotensi gelap."}
+                          : activeCheck.sampingStatus === "near"
+                            ? "⚠️ Lampu terlalu mepet dinding, cahaya tidak efektif menerangi rak."
+                            : "⚠️ Lampu terlalu jauh dari dinding, sudut ruangan/rak samping berpotensi gelap."}
                       </p>
                     )}
                   </div>
@@ -3037,13 +2990,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   <div className="border border-border/60 rounded-xl p-3 bg-muted/20 space-y-1.5">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-foreground">3. Jarak Antar Baris (Target: ≤ 1.9 m)</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        activeCheck.barisStatus === "ok" 
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
-                          : currentBaris <= 2.2
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeCheck.barisStatus === "ok"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        : currentBaris <= 2.2
                           ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                           : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                      }`}>
+                        }`}>
                         {activeCheck.barisStatus === "ok" ? "Lolos Ideal" : currentBaris <= 2.2 ? "Batas Toleransi" : "Terlalu Lebar"}
                       </span>
                     </div>
