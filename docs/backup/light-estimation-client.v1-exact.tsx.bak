@@ -237,7 +237,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     const area = parseFloat(simForm.area)
     if (!lebar || !panjang || !area) return
     const res = calcSimetris(lebar, panjang, area, LAMP_WATT, lampLen)
-    const range = res ? { minLamps: res.minLamps, maxLamps: res.maxLamps } : calcLampRange(area)
+    const range = calcLampRange(area)
     if (!res) {
       setSimResult({ error: true, range, lebar, panjang, area })
       return
@@ -348,19 +348,11 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       textCls = "text-amber-700 dark:text-amber-400"
     }
 
-    const valStr = String(value)
-    let fontSizeCls = "text-[13.5px]"
-    if (valStr.length > 8) {
-      fontSizeCls = "text-[10px] tracking-tighter"
-    } else if (valStr.length > 5) {
-      fontSizeCls = "text-[11px] tracking-tight"
-    }
-
     return (
-      <div className={`rounded-xl border p-1.5 text-center flex flex-col justify-center transition-colors duration-300 ${cardCls}`}>
-        <div className="text-[8.5px] font-semibold text-muted-foreground uppercase tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">{label}</div>
-        <div className={`font-bold mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis ${fontSizeCls} ${textCls}`}>
-          {value}<span className="text-[9px] font-normal text-muted-foreground ml-0.5">{unit}</span>
+      <div className={`rounded-xl border p-2.5 text-center flex flex-col justify-center transition-colors duration-300 ${cardCls}`}>
+        <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</div>
+        <div className={`text-base font-bold mt-0.5 ${textCls}`}>
+          {value}<span className="text-xs font-normal text-muted-foreground ml-0.5">{unit}</span>
         </div>
       </div>
     )
@@ -1477,13 +1469,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       ? lamps.length - irregDisabledLamps.filter(idx => idx < lamps.length).length
       : 0
 
-    const calculatedMinLamps = isCalculated && activeTotalLamps > 0 ? Math.max(1, activeTotalLamps - 2) : minLamps
-    const calculatedMaxLamps = isCalculated && activeTotalLamps > 0 ? activeTotalLamps + 2 : maxLamps
-
     setStats({
       luas: Number(luas.toFixed(1)),
-      nmin: calculatedMinLamps,
-      nmax: calculatedMaxLamps,
+      nmin: minLamps,
+      nmax: maxLamps,
       n: activeTotalLamps,
       nRow,
       nPerRow,
@@ -2028,29 +2017,13 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   </span>
                 </CardHeader>
                 <CardContent className="pt-0 pb-4 space-y-3">
-                  {/* Range Result Prominent Banner */}
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center space-y-1">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estimasi Kebutuhan Titik Lampu (Range)</div>
-                    <div className="text-2xl font-extrabold text-primary">
-                      {simResult.range.minLamps} – {simResult.range.maxLamps} <span className="text-sm font-semibold text-muted-foreground">Titik Lampu</span>
-                    </div>
-                    <div className="text-[11px] font-medium text-muted-foreground">
-                      Daya Total: <span className="font-semibold text-foreground">{(simResult.range.minLamps * LAMP_WATT).toFixed(0)} W – {(simResult.range.maxLamps * LAMP_WATT).toFixed(0)} W</span>
-                    </div>
-                  </div>
-
                   <div className="grid grid-cols-3 gap-2">
-                    <StatBox label="Rentang Lampu" value={`${simResult.range.minLamps}–${simResult.range.maxLamps}`} unit=" titik" variant="default" />
+                    <StatBox label="Total Lampu" value={activeSimTotalLamps} unit=" unit" variant="default" />
                     <StatBox label="Jumlah Baris" value={activeSimBaris} unit=" baris" />
                     <StatBox label="Per Baris" value={activeSimLpb} unit=" unit" />
                     <StatBox label="Jarak Baris" value={activeSimJarakPerbaris.toFixed(2)} unit=" m" variant={activeSimJarakPerbaris <= 1.9 ? "success" : activeSimJarakPerbaris <= 2.2 ? "info" : "warning"} />
                     <StatBox label="Jarak Samping" value={activeSimJarakSamping.toFixed(2)} unit=" m" variant={simCheck.sampingStatus === "ok" ? "success" : activeSimJarakSamping >= 0.2 && activeSimJarakSamping <= 0.8 ? "info" : "warning"} />
-                    <StatBox 
-                      label="Rasio W/m²" 
-                      value={`${((simResult.range.minLamps * LAMP_WATT) / simResult.area).toFixed(2)}–${((simResult.range.maxLamps * LAMP_WATT) / simResult.area).toFixed(2)}`} 
-                      unit=" W/m²" 
-                      variant={simCheck.rasioStatus === "ok" ? "success" : activeSimRasio >= 3.5 && activeSimRasio <= 5.5 ? "info" : "warning"} 
-                    />
+                    <StatBox label="Rasio W/m²" value={activeSimRasio.toFixed(2)} unit=" W/m²" variant={simCheck.rasioStatus === "ok" ? "success" : activeSimRasio >= 3.5 && activeSimRasio <= 5.5 ? "info" : "warning"} />
                   </div>
                   <RatioBar rasio={activeSimRasio} check={simCheck} />
                   <SmartSuggestions rasio={activeSimRasio} check={simCheck} />
@@ -2107,6 +2080,66 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       </button>
                     </div>
                   )}
+
+                  {/* Symmetrical Grid Adjustment Steppers */}
+                  <div className="border-t border-border/60 pt-3.5 mt-2 space-y-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Penyesuaian Manual</div>
+                    <div className="flex gap-4 items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground">Baris:</span>
+                        <div className="flex items-center bg-muted rounded-md p-0.5 border border-border/40">
+                          <button
+                            type="button"
+                            onClick={() => setSimOverrideBaris(Math.max(1, activeSimBaris - 1))}
+                            className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                          >
+                            -
+                          </button>
+                          <span className="px-2 text-xs font-semibold w-5 text-center">{activeSimBaris}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSimOverrideBaris(activeSimBaris + 1)}
+                            className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground">Lampu/Baris:</span>
+                        <div className="flex items-center bg-muted rounded-md p-0.5 border border-border/40">
+                          <button
+                            type="button"
+                            onClick={() => setSimOverrideLpb(Math.max(1, activeSimLpb - 1))}
+                            className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                          >
+                            -
+                          </button>
+                          <span className="px-2 text-xs font-semibold w-5 text-center">{activeSimLpb}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSimOverrideLpb(activeSimLpb + 1)}
+                            className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      {(simOverrideBaris !== null || simOverrideLpb !== null || simDisabledLamps.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSimOverrideBaris(null)
+                            setSimOverrideLpb(null)
+                            setSimDisabledLamps([])
+                          }}
+                          className="text-[10px] text-primary hover:underline font-semibold"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -2336,12 +2369,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         {simResult.panjang} m (PT)
                       </text>
                     </svg>
-                    <div className="flex gap-4 mt-2 text-[10px] font-medium text-muted-foreground justify-center pb-2">
-                      <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-2.5 py-0.5 rounded-full font-semibold">
-                        <span className="inline-block size-1.5 bg-emerald-500 rounded-full" />
-                        Layout Acuan Visual ({activeSimTotalLamps} Titik)
+                    <div className="flex gap-4 mt-2 text-[9px] text-muted-foreground justify-center pb-2">
+                      <span className="flex items-center gap-1.5">
+                        <span className="inline-block w-4 h-1.5 bg-emerald-500 rounded-sm" />
+                        LED Strip {lampLen}m ({activeSimTotalLamps} unit)
                       </span>
-                      <span className="flex items-center gap-1">Grid: {activeSimBaris} baris × {activeSimLpb} kolom</span>
+                      <span>Grid: {activeSimBaris} baris × {activeSimLpb} kolom</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 mb-3 px-4">
@@ -2753,29 +2786,13 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 <CardContent className="pt-0 pb-4 space-y-2.5">
                   {calcResult ? (
                     <>
-                      {/* Range Result Prominent Banner */}
-                      <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center space-y-1 mb-3">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estimasi Kebutuhan Titik Lampu (Range)</div>
-                        <div className="text-2xl font-extrabold text-primary">
-                          {stats.nmin} – {stats.nmax} <span className="text-sm font-semibold text-muted-foreground">Titik Lampu</span>
-                        </div>
-                        <div className="text-[11px] font-medium text-muted-foreground">
-                          Daya Total: <span className="font-semibold text-foreground">{(stats.nmin * watt).toFixed(0)} W – {(stats.nmax * watt).toFixed(0)} W</span>
-                        </div>
-                      </div>
-
                       <div className="grid grid-cols-3 gap-2">
-                        <StatBox label="Rentang Lampu" value={`${stats.nmin}–${stats.nmax}`} unit=" titik" variant="default" />
+                        <StatBox label="Total Lampu" value={stats.n} unit=" unit" variant="default" />
                         <StatBox label="Jumlah Baris" value={stats.nRow} unit=" baris" />
                         <StatBox label="Per Baris" value={stats.nPerRow} unit=" unit" />
                         <StatBox label="Jarak Baris" value={Number(stats.rowSpacing)?.toFixed(2)} unit=" m" variant={Number(stats.rowSpacing) <= 1.9 ? "success" : Number(stats.rowSpacing) <= 2.2 ? "info" : "warning"} />
                         <StatBox label="Jarak Samping" value={activeMargin.toFixed(2)} unit=" m" variant={irregCheck.sampingStatus === "ok" ? "success" : activeMargin >= 0.2 && activeMargin <= 0.8 ? "info" : "warning"} />
-                        <StatBox 
-                          label="Rasio W/m²" 
-                          value={stats.luas > 0 ? `${((stats.nmin * watt) / stats.luas).toFixed(2)}–${((stats.nmax * watt) / stats.luas).toFixed(2)}` : "0.00"} 
-                          unit=" W/m²" 
-                          variant={irregCheck.rasioStatus === "ok" ? "success" : (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) >= 3.5 && (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) <= 5.5 ? "info" : "warning"} 
-                        />
+                        <StatBox label="Rasio W/m²" value={Number(stats.luas > 0 ? (stats.n * watt) / stats.luas : 0).toFixed(2)} unit=" W/m²" variant={irregCheck.rasioStatus === "ok" ? "success" : (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) >= 3.5 && (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) <= 5.5 ? "info" : "warning"} />
                       </div>
                       <RatioBar rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} check={irregCheck} />
                       <SmartSuggestions rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} check={irregCheck} />
@@ -2833,18 +2850,66 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         </div>
                       )}
 
-                        {irregDisabledLamps.length > 0 && (
-                          <div className="border-t border-border/60 pt-2 mt-2 flex justify-end">
+                      {/* Irregular Grid Adjustment Steppers */}
+                      <div className="border-t border-border/60 pt-3.5 mt-2 space-y-2">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Penyesuaian Manual</div>
+                        <div className="flex gap-4 items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-muted-foreground">Baris:</span>
+                            <div className="flex items-center bg-muted rounded-md p-0.5 border border-border/40">
+                              <button
+                                type="button"
+                                onClick={() => setIrregOverrideBaris(Math.max(1, stats.nRow - 1))}
+                                className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                              >
+                                -
+                              </button>
+                              <span className="px-2 text-xs font-semibold w-5 text-center">{stats.nRow}</span>
+                              <button
+                                type="button"
+                                onClick={() => setIrregOverrideBaris(stats.nRow + 1)}
+                                className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-muted-foreground">Lampu/Baris:</span>
+                            <div className="flex items-center bg-muted rounded-md p-0.5 border border-border/40">
+                              <button
+                                type="button"
+                                onClick={() => setIrregOverrideLpb(Math.max(1, stats.nPerRow - 1))}
+                                className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                              >
+                                -
+                              </button>
+                              <span className="px-2 text-xs font-semibold w-5 text-center">{stats.nPerRow}</span>
+                              <button
+                                type="button"
+                                onClick={() => setIrregOverrideLpb(stats.nPerRow + 1)}
+                                className="px-2 py-0.5 text-xs font-bold hover:bg-background rounded-xs"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                          {(irregOverrideBaris !== null || irregOverrideLpb !== null || irregDisabledLamps.length > 0) && (
                             <button
                               type="button"
-                              onClick={() => setIrregDisabledLamps([])}
+                              onClick={() => {
+                                setIrregOverrideBaris(null)
+                                setIrregOverrideLpb(null)
+                                setIrregDisabledLamps([])
+                              }}
                               className="text-[10px] text-primary hover:underline font-semibold"
                             >
-                              Reset Lampu Nonaktif ({irregDisabledLamps.length})
+                              Reset
                             </button>
-                          </div>
-                        )}
-                      </>
+                          )}
+                        </div>
+                      </div>
+                    </>
                   ) : (
                     <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
                       Tidak ada konfigurasi otomatis yang memenuhi standar rasio 4.0 – 5.0 W/m² untuk dimensi ini. Coba sesuaikan koordinat atau bentuk bangunan.
@@ -2877,13 +2942,6 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     }}
                   />
                   <div className="p-3 text-[10px] text-muted-foreground border-t border-border/50 leading-relaxed">
-                    <div className="flex gap-4 mb-1.5 text-[10px] font-medium justify-center">
-                      <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-2.5 py-0.5 rounded-full font-semibold">
-                        <span className="inline-block size-1.5 bg-emerald-500 rounded-full" />
-                        Layout Acuan Visual ({stats.n} Titik)
-                      </span>
-                      <span className="flex items-center gap-1">Grid: {stats.nRow} baris × {stats.nPerRow} kolom</span>
-                    </div>
                     <div>
                       {stats.n} lampu terplot · {stats.nRow} baris × {stats.nPerRow}/baris · Jarak baris: {stats.rowSpacing}m · Margin: {activeMargin.toFixed(2)}m · Luas: {stats.luas}m²
                     </div>

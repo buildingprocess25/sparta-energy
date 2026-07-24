@@ -267,9 +267,17 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
             <Row label="Mode Kalkulator" value={modeLabel} />
             <Row label="Luas Ruangan" value={`${area.toFixed(1)} m²`} />
             <Row label="Spesifikasi LED" value={`${watt}W · ${lampLen}m`} />
-            <Row label="Grid Penempatan" value={`${rows} Baris × ${lampsPerRow} Kolom`} />
+            <Row label="Rentang Titik Lampu" value={minLamps && maxLamps && minLamps !== maxLamps ? `${minLamps} – ${maxLamps} Titik` : `${totalLamps} Titik`} />
+            <Row label="Grid Layout Acuan" value={`${rows} Baris × ${lampsPerRow} Kolom (${totalLamps} Unit)`} />
             <Row label="Jarak Baris / Samping" value={`${Number(rowSpacing).toFixed(2)}m / ${Number(sideMargin).toFixed(2)}m`} />
-            <Row label="Kerapatan Daya" value={`${Number(rasio).toFixed(2)} W/m²`} />
+            <Row 
+              label="Kerapatan Daya" 
+              value={
+                minLamps && maxLamps && minLamps !== maxLamps && area > 0 
+                  ? `${((minLamps * watt) / area).toFixed(2)} – ${((maxLamps * watt) / area).toFixed(2)} W/m²` 
+                  : `${Number(rasio).toFixed(2)} W/m²`
+              } 
+            />
           </div>
 
           {/* Recommendation highlight */}
@@ -325,6 +333,8 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
               )
             }
 
+            const displayRange = minLamps && maxLamps && minLamps !== maxLamps ? `${minLamps}–${maxLamps}` : `${totalLamps}`
+
             return (
               <div
                 style={{
@@ -336,9 +346,10 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
+                  gap: "10px",
                 }}
               >
-                <div>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
                       fontSize: "9px",
@@ -352,7 +363,7 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
                   </div>
                   <div
                     style={{
-                      fontSize: "11px",
+                      fontSize: "10.5px",
                       color: "#374151",
                       marginTop: "2px",
                       lineHeight: "1.3"
@@ -361,26 +372,39 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
                     {cardDescription}
                   </div>
                 </div>
-                <div style={{ textAlign: "right" }}>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
                   <div
                     style={{
-                      fontSize: "36px",
+                      fontSize: displayRange.length > 5 ? "20px" : displayRange.length > 3 ? "23px" : "30px",
                       fontWeight: 900,
                       color: cardCountColor,
                       lineHeight: 1,
+                      letterSpacing: "-0.02em",
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    {totalLamps}
+                    {displayRange}
                   </div>
                   <div
                     style={{
                       fontSize: "10px",
-                      fontWeight: 600,
+                      fontWeight: 700,
                       color: cardUnitColor,
                       whiteSpace: "nowrap",
+                      marginTop: "2px",
                     }}
                   >
                     Unit LED
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "8px",
+                      color: "#6b7280",
+                      marginTop: "1px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    (Acuan: {totalLamps} Unit)
                   </div>
                 </div>
               </div>

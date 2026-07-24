@@ -301,8 +301,8 @@ export function calcSimetris(
   watt: number = LAMP_WATT,
   lampLen: number = LAMP_LEN
 ): SimetrisResult {
-  const maxLamps = Math.ceil((5.0 * areaSales) / watt)
-  const minLamps = Math.ceil((4.0 * areaSales) / watt)
+  const limitMaxLamps = Math.ceil((5.0 * areaSales) / watt)
+  const limitMinLamps = Math.ceil((4.0 * areaSales) / watt)
 
   // 1. Opsi jumlah lampu per baris berdasarkan Lebar Toko
   const lpbMax = Math.ceil(lebar / lampLen)
@@ -335,9 +335,9 @@ export function calcSimetris(
 
   // 3. Jumlah Lampu Sampling (Cell C32)
   // Formula Excel: =IF(FLOOR(TotalMax, LampuPerBaris) < TotalMin, CEILING(TotalMin, LampuPerBaris), FLOOR(TotalMax, LampuPerBaris))
-  const floorMax = Math.floor(maxLamps / lpb) * lpb
-  const ceilMin = Math.ceil(minLamps / lpb) * lpb
-  const jumlahLampuSampling = floorMax < minLamps ? ceilMin : floorMax
+  const floorMax = Math.floor(limitMaxLamps / lpb) * lpb
+  const ceilMin = Math.ceil(limitMinLamps / lpb) * lpb
+  const jumlahLampuSampling = floorMax < limitMinLamps ? ceilMin : floorMax
 
   // 4. Jumlah Baris Sampling (Cell C33)
   const C33 = Math.max(1, Math.round(jumlahLampuSampling / lpb))
@@ -349,10 +349,14 @@ export function calcSimetris(
   // Formula Excel: =IF(JarakPerBarisSampling > 1.9, JumlahBarisSampling + 1, JumlahBarisSampling)
   const baris = C34 > 1.9 ? C33 + 1 : C33
 
-  // 7. Nilai Final
+  // 7. Nilai Final (Baseline Layout Grid)
   const total = baris * lpb
   const jarakPerbaris = panjang / (baris + 1)
   const rasio = Math.round(((total * watt) / areaSales) * 100) / 100
+
+  // Opsi B1: Range berbasis Baseline Layout ± 2 Titik (Toleransi Fisik Lapangan)
+  const minLamps = Math.max(1, total - 2)
+  const maxLamps = total + 2
 
   return {
     baris,
@@ -400,9 +404,9 @@ export function calcIregular(
 
   // Calculate ratio based on actual polygon area
   const rasio = Math.round(((sim.total * watt) / area) * 100) / 100
-  // Calculate min/max lamps based on actual polygon area
-  const minLamps = Math.ceil((4.0 * area) / watt)
-  const maxLamps = Math.ceil((5.0 * area) / watt)
+  // Opsi B1: Range berbasis Baseline Layout ± 2 Titik (Toleransi Fisik Lapangan)
+  const minLamps = Math.max(1, sim.total - 2)
+  const maxLamps = sim.total + 2
 
   return {
     baris: sim.baris,
