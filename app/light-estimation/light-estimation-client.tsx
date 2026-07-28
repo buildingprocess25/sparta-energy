@@ -283,44 +283,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   const scaleX = simResult ? (SVG_W - PAD * 2) / simResult.lebar : 1
   const scaleY = simResult ? (SVG_H - PAD * 2) / simResult.panjang : 1
 
-  // ── Symmetrical Ratio Bar Component ──
-  const RatioBar = ({ rasio, check }: { rasio: number; check: StandardCheckResult }) => {
-    const pct = Math.min(100, Math.max(0, ((rasio - 3.5) / (5.5 - 3.5)) * 100))
-    const minPct = ((4.0 - 3.5) / (5.5 - 3.5)) * 100
-    const maxPct = ((5.0 - 3.5) / (5.5 - 3.5)) * 100
 
-    let color = "#10b981"
-    if (check.overallStatus === "toleransi") {
-      color = "#3b82f6"
-    } else if (check.overallStatus === "diluar") {
-      color = "#f59e0b"
-    }
-
-    return (
-      <div className="space-y-1.5 mt-2">
-        <div className="flex justify-between text-[11px] font-medium">
-          <span className="text-muted-foreground">3.5 W/m²</span>
-          <span
-            style={{ color }}
-            className="font-semibold text-xs flex items-center gap-1 cursor-pointer select-none hover:opacity-80 active:opacity-60"
-            onClick={() => setInfoOpen(true)}
-          >
-            {rasio.toFixed(2)} W/m² ({check.statusLabel})
-            <IconInfoCircle className="inline size-3.5 opacity-80" />
-          </span>
-          <span className="text-muted-foreground">5.5 W/m²</span>
-        </div>
-        <div className="relative h-2 w-full rounded-full bg-muted overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-300"
-            style={{ width: `${pct}%`, backgroundColor: color }}
-          />
-          <div className="absolute top-0 bottom-0 w-0.5 bg-amber-500" style={{ left: `${minPct}%` }} />
-          <div className="absolute top-0 bottom-0 w-0.5 bg-rose-500" style={{ left: `${maxPct}%` }} />
-        </div>
-      </div>
-    )
-  }
 
   // ── Symmetrical StatBox Component ──
   const StatBox = ({
@@ -452,6 +415,68 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     )
   }
 
+  // ── RangeBoundsCard Component (Batas Bawah Min vs Batas Atas Max) ──
+  const RangeBoundsCard = ({
+    minLamps,
+    maxLamps,
+    area,
+    watt,
+  }: {
+    minLamps: number
+    maxLamps: number
+    area: number
+    watt: number
+  }) => {
+    const minWatt = (minLamps * watt).toFixed(0)
+    const maxWatt = (maxLamps * watt).toFixed(0)
+
+    const minRasio = area > 0 ? ((minLamps * watt) / area).toFixed(2) : "0.00"
+    const maxRasio = area > 0 ? ((maxLamps * watt) / area).toFixed(2) : "0.00"
+
+    return (
+      <div className="bg-muted/30 border border-border/60 rounded-xl p-3 space-y-2 mt-3">
+        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <span>Detail Rentang Batas Daya & Kerapatan Cahaya</span>
+          <span className="text-[9px] font-semibold text-muted-foreground">Target Baku: 4.0 – 5.0 W/m²</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* Batas Bawah (Min) */}
+          <div className="rounded-xl border border-border/70 bg-background/60 p-2.5 text-center space-y-1">
+            <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight">
+              Batas Bawah (Minimal)
+            </div>
+            <div className="text-base font-black text-foreground">
+              {minLamps} <span className="text-[10px] font-semibold text-muted-foreground">Titik Lampu</span>
+            </div>
+            <div className="text-xs font-extrabold text-foreground">
+              {minWatt} Watt
+            </div>
+            <div className="text-[10px] font-medium text-muted-foreground">
+              Kerapatan: <span className="font-semibold text-foreground">{minRasio} W/m²</span>
+            </div>
+          </div>
+
+          {/* Batas Atas (Max) */}
+          <div className="rounded-xl border border-border/70 bg-background/60 p-2.5 text-center space-y-1">
+            <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight">
+              Batas Atas (Maksimal)
+            </div>
+            <div className="text-base font-black text-foreground">
+              {maxLamps} <span className="text-[10px] font-semibold text-muted-foreground">Titik Lampu</span>
+            </div>
+            <div className="text-xs font-extrabold text-foreground">
+              {maxWatt} Watt
+            </div>
+            <div className="text-[10px] font-medium text-muted-foreground">
+              Kerapatan: <span className="font-semibold text-foreground">{maxRasio} W/m²</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // ── Irregular Mode States ──
   const [shape, setShape] = useState<string>("rect")
   const [watt, setWatt] = useState<number>(LAMP_WATT)
@@ -525,6 +550,38 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     toast.info(`Titik T${idx + 1} berhasil dihapus.`)
   }, [])
 
+  const handleUpdateSegmentLength = useCallback((idx: number, newLenVal: number) => {
+    if (isNaN(newLenVal) || newLenVal <= 0) return
+
+    setCustomPts(prev => {
+      if (prev.length < 2) return prev
+      const n = prev.length
+      const p1 = prev[idx]
+      const p2Idx = (idx + 1) % n
+      const p2 = prev[p2Idx]
+      if (!p1 || !p2) return prev
+
+      const dx = p2.x - p1.x
+      const dy = p2.y - p1.y
+      const currentLen = Math.hypot(dx, dy)
+      if (currentLen === 0) return prev
+
+      const scale = newLenVal / currentLen
+      const deltaX = dx * (scale - 1)
+      const deltaY = dy * (scale - 1)
+
+      return prev.map((pt, i) => {
+        if (i === p2Idx) {
+          return {
+            x: Number(Math.max(0, pt.x + deltaX).toFixed(1)),
+            y: Number(Math.max(0, pt.y + deltaY).toFixed(1))
+          }
+        }
+        return pt
+      })
+    })
+  }, [])
+
   const handleSaveCanvasEdit = useCallback(() => {
     if (!canvasEditTarget) return
     const val = parseFloat(canvasEditTarget.value)
@@ -538,42 +595,11 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       toast.success(`Ukuran ${canvasEditTarget.title} diubah menjadi ${val}m`)
     } else if (canvasEditTarget.segmentIdx !== undefined) {
       const idx = canvasEditTarget.segmentIdx
-      setCustomPts(prev => {
-        if (prev.length < 2) return prev
-        const n = prev.length
-        const p1 = prev[idx]
-        const p2Idx = (idx + 1) % n
-        const p2 = prev[p2Idx]
-
-        const dx = p2.x - p1.x
-        const dy = p2.y - p1.y
-        const currentLen = Math.hypot(dx, dy)
-        if (currentLen === 0) return prev
-
-        const scale = val / currentLen
-        const deltaX = dx * (scale - 1)
-        const deltaY = dy * (scale - 1)
-
-        return prev.map((pt, i) => {
-          if (i === p2Idx) {
-            return {
-              x: Number(Math.max(0, pt.x + deltaX).toFixed(1)),
-              y: Number(Math.max(0, pt.y + deltaY).toFixed(1))
-            }
-          }
-          return pt
-        })
-      })
-
-      setSegmentLengths(prev => {
-        const next = [...prev]
-        next[idx] = val
-        return next
-      })
+      handleUpdateSegmentLength(idx, val)
       toast.success(`Panjang Sisi ${idx + 1} diubah menjadi ${val}m`)
     }
     setCanvasEditTarget(null)
-  }, [canvasEditTarget])
+  }, [canvasEditTarget, handleUpdateSegmentLength])
 
   // Keep segmentLengths in sync with customPts and customClosed
   useEffect(() => {
@@ -2010,7 +2036,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       variant={simCheck.rasioStatus === "ok" ? "success" : activeSimRasio >= 3.5 && activeSimRasio <= 5.5 ? "info" : "warning"}
                     />
                   </div>
-                  <RatioBar rasio={activeSimRasio} check={simCheck} />
+                  <RangeBoundsCard
+                    minLamps={simResult.range.minLamps}
+                    maxLamps={simResult.range.maxLamps}
+                    area={simResult.area}
+                    watt={LAMP_WATT}
+                  />
                   <SmartSuggestions rasio={activeSimRasio} check={simCheck} />
 
                   {/* Compliance Info / Warning Alerts */}
@@ -2641,6 +2672,16 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                                   next[idx] = val as any
                                   return next
                                 })
+                                const numVal = parseFloat(val)
+                                if (!isNaN(numVal) && numVal > 0) {
+                                  handleUpdateSegmentLength(idx, numVal)
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const numVal = parseFloat(e.target.value)
+                                if (!isNaN(numVal) && numVal > 0) {
+                                  handleUpdateSegmentLength(idx, numVal)
+                                }
                               }}
                               className="h-7 text-[11px]"
                             />
@@ -2732,7 +2773,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                           variant={irregCheck.rasioStatus === "ok" ? "success" : (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) >= 3.5 && (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) <= 5.5 ? "info" : "warning"}
                         />
                       </div>
-                      <RatioBar rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} check={irregCheck} />
+                      <RangeBoundsCard
+                        minLamps={stats.nmin}
+                        maxLamps={stats.nmax}
+                        area={stats.luas}
+                        watt={watt}
+                      />
                       <SmartSuggestions rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} check={irregCheck} />
 
                       {/* Compliance Info / Warning Alerts */}
