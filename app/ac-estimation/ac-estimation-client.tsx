@@ -490,7 +490,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                        Suhu Tertinggi
+                        Suhu Lingkungan Desain 2%
                       </p>
                       <div className="flex items-center gap-1.5">
                         <Thermometer className="size-4 text-orange-500" />

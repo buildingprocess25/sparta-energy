@@ -258,7 +258,7 @@ export function EstimationResultCard({ cardRef, data }: Props) {
             <Row label="Luas Sales Area" value={`${salesArea} m²`} />
 
             {/* Suhu Luar */}
-            <Row label="Suhu Luar Tertinggi (Open-Meteo)" value={`${maxTemp}°C`} />
+            <Row label="Suhu Lingkungan Desain 2%" value={`${maxTemp}°C`} />
 
             <Row
               label="Total Beban BTU"
