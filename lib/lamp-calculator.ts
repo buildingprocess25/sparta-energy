@@ -419,3 +419,48 @@ export function calcIregular(
     maxLamps,
   }
 }
+
+/**
+ * Preset Polygon Generators for Quick Layout Setup
+ */
+export function generateRectPolygon(lebar: number, panjang: number): Point[] {
+  const w = Math.max(1, lebar)
+  const h = Math.max(1, panjang)
+  return [
+    { x: 0, y: 0 },
+    { x: w, y: 0 },
+    { x: w, y: h },
+    { x: 0, y: h },
+  ]
+}
+
+export function generateLShapePolygon(p: number, l: number, w: number, h: number): Point[] {
+  const L = Math.max(1, l)
+  const P = Math.max(1, p)
+  const W = Math.min(L - 0.5, Math.max(0.5, w))
+  const H = Math.min(P - 0.5, Math.max(0.5, h))
+  return [
+    { x: 0, y: 0 },
+    { x: L, y: 0 },
+    { x: L, y: H },
+    { x: W, y: H },
+    { x: W, y: P },
+    { x: 0, y: P },
+  ]
+}
+
+export function generateCutoutPolygon(p: number, l: number, cutoutW: number, cutoutH: number): Point[] {
+  const L = Math.max(1, l)
+  const P = Math.max(1, p)
+  const cW = Math.min(L - 0.5, Math.max(0.5, cutoutW))
+  const cH = Math.min(P - 0.5, Math.max(0.5, cutoutH))
+  return [
+    { x: 0, y: 0 },
+    { x: L, y: 0 },
+    { x: L, y: P - cH },
+    { x: L - cW, y: P - cH },
+    { x: L - cW, y: P },
+    { x: 0, y: P },
+  ]
+}
+
