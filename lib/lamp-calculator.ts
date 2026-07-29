@@ -354,9 +354,9 @@ export function calcSimetris(
   const jarakPerbaris = panjang / (baris + 1)
   const rasio = Math.round(((total * watt) / areaSales) * 100) / 100
 
-  // Opsi B1: Range berbasis Baseline Layout ± 2 Titik (Toleransi Fisik Lapangan)
-  const minLamps = Math.max(1, total - 2)
-  const maxLamps = total + 2
+  // Acuan standar target 4.0 s/d 5.0 W/m² (Excel standard)
+  const minLamps = limitMinLamps
+  const maxLamps = limitMaxLamps
 
   return {
     baris,
@@ -404,9 +404,9 @@ export function calcIregular(
 
   // Calculate ratio based on actual polygon area
   const rasio = Math.round(((sim.total * watt) / area) * 100) / 100
-  // Opsi B1: Range berbasis Baseline Layout ± 2 Titik (Toleransi Fisik Lapangan)
-  const minLamps = Math.max(1, sim.total - 2)
-  const maxLamps = sim.total + 2
+  // Acuan standar target 4.0 s/d 5.0 W/m² (Excel standard) berdasarkan luas aktual polygon
+  const minLamps = Math.ceil((4.0 * area) / watt)
+  const maxLamps = Math.ceil((5.0 * area) / watt)
 
   return {
     baris: sim.baris,

@@ -288,11 +288,13 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   // ── Symmetrical StatBox Component ──
   const StatBox = ({
     label,
+    subLabel,
     value,
     unit,
     variant = "default"
   }: {
     label: string,
+    subLabel?: string,
     value: any,
     unit: string,
     variant?: "default" | "success" | "warning" | "info"
@@ -312,18 +314,21 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     }
 
     const valStr = String(value)
-    let fontSizeCls = "text-[13.5px]"
+    let fontSizeCls = "text-xl sm:text-2xl"
     if (valStr.length > 8) {
-      fontSizeCls = "text-[10px] tracking-tighter"
+      fontSizeCls = "text-sm tracking-tighter"
     } else if (valStr.length > 5) {
-      fontSizeCls = "text-[11px] tracking-tight"
+      fontSizeCls = "text-lg tracking-tight"
     }
 
     return (
-      <div className={`rounded-xl border p-1.5 text-center flex flex-col justify-center transition-colors duration-300 ${cardCls}`}>
-        <div className="text-[8.5px] font-semibold text-muted-foreground uppercase tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">{label}</div>
-        <div className={`font-bold mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis ${fontSizeCls} ${textCls}`}>
-          {value}<span className="text-[9px] font-normal text-muted-foreground ml-0.5">{unit}</span>
+      <div className={`rounded-xl border p-3 text-center flex flex-col items-center justify-between transition-colors duration-300 ${cardCls}`}>
+        <div className="text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-tight leading-tight flex flex-col justify-center items-center min-h-[28px] text-center">
+          <span>{label}</span>
+          {subLabel && <span className="text-[10px] font-bold text-muted-foreground/80">{subLabel}</span>}
+        </div>
+        <div className={`font-black mt-1.5 ${fontSizeCls} ${textCls} flex items-baseline justify-center gap-0.5`}>
+          {value}<span className="text-xs font-bold text-muted-foreground/90 ml-0.5">{unit}</span>
         </div>
       </div>
     )
@@ -415,67 +420,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     )
   }
 
-  // ── RangeBoundsCard Component (Batas Bawah Min vs Batas Atas Max) ──
-  const RangeBoundsCard = ({
-    minLamps,
-    maxLamps,
-    area,
-    watt,
-  }: {
-    minLamps: number
-    maxLamps: number
-    area: number
-    watt: number
-  }) => {
-    const minWatt = (minLamps * watt).toFixed(0)
-    const maxWatt = (maxLamps * watt).toFixed(0)
 
-    const minRasio = area > 0 ? ((minLamps * watt) / area).toFixed(2) : "0.00"
-    const maxRasio = area > 0 ? ((maxLamps * watt) / area).toFixed(2) : "0.00"
-
-    return (
-      <div className="bg-muted/30 border border-border/60 rounded-xl p-3 space-y-2 mt-3">
-        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-          <span>Detail Rentang Batas Daya & Kerapatan Cahaya</span>
-          <span className="text-[9px] font-semibold text-muted-foreground">Target Baku: 4.0 – 5.0 W/m²</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2.5">
-          {/* Batas Bawah (Min) */}
-          <div className="rounded-xl border border-border/70 bg-background/60 p-2.5 text-center space-y-1">
-            <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight">
-              Batas Bawah (Minimal)
-            </div>
-            <div className="text-base font-black text-foreground">
-              {minLamps} <span className="text-[10px] font-semibold text-muted-foreground">Titik Lampu</span>
-            </div>
-            <div className="text-xs font-extrabold text-foreground">
-              {minWatt} Watt
-            </div>
-            <div className="text-[10px] font-medium text-muted-foreground">
-              Kerapatan: <span className="font-semibold text-foreground">{minRasio} W/m²</span>
-            </div>
-          </div>
-
-          {/* Batas Atas (Max) */}
-          <div className="rounded-xl border border-border/70 bg-background/60 p-2.5 text-center space-y-1">
-            <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight">
-              Batas Atas (Maksimal)
-            </div>
-            <div className="text-base font-black text-foreground">
-              {maxLamps} <span className="text-[10px] font-semibold text-muted-foreground">Titik Lampu</span>
-            </div>
-            <div className="text-xs font-extrabold text-foreground">
-              {maxWatt} Watt
-            </div>
-            <div className="text-[10px] font-medium text-muted-foreground">
-              Kerapatan: <span className="font-semibold text-foreground">{maxRasio} W/m²</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   // ── Irregular Mode States ──
   const [shape, setShape] = useState<string>("rect")
@@ -1503,8 +1448,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       ? lamps.length - irregDisabledLamps.filter(idx => idx < lamps.length).length
       : 0
 
-    const calculatedMinLamps = isCalculated && activeTotalLamps > 0 ? Math.max(1, activeTotalLamps - 2) : minLamps
-    const calculatedMaxLamps = isCalculated && activeTotalLamps > 0 ? activeTotalLamps + 2 : maxLamps
+    const calculatedMinLamps = res ? res.minLamps : minLamps
+    const calculatedMaxLamps = res ? res.maxLamps : maxLamps
 
     setStats({
       luas: Number(luas.toFixed(1)),
@@ -2013,35 +1958,28 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 </CardHeader>
                 <CardContent className="pt-0 pb-4 space-y-3">
                   {/* Range Result Prominent Banner */}
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center space-y-1">
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center space-y-1.5">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estimasi Kebutuhan Titik Lampu (Range)</div>
                     <div className="text-2xl font-extrabold text-primary">
                       {simResult.range.minLamps} – {simResult.range.maxLamps} <span className="text-sm font-semibold text-muted-foreground">Titik Lampu</span>
                     </div>
-                    <div className="text-[11px] font-medium text-muted-foreground">
-                      Daya Total: <span className="font-semibold text-foreground">{(simResult.range.minLamps * LAMP_WATT).toFixed(0)} W – {(simResult.range.maxLamps * LAMP_WATT).toFixed(0)} W</span>
+                    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] font-medium text-muted-foreground">
+                      <div>
+                        Daya Total: <span className="font-semibold text-foreground">{(simResult.range.minLamps * LAMP_WATT).toFixed(0)} W – {(simResult.range.maxLamps * LAMP_WATT).toFixed(0)} W</span>
+                      </div>
+                      <div className="hidden sm:inline text-muted-foreground/40">•</div>
+                      <div>
+                        Kerapatan Daya: <span className="font-semibold text-foreground">{simResult.area > 0 ? `${((simResult.range.minLamps * LAMP_WATT) / simResult.area).toFixed(2)} – ${((simResult.range.maxLamps * LAMP_WATT) / simResult.area).toFixed(2)}` : "0.00"} W/m²</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <StatBox label="Rentang Lampu" value={`${simResult.range.minLamps}–${simResult.range.maxLamps}`} unit=" titik" variant="default" />
-                    <StatBox label="Jumlah Baris" value={activeSimBaris} unit=" baris" />
-                    <StatBox label="Per Baris" value={activeSimLpb} unit=" unit" />
-                    <StatBox label="Jarak Baris" value={activeSimJarakPerbaris.toFixed(2)} unit=" m" variant={activeSimJarakPerbaris <= 1.9 ? "success" : activeSimJarakPerbaris <= 2.2 ? "info" : "warning"} />
-                    <StatBox label="Jarak Samping" value={activeSimJarakSamping.toFixed(2)} unit=" m" variant={simCheck.sampingStatus === "ok" ? "success" : activeSimJarakSamping >= 0.2 && activeSimJarakSamping <= 0.8 ? "info" : "warning"} />
-                    <StatBox
-                      label="Rasio W/m²"
-                      value={`${((simResult.range.minLamps * LAMP_WATT) / simResult.area).toFixed(2)}–${((simResult.range.maxLamps * LAMP_WATT) / simResult.area).toFixed(2)}`}
-                      unit=" W/m²"
-                      variant={simCheck.rasioStatus === "ok" ? "success" : activeSimRasio >= 3.5 && activeSimRasio <= 5.5 ? "info" : "warning"}
-                    />
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <StatBox label="Estimasi" subLabel="Jumlah Baris" value={activeSimBaris} unit=" baris" />
+                    <StatBox label="Estimasi Unit" subLabel="Per Baris" value={activeSimLpb} unit=" unit" />
+                    <StatBox label="Jarak" subLabel="Per Baris" value={activeSimJarakPerbaris.toFixed(2)} unit=" m" variant={activeSimJarakPerbaris <= 1.9 ? "success" : activeSimJarakPerbaris <= 2.2 ? "info" : "warning"} />
+                    <StatBox label="Jarak" subLabel="Samping" value={activeSimJarakSamping.toFixed(2)} unit=" m" variant={simCheck.sampingStatus === "ok" ? "success" : activeSimJarakSamping >= 0.2 && activeSimJarakSamping <= 0.8 ? "info" : "warning"} />
                   </div>
-                  <RangeBoundsCard
-                    minLamps={simResult.range.minLamps}
-                    maxLamps={simResult.range.maxLamps}
-                    area={simResult.area}
-                    watt={LAMP_WATT}
-                  />
                   <SmartSuggestions rasio={activeSimRasio} check={simCheck} />
 
                   {/* Compliance Info / Warning Alerts */}
@@ -2750,35 +2688,28 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   {calcResult ? (
                     <>
                       {/* Range Result Prominent Banner */}
-                      <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center space-y-1 mb-3">
+                      <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center space-y-1.5 mb-3">
                         <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estimasi Kebutuhan Titik Lampu (Range)</div>
                         <div className="text-2xl font-extrabold text-primary">
                           {stats.nmin} – {stats.nmax} <span className="text-sm font-semibold text-muted-foreground">Titik Lampu</span>
                         </div>
-                        <div className="text-[11px] font-medium text-muted-foreground">
-                          Daya Total: <span className="font-semibold text-foreground">{(stats.nmin * watt).toFixed(0)} W – {(stats.nmax * watt).toFixed(0)} W</span>
+                        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] font-medium text-muted-foreground">
+                          <div>
+                            Daya Total: <span className="font-semibold text-foreground">{(stats.nmin * watt).toFixed(0)} W – {(stats.nmax * watt).toFixed(0)} W</span>
+                          </div>
+                          <div className="hidden sm:inline text-muted-foreground/40">•</div>
+                          <div>
+                            Kerapatan Daya: <span className="font-semibold text-foreground">{stats.luas > 0 ? `${((stats.nmin * watt) / stats.luas).toFixed(2)} – ${((stats.nmax * watt) / stats.luas).toFixed(2)}` : "0.00"} W/m²</span>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
-                        <StatBox label="Rentang Lampu" value={`${stats.nmin}–${stats.nmax}`} unit=" titik" variant="default" />
-                        <StatBox label="Jumlah Baris" value={stats.nRow} unit=" baris" />
-                        <StatBox label="Per Baris" value={stats.nPerRow} unit=" unit" />
-                        <StatBox label="Jarak Baris" value={Number(stats.rowSpacing)?.toFixed(2)} unit=" m" variant={Number(stats.rowSpacing) <= 1.9 ? "success" : Number(stats.rowSpacing) <= 2.2 ? "info" : "warning"} />
-                        <StatBox label="Jarak Samping" value={activeMargin.toFixed(2)} unit=" m" variant={irregCheck.sampingStatus === "ok" ? "success" : activeMargin >= 0.2 && activeMargin <= 0.8 ? "info" : "warning"} />
-                        <StatBox
-                          label="Rasio W/m²"
-                          value={stats.luas > 0 ? `${((stats.nmin * watt) / stats.luas).toFixed(2)}–${((stats.nmax * watt) / stats.luas).toFixed(2)}` : "0.00"}
-                          unit=" W/m²"
-                          variant={irregCheck.rasioStatus === "ok" ? "success" : (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) >= 3.5 && (stats.luas > 0 ? (stats.n * watt) / stats.luas : 0) <= 5.5 ? "info" : "warning"}
-                        />
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <StatBox label="Estimasi" subLabel="Jumlah Baris" value={stats.nRow} unit=" baris" />
+                        <StatBox label="Estimasi Unit" subLabel="Per Baris" value={stats.nPerRow} unit=" unit" />
+                        <StatBox label="Jarak" subLabel="Per Baris" value={Number(stats.rowSpacing)?.toFixed(2)} unit=" m" variant={Number(stats.rowSpacing) <= 1.9 ? "success" : Number(stats.rowSpacing) <= 2.2 ? "info" : "warning"} />
+                        <StatBox label="Jarak" subLabel="Samping" value={activeMargin.toFixed(2)} unit=" m" variant={irregCheck.sampingStatus === "ok" ? "success" : activeMargin >= 0.2 && activeMargin <= 0.8 ? "info" : "warning"} />
                       </div>
-                      <RangeBoundsCard
-                        minLamps={stats.nmin}
-                        maxLamps={stats.nmax}
-                        area={stats.luas}
-                        watt={watt}
-                      />
                       <SmartSuggestions rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} check={irregCheck} />
 
                       {/* Compliance Info / Warning Alerts */}
