@@ -902,16 +902,23 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   // ── Irregular Canvas Drawing ──
   const drawCanvas = useCallback((canvas: HTMLCanvasElement | null, showLamps: boolean, forceLight: boolean = false) => {
     if (!canvas) return
-    const W = canvas.offsetWidth || 340
-    canvas.width = W * (window.devicePixelRatio || 1)
-    canvas.height = CANVAS_H * (window.devicePixelRatio || 1)
+    const rect = canvas.getBoundingClientRect()
+    const W = rect.width > 0 ? rect.width : (canvas.offsetWidth || 340)
+    const H = CANVAS_H
+
+    // High-DPI Super Sampling for crystal-clear HD rendering (min 2x DPR)
+    const dpr = Math.max(window.devicePixelRatio || 1, 2)
+
+    canvas.width = Math.round(W * dpr)
+    canvas.height = Math.round(H * dpr)
     canvas.style.width = W + "px"
-    canvas.style.height = CANVAS_H + "px"
+    canvas.style.height = H + "px"
+
     const ctx = canvas.getContext("2d")
     if (!ctx) return
-    const dpr = window.devicePixelRatio || 1
+
     ctx.scale(dpr, dpr)
-    ctx.clearRect(0, 0, W, CANVAS_H)
+    ctx.clearRect(0, 0, W, H)
 
     const isDark = !forceLight && resolvedTheme === "dark"
 
@@ -1039,17 +1046,17 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
             ctx.save()
             ctx.translate(mx, my - 8)
             ctx.rotate(angle)
+            ctx.textAlign = "center"
+            ctx.textBaseline = "middle"
 
-            // Halo stroke
+            // Subtle, aligned text outline
             ctx.strokeStyle = bgFill
-            ctx.lineWidth = 3
+            ctx.lineWidth = 1.5
             ctx.lineJoin = "round"
             ctx.strokeText(segText, 0, 0)
 
             // Crisp fill text
             ctx.fillStyle = isDark ? "#34d399" : "#047857"
-            ctx.textAlign = "center"
-            ctx.textBaseline = "middle"
             ctx.fillText(segText, 0, 0)
 
             ctx.restore()
@@ -1304,7 +1311,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         ctx.rotate(-Math.PI / 2)
         // Halo outline
         ctx.strokeStyle = bgFill
-        ctx.lineWidth = 3.5
+        ctx.lineWidth = 1.5
         ctx.lineJoin = "round"
         ctx.strokeText(text, 0, 0)
         // Crisp fill text
@@ -1313,7 +1320,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       } else {
         // Halo outline
         ctx.strokeStyle = bgFill
-        ctx.lineWidth = 3.5
+        ctx.lineWidth = 1.5
         ctx.lineJoin = "round"
         ctx.strokeText(text, x, y)
         // Crisp fill text
@@ -1466,17 +1473,17 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           ctx.save()
           ctx.translate(labelX, labelY)
           ctx.rotate(angle)
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
 
-          // Halo stroke background for legibility without background boxes
+          // Subtle, perfectly-aligned text outline
           ctx.strokeStyle = bgFill
-          ctx.lineWidth = 3
+          ctx.lineWidth = 1.5
           ctx.lineJoin = "round"
           ctx.strokeText(label, 0, 0)
 
           // Crisp filled text aligned parallel to wall
           ctx.fillStyle = isDark ? "#34d399" : "#047857"
-          ctx.textAlign = "center"
-          ctx.textBaseline = "middle"
           ctx.fillText(label, 0, 0)
 
           ctx.restore()
