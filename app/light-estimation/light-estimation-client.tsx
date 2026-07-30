@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link"
-import { IconBulb, IconArrowLeft, IconRefresh, IconGrid3x3, IconPolygon, IconSquare, IconChevronRight, IconDownload, IconInfoCircle, IconCheck, IconEdit, IconTrash, IconX, IconPointer } from "@tabler/icons-react"
+import { IconBulb, IconArrowLeft, IconRefresh, IconGrid3x3, IconPolygon, IconSquare, IconChevronRight, IconDownload, IconInfoCircle, IconCheck, IconEdit, IconTrash, IconX, IconPointer, IconArrowBackUp, IconArrowForwardUp } from "@tabler/icons-react"
 import { Header } from "@/components/header"
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -40,6 +40,26 @@ import type { StoreData } from "@/app/audit/start/start-client"
 
 interface LightEstimationClientProps {
   stores: StoreData[]
+}
+
+function getClosestPointOnSegment(
+  px: number, py: number,
+  ax: number, ay: number,
+  bx: number, by: number
+) {
+  const dx = bx - ax
+  const dy = by - ay
+  const lenSq = dx * dx + dy * dy
+  if (lenSq === 0) return { x: ax, y: ay, dist: Math.hypot(px - ax, py - ay), t: 0 }
+
+  let t = ((px - ax) * dx + (py - ay) * dy) / lenSq
+  t = Math.max(0, Math.min(1, t))
+
+  const closestX = ax + t * dx
+  const closestY = ay + t * dy
+  const dist = Math.hypot(px - closestX, py - closestY)
+
+  return { x: closestX, y: closestY, dist, t }
 }
 
 const CANVAS_H = 340
@@ -472,8 +492,102 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       lH: parseFloat(p.lH) || 0,
     }
   }, [p])
+  interface CanvasSnapshot {
+    pts: Point[]
+    closed: boolean
+  }
+
   const [customPts, setCustomPts] = useState<Point[]>([])
   const [customClosed, setCustomClosed] = useState<boolean>(false)
+  const [historyPast, setHistoryPast] = useState<CanvasSnapshot[]>([])
+  const [historyFuture, setHistoryFuture] = useState<CanvasSnapshot[]>([])
+  const [deleteConfirmIdx, setDeleteConfirmIdx] = useState<number | null>(null)
+
+  const dragStartSnapshotRef = useRef<CanvasSnapshot | null>(null)
+
+  const pushSnapshot = useCallback((snapshot: CanvasSnapshot) => {
+    setHistoryPast(prev => [...prev.slice(-30), snapshot])
+    setHistoryFuture([])
+  }, [])
+
+  const pushCurrentToHistory = useCallback(() => {
+    pushSnapshot({ pts: customPts, closed: customClosed })
+  }, [customPts, customClosed, pushSnapshot])
+
+  const handleUndo = useCallback(() => {
+    setHistoryPast(prevPast => {
+      if (prevPast.length === 0) return prevPast
+      const last = prevPast[prevPast.length - 1]
+      const newPast = prevPast.slice(0, prevPast.length - 1)
+
+      setHistoryFuture(prevFuture => [{ pts: customPts, closed: customClosed }, ...prevFuture])
+      setCustomPts(last.pts)
+      setCustomClosed(last.closed)
+      return newPast
+    })
+    toast.info("Perubahan denah dibatalkan (Undo)")
+  }, [customPts, customClosed])
+
+  const handleRedo = useCallback(() => {
+    setHistoryFuture(prevFuture => {
+      if (prevFuture.length === 0) return prevFuture
+      const next = prevFuture[0]
+      const newFuture = prevFuture.slice(1)
+
+      setHistoryPast(prevPast => [...prevPast.slice(-30), { pts: customPts, closed: customClosed }])
+      setCustomPts(next.pts)
+      setCustomClosed(next.closed)
+      return newFuture
+    })
+    toast.info("Perubahan denah dipulihkan (Redo)")
+  }, [customPts, customClosed])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (shape !== "custom") return
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return
+      }
+
+      if (e.key === "Escape") {
+        setSelectedNodeIdx(null)
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        if (e.shiftKey) {
+          e.preventDefault()
+          handleRedo()
+        } else {
+          e.preventDefault()
+          handleUndo()
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault()
+        handleRedo()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [shape, handleUndo, handleRedo])
+
+  const [expandDir, setExpandDir] = useState<"end" | "start" | "center">("center")
+  const [segmentLengths, setSegmentLengths] = useState<(number | string)[]>([])
+  const [activeDragIdx, setActiveDragIdx] = useState<number | null>(null)
+  const [selectedNodeIdx, setSelectedNodeIdx] = useState<number | null>(null)
+  const [hoverEdge, setHoverEdge] = useState<{ cx: number; cy: number; segmentIdx: number } | null>(null)
+
+  // Auto-deselect node when clicking anywhere outside the canvas container
+  useEffect(() => {
+    if (selectedNodeIdx === null) return
+    const handleDocumentPointerDown = (e: MouseEvent | TouchEvent) => {
+      const container = canvasRef.current?.parentElement?.parentElement
+      if (container && !container.contains(e.target as Node)) {
+        setSelectedNodeIdx(null)
+      }
+    }
+    document.addEventListener("pointerdown", handleDocumentPointerDown)
+    return () => document.removeEventListener("pointerdown", handleDocumentPointerDown)
+  }, [selectedNodeIdx])
 
   const handleApplyPreset = () => {
     let pts: Point[] = []
@@ -495,15 +609,13 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       pts = generateCutoutPolygon(p, l, cw, ch)
     }
 
+    pushCurrentToHistory()
     setCustomPts(pts)
     setCustomClosed(true)
     setShape("custom")
     setPresetModalOpen(false)
     toast.success("Denah preset berhasil diterapkan ke Canvas!")
   }
-  const [segmentLengths, setSegmentLengths] = useState<(number | string)[]>([])
-  const [activeDragIdx, setActiveDragIdx] = useState<number | null>(null)
-  const [selectedNodeIdx, setSelectedNodeIdx] = useState<number | null>(null)
   const [canvasEditTarget, setCanvasEditTarget] = useState<{
     title: string
     paramKey?: string
@@ -522,6 +634,13 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   }>>([])
 
   const handleDeleteCustomPoint = useCallback((idx: number) => {
+    if (customPts.length <= 3) {
+      toast.error("Denah poligon membutuhkan minimal 3 titik sudut.")
+      setDeleteConfirmIdx(null)
+      return
+    }
+
+    pushCurrentToHistory()
     setCustomPts(prev => {
       const next = prev.filter((_, i) => i !== idx)
       if (next.length < 3) setCustomClosed(false)
@@ -529,16 +648,24 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     })
     setSegmentLengths(prev => prev.filter((_, i) => i !== idx))
     setSelectedNodeIdx(null)
-    toast.info(`Titik T${idx + 1} berhasil dihapus.`)
-  }, [])
+    setDeleteConfirmIdx(null)
+    toast.info(`Titik T${idx + 1} berhasil dihapus.`, {
+      action: {
+        label: "Undo",
+        onClick: () => handleUndo()
+      }
+    })
+  }, [customPts, pushCurrentToHistory, handleUndo])
 
-  const handleUpdateSegmentLength = useCallback((idx: number, newLenVal: number) => {
+  const handleUpdateSegmentLength = useCallback((idx: number, newLenVal: number, dir: "end" | "start" | "center" = expandDir) => {
     if (isNaN(newLenVal) || newLenVal <= 0) return
 
+    pushCurrentToHistory()
     setCustomPts(prev => {
       if (prev.length < 2) return prev
       const n = prev.length
-      const p1 = prev[idx]
+      const p1Idx = idx
+      const p1 = prev[p1Idx]
       const p2Idx = (idx + 1) % n
       const p2 = prev[p2Idx]
       if (!p1 || !p2) return prev
@@ -553,16 +680,36 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       const deltaY = dy * (scale - 1)
 
       return prev.map((pt, i) => {
-        if (i === p2Idx) {
+        if (dir === "end" && i === p2Idx) {
           return {
-            x: Number(Math.max(0, pt.x + deltaX).toFixed(1)),
-            y: Number(Math.max(0, pt.y + deltaY).toFixed(1))
+            x: Number((pt.x + deltaX).toFixed(1)),
+            y: Number((pt.y + deltaY).toFixed(1))
+          }
+        }
+        if (dir === "start" && i === p1Idx) {
+          return {
+            x: Number((pt.x - deltaX).toFixed(1)),
+            y: Number((pt.y - deltaY).toFixed(1))
+          }
+        }
+        if (dir === "center") {
+          if (i === p1Idx) {
+            return {
+              x: Number((pt.x - deltaX / 2).toFixed(1)),
+              y: Number((pt.y - deltaY / 2).toFixed(1))
+            }
+          }
+          if (i === p2Idx) {
+            return {
+              x: Number((pt.x + deltaX / 2).toFixed(1)),
+              y: Number((pt.y + deltaY / 2).toFixed(1))
+            }
           }
         }
         return pt
       })
     })
-  }, [])
+  }, [expandDir, pushCurrentToHistory])
 
   const handleSaveCanvasEdit = useCallback(() => {
     if (!canvasEditTarget) return
@@ -577,11 +724,11 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       toast.success(`Ukuran ${canvasEditTarget.title} diubah menjadi ${val}m`)
     } else if (canvasEditTarget.segmentIdx !== undefined) {
       const idx = canvasEditTarget.segmentIdx
-      handleUpdateSegmentLength(idx, val)
+      handleUpdateSegmentLength(idx, val, expandDir)
       toast.success(`Panjang Sisi ${idx + 1} diubah menjadi ${val}m`)
     }
     setCanvasEditTarget(null)
-  }, [canvasEditTarget, handleUpdateSegmentLength])
+  }, [canvasEditTarget, handleUpdateSegmentLength, expandDir])
 
   // Keep segmentLengths in sync with customPts and customClosed
   useEffect(() => {
@@ -1299,7 +1446,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
             valNum = parseFloat(label) || 0
           }
 
-          if (displayTitle && (paramKey || segmentIdx !== undefined)) {
+          if (shape !== "custom" && displayTitle && (paramKey || segmentIdx !== undefined)) {
             registerTarget({
               label: displayTitle,
               paramKey,
@@ -1387,56 +1534,48 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         ctx.beginPath()
         ctx.arc(sp.cx, sp.cy, isSelected ? 8 : (idx === 0 ? 5 : 3.5), 0, Math.PI * 2)
         ctx.fillStyle = isSelected
-          ? "rgba(239,68,68,0.25)"
+          ? "rgba(239,68,68,0.3)"
           : (idx === 0 ? "rgba(245,158,11,0.5)" : (isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)"))
         ctx.fill()
         ctx.strokeStyle = isSelected
           ? "#ef4444"
           : (idx === 0 ? "#f59e0b" : (isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.25)"))
-        ctx.lineWidth = isSelected ? 1.8 : 1
+        ctx.lineWidth = isSelected ? 2.5 : 1
         ctx.stroke()
 
-        ctx.fillStyle = nodeTextFill
-        ctx.font = "bold 8px sans-serif"
-        ctx.fillText(`T${idx + 1}`, sp.cx + 6, sp.cy - 6)
-
-        // Draw Canvas Delete Popup Button for selected node
-        if (isSelected && !forceLight && !isSaving) {
-          const popX = sp.cx
-          const popY = Math.max(16, sp.cy - 18)
-          const popText = `🗑️ Hapus T${idx + 1}`
-
-          ctx.save()
-          ctx.font = "bold 8px sans-serif"
-          const tw = ctx.measureText(popText).width
-          const bw = tw + 8
-          const bh = 14
-
-          // Button background
-          ctx.fillStyle = "#ef4444"
+        if (isSelected) {
           ctx.beginPath()
-          ctx.roundRect(popX - bw / 2, popY - bh / 2, bw, bh, 4)
-          ctx.fill()
-
-          // Button text
-          ctx.fillStyle = "#ffffff"
-          ctx.textAlign = "center"
-          ctx.textBaseline = "middle"
-          ctx.fillText(popText, popX, popY)
-          ctx.restore()
-
-          // Register delete click target
-          registerTarget({
-            label: `delete_node_${idx}`,
-            segmentIdx: idx,
-            value: 0,
-            cx: popX,
-            cy: popY
-          })
+          ctx.arc(sp.cx, sp.cy, 14, 0, Math.PI * 2)
+          ctx.strokeStyle = "rgba(239, 68, 68, 0.6)"
+          ctx.lineWidth = 1.5
+          ctx.setLineDash([3, 3])
+          ctx.stroke()
+          ctx.setLineDash([])
         }
+
+        ctx.fillStyle = isSelected ? "#ef4444" : nodeTextFill
+        ctx.font = isSelected ? "bold 10px sans-serif" : "bold 8px sans-serif"
+        ctx.fillText(`T${idx + 1}`, sp.cx + (isSelected ? 9 : 6), sp.cy - (isSelected ? 9 : 6))
+
       })
+
+      if (hoverEdge && activeDragIdx === null) {
+        ctx.beginPath()
+        ctx.arc(hoverEdge.cx, hoverEdge.cy, 6, 0, Math.PI * 2)
+        ctx.fillStyle = "rgba(16, 185, 129, 0.4)"
+        ctx.fill()
+        ctx.strokeStyle = "#10b981"
+        ctx.lineWidth = 1.8
+        ctx.stroke()
+
+        ctx.fillStyle = "#10b981"
+        ctx.font = "bold 9px sans-serif"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.fillText("+", hoverEdge.cx, hoverEdge.cy)
+      }
     }
-  }, [shape, parsedP, adjustedPts, customClosed, lampLen, calcResult, resolvedTheme, irregOverrideBaris, irregOverrideLpb, irregDisabledLamps, showDimensions, isSaving, selectedNodeIdx])
+  }, [shape, parsedP, adjustedPts, customClosed, lampLen, calcResult, resolvedTheme, irregOverrideBaris, irregOverrideLpb, irregDisabledLamps, showDimensions, isSaving, selectedNodeIdx, hoverEdge, activeDragIdx])
 
   const updateStats = useCallback(() => {
     const pts = buildPolygon(shape, parsedP, adjustedPts, customClosed)
@@ -1549,21 +1688,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     const cx = e.clientX - rect.left
     const cy = e.clientY - rect.top
 
-    // 1. Check if user clicked on node delete popup target
-    const deleteTarget = clickableDimensionsRef.current.find(t => t.label.startsWith("delete_node_") && Math.hypot(cx - t.cx, cy - t.cy) <= t.radius)
-    if (deleteTarget) {
-      const nodeIdx = deleteTarget.segmentIdx
-      if (nodeIdx !== undefined) {
-        handleDeleteCustomPoint(nodeIdx)
-        setSelectedNodeIdx(null)
-        return
-      }
-    }
-
-    // 2. Check if user clicked on dimension text (ONLY IF shape !== "custom" OR customClosed === true)
-    const allowDimensionEdit = shape !== "custom" || customClosed
+    // 1. Check if user clicked on dimension text (ONLY IF shape !== "custom")
+    const allowDimensionEdit = shape !== "custom"
     if (allowDimensionEdit) {
-      const hitTarget = clickableDimensionsRef.current.find(t => !t.label.startsWith("delete_node_") && Math.hypot(cx - t.cx, cy - t.cy) <= t.radius)
+      const hitTarget = clickableDimensionsRef.current.find(t => Math.hypot(cx - t.cx, cy - t.cy) <= t.radius)
       if (hitTarget) {
         setCanvasEditTarget({
           title: hitTarget.label,
@@ -1577,7 +1705,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
     if (shape !== "custom") return
 
-    // 3. Check scale & node positions for custom shape
+    // 2. Check scale & node positions for custom shape
     const pts = buildPolygon(shape, parsedP, customPts, customClosed)
     const W = canvas.offsetWidth || 340
     const sc = (customClosed && pts) ? getScaleInfo(pts, W, CANVAS_H) : null
@@ -1594,17 +1722,19 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
       for (let i = 0; i < spts.length; i++) {
         if (Math.hypot(cx - spts[i].cx, cy - spts[i].cy) <= 16) {
+          // Select node on click
+          setSelectedNodeIdx(i)
+
           // If touching point 0 and polygon has 3+ points and unclosed: close polygon!
           if (i === 0 && customPts.length >= 3 && !customClosed) {
+            pushCurrentToHistory()
             setCustomClosed(true)
             toast.success("Poligon kustom ditutup!")
             return
           }
 
-          // Toggle node selection for delete button popup
-          setSelectedNodeIdx(prev => prev === i ? null : i)
-
-          // Start drag & drop for node i (works even when closed!)
+          // Start drag & capture initial snapshot for undo
+          dragStartSnapshotRef.current = { pts: [...customPts], closed: customClosed }
           setActiveDragIdx(i)
           try {
             (e.target as HTMLElement).setPointerCapture(e.pointerId)
@@ -1612,22 +1742,75 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           return
         }
       }
+
+      // Check if user clicked on any line segment (Pen Tool - insert node on wall edge)
+      if (customPts.length >= 2) {
+        const segCount = customClosed ? spts.length : spts.length - 1
+        let bestSegIdx = -1
+        let bestDist = 14 // Threshold distance in pixels to line segment
+        let bestClosest: { x: number; y: number } | null = null
+
+        for (let i = 0; i < segCount; i++) {
+          const p1 = spts[i]
+          const p2 = spts[(i + 1) % spts.length]
+          const proj = getClosestPointOnSegment(cx, cy, p1.cx, p1.cy, p2.cx, p2.cy)
+
+          if (proj.dist < bestDist && proj.t > 0.05 && proj.t < 0.95) {
+            bestDist = proj.dist
+            bestSegIdx = i
+            bestClosest = { x: proj.x, y: proj.y }
+          }
+        }
+
+        if (bestSegIdx !== -1 && bestClosest) {
+          const mX = Number(Math.max(0, (bestClosest.x - offX) / scale).toFixed(1))
+          const mY = Number(Math.max(0, (bestClosest.y - offY) / scale).toFixed(1))
+          const snapped = { x: mX, y: mY }
+          const insertIdx = bestSegIdx + 1
+
+          pushCurrentToHistory()
+
+          // Store snapshot for drag undo
+          dragStartSnapshotRef.current = { pts: [...customPts], closed: customClosed }
+
+          setCustomPts(prev => {
+            const next = [...prev]
+            next.splice(insertIdx, 0, snapped)
+            return next
+          })
+
+          setSelectedNodeIdx(insertIdx)
+          setActiveDragIdx(insertIdx)
+
+          try {
+            (e.target as HTMLElement).setPointerCapture(e.pointerId)
+          } catch { }
+
+          toast.info(`Titik T${insertIdx + 1} ditambahkan pada dinding. Geser titik untuk membuat ceruk/lekukan!`)
+          return
+        }
+      }
     }
 
-    // Unselect node if clicked outside
-    setSelectedNodeIdx(null)
+    // Clicked empty space
+    if (customClosed) {
+      setSelectedNodeIdx(null)
+      return
+    }
 
-    // 4. If unclosed custom polygon, add new point
+    // 3. If unclosed custom polygon, add new point
     if (!customClosed) {
       const mx = (cx - FIXED_OX) / FIXED_SCALE
       const my = (cy - FIXED_OY) / FIXED_SCALE
       const snapped = { x: Number(Math.max(0, mx).toFixed(1)), y: Number(Math.max(0, my).toFixed(1)) }
+      pushCurrentToHistory()
       setCustomPts(prev => [...prev, snapped])
+      setSelectedNodeIdx(null)
     }
-  }, [shape, customClosed, customPts, parsedP, handleDeleteCustomPoint])
+  }, [shape, customClosed, customPts, parsedP, pushCurrentToHistory])
 
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (activeDragIdx === null || !canvasRef.current) return
+    if (!canvasRef.current || shape !== "custom") return
     const canvas = canvasRef.current
     const rect = canvas.getBoundingClientRect()
     const cx = e.clientX - rect.left
@@ -1641,18 +1824,51 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     const offX = sc ? sc.offX : FIXED_OX
     const offY = sc ? sc.offY : FIXED_OY
 
-    const mx = (cx - offX) / scale
-    const my = (cy - offY) / scale
-    const newX = Number(Math.max(0, mx).toFixed(1))
-    const newY = Number(Math.max(0, my).toFixed(1))
+    if (activeDragIdx !== null) {
+      const mx = (cx - offX) / scale
+      const my = (cy - offY) / scale
+      const newX = Number(Math.max(0, mx).toFixed(1))
+      const newY = Number(Math.max(0, my).toFixed(1))
 
-    setCustomPts(prev => {
-      const next = [...prev]
-      if (next[activeDragIdx]) {
-        next[activeDragIdx] = { x: newX, y: newY }
+      setCustomPts(prev => {
+        const next = [...prev]
+        if (next[activeDragIdx]) {
+          next[activeDragIdx] = { x: newX, y: newY }
+        }
+        return next
+      })
+      return
+    }
+
+    // Hover detection for Pen-Tool preview on edges
+    if (customPts.length >= 2) {
+      const spts = customPts.map(pt => ({
+        cx: offX + pt.x * scale,
+        cy: offY + pt.y * scale
+      }))
+      const segCount = customClosed ? spts.length : spts.length - 1
+      let foundHover: { cx: number; cy: number; segmentIdx: number } | null = null
+      let bestDist = 14
+
+      for (let i = 0; i < segCount; i++) {
+        const p1 = spts[i]
+        const p2 = spts[(i + 1) % spts.length]
+        const proj = getClosestPointOnSegment(cx, cy, p1.cx, p1.cy, p2.cx, p2.cy)
+
+        if (proj.dist < bestDist && proj.t > 0.05 && proj.t < 0.95) {
+          bestDist = proj.dist
+          foundHover = { cx: proj.x, cy: proj.y, segmentIdx: i }
+        }
       }
-      return next
-    })
+
+      setHoverEdge(prev => {
+        if (!prev && !foundHover) return null
+        if (prev && foundHover && Math.hypot(prev.cx - foundHover.cx, prev.cy - foundHover.cy) < 2 && prev.segmentIdx === foundHover.segmentIdx) {
+          return prev
+        }
+        return foundHover
+      })
+    }
   }, [activeDragIdx, shape, parsedP, customPts, customClosed])
 
   const handleCanvasPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1660,9 +1876,22 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       try {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId)
       } catch { }
+
+      if (dragStartSnapshotRef.current) {
+        const initialPt = dragStartSnapshotRef.current.pts[activeDragIdx]
+        const currentPt = customPts[activeDragIdx]
+        if (initialPt && currentPt) {
+          const distMoved = Math.hypot(currentPt.x - initialPt.x, currentPt.y - initialPt.y)
+          if (distMoved > 0.05) {
+            pushSnapshot(dragStartSnapshotRef.current)
+          }
+        }
+        dragStartSnapshotRef.current = null
+      }
+
       setActiveDragIdx(null)
     }
-  }, [activeDragIdx])
+  }, [activeDragIdx, customPts, pushSnapshot])
 
   // Canvas click handler to toggle specific lamps in calculated layout
   const handleResultCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1850,6 +2079,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   onPointerDown={handleCanvasPointerDown}
                   onPointerMove={handleCanvasPointerMove}
                   onPointerUp={handleCanvasPointerUp}
+                  onPointerLeave={() => setHoverEdge(null)}
                   className="w-full block select-none touch-none"
                   style={{
                     height: `${CANVAS_H}px`,
@@ -1859,13 +2089,72 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
                 {/* Custom Canvas Controls: Directly below canvas */}
                 <div className="p-2.5 space-y-2 border-t border-border/50 bg-muted/20">
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1.5 items-center">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       className="h-7 text-[11px] font-medium"
-                      onClick={() => { setCustomPts([]); setCustomClosed(false) }}
+                      disabled={historyPast.length === 0}
+                      onClick={handleUndo}
+                      title="Undo perubahan denah (Ctrl+Z)"
+                    >
+                      <IconArrowBackUp className="size-3.5 mr-1 text-sky-500" />
+                      Undo
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[11px] font-medium"
+                      disabled={historyFuture.length === 0}
+                      onClick={handleRedo}
+                      title="Redo perubahan denah (Ctrl+Y)"
+                    >
+                      <IconArrowForwardUp className="size-3.5 mr-1 text-purple-500" />
+                      Redo
+                    </Button>
+
+                    {/* Integrated Delete Point Button (Active when node selected) */}
+                    <Button
+                      type="button"
+                      variant={selectedNodeIdx !== null ? "destructive" : "outline"}
+                      size="sm"
+                      className={`h-7 text-[11px] font-semibold transition-all ${
+                        selectedNodeIdx !== null
+                          ? "shadow-sm animate-in fade-in zoom-in-95"
+                          : "opacity-50 cursor-not-allowed text-muted-foreground border-border/50"
+                      }`}
+                      disabled={selectedNodeIdx === null || customPts.length <= 3}
+                      onClick={() => {
+                        if (selectedNodeIdx !== null) {
+                          setDeleteConfirmIdx(selectedNodeIdx)
+                        }
+                      }}
+                      title={
+                        selectedNodeIdx === null
+                          ? "Klik salah satu titik di kanvas untuk menghapus"
+                          : customPts.length <= 3
+                          ? "Minimal 3 titik untuk poligon"
+                          : `Hapus Titik T${selectedNodeIdx + 1}`
+                      }
+                    >
+                      <IconTrash className="size-3.5 mr-1" />
+                      {selectedNodeIdx !== null ? `Hapus T${selectedNodeIdx + 1}` : "Hapus Titik"}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[11px] font-medium"
+                      onClick={() => {
+                        pushCurrentToHistory()
+                        setCustomPts([])
+                        setCustomClosed(false)
+                        setSelectedNodeIdx(null)
+                      }}
                     >
                       <IconRefresh className="size-3.5 mr-1" />
                       Reset
@@ -1876,7 +2165,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       size="sm"
                       className="h-7 flex-1 text-[11px] font-semibold"
                       disabled={customPts.length < 3 || customClosed}
-                      onClick={() => setCustomClosed(true)}
+                      onClick={() => {
+                        pushCurrentToHistory()
+                        setCustomClosed(true)
+                      }}
                     >
                       {customClosed ? "Poligon Tertutup" : "Tutup Poligon"}
                     </Button>
@@ -1889,7 +2181,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       onClick={() => setPresetModalOpen(true)}
                     >
                       <IconSquare className="size-3.5 mr-1 text-amber-500" />
-                      Template Denah
+                      Template
                     </Button>
                   </div>
 
@@ -1897,7 +2189,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <div className="flex items-center justify-between text-[11px]">
                       <div className="flex items-center gap-1.5 font-medium text-foreground">
                         <span className={`inline-block size-2 rounded-full ${customClosed ? "bg-emerald-500" : "bg-amber-500"}`} />
-                        <span>Terdaftar: <b className="font-bold text-foreground">{customPts.length} Titik Sudut</b></span>
+                        <span>Jumlah Titik: <b className="font-bold text-foreground">{customPts.length} Titik Sudut</b></span>
                       </div>
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${customClosed ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
                         {customClosed ? "Denah Tertutup" : "Belum Tertutup"}
@@ -1906,7 +2198,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
                     <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/40 border border-border/40 rounded-lg px-2.5 py-1.5 leading-snug">
                       <span className="shrink-0">💡</span>
-                      <span>Sentuh kanvas untuk tambah titik · Drag titik sudut untuk geser posisi</span>
+                      <span>Klik titik pada kanvas untuk aktifkan Hapus Titik · Drag titik untuk geser · Ctrl+Z untuk Undo</span>
                     </div>
                   </div>
                 </div>
@@ -2109,8 +2401,41 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
               {/* Dynamic segment length inputs (Scrollable below canvas) */}
               {shape === "custom" && customPts.length >= 2 && (
-                <div className="bg-muted/30 border border-border/50 rounded-xl p-3 space-y-2">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Sesuaikan Panjang Sisi Dinding (m)</div>
+                <div className="bg-muted/30 border border-border/50 rounded-xl p-3 space-y-3">
+                  <div className="space-y-1.5 border-b border-border/40 pb-2.5">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Sesuaikan Panjang Sisi Dinding (m)
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px]">
+                      <span className="text-muted-foreground font-medium">Arah Pergeseran Dinding:</span>
+                      <div className="flex rounded-md bg-muted/80 p-0.5 text-[9.5px]">
+                        <button
+                          type="button"
+                          onClick={() => setExpandDir("start")}
+                          className={`px-2 py-0.5 rounded transition-all ${expandDir === "start" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
+                          title="Hanya geser titik awal Ti"
+                        >
+                          Titik Awal (Ti)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExpandDir("center")}
+                          className={`px-2 py-0.5 rounded transition-all ${expandDir === "center" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
+                          title="Geser kedua titik secara simetris dari tengah"
+                        >
+                          ↔️ Simetris
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExpandDir("end")}
+                          className={`px-2 py-0.5 rounded transition-all ${expandDir === "end" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
+                          title="Hanya geser titik akhir Ti+1"
+                        >
+                          Titik Akhir (Ti+1)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-2.5 max-h-44 overflow-y-auto pr-1">
                     {segmentLengths.map((len, idx) => {
                       const p1Name = `T${idx + 1}`
@@ -2119,9 +2444,21 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
                       return (
                         <div key={idx} className="space-y-1">
-                          <Label className="text-[10px] font-semibold text-foreground/80">
-                            Sisi {p1Name} ke {p2Name} {isClosing ? "(Belum Tutup)" : ""}
-                          </Label>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[10px] font-semibold text-foreground/80">
+                              Sisi {p1Name} ke {p2Name} {isClosing ? "(Belum Tutup)" : ""}
+                            </Label>
+                            {customPts.length > 3 && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmIdx(idx)}
+                                className="text-muted-foreground hover:text-destructive p-0.5 transition-colors"
+                                title={`Hapus Titik ${p1Name}`}
+                              >
+                                <IconTrash className="size-3" />
+                              </button>
+                            )}
+                          </div>
                           <Input
                             type="number"
                             step={0.5}
@@ -2800,23 +3137,54 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               {canvasEditTarget?.title}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2 space-y-2">
-            <Label className="text-xs font-semibold text-foreground">Panjang Dinding Baru (meter)</Label>
-            <div className="relative">
-              <Input
-                type="number"
-                step={0.5}
-                min={0.5}
-                autoFocus
-                value={canvasEditTarget?.value ?? ""}
-                onChange={e => setCanvasEditTarget(prev => prev ? { ...prev, value: e.target.value } : null)}
-                onKeyDown={e => {
-                  if (e.key === "Enter") handleSaveCanvasEdit()
-                }}
-                className="h-9 pr-7 text-xs font-bold"
-              />
-              <span className="absolute right-2.5 top-2.5 text-xs text-muted-foreground font-semibold">m</span>
+          <div className="py-2 space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">Panjang Dinding Baru (meter)</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  step={0.5}
+                  min={0.5}
+                  autoFocus
+                  value={canvasEditTarget?.value ?? ""}
+                  onChange={e => setCanvasEditTarget(prev => prev ? { ...prev, value: e.target.value } : null)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") handleSaveCanvasEdit()
+                  }}
+                  className="h-9 pr-7 text-xs font-bold"
+                />
+                <span className="absolute right-2.5 top-2.5 text-xs text-muted-foreground font-semibold">m</span>
+              </div>
             </div>
+
+            {canvasEditTarget?.segmentIdx !== undefined && (
+              <div className="space-y-1.5 border-t border-border/50 pt-2">
+                <Label className="text-[11px] font-semibold text-muted-foreground">Arah Pergeseran Dinding</Label>
+                <div className="flex rounded-lg bg-muted/60 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setExpandDir("start")}
+                    className={`flex-1 rounded-md py-1 text-[10px] transition-all ${expandDir === "start" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
+                  >
+                    Titik T{canvasEditTarget.segmentIdx + 1}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpandDir("center")}
+                    className={`flex-1 rounded-md py-1 text-[10px] transition-all ${expandDir === "center" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
+                  >
+                    ↔️ Simetris
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpandDir("end")}
+                    className={`flex-1 rounded-md py-1 text-[10px] transition-all ${expandDir === "end" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
+                  >
+                    Titik T{((canvasEditTarget.segmentIdx + 1) % (customPts.length || 1)) + 1}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter className="grid grid-cols-2 gap-2 pt-1">
             <Button type="button" variant="outline" size="sm" onClick={() => setCanvasEditTarget(null)} className="h-8 text-xs">
@@ -2824,6 +3192,37 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
             </Button>
             <Button type="button" size="sm" onClick={handleSaveCanvasEdit} className="h-8 text-xs font-semibold">
               Simpan Ukuran
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Node Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmIdx !== null} onOpenChange={open => !open && setDeleteConfirmIdx(null)}>
+        <DialogContent className="max-w-xs p-4 rounded-2xl">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+              <IconTrash className="size-4 text-destructive" />
+              Hapus Titik Sudut T{deleteConfirmIdx !== null ? deleteConfirmIdx + 1 : ""}?
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Apakah Anda yakin ingin menghapus titik sudut T{deleteConfirmIdx !== null ? deleteConfirmIdx + 1 : ""} dari denah toko ini?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="grid grid-cols-2 gap-2 pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setDeleteConfirmIdx(null)} className="h-8 text-xs">
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (deleteConfirmIdx !== null) handleDeleteCustomPoint(deleteConfirmIdx)
+              }}
+              className="h-8 text-xs font-semibold"
+            >
+              Hapus Titik
             </Button>
           </DialogFooter>
         </DialogContent>
