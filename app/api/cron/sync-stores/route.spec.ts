@@ -42,33 +42,38 @@ assert.deepEqual(filterNewStores(stores, new Set(["U001"])), [
   },
 ])
 
-assert.throws(
-  () =>
-    parseStoreSheetRows([
-      ["Kode Toko", "Nama Toko", "Cabang"],
-      ["U003", "", "TEGAL"],
-    ]),
-  /Baris 2 tidak lengkap/
-)
+const incompleteStores = parseStoreSheetRows([
+  ["Kode Toko", "Nama Toko", "Cabang"],
+  ["U003", "", "TEGAL"],
+  ["", "", "", "masih berisi data"],
+  ["U004", "Toko Empat", "TEGAL"],
+])
 
-assert.throws(
-  () =>
-    parseStoreSheetRows([
-      ["Kode Toko", "Nama Toko", "Cabang", "Catatan"],
-      ["", "", "", "masih berisi data"],
-    ]),
-  /Baris 2 tidak lengkap/
-)
+assert.deepEqual(incompleteStores, [
+  {
+    code: "U004",
+    name: "Toko Empat",
+    branch: "TEGAL",
+    latitude: null,
+    longitude: null,
+  },
+])
 
-assert.throws(
-  () =>
-    parseStoreSheetRows([
-      ["Kode Toko", "Nama Toko", "Cabang"],
-      ["U004", "Toko Lama", "TEGAL"],
-      ["U004", "Toko Baru", "TEGAL"],
-    ]),
-  /Kode toko duplikat U004/
-)
+const duplicateStores = parseStoreSheetRows([
+  ["Kode Toko", "Nama Toko", "Cabang"],
+  ["U004", "Toko Lama", "TEGAL"],
+  ["U004", "Toko Baru", "TEGAL"],
+])
+
+assert.deepEqual(duplicateStores, [
+  {
+    code: "U004",
+    name: "Toko Lama",
+    branch: "TEGAL",
+    latitude: null,
+    longitude: null,
+  },
+])
 
 const originalCronSecret = process.env.CRON_SECRET
 const requestUrl = "http://localhost/api/cron/sync-stores"

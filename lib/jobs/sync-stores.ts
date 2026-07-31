@@ -92,7 +92,11 @@ export function parseStoreSheetRows(
 
     if (row.every((cell) => !String(cell ?? "").trim())) continue
     if (!code || !name || !branch) {
-      throw new Error(`Baris ${index + 2} tidak lengkap`)
+      console.warn(
+        `[sync-stores] Warning: Baris ${index + 2} tidak lengkap (skip):`,
+        { code, name, branch }
+      )
+      continue
     }
 
     const duplicate = stores.get(code)
@@ -100,7 +104,10 @@ export function parseStoreSheetRows(
       duplicate &&
       (duplicate.name !== name || duplicate.branch !== branch)
     ) {
-      throw new Error(`Kode toko duplikat ${code} memiliki data berbeda`)
+      console.warn(
+        `[sync-stores] Warning: Baris ${index + 2} memiliki kode toko duplikat ${code} (skip)`
+      )
+      continue
     }
 
     stores.set(code, {

@@ -14,9 +14,13 @@ export async function POST(request: Request) {
 
   try {
     const result = await syncStoresFromSheet()
+    console.log("[sync-stores] Sync completed successfully:", result)
     return Response.json({ ok: true, ...result })
   } catch (error) {
-    console.error("Store sync cron job failed", error)
-    return Response.json({ error: "Store sync failed" }, { status: 500 })
+    console.error("[sync-stores] Store sync cron job failed:", error)
+    return Response.json(
+      { error: "Store sync failed", details: String(error) },
+      { status: 500 }
+    )
   }
 }
