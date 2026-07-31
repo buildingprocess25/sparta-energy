@@ -272,7 +272,7 @@ export default function HistoryPage() {
   return (
     <main
       ref={mainRef}
-      className="mx-auto flex min-h-svh w-full max-w-sm flex-col overflow-y-auto bg-background px-4 pb-32"
+      className="mx-auto flex min-h-svh w-full max-w-md md:max-w-5xl lg:max-w-7xl flex-col overflow-y-auto bg-background px-4 md:px-6 lg:px-8 pb-32"
       onTouchStart={isDemoUser ? undefined : handleTouchStart}
       onTouchMove={isDemoUser ? undefined : handleTouchMove}
       onTouchEnd={isDemoUser ? undefined : handleTouchEnd}
@@ -313,69 +313,72 @@ export default function HistoryPage() {
         </section>
       ) : (
         <section className="space-y-4">
-          {/* Search Bar */}
-          <div className="relative">
-            <IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Cari kode atau nama toko..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-10 w-full pl-9 text-sm"
-            />
-          </div>
-
-          {/* Filters */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label
-                htmlFor="history-year-filter"
-                className="text-[11px] text-muted-foreground"
-              >
-                Tahun
-              </label>
-              <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger
-                  id="history-year-filter"
-                  className="h-9 w-full text-xs"
-                >
-                  <SelectValue placeholder="Semua Tahun" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Tahun</SelectItem>
-                  {availableYears.map((year) => (
-                    <SelectItem key={year} value={year}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Search & Filters Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+            {/* Search Bar */}
+            <div className="md:col-span-6 relative">
+              <IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Cari kode atau nama toko..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-10 w-full pl-9 text-sm"
+              />
             </div>
 
-            <div className="space-y-1">
-              <label
-                htmlFor="history-status-filter"
-                className="text-[11px] text-muted-foreground"
-              >
-                Status
-              </label>
-              <Select
-                value={selectedStatus}
-                onValueChange={(val) =>
-                  setSelectedStatus(val as AuditFilterStatus)
-                }
-              >
-                <SelectTrigger
-                  id="history-status-filter"
-                  className="h-9 w-full text-xs"
+            {/* Filters */}
+            <div className="md:col-span-6 grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label
+                  htmlFor="history-year-filter"
+                  className="text-[11px] text-muted-foreground"
                 >
-                  <SelectValue placeholder="Semua Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Status</SelectItem>
-                  <SelectItem value="hemat">Hemat</SelectItem>
-                  <SelectItem value="boros">Boros</SelectItem>
-                </SelectContent>
-              </Select>
+                  Tahun
+                </label>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger
+                    id="history-year-filter"
+                    className="h-10 w-full text-xs"
+                  >
+                    <SelectValue placeholder="Semua Tahun" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Tahun</SelectItem>
+                    {availableYears.map((year) => (
+                      <SelectItem key={year} value={year}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label
+                  htmlFor="history-status-filter"
+                  className="text-[11px] text-muted-foreground"
+                >
+                  Status
+                </label>
+                <Select
+                  value={selectedStatus}
+                  onValueChange={(val) =>
+                    setSelectedStatus(val as AuditFilterStatus)
+                  }
+                >
+                  <SelectTrigger
+                    id="history-status-filter"
+                    className="h-10 w-full text-xs"
+                  >
+                    <SelectValue placeholder="Semua Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    <SelectItem value="hemat">Hemat</SelectItem>
+                    <SelectItem value="boros">Boros</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -389,8 +392,8 @@ export default function HistoryPage() {
             </div>
           )}
 
-          {/* List */}
-          <div className="flex flex-col gap-3">
+          {/* Multi-Column Audit Card Grid for Desktop */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {items.length > 0 ? (
               items.map((item, index) => {
                 if (items.length === index + 1) {
@@ -423,17 +426,19 @@ export default function HistoryPage() {
                 }
               })
             ) : !loading ? (
-              <EmptyState
-                hasFilter={
-                  debouncedSearch !== "" ||
-                  selectedYear !== "all" ||
-                  selectedStatus !== "all"
-                }
-              />
+              <div className="col-span-full">
+                <EmptyState
+                  hasFilter={
+                    debouncedSearch !== "" ||
+                    selectedYear !== "all" ||
+                    selectedStatus !== "all"
+                  }
+                />
+              </div>
             ) : null}
 
             {loading && !isRefreshing && (
-              <div className="flex justify-center py-4">
+              <div className="col-span-full flex justify-center py-4">
                 <span className="animate-pulse text-xs text-muted-foreground">
                   Memuat data...
                 </span>

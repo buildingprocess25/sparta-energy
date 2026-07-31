@@ -111,7 +111,7 @@ export default function SettingsPage() {
   const activeTheme = theme ?? "system"
 
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
+    <main className="mx-auto flex min-h-svh w-full max-w-md md:max-w-3xl lg:max-w-4xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-32">
       <Header variant="title-only" title="Pengaturan" />
 
       <div className="mt-2 flex flex-col gap-6">

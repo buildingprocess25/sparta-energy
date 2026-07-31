@@ -134,7 +134,7 @@ export default async function DashboardPage() {
   })
 
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
+    <main className="mx-auto flex min-h-svh w-full max-w-md md:max-w-5xl lg:max-w-7xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-32">
       <Suspense fallback={null}>
         <AcEstimationUnavailableNotice />
       </Suspense>
@@ -144,15 +144,19 @@ export default async function DashboardPage() {
         subtitle={headerSubtitle}
       />
 
-      <section className="mt-2 flex flex-col gap-4">
-        <HeroCard />
-        <CalculatorGrid isAdmin={isAdmin} />
-      </section>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-2">
+        {/* Left Column (lg:col-span-8): Hero Card + Calculator Tools + Drafts */}
+        <div className="lg:col-span-8 space-y-6">
+          <HeroCard />
+          <CalculatorGrid isAdmin={isAdmin} />
+          <DraftListSection drafts={drafts} />
+        </div>
 
-      <section className="mt-5 flex flex-col gap-5">
-        <DraftListSection drafts={drafts} />
-        <RecentAuditSection items={auditItems} />
-      </section>
+        {/* Right Column (lg:col-span-4): Recent Audits */}
+        <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-20">
+          <RecentAuditSection items={auditItems} />
+        </div>
+      </div>
 
       <BottomNavigation />
     </main>

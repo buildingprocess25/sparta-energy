@@ -5,7 +5,7 @@ import { BottomNavigation } from "@/components/bottom-navigation"
 
 export default function DashboardLoading() {
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
+    <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-5xl lg:max-w-7xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-32">
       <Header variant="dashboard" title="Memuat..." subtitle="Tunggu sebentar..." />
 
       <main className="flex flex-col gap-4 mt-2">

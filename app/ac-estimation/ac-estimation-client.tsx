@@ -275,7 +275,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
   }
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
+    <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-5xl lg:max-w-7xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-32">
       <Header
         variant="dashboard-back"
         title="Hitung Kebutuhan AC"
@@ -283,192 +283,303 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
         className="px-0"
       />
 
-      <main className="mt-2 flex flex-col gap-6">
-        {/* ── Store Picker ── */}
-        <section className="flex flex-col gap-4">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold tracking-tight text-primary">
-              Identitas Toko
-            </h2>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              Tentukan toko yang ingin dihitung kebutuhan AC-nya.
-            </p>
+      <main className="mt-2">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column: Identitas Toko & Map/Parameters (lg:col-span-7) */}
+          <div className="lg:col-span-7 space-y-6">
+            {/* ── Store Picker ── */}
+            <section className="flex flex-col gap-4">
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold tracking-tight text-primary">
+                  Identitas Toko
+                </h2>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Tentukan toko yang ingin dihitung kebutuhan AC-nya.
+                </p>
+              </div>
+
+              <div className="flex rounded-lg bg-muted/50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setStoreMode("existing")}
+                  className={cn(
+                    "flex-1 rounded-md py-1.5 text-xs font-medium transition-all",
+                    storeMode === "existing"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Toko Terdaftar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStoreMode("new")}
+                  className={cn(
+                    "flex-1 rounded-md py-1.5 text-xs font-medium transition-all",
+                    storeMode === "new"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Toko Baru
+                </button>
+              </div>
+
+              {storeMode === "existing" ? (
+                <div className="flex animate-in flex-col gap-3 fade-in slide-in-from-top-2">
+                  <StoreCombobox
+                    stores={stores}
+                    value={selectedStore}
+                    onSelect={handleStoreSelect}
+                  />
+                  {selectedStore && (
+                    <Card className="border-primary/10 bg-muted/30 shadow-none">
+                      <CardContent>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                              Kode Toko
+                            </span>
+                            <span className="text-xs font-semibold text-foreground">
+                              {selectedStore.code}
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                              Nama Toko
+                            </span>
+                            <span className="text-xs font-semibold text-foreground">
+                              {selectedStore.name}
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                              Cabang
+                            </span>
+                            <span className="text-xs font-semibold text-foreground">
+                              {selectedStore.branch || "-"}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              ) : (
+                <div className="flex animate-in flex-col gap-3 fade-in slide-in-from-top-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field>
+                      <FieldLabel htmlFor="new_store_name">Nama Toko</FieldLabel>
+                      <Input
+                        id="new_store_name"
+                        placeholder="Contoh: Supratman 2"
+                        value={newStoreName}
+                        onChange={(e) => setNewStoreName(e.target.value)}
+                        className="bg-background text-xs"
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="new_store_branch">Cabang</FieldLabel>
+                      <Input
+                        id="new_store_branch"
+                        placeholder="Contoh: Cikokol"
+                        value={newStoreBranch}
+                        onChange={(e) => setNewStoreBranch(e.target.value)}
+                        className="bg-background text-xs"
+                      />
+                    </Field>
+                  </div>
+                  <Field>
+                    <FieldLabel htmlFor="new_store_code">Kode Toko <span className="text-muted-foreground font-normal">(Opsional)</span></FieldLabel>
+                    <Input
+                      id="new_store_code"
+                      placeholder="Contoh: T001 (Kosongkan jika belum ada)"
+                      value={newStoreCode}
+                      onChange={(e) => setNewStoreCode(e.target.value)}
+                      className="bg-background text-xs"
+                    />
+                  </Field>
+                </div>
+              )}
+            </section>
+
+            <hr className="border-border/40" />
+
+            <section className="flex flex-col gap-5">
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold tracking-tight text-primary">
+                  Parameter Kalkulasi
+                </h2>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Inputkan luas area sales dan suhu luar toko.
+                </p>
+              </div>
+
+              <div className="space-y-6">
+                <Field>
+                  <FieldLabel htmlFor="sales_area">Luas Area Sales</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      id="sales_area"
+                      type="number"
+                      step="0.01"
+                      placeholder="0"
+                      value={salesArea}
+                      onChange={(e) =>
+                        setSalesArea(e.target.value ? Number(e.target.value) : "")
+                      }
+                      className="bg-background/50 pr-12 focus:bg-background"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                      <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                        m²
+                      </span>
+                    </div>
+                  </div>
+                </Field>
+
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <FieldLabel className="mb-0">
+                      Suhu Otomatis Peta (Open-Meteo)
+                    </FieldLabel>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      Suhu historis 1 tahun terakhir ditarik secara otomatis
+                      berdasarkan koordinat toko pada peta.
+                    </p>
+                  </div>
+                  <Field>
+                    <FieldLabel
+                      htmlFor="coord_input"
+                      className="text-[10px] text-muted-foreground uppercase"
+                    >
+                      Latitude, Longitude
+                    </FieldLabel>
+                    <Input
+                      id="coord_input"
+                      value={coordInput}
+                      onChange={(e) => setCoordInput(e.target.value)}
+                      placeholder="Contoh: -6.1702, 106.6403"
+                      className="h-8 bg-background/50 text-xs"
+                    />
+                  </Field>
+                  <MapPicker
+                    ref={mapPickerRef}
+                    position={position}
+                    onChange={setPosition}
+                  />
+                </div>
+              </div>
+            </section>
           </div>
 
-          <div className="flex rounded-lg bg-muted/50 p-1">
-            <button
-              onClick={() => setStoreMode("existing")}
-              className={cn(
-                "flex-1 rounded-md py-1.5 text-xs font-medium transition-all",
-                storeMode === "existing"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Toko Terdaftar
-            </button>
-            <button
-              onClick={() => setStoreMode("new")}
-              className={cn(
-                "flex-1 rounded-md py-1.5 text-xs font-medium transition-all",
-                storeMode === "new"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Toko Baru
-            </button>
-          </div>
+          {/* Right Column: Calculated Results & Desktop Action Panel (lg:col-span-5) */}
+          <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-20">
+            {result ? (
+              <div className="relative overflow-hidden rounded-2xl border bg-linear-to-br from-blue-50 to-indigo-50/30 p-5 shadow-sm dark:from-blue-950/20 dark:to-indigo-950/10">
+                <div className="pointer-events-none absolute -top-4 -right-4 opacity-10">
+                  <IconAirConditioning className="size-32" />
+                </div>
 
-          {storeMode === "existing" ? (
-            <div className="flex animate-in flex-col gap-3 fade-in slide-in-from-top-2">
-              <StoreCombobox
-                stores={stores}
-                value={selectedStore}
-                onSelect={handleStoreSelect}
-              />
-              {selectedStore && (
-                <Card className="border-primary/10 bg-muted/30 shadow-none">
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                          Kode Toko
-                        </span>
-                        <span className="text-xs font-semibold text-foreground">
-                          {selectedStore.code}
-                        </span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                          Nama Toko
-                        </span>
-                        <span className="text-xs font-semibold text-foreground">
-                          {selectedStore.name}
-                        </span>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                          Cabang
-                        </span>
-                        <span className="text-xs font-semibold text-foreground">
-                          {selectedStore.branch || "-"}
+                <div className="relative z-10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-bold text-primary flex items-center gap-2">
+                      <IconAirConditioning className="size-5 text-blue-600" />
+                      Hasil Kebutuhan AC
+                    </h3>
+                    <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                      Rekomendasi Optimal
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                        Suhu Desain 2%
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <Thermometer className="size-4 text-orange-500" />
+                        <span className="text-lg font-bold">
+                          {result.maxTemp}°C
                         </span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          ) : (
-            <div className="flex animate-in flex-col gap-3 fade-in slide-in-from-top-2">
-              <div className="grid grid-cols-2 gap-3">
-                <Field>
-                  <FieldLabel htmlFor="new_store_name">Nama Toko</FieldLabel>
-                  <Input
-                    id="new_store_name"
-                    placeholder="Contoh: Supratman 2"
-                    value={newStoreName}
-                    onChange={(e) => setNewStoreName(e.target.value)}
-                    className="bg-background text-xs"
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="new_store_branch">Cabang</FieldLabel>
-                  <Input
-                    id="new_store_branch"
-                    placeholder="Contoh: Cikokol"
-                    value={newStoreBranch}
-                    onChange={(e) => setNewStoreBranch(e.target.value)}
-                    className="bg-background text-xs"
-                  />
-                </Field>
-              </div>
-              <Field>
-                <FieldLabel htmlFor="new_store_code">Kode Toko <span className="text-muted-foreground font-normal">(Opsional)</span></FieldLabel>
-                <Input
-                  id="new_store_code"
-                  placeholder="Contoh: T001 (Kosongkan jika belum ada)"
-                  value={newStoreCode}
-                  onChange={(e) => setNewStoreCode(e.target.value)}
-                  className="bg-background text-xs"
-                />
-              </Field>
-            </div>
-          )}
-        </section>
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                        Beban Pendinginan
+                      </p>
+                      <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                        {new Intl.NumberFormat("id-ID").format(result.totalBtu)}{" "}
+                        <span className="text-xs font-normal">BTU</span>
+                      </p>
+                    </div>
+                  </div>
 
-        <hr className="border-border/40" />
+                  <div className="border-t border-border/50 pt-3">
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">
+                      Rekomendasi Pemasangan
+                    </p>
+                    <div className="flex items-end gap-2">
+                      <span className="text-5xl font-black tracking-tight text-primary">
+                        {result.acUnits}
+                      </span>
+                      <span className="mb-1.5 text-sm font-semibold text-primary/80">
+                        Unit AC 2 PK
+                      </span>
+                    </div>
+                    <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                      Total beban pendinginan{" "}
+                      {new Intl.NumberFormat("id-ID").format(result.totalBtu)}{" "}
+                      BTU dibagi kapasitas 1 unit AC 2 PK (18.000 BTU)
+                      menghasilkan rekomendasi {result.acUnits} unit.
+                    </p>
+                  </div>
 
-        <section className="flex flex-col gap-5">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold tracking-tight text-primary">
-              Parameter Kalkulasi
-            </h2>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              Inputkan luas area sales dan suhu luar toko.
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            <Field>
-              <FieldLabel htmlFor="sales_area">Luas Area Sales</FieldLabel>
-              <div className="relative">
-                <Input
-                  id="sales_area"
-                  type="number"
-                  step="0.01"
-                  placeholder="0"
-                  value={salesArea}
-                  onChange={(e) =>
-                    setSalesArea(e.target.value ? Number(e.target.value) : "")
-                  }
-                  className="bg-background/50 pr-12 focus:bg-background"
-                />
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                  <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-                    m²
-                  </span>
+                  <Button
+                    onClick={handleSaveImage}
+                    disabled={isSaving || !result}
+                    variant="default"
+                    className="h-10 w-full mt-2"
+                  >
+                    <IconDownload className="mr-2 size-4" />
+                    {isSaving ? "Menyimpan..." : "Simpan Hasil Estimasi"}
+                  </Button>
                 </div>
               </div>
-            </Field>
-
-
-
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <FieldLabel className="mb-0">
-                  Suhu Otomatis Peta (Open-Meteo)
-                </FieldLabel>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Suhu historis 1 tahun terakhir ditarik secara otomatis
-                  berdasarkan koordinat toko pada peta.
-                </p>
-              </div>
-              <Field>
-                <FieldLabel
-                  htmlFor="coord_input"
-                  className="text-[10px] text-muted-foreground uppercase"
-                >
-                  Latitude, Longitude
-                </FieldLabel>
-                <Input
-                  id="coord_input"
-                  value={coordInput}
-                  onChange={(e) => setCoordInput(e.target.value)}
-                  placeholder="Contoh: -6.1702, 106.6403"
-                  className="h-8 bg-background/50 text-xs"
-                />
-              </Field>
-              <MapPicker
-                ref={mapPickerRef}
-                position={position}
-                onChange={setPosition}
-              />
-            </div>
+            ) : (
+              <Card className="border-dashed border-border/80 bg-muted/20">
+                <CardContent className="p-6 text-center space-y-4 flex flex-col items-center justify-center min-h-[300px]">
+                  <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                    <IconAirConditioning className="size-6" />
+                  </div>
+                  <div className="space-y-1.5 max-w-xs">
+                    <h3 className="text-sm font-bold text-foreground">Ringkasan Estimasi AC</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Pilih identitas toko, isi luas area sales, dan posisi peta di sebelah kiri untuk menghitung kebutuhan AC.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleCalculate}
+                    disabled={
+                      isPending ||
+                      !salesArea ||
+                      !coordInput ||
+                      (storeMode === "existing"
+                        ? !selectedStore
+                        : !newStoreCode || !newStoreName)
+                    }
+                    className="h-10 w-full max-w-xs shadow-md font-semibold text-xs"
+                  >
+                    <IconCalculator className="mr-2 size-4" />
+                    {isPending ? "Menghitung Estimasi..." : "Hitung Kebutuhan AC"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
-        </section>
+        </div>
 
+        {/* Mobile Result Drawer */}
         <Drawer open={isResultOpen} onOpenChange={setIsResultOpen}>
           <DrawerContent className="px-4 pb-6">
             <DrawerHeader className="px-0 pt-6 text-left">
@@ -553,7 +664,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
         </Drawer>
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border/60 bg-background/90 p-4 backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border/60 bg-background/90 p-4 backdrop-blur lg:hidden">
         <div className="w-full max-w-sm">
           <Button
             onClick={handleCalculate}

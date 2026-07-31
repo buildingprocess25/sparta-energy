@@ -53,7 +53,7 @@ function BottomNavigation({ activeItem }: BottomNavigationProps) {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center">
-      <nav className="pointer-events-auto w-full max-w-sm rounded-t-3xl border-t border-border/70 bg-background/80 px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[0_-12px_32px_rgba(26,28,25,0.06)] backdrop-blur-md">
+      <nav className="pointer-events-auto w-full max-w-sm md:max-w-md rounded-t-3xl md:rounded-2xl md:mb-4 border border-border/70 bg-background/80 px-4 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:pb-3 shadow-[0_-12px_32px_rgba(26,28,25,0.06)] backdrop-blur-md">
         <ul className="flex items-center justify-around gap-1">
           {navItems.map((item) => {
             const isActive = item.key === resolvedActiveItem

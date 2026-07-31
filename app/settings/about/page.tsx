@@ -15,7 +15,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 export default function AboutPage() {
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-16">
+    <main className="mx-auto flex min-h-svh w-full max-w-md md:max-w-3xl lg:max-w-4xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-16">
       <Header
         variant="dashboard-back"
         title="Tentang Aplikasi"

@@ -185,10 +185,12 @@ export function AuditResultDB({
   )
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-36">
+    <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-5xl lg:max-w-7xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-36">
       <Header variant="title-only" title="Hasil Audit Energi" />
 
-      <main className="space-y-4">
+      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Status Card, PLN Trend Chart, Area Pie Chart (lg:col-span-6) */}
+        <div className="lg:col-span-6 space-y-4">
         {/* ── 1. Status Card ── */}
         <Card
           className={cn(
@@ -562,8 +564,10 @@ export function AuditResultDB({
             </CardContent>
           </Card>
         )}
+        </div>
 
-        {/* ── 6. Daftar Peralatan ── */}
+        {/* Right Column: AI Recommendations & Daftar Peralatan (lg:col-span-6) */}
+        <div className="lg:col-span-6 space-y-4 lg:sticky lg:top-20">
         {audit.items.length > 0 && (
           <Card>
             <CardHeader>
@@ -625,6 +629,7 @@ export function AuditResultDB({
             </CardContent>
           </Card>
         )}
+        </div>
       </main>
 
       {/* ── Bottom Action Bar ── */}

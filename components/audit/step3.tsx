@@ -468,7 +468,7 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
   }
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-36">
+    <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-4xl lg:max-w-5xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-36">
       <Header
         variant="dashboard-back"
         title="Kembali"
