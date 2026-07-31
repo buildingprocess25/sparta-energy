@@ -1962,7 +1962,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   const inRange = irregCheck.isAllOk
 
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
+    <main className="mx-auto flex min-h-svh w-full max-w-md md:max-w-5xl lg:max-w-7xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-32">
       <Header
         variant="dashboard-back"
         title="Kalkulator Lampu"
@@ -1970,753 +1970,773 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         backHref="/dashboard"
       />
 
-      {/* Shared Store Selection Prefill (Toko Terdaftar vs Toko Baru) */}
-      <div className="flex flex-col gap-3 mb-4 bg-muted/30 border border-border/50 rounded-xl p-3">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs font-bold text-foreground/80">Identitas Toko</Label>
-        </div>
+      {/* Responsive 2-Column Grid Layout (Mobile Stacked, Desktop Side-by-Side) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Store Selection & Room Canvas Form (lg:col-span-7) */}
+        <div className="lg:col-span-7 space-y-4">
+          {/* Shared Store Selection Prefill (Toko Terdaftar vs Toko Baru) */}
+          <div className="flex flex-col gap-3 bg-muted/30 border border-border/50 rounded-xl p-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-bold text-foreground/80">Identitas Toko</Label>
+            </div>
 
-        <div className="flex rounded-lg bg-muted/60 p-0.5">
-          <button
-            type="button"
-            onClick={() => setStoreMode("existing")}
-            className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${storeMode === "existing"
-              ? "bg-background text-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            Toko Terdaftar
-          </button>
-          <button
-            type="button"
-            onClick={() => setStoreMode("new")}
-            className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${storeMode === "new"
-              ? "bg-background text-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            Toko Baru
-          </button>
-        </div>
+            <div className="flex rounded-lg bg-muted/60 p-0.5">
+              <button
+                type="button"
+                onClick={() => setStoreMode("existing")}
+                className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${storeMode === "existing"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
+              >
+                Toko Terdaftar
+              </button>
+              <button
+                type="button"
+                onClick={() => setStoreMode("new")}
+                className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all ${storeMode === "new"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
+              >
+                Toko Baru
+              </button>
+            </div>
 
-        {storeMode === "existing" ? (
-          <div className="flex flex-col gap-2.5">
-            <StoreCombobox
-              stores={stores}
-              value={selectedStore}
-              onSelect={handleStoreSelectShared}
-              placeholder="Pilih toko audit..."
-            />
-            {selectedStore && (
-              <div className="grid grid-cols-3 gap-2 px-1 pt-1 text-[10px]">
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-bold text-muted-foreground uppercase">Kode</span>
-                  <span className="font-semibold text-foreground">{selectedStore.code}</span>
+            {storeMode === "existing" ? (
+              <div className="flex flex-col gap-2.5">
+                <StoreCombobox
+                  stores={stores}
+                  value={selectedStore}
+                  onSelect={handleStoreSelectShared}
+                  placeholder="Pilih toko audit..."
+                />
+                {selectedStore && (
+                  <div className="grid grid-cols-3 gap-2 px-1 pt-1 text-[10px]">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-muted-foreground uppercase">Kode</span>
+                      <span className="font-semibold text-foreground">{selectedStore.code}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-muted-foreground uppercase">Nama</span>
+                      <span className="font-semibold text-foreground truncate max-w-[80px]">{selectedStore.name}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-muted-foreground uppercase">Cabang</span>
+                      <span className="font-semibold text-foreground">{selectedStore.branch || "-"}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="new_store_name" className="text-[10px] font-semibold">Nama Toko</Label>
+                    <Input
+                      id="new_store_name"
+                      placeholder="Contoh: Supratman 2"
+                      value={newStoreName}
+                      onChange={(e) => setNewStoreName(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="new_store_branch" className="text-[10px] font-semibold">Cabang</Label>
+                    <Input
+                      id="new_store_branch"
+                      placeholder="Contoh: Cikokol"
+                      value={newStoreBranch}
+                      onChange={(e) => setNewStoreBranch(e.target.value)}
+                      className="h-8 text-xs bg-background"
+                    />
+                  </div>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-bold text-muted-foreground uppercase">Nama</span>
-                  <span className="font-semibold text-foreground truncate max-w-[80px]">{selectedStore.name}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-bold text-muted-foreground uppercase">Cabang</span>
-                  <span className="font-semibold text-foreground">{selectedStore.branch || "-"}</span>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="new_store_code" className="text-[10px] font-semibold">Kode Toko <span className="text-muted-foreground font-normal">(Opsional)</span></Label>
+                  <Input
+                    id="new_store_code"
+                    placeholder="Contoh: T001 (Kosongkan jika belum ada)"
+                    value={newStoreCode}
+                    onChange={(e) => setNewStoreCode(e.target.value)}
+                    className="h-8 text-xs bg-background"
+                  />
                 </div>
               </div>
             )}
           </div>
-        ) : (
-          <div className="flex flex-col gap-2.5">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="new_store_name" className="text-[10px] font-semibold">Nama Toko</Label>
-                <Input
-                  id="new_store_name"
-                  placeholder="Contoh: Supratman 2"
-                  value={newStoreName}
-                  onChange={(e) => setNewStoreName(e.target.value)}
-                  className="h-8 text-xs bg-background"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="new_store_branch" className="text-[10px] font-semibold">Cabang</Label>
-                <Input
-                  id="new_store_branch"
-                  placeholder="Contoh: Cikokol"
-                  value={newStoreBranch}
-                  onChange={(e) => setNewStoreBranch(e.target.value)}
-                  className="h-8 text-xs bg-background"
-                />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="new_store_code" className="text-[10px] font-semibold">Kode Toko <span className="text-muted-foreground font-normal">(Opsional)</span></Label>
-              <Input
-                id="new_store_code"
-                placeholder="Contoh: T001 (Kosongkan jika belum ada)"
-                value={newStoreCode}
-                onChange={(e) => setNewStoreCode(e.target.value)}
-                className="h-8 text-xs bg-background"
-              />
-            </div>
-          </div>
-        )}
-      </div>
 
-      <div className="w-full space-y-4">
-        {/* Parameter Poligon & Jarak Card */}
-        <Card className="border-border/80">
-          <CardHeader className="py-4">
-            <CardTitle className="text-sm font-semibold">Denah Toko (Custom Canvas)</CardTitle>
-            <CardDescription className="text-[11px]">
-              Klik/sentuh kanvas di bawah untuk langsung menentukan titik sudut denah toko.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3.5 pt-0 pb-4">
-            {/* Pratinjau Bentuk Ruangan Canvas (STABLE TOP POSITION) */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-xs font-bold text-foreground">Kanvas Denah Ruangan</Label>
-                <span className="text-[10px] text-muted-foreground font-medium">
-                  {customPts.length} titik {customClosed ? "(Tertutup)" : "(Belum ditutup)"}
-                </span>
-              </div>
-              <div className="rounded-xl border border-border/80 overflow-hidden bg-background">
-                <canvas
-                  ref={canvasRef}
-                  onPointerDown={handleCanvasPointerDown}
-                  onPointerMove={handleCanvasPointerMove}
-                  onPointerUp={handleCanvasPointerUp}
-                  onPointerLeave={() => setHoverEdge(null)}
-                  className="w-full block select-none touch-none"
-                  style={{
-                    height: `${CANVAS_H}px`,
-                    cursor: !customClosed ? "crosshair" : "pointer"
-                  }}
-                />
+          {/* Parameter Poligon & Jarak Card */}
+          <Card className="border-border/80">
+            <CardHeader className="py-4">
+              <CardTitle className="text-sm font-semibold">Denah Toko (Custom Canvas)</CardTitle>
+              <CardDescription className="text-[11px]">
+                Klik/sentuh kanvas di bawah untuk langsung menentukan titik sudut denah toko.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3.5 pt-0 pb-4">
+              {/* Pratinjau Bentuk Ruangan Canvas (STABLE TOP POSITION) */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs font-bold text-foreground">Kanvas Denah Ruangan</Label>
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    {customPts.length} titik {customClosed ? "(Tertutup)" : "(Belum ditutup)"}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-border/80 overflow-hidden bg-background">
+                  <canvas
+                    ref={canvasRef}
+                    onPointerDown={handleCanvasPointerDown}
+                    onPointerMove={handleCanvasPointerMove}
+                    onPointerUp={handleCanvasPointerUp}
+                    onPointerLeave={() => setHoverEdge(null)}
+                    className="w-full block select-none touch-none"
+                    style={{
+                      height: `${CANVAS_H}px`,
+                      cursor: !customClosed ? "crosshair" : "pointer"
+                    }}
+                  />
 
-                {/* Custom Canvas Controls: Directly below canvas */}
-                <div className="p-2.5 space-y-2 border-t border-border/50 bg-muted/20">
-                  <div className="flex flex-wrap gap-1.5 items-center">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-[11px] font-medium"
-                      disabled={historyPast.length === 0}
-                      onClick={handleUndo}
-                      title="Undo perubahan denah (Ctrl+Z)"
-                    >
-                      <IconArrowBackUp className="size-3.5 mr-1 text-sky-500" />
-                      Undo
-                    </Button>
+                  {/* Custom Canvas Controls: Directly below canvas */}
+                  <div className="p-2.5 space-y-2 border-t border-border/50 bg-muted/20">
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[11px] font-medium"
+                        disabled={historyPast.length === 0}
+                        onClick={handleUndo}
+                        title="Undo perubahan denah (Ctrl+Z)"
+                      >
+                        <IconArrowBackUp className="size-3.5 mr-1 text-sky-500" />
+                        Undo
+                      </Button>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-[11px] font-medium"
-                      disabled={historyFuture.length === 0}
-                      onClick={handleRedo}
-                      title="Redo perubahan denah (Ctrl+Y)"
-                    >
-                      <IconArrowForwardUp className="size-3.5 mr-1 text-purple-500" />
-                      Redo
-                    </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[11px] font-medium"
+                        disabled={historyFuture.length === 0}
+                        onClick={handleRedo}
+                        title="Redo perubahan denah (Ctrl+Y)"
+                      >
+                        <IconArrowForwardUp className="size-3.5 mr-1 text-purple-500" />
+                        Redo
+                      </Button>
 
-                    {/* Integrated Delete Point Button (Active when node selected) */}
-                    <Button
-                      type="button"
-                      variant={selectedNodeIdx !== null ? "destructive" : "outline"}
-                      size="sm"
-                      className={`h-7 text-[11px] font-semibold transition-all ${
-                        selectedNodeIdx !== null
-                          ? "shadow-sm animate-in fade-in zoom-in-95"
-                          : "opacity-50 cursor-not-allowed text-muted-foreground border-border/50"
-                      }`}
-                      disabled={selectedNodeIdx === null || customPts.length <= 3}
-                      onClick={() => {
-                        if (selectedNodeIdx !== null) {
-                          setDeleteConfirmIdx(selectedNodeIdx)
+                      {/* Integrated Delete Point Button (Active when node selected) */}
+                      <Button
+                        type="button"
+                        variant={selectedNodeIdx !== null ? "destructive" : "outline"}
+                        size="sm"
+                        className={`h-7 text-[11px] font-semibold transition-all ${
+                          selectedNodeIdx !== null
+                            ? "shadow-sm animate-in fade-in zoom-in-95"
+                            : "opacity-50 cursor-not-allowed text-muted-foreground border-border/50"
+                        }`}
+                        disabled={selectedNodeIdx === null || customPts.length <= 3}
+                        onClick={() => {
+                          if (selectedNodeIdx !== null) {
+                            setDeleteConfirmIdx(selectedNodeIdx)
+                          }
+                        }}
+                        title={
+                          selectedNodeIdx === null
+                            ? "Klik salah satu titik di kanvas untuk menghapus"
+                            : customPts.length <= 3
+                            ? "Minimal 3 titik untuk poligon"
+                            : `Hapus Titik T${selectedNodeIdx + 1}`
                         }
-                      }}
-                      title={
-                        selectedNodeIdx === null
-                          ? "Klik salah satu titik di kanvas untuk menghapus"
-                          : customPts.length <= 3
-                          ? "Minimal 3 titik untuk poligon"
-                          : `Hapus Titik T${selectedNodeIdx + 1}`
-                      }
-                    >
-                      <IconTrash className="size-3.5 mr-1" />
-                      {selectedNodeIdx !== null ? `Hapus T${selectedNodeIdx + 1}` : "Hapus Titik"}
-                    </Button>
+                      >
+                        <IconTrash className="size-3.5 mr-1" />
+                        {selectedNodeIdx !== null ? `Hapus T${selectedNodeIdx + 1}` : "Hapus Titik"}
+                      </Button>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-[11px] font-medium"
-                      onClick={() => {
-                        pushCurrentToHistory()
-                        setCustomPts([])
-                        setCustomClosed(false)
-                        setSelectedNodeIdx(null)
-                      }}
-                    >
-                      <IconRefresh className="size-3.5 mr-1" />
-                      Reset
-                    </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[11px] font-medium"
+                        onClick={() => {
+                          pushCurrentToHistory()
+                          setCustomPts([])
+                          setCustomClosed(false)
+                          setSelectedNodeIdx(null)
+                        }}
+                      >
+                        <IconRefresh className="size-3.5 mr-1" />
+                        Reset
+                      </Button>
 
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-7 flex-1 text-[11px] font-semibold"
-                      disabled={customPts.length < 3 || customClosed}
-                      onClick={() => {
-                        pushCurrentToHistory()
-                        setCustomClosed(true)
-                      }}
-                    >
-                      {customClosed ? "Poligon Tertutup" : "Tutup Poligon"}
-                    </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 flex-1 text-[11px] font-semibold"
+                        disabled={customPts.length < 3 || customClosed}
+                        onClick={() => {
+                          pushCurrentToHistory()
+                          setCustomClosed(true)
+                        }}
+                      >
+                        {customClosed ? "Poligon Tertutup" : "Tutup Poligon"}
+                      </Button>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-[10.5px] font-semibold border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5 hover:bg-amber-500/10"
-                      onClick={() => setPresetModalOpen(true)}
-                    >
-                      <IconSquare className="size-3.5 mr-1 text-amber-500" />
-                      Template
-                    </Button>
-                  </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-[10.5px] font-semibold border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5 hover:bg-amber-500/10"
+                        onClick={() => setPresetModalOpen(true)}
+                      >
+                        <IconSquare className="size-3.5 mr-1 text-amber-500" />
+                        Template
+                      </Button>
+                    </div>
 
-                  <div className="flex flex-col gap-1.5 pt-1 border-t border-border/40">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <div className="flex items-center gap-1.5 font-medium text-foreground">
-                        <span className={`inline-block size-2 rounded-full ${customClosed ? "bg-emerald-500" : "bg-amber-500"}`} />
-                        <span>Jumlah Titik: <b className="font-bold text-foreground">{customPts.length} Titik Sudut</b></span>
+                    <div className="flex flex-col gap-1.5 pt-1 border-t border-border/40">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <div className="flex items-center gap-1.5 font-medium text-foreground">
+                          <span className={`inline-block size-2 rounded-full ${customClosed ? "bg-emerald-500" : "bg-amber-500"}`} />
+                          <span>Jumlah Titik: <b className="font-bold text-foreground">{customPts.length} Titik Sudut</b></span>
+                        </div>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${customClosed ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
+                          {customClosed ? "Denah Tertutup" : "Belum Tertutup"}
+                        </span>
                       </div>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${customClosed ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
-                        {customClosed ? "Denah Tertutup" : "Belum Tertutup"}
+
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/40 border border-border/40 rounded-lg px-2.5 py-1.5 leading-snug">
+                        <span className="shrink-0">💡</span>
+                        <span>Klik titik pada kanvas untuk aktifkan Hapus Titik · Drag titik untuk geser · Ctrl+Z untuk Undo</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Parameter Inputs & Dynamic Segment Inputs (Below Canvas) */}
+              <div className="space-y-3.5 border-t border-border/60 pt-3">
+                {shape !== "custom" && (
+                  /* Petunjuk Arah Dimensi (Tidak Simetris) */
+                  <div className="bg-muted/20 border border-border/50 rounded-xl p-2.5 flex flex-col gap-1 text-[10px] text-muted-foreground leading-normal">
+                    <div
+                      className="font-bold text-foreground text-xs mb-0.5 flex items-center justify-between cursor-pointer"
+                      onClick={() => setShowDimensionGuide(prev => !prev)}
+                    >
+                      <span className="flex items-center gap-1">💡 Petunjuk Arah Dimensi & Inisial Sisi</span>
+                      <span className="text-[10px] text-muted-foreground underline font-normal">
+                        {showDimensionGuide ? "Sembunyikan" : "Tampilkan"}
                       </span>
                     </div>
-
-                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/40 border border-border/40 rounded-lg px-2.5 py-1.5 leading-snug">
-                      <span className="shrink-0">💡</span>
-                      <span>Klik titik pada kanvas untuk aktifkan Hapus Titik · Drag titik untuk geser · Ctrl+Z untuk Undo</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 3. Parameter Inputs & Dynamic Segment Inputs (Below Canvas) */}
-            <div className="space-y-3.5 border-t border-border/60 pt-3">
-              {shape !== "custom" && (
-                /* Petunjuk Arah Dimensi (Tidak Simetris) */
-                <div className="bg-muted/20 border border-border/50 rounded-xl p-2.5 flex flex-col gap-1 text-[10px] text-muted-foreground leading-normal">
-                  <div
-                    className="font-bold text-foreground text-xs mb-0.5 flex items-center justify-between cursor-pointer"
-                    onClick={() => setShowDimensionGuide(prev => !prev)}
-                  >
-                    <span className="flex items-center gap-1">💡 Petunjuk Arah Dimensi & Inisial Sisi</span>
-                    <span className="text-[10px] text-muted-foreground underline font-normal">
-                      {showDimensionGuide ? "Sembunyikan" : "Tampilkan"}
-                    </span>
-                  </div>
-                  {showDimensionGuide && (
-                    <div className="border-t border-border/40 pt-1.5 space-y-1 animate-in fade-in slide-in-from-top-1">
-                      <div>• <b>LT / PT:</b> Lebar Total / Panjang Total (Kedalaman Utama Toko)</div>
-                      <div>• <b>LA / LB:</b> Lebar Atas (Sisi Depan) / Lebar Bawah (Sisi Belakang)</div>
-                      <div>• <b>PKi / PKa:</b> Panjang Dinding Kiri / Panjang Dinding Kanan</div>
-                      <div>• <b>LS / PS:</b> Lebar Sayap / Panjang Sayap (Pada Bentuk L)</div>
-                      <div>• <b>OM:</b> Offset Miring Dinding (Pada Trapesium)</div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {shape === "rect" && (
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                  <Label className="text-xs font-semibold">Lebar Atas (LA)</Label>
-                  <Label className="text-xs font-semibold">Lebar Bawah (LB)</Label>
-
-                  <Input
-                    type="number"
-                    value={p.rTop}
-                    step={0.5}
-                    onChange={e => setParam("rTop", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val <= 0) setParam("rTop", "1")
-                    }}
-                    className="h-8 text-xs"
-                  />
-                  <Input
-                    type="number"
-                    value={p.rBot}
-                    step={0.5}
-                    onChange={e => setParam("rBot", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val <= 0) setParam("rBot", "1")
-                    }}
-                    className="h-8 text-xs"
-                  />
-
-                  <Label className="text-xs font-semibold mt-1">Panjang Kiri (PKi)</Label>
-                  <Label className="text-xs font-semibold mt-1">Panjang Kanan (PKa)</Label>
-
-                  <Input
-                    type="number"
-                    value={p.rLeft}
-                    step={0.5}
-                    onChange={e => setParam("rLeft", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val <= 0) setParam("rLeft", "1")
-                    }}
-                    className="h-8 text-xs"
-                  />
-                  <Input
-                    type="number"
-                    value={p.rRight}
-                    step={0.5}
-                    onChange={e => setParam("rRight", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val <= 0) setParam("rRight", "1")
-                    }}
-                    className="h-8 text-xs"
-                  />
-                </div>
-              )}
-
-              {shape === "trap" && (
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                  <Label className="text-xs font-semibold">Lebar Atas (LA)</Label>
-                  <Label className="text-xs font-semibold">Lebar Bawah (LB)</Label>
-
-                  <Input
-                    type="number"
-                    value={p.tTop}
-                    step={0.5}
-                    onChange={e => setParam("tTop", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val <= 0) setParam("tTop", "1")
-                    }}
-                    className="h-8 text-xs"
-                  />
-                  <Input
-                    type="number"
-                    value={p.tBot}
-                    step={0.5}
-                    onChange={e => setParam("tBot", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val <= 0) setParam("tBot", "1")
-                    }}
-                    className="h-8 text-xs"
-                  />
-
-                  <Label className="text-xs font-semibold mt-1">Panjang Total (PT)</Label>
-                  <Label className="text-xs font-semibold mt-1">Offset Miring (OM)</Label>
-
-                  <Input
-                    type="number"
-                    value={p.tH}
-                    step={0.5}
-                    onChange={e => setParam("tH", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val <= 0) setParam("tH", "1")
-                    }}
-                    className="h-8 text-xs"
-                  />
-                  <Input
-                    type="number"
-                    value={p.tOff}
-                    step={0.5}
-                    onChange={e => setParam("tOff", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val < 0) setParam("tOff", "0")
-                    }}
-                    className="h-8 text-xs"
-                  />
-                </div>
-              )}
-
-              {shape === "L" && (
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                  <Label className="text-xs font-semibold">Lebar Total (LT)</Label>
-                  <Label className="text-xs font-semibold">Panjang Total (PT)</Label>
-
-                  <Input
-                    type="number"
-                    value={p.lL}
-                    step={0.5}
-                    onChange={e => setParam("lL", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val <= 0) setParam("lL", "1")
-                    }}
-                    className="h-8 text-xs"
-                  />
-                  <Input
-                    type="number"
-                    value={p.lP}
-                    step={0.5}
-                    onChange={e => setParam("lP", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val <= 0) setParam("lP", "1")
-                    }}
-                    className="h-8 text-xs"
-                  />
-
-                  <Label className="text-xs font-semibold mt-1">Lebar Sayap (LS)</Label>
-                  <Label className="text-xs font-semibold mt-1">Panjang Sayap (PS)</Label>
-
-                  <Input
-                    type="number"
-                    value={p.lW}
-                    step={0.5}
-                    onChange={e => setParam("lW", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val <= 0) setParam("lW", "1")
-                    }}
-                    className="h-8 text-xs"
-                  />
-                  <Input
-                    type="number"
-                    value={p.lH}
-                    step={0.5}
-                    onChange={e => setParam("lH", e.target.value)}
-                    onBlur={e => {
-                      const val = parseFloat(e.target.value)
-                      if (isNaN(val) || val <= 0) setParam("lH", "1")
-                    }}
-                    className="h-8 text-xs"
-                  />
-                </div>
-              )}
-
-              {/* Dynamic segment length inputs (Scrollable below canvas) */}
-              {shape === "custom" && customPts.length >= 2 && (
-                <div className="bg-muted/30 border border-border/50 rounded-xl p-3 space-y-3">
-                  <div className="space-y-1.5 border-b border-border/40 pb-2.5">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Sesuaikan Panjang Sisi Dinding (m)
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px]">
-                      <span className="text-muted-foreground font-medium">Arah Pergeseran Dinding:</span>
-                      <div className="flex rounded-md bg-muted/80 p-0.5 text-[9.5px]">
-                        <button
-                          type="button"
-                          onClick={() => setExpandDir("start")}
-                          className={`px-2 py-0.5 rounded transition-all ${expandDir === "start" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
-                          title="Hanya geser titik awal Ti"
-                        >
-                          Titik Awal (Ti)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setExpandDir("center")}
-                          className={`px-2 py-0.5 rounded transition-all ${expandDir === "center" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
-                          title="Geser kedua titik secara simetris dari tengah"
-                        >
-                          ↔️ Simetris
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setExpandDir("end")}
-                          className={`px-2 py-0.5 rounded transition-all ${expandDir === "end" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
-                          title="Hanya geser titik akhir Ti+1"
-                        >
-                          Titik Akhir (Ti+1)
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2.5 max-h-44 overflow-y-auto pr-1">
-                    {segmentLengths.map((len, idx) => {
-                      const p1Name = `T${idx + 1}`
-                      const p2Name = `T${((idx + 1) % customPts.length) + 1}`
-                      const isClosing = idx === customPts.length - 1 && !customClosed
-
-                      return (
-                        <div key={idx} className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-[10px] font-semibold text-foreground/80">
-                              Sisi {p1Name} ke {p2Name} {isClosing ? "(Belum Tutup)" : ""}
-                            </Label>
-                            {customPts.length > 3 && (
-                              <button
-                                type="button"
-                                onClick={() => setDeleteConfirmIdx(idx)}
-                                className="text-muted-foreground hover:text-destructive p-0.5 transition-colors"
-                                title={`Hapus Titik ${p1Name}`}
-                              >
-                                <IconTrash className="size-3" />
-                              </button>
-                            )}
-                          </div>
-                          <Input
-                            type="number"
-                            step={0.5}
-                            min={0.5}
-                            value={len}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setSegmentLengths(prev => {
-                                const next = [...prev]
-                                next[idx] = val as any
-                                return next
-                              })
-                              const numVal = parseFloat(val)
-                              if (!isNaN(numVal) && numVal > 0) {
-                                handleUpdateSegmentLength(idx, numVal)
-                              }
-                            }}
-                            onBlur={(e) => {
-                              const numVal = parseFloat(e.target.value)
-                              if (!isNaN(numVal) && numVal > 0) {
-                                handleUpdateSegmentLength(idx, numVal)
-                              }
-                            }}
-                            className="h-7 text-[11px]"
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Layout calculation tweaks (Fixed and Automatic) */}
-            <div className="space-y-3.5 border-t border-border/60 pt-3">
-              {/* Spesifikasi Lampu Read-Only (Standar Audit) */}
-              <div className="bg-muted/30 rounded-xl p-2.5 border border-border/50 text-[10px] text-muted-foreground leading-normal flex items-center gap-2">
-                <IconBulb className="size-4 text-amber-500 shrink-0" />
-                <div>
-                  <span className="font-bold text-foreground block">Spesifikasi Lampu Standar Audit</span>
-                  TL LED 1.22 meter (13.5 Watt) per unit.
-                </div>
-              </div>
-            </div>
-
-            {/* Hitung Penempatan Button for Non-Symmetrical */}
-            <Button
-              type="button"
-              className="w-full h-9 mt-4 text-xs font-semibold"
-              disabled={shape === "custom" && !customClosed}
-              onClick={() => {
-                setIsCalculated(true)
-                setIrregOverrideBaris(null)
-                setIrregOverrideLpb(null)
-                setIrregDisabledLamps([])
-              }}
-            >
-              Hitung Penempatan
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Irregular Calculation Result Card & Plotted Canvas */}
-        {isCalculated && (
-          <div className="space-y-4">
-            {/* Hasil Kalkulasi Card */}
-            <Card className={`transition-all duration-300 ${irregCheck.overallStatus === "ideal"
-              ? "border-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15"
-              : irregCheck.overallStatus === "toleransi"
-                ? "border-sky-500/25 bg-sky-50/30 dark:bg-sky-950/15"
-                : "border-amber-500/25 bg-amber-50/30 dark:bg-amber-950/15"
-              }`}>
-              <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-sm font-semibold">Hasil Kalkulasi — Tidak Simetris</CardTitle>
-                <span
-                  onClick={() => setInfoOpen(true)}
-                  className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${irregCheck.overallStatus === "ideal"
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                    : irregCheck.overallStatus === "toleransi"
-                      ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    }`}>
-                  {irregCheck.statusLabel}
-                  <IconInfoCircle className="size-3" />
-                </span>
-              </CardHeader>
-              <CardContent className="pt-0 pb-4 space-y-2.5">
-                {calcResult ? (
-                  <>
-                    {/* Range Result Prominent Banner */}
-                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center space-y-1.5 mb-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estimasi Kebutuhan Titik Lampu (Range)</div>
-                      <div className="text-2xl font-extrabold text-primary">
-                        {stats.nmin} – {stats.nmax} <span className="text-sm font-semibold text-muted-foreground">Titik Lampu</span>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] font-medium text-muted-foreground">
-                        <div>
-                          Daya Total: <span className="font-semibold text-foreground">{(stats.nmin * watt).toFixed(0)} W – {(stats.nmax * watt).toFixed(0)} W</span>
-                        </div>
-                        <div className="hidden sm:inline text-muted-foreground/40">•</div>
-                        <div>
-                          Kerapatan Daya: <span className="font-semibold text-foreground">{stats.luas > 0 ? `${((stats.nmin * watt) / stats.luas).toFixed(2)} – ${((stats.nmax * watt) / stats.luas).toFixed(2)}` : "0.00"} W/m²</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <StatBox label="Estimasi" subLabel="Jumlah Baris" value={stats.nRow} unit=" baris" />
-                      <StatBox label="Estimasi Unit" subLabel="Per Baris" value={stats.nPerRow} unit=" unit" />
-                      <StatBox label="Jarak" subLabel="Per Baris" value={Number(stats.rowSpacing)?.toFixed(2)} unit=" m" variant={Number(stats.rowSpacing) <= 1.9 ? "success" : Number(stats.rowSpacing) <= 2.2 ? "info" : "warning"} />
-                      <StatBox label="Jarak" subLabel="Samping" value={activeMargin.toFixed(2)} unit=" m" variant={irregCheck.sampingStatus === "ok" ? "success" : activeMargin >= 0.2 && activeMargin <= 0.8 ? "info" : "warning"} />
-                    </div>
-                    <SmartSuggestions rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} check={irregCheck} />
-
-                    {/* Compliance Info / Warning Alerts */}
-                    {irregCheck.overallStatus === "ideal" ? (
-                      <div className="mt-2.5 p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-50/30 dark:bg-emerald-950/15 text-emerald-800 dark:text-emerald-300 text-[11px] space-y-1">
-                        <div className="font-bold flex items-center gap-1.5 text-emerald-800 dark:text-emerald-400">
-                          ✨ Tata Letak Memenuhi Standar Ideal:
-                        </div>
-                        <p className="pl-1 text-emerald-700 dark:text-emerald-400 font-medium leading-normal">
-                          Seluruh parameter penempatan lampu berada dalam rentang ideal (kerapatan daya, jarak samping, dan jarak baris optimal).
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setInfoOpen(true)}
-                          className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold underline mt-1 block hover:opacity-80"
-                        >
-                          Lihat Detail Standar Acuan &rarr;
-                        </button>
-                      </div>
-                    ) : irregCheck.overallStatus === "toleransi" ? (
-                      <div className="mt-2.5 p-2.5 rounded-xl border border-sky-500/20 bg-sky-50/30 dark:bg-sky-950/15 text-sky-800 dark:text-sky-300 text-[11px] space-y-1">
-                        <div className="font-bold flex items-center gap-1.5 text-sky-800 dark:text-sky-400">
-                          🔵 Standar Toleransi (Penyesuaian Layout Toko):
-                        </div>
-                        <p className="pl-1 text-sky-700 dark:text-sky-400 font-medium leading-normal">
-                          Tata letak ini disesuaikan dengan dimensi toko dan merupakan opsi paling seimbang (optimal). Parameter masih dalam batas toleransi teknis yang aman.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setInfoOpen(true)}
-                          className="text-[10px] text-sky-600 dark:text-sky-400 font-bold underline mt-1 block hover:opacity-80"
-                        >
-                          Lihat Detail Standar Acuan &rarr;
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="mt-2.5 p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-800 dark:text-amber-300 text-[11px] space-y-1.5">
-                        <div className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-400">
-                          ⚠️ Parameter Di Luar Standar:
-                        </div>
-                        <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
-                          {irregCheck.issues.map((issue, idx) => (
-                            <li key={idx} className="text-amber-700 dark:text-amber-400 font-medium">{issue}</li>
-                          ))}
-                        </ul>
-                        <button
-                          type="button"
-                          onClick={() => setInfoOpen(true)}
-                          className="text-[10px] text-amber-600 dark:text-amber-400 font-bold underline mt-1.5 block hover:opacity-80"
-                        >
-                          Lihat Detail Standar Acuan &rarr;
-                        </button>
+                    {showDimensionGuide && (
+                      <div className="border-t border-border/40 pt-1.5 space-y-1 animate-in fade-in slide-in-from-top-1">
+                        <div>• <b>LT / PT:</b> Lebar Total / Panjang Total (Kedalaman Utama Toko)</div>
+                        <div>• <b>LA / LB:</b> Lebar Atas (Sisi Depan) / Lebar Bawah (Sisi Belakang)</div>
+                        <div>• <b>PKi / PKa:</b> Panjang Dinding Kiri / Panjang Dinding Kanan</div>
+                        <div>• <b>LS / PS:</b> Lebar Sayap / Panjang Sayap (Pada Bentuk L)</div>
+                        <div>• <b>OM:</b> Offset Miring Dinding (Pada Trapesium)</div>
                       </div>
                     )}
-
-                    {irregDisabledLamps.length > 0 && (
-                      <div className="border-t border-border/60 pt-2 mt-2 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setIrregDisabledLamps([])}
-                          className="text-[10px] text-primary hover:underline font-semibold"
-                        >
-                          Reset Lampu Nonaktif ({irregDisabledLamps.length})
-                        </button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
-                    Tidak ada konfigurasi otomatis yang memenuhi standar rasio 4.0 – 5.0 W/m² untuk dimensi ini. Coba sesuaikan koordinat atau bentuk bangunan.
                   </div>
                 )}
-              </CardContent>
-            </Card>
 
-            {/* Denah Penempatan Card (with lamps) */}
-            <Card className="border-border/80 overflow-hidden">
-              <CardHeader className="py-2.5 px-4 bg-muted/40 border-b border-border/80 flex flex-row justify-between items-center space-y-0">
-                <CardTitle className="text-xs font-bold">Referensi Denah Penempatan</CardTitle>
-                {stats.n > 0 && (
+                {shape === "rect" && (
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    <Label className="text-xs font-semibold">Lebar Atas (LA)</Label>
+                    <Label className="text-xs font-semibold">Lebar Bawah (LB)</Label>
+
+                    <Input
+                      type="number"
+                      value={p.rTop}
+                      step={0.5}
+                      onChange={e => setParam("rTop", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("rTop", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      type="number"
+                      value={p.rBot}
+                      step={0.5}
+                      onChange={e => setParam("rBot", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("rBot", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
+
+                    <Label className="text-xs font-semibold mt-1">Panjang Kiri (PKi)</Label>
+                    <Label className="text-xs font-semibold mt-1">Panjang Kanan (PKa)</Label>
+
+                    <Input
+                      type="number"
+                      value={p.rLeft}
+                      step={0.5}
+                      onChange={e => setParam("rLeft", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("rLeft", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      type="number"
+                      value={p.rRight}
+                      step={0.5}
+                      onChange={e => setParam("rRight", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("rRight", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                )}
+
+                {shape === "trap" && (
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    <Label className="text-xs font-semibold">Lebar Atas (LA)</Label>
+                    <Label className="text-xs font-semibold">Lebar Bawah (LB)</Label>
+
+                    <Input
+                      type="number"
+                      value={p.tTop}
+                      step={0.5}
+                      onChange={e => setParam("tTop", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("tTop", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      type="number"
+                      value={p.tBot}
+                      step={0.5}
+                      onChange={e => setParam("tBot", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("tBot", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
+
+                    <Label className="text-xs font-semibold mt-1">Panjang Total (PT)</Label>
+                    <Label className="text-xs font-semibold mt-1">Offset Miring (OM)</Label>
+
+                    <Input
+                      type="number"
+                      value={p.tH}
+                      step={0.5}
+                      onChange={e => setParam("tH", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("tH", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      type="number"
+                      value={p.tOff}
+                      step={0.5}
+                      onChange={e => setParam("tOff", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val < 0) setParam("tOff", "0")
+                      }}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                )}
+
+                {shape === "L" && (
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    <Label className="text-xs font-semibold">Lebar Total (LT)</Label>
+                    <Label className="text-xs font-semibold">Panjang Total (PT)</Label>
+
+                    <Input
+                      type="number"
+                      value={p.lL}
+                      step={0.5}
+                      onChange={e => setParam("lL", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("lL", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      type="number"
+                      value={p.lP}
+                      step={0.5}
+                      onChange={e => setParam("lP", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("lP", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
+
+                    <Label className="text-xs font-semibold mt-1">Lebar Sayap (LS)</Label>
+                    <Label className="text-xs font-semibold mt-1">Panjang Sayap (PS)</Label>
+
+                    <Input
+                      type="number"
+                      value={p.lW}
+                      step={0.5}
+                      onChange={e => setParam("lW", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("lW", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      type="number"
+                      value={p.lH}
+                      step={0.5}
+                      onChange={e => setParam("lH", e.target.value)}
+                      onBlur={e => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val) || val <= 0) setParam("lH", "1")
+                      }}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                )}
+
+                {/* Dynamic segment length inputs (Scrollable below canvas) */}
+                {shape === "custom" && customPts.length >= 2 && (
+                  <div className="bg-muted/30 border border-border/50 rounded-xl p-3 space-y-3">
+                    <div className="space-y-1.5 border-b border-border/40 pb-2.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Sesuaikan Panjang Sisi Dinding (m)
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px]">
+                        <span className="text-muted-foreground font-medium">Arah Pergeseran Dinding:</span>
+                        <div className="flex rounded-md bg-muted/80 p-0.5 text-[9.5px]">
+                          <button
+                            type="button"
+                            onClick={() => setExpandDir("start")}
+                            className={`px-2 py-0.5 rounded transition-all ${expandDir === "start" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
+                            title="Hanya geser titik awal Ti"
+                          >
+                            Titik Awal (Ti)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExpandDir("center")}
+                            className={`px-2 py-0.5 rounded transition-all ${expandDir === "center" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
+                            title="Geser kedua titik secara simetris dari tengah"
+                          >
+                            ↔️ Simetris
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExpandDir("end")}
+                            className={`px-2 py-0.5 rounded transition-all ${expandDir === "end" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground font-medium"}`}
+                            title="Hanya geser titik akhir Ti+1"
+                          >
+                            Titik Akhir (Ti+1)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5 max-h-44 overflow-y-auto pr-1">
+                      {segmentLengths.map((len, idx) => {
+                        const p1Name = `T${idx + 1}`
+                        const p2Name = `T${((idx + 1) % customPts.length) + 1}`
+                        const isClosing = idx === customPts.length - 1 && !customClosed
+
+                        return (
+                          <div key={idx} className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-[10px] font-semibold text-foreground/80">
+                                Sisi {p1Name} ke {p2Name} {isClosing ? "(Belum Tutup)" : ""}
+                              </Label>
+                              {customPts.length > 3 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteConfirmIdx(idx)}
+                                  className="text-muted-foreground hover:text-destructive p-0.5 transition-colors"
+                                  title={`Hapus Titik ${p1Name}`}
+                                >
+                                  <IconTrash className="size-3" />
+                                </button>
+                              )}
+                            </div>
+                            <Input
+                              type="number"
+                              step={0.5}
+                              min={0.5}
+                              value={len}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setSegmentLengths(prev => {
+                                  const next = [...prev]
+                                  next[idx] = val as any
+                                  return next
+                                })
+                                const numVal = parseFloat(val)
+                                if (!isNaN(numVal) && numVal > 0) {
+                                  handleUpdateSegmentLength(idx, numVal)
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const numVal = parseFloat(e.target.value)
+                                if (!isNaN(numVal) && numVal > 0) {
+                                  handleUpdateSegmentLength(idx, numVal)
+                                }
+                              }}
+                              className="h-7 text-[11px]"
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Layout calculation tweaks (Fixed and Automatic) */}
+              <div className="space-y-3.5 border-t border-border/60 pt-3">
+                {/* Spesifikasi Lampu Read-Only (Standar Audit) */}
+                <div className="bg-muted/30 rounded-xl p-2.5 border border-border/50 text-[10px] text-muted-foreground leading-normal flex items-center gap-2">
+                  <IconBulb className="size-4 text-amber-500 shrink-0" />
+                  <div>
+                    <span className="font-bold text-foreground block">Spesifikasi Lampu Standar Audit</span>
+                    TL LED 1.22 meter (13.5 Watt) per unit.
+                  </div>
+                </div>
+              </div>
+
+              {/* Hitung Penempatan Button for Non-Symmetrical */}
+              <Button
+                type="button"
+                className="w-full h-9 mt-4 text-xs font-semibold"
+                disabled={shape === "custom" && !customClosed}
+                onClick={() => {
+                  setIsCalculated(true)
+                  setIrregOverrideBaris(null)
+                  setIrregOverrideLpb(null)
+                  setIrregDisabledLamps([])
+                }}
+              >
+                Hitung Penempatan
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column: Calculated Results & Plotted Canvas (lg:col-span-5) */}
+        <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-20">
+          {isCalculated ? (
+            <div className="space-y-4">
+              {/* Hasil Kalkulasi Card */}
+              <Card className={`transition-all duration-300 ${irregCheck.overallStatus === "ideal"
+                ? "border-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15"
+                : irregCheck.overallStatus === "toleransi"
+                  ? "border-sky-500/25 bg-sky-50/30 dark:bg-sky-950/15"
+                  : "border-amber-500/25 bg-amber-50/30 dark:bg-amber-950/15"
+                }`}>
+                <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-sm font-semibold">Hasil Kalkulasi — Tidak Simetris</CardTitle>
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-semibold cursor-pointer flex items-center gap-1 ${inRange ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}
                     onClick={() => setInfoOpen(true)}
-                  >
-                    {inRange ? "Dalam Standar" : "Di Luar Standar"}
+                    className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${irregCheck.overallStatus === "ideal"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : irregCheck.overallStatus === "toleransi"
+                        ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                      }`}>
+                    {irregCheck.statusLabel}
                     <IconInfoCircle className="size-3" />
                   </span>
-                )}
-              </CardHeader>
-              <CardContent className="p-0">
-                <canvas
-                  ref={resultCanvasRef}
-                  onClick={handleResultCanvasClick}
-                  className="w-full block cursor-pointer"
-                  style={{
-                    height: `${CANVAS_H}px`
-                  }}
-                />
-                <div className="p-3 text-[10px] text-muted-foreground border-t border-border/50 leading-relaxed">
-                  <div className="flex gap-4 mb-1.5 text-[10px] font-medium justify-center">
-                    <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-2.5 py-0.5 rounded-full font-semibold">
-                      <span className="inline-block size-1.5 bg-emerald-500 rounded-full" />
-                      Layout Acuan Visual ({stats.n} Titik)
+                </CardHeader>
+                <CardContent className="pt-0 pb-4 space-y-2.5">
+                  {calcResult ? (
+                    <>
+                      {/* Range Result Prominent Banner */}
+                      <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center space-y-1.5 mb-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estimasi Kebutuhan Titik Lampu (Range)</div>
+                        <div className="text-2xl font-extrabold text-primary">
+                          {stats.nmin} – {stats.nmax} <span className="text-sm font-semibold text-muted-foreground">Titik Lampu</span>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] font-medium text-muted-foreground">
+                          <div>
+                            Daya Total: <span className="font-semibold text-foreground">{(stats.nmin * watt).toFixed(0)} W – {(stats.nmax * watt).toFixed(0)} W</span>
+                          </div>
+                          <div className="hidden sm:inline text-muted-foreground/40">•</div>
+                          <div>
+                            Kerapatan Daya: <span className="font-semibold text-foreground">{stats.luas > 0 ? `${((stats.nmin * watt) / stats.luas).toFixed(2)} – ${((stats.nmax * watt) / stats.luas).toFixed(2)}` : "0.00"} W/m²</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <StatBox label="Estimasi" subLabel="Jumlah Baris" value={stats.nRow} unit=" baris" />
+                        <StatBox label="Estimasi Unit" subLabel="Per Baris" value={stats.nPerRow} unit=" unit" />
+                        <StatBox label="Jarak" subLabel="Per Baris" value={Number(stats.rowSpacing)?.toFixed(2)} unit=" m" variant={Number(stats.rowSpacing) <= 1.9 ? "success" : Number(stats.rowSpacing) <= 2.2 ? "info" : "warning"} />
+                        <StatBox label="Jarak" subLabel="Samping" value={activeMargin.toFixed(2)} unit=" m" variant={irregCheck.sampingStatus === "ok" ? "success" : activeMargin >= 0.2 && activeMargin <= 0.8 ? "info" : "warning"} />
+                      </div>
+                      <SmartSuggestions rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} check={irregCheck} />
+
+                      {/* Compliance Info / Warning Alerts */}
+                      {irregCheck.overallStatus === "ideal" ? (
+                        <div className="mt-2.5 p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-50/30 dark:bg-emerald-950/15 text-emerald-800 dark:text-emerald-300 text-[11px] space-y-1">
+                          <div className="font-bold flex items-center gap-1.5 text-emerald-800 dark:text-emerald-400">
+                            ✨ Tata Letak Memenuhi Standar Ideal:
+                          </div>
+                          <p className="pl-1 text-emerald-700 dark:text-emerald-400 font-medium leading-normal">
+                            Seluruh parameter penempatan lampu berada dalam rentang ideal (kerapatan daya, jarak samping, dan jarak baris optimal).
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setInfoOpen(true)}
+                            className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold underline mt-1 block hover:opacity-80"
+                          >
+                            Lihat Detail Standar Acuan &rarr;
+                          </button>
+                        </div>
+                      ) : irregCheck.overallStatus === "toleransi" ? (
+                        <div className="mt-2.5 p-2.5 rounded-xl border border-sky-500/20 bg-sky-50/30 dark:bg-sky-950/15 text-sky-800 dark:text-sky-300 text-[11px] space-y-1">
+                          <div className="font-bold flex items-center gap-1.5 text-sky-800 dark:text-sky-400">
+                            🔵 Standar Toleransi (Penyesuaian Layout Toko):
+                          </div>
+                          <p className="pl-1 text-sky-700 dark:text-sky-400 font-medium leading-normal">
+                            Tata letak ini disesuaikan dengan dimensi toko dan merupakan opsi paling seimbang (optimal). Parameter masih dalam batas toleransi teknis yang aman.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setInfoOpen(true)}
+                            className="text-[10px] text-sky-600 dark:text-sky-400 font-bold underline mt-1 block hover:opacity-80"
+                          >
+                            Lihat Detail Standar Acuan &rarr;
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-2.5 p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-800 dark:text-amber-300 text-[11px] space-y-1.5">
+                          <div className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-400">
+                            ⚠️ Parameter Di Luar Standar:
+                          </div>
+                          <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+                            {irregCheck.issues.map((issue, idx) => (
+                              <li key={idx} className="text-amber-700 dark:text-amber-400 font-medium">{issue}</li>
+                            ))}
+                          </ul>
+                          <button
+                            type="button"
+                            onClick={() => setInfoOpen(true)}
+                            className="text-[10px] text-amber-600 dark:text-amber-400 font-bold underline mt-1.5 block hover:opacity-80"
+                          >
+                            Lihat Detail Standar Acuan &rarr;
+                          </button>
+                        </div>
+                      )}
+
+                      {irregDisabledLamps.length > 0 && (
+                        <div className="border-t border-border/60 pt-2 mt-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setIrregDisabledLamps([])}
+                            className="text-[10px] text-primary hover:underline font-semibold"
+                          >
+                            Reset Lampu Nonaktif ({irregDisabledLamps.length})
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
+                      Tidak ada konfigurasi otomatis yang memenuhi standar rasio 4.0 – 5.0 W/m² untuk dimensi ini. Coba sesuaikan koordinat atau bentuk bangunan.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Denah Penempatan Card (with lamps) */}
+              <Card className="border-border/80 overflow-hidden">
+                <CardHeader className="py-2.5 px-4 bg-muted/40 border-b border-border/80 flex flex-row justify-between items-center space-y-0">
+                  <CardTitle className="text-xs font-bold">Referensi Denah Penempatan</CardTitle>
+                  {stats.n > 0 && (
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold cursor-pointer flex items-center gap-1 ${inRange ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}
+                      onClick={() => setInfoOpen(true)}
+                    >
+                      {inRange ? "Dalam Standar" : "Di Luar Standar"}
+                      <IconInfoCircle className="size-3" />
                     </span>
-                    <span className="flex items-center gap-1">Grid: {stats.nRow} baris × {stats.nPerRow} kolom</span>
-                  </div>
-                  <div>
-                    {stats.n} lampu terplot · {stats.nRow} baris × {stats.nPerRow}/baris · Jarak baris: {stats.rowSpacing}m · Margin: {activeMargin.toFixed(2)}m · Luas: {stats.luas}m²
-                  </div>
-                  <div className="text-amber-600 dark:text-amber-400 font-medium mt-1">
-                    💡 Sentuh/klik lampu di denah untuk menonaktifkan atau mengaktifkan kembali lampu tertentu secara manual.
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 mb-3 px-4">
-                  <input
-                    id="show-dimensions-irreg"
-                    type="checkbox"
-                    checked={showDimensions}
-                    onChange={e => setShowDimensions(e.target.checked)}
-                    className="size-3.5 rounded-sm border-gray-300 accent-primary"
+                  )}
+                </CardHeader>
+                <CardContent className="p-0">
+                  <canvas
+                    ref={resultCanvasRef}
+                    onClick={handleResultCanvasClick}
+                    className="w-full block cursor-pointer"
+                    style={{
+                      height: `${CANVAS_H}px`
+                    }}
                   />
-                  <label htmlFor="show-dimensions-irreg" className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none">
-                    Tampilkan Dimensi & Legenda
-                  </label>
+                  <div className="p-3 text-[10px] text-muted-foreground border-t border-border/50 leading-relaxed">
+                    <div className="flex gap-4 mb-1.5 text-[10px] font-medium justify-center">
+                      <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-2.5 py-0.5 rounded-full font-semibold">
+                        <span className="inline-block size-1.5 bg-emerald-500 rounded-full" />
+                        Layout Acuan Visual ({stats.n} Titik)
+                      </span>
+                      <span className="flex items-center gap-1">Grid: {stats.nRow} baris × {stats.nPerRow} kolom</span>
+                    </div>
+                    <div>
+                      {stats.n} lampu terplot · {stats.nRow} baris × {stats.nPerRow}/baris · Jarak baris: {stats.rowSpacing}m · Margin: {activeMargin.toFixed(2)}m · Luas: {stats.luas}m²
+                    </div>
+                    <div className="text-amber-600 dark:text-amber-400 font-medium mt-1">
+                      💡 Sentuh/klik lampu di denah untuk menonaktifkan atau mengaktifkan kembali lampu tertentu secara manual.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mb-3 px-4">
+                    <input
+                      id="show-dimensions-irreg"
+                      type="checkbox"
+                      checked={showDimensions}
+                      onChange={e => setShowDimensions(e.target.checked)}
+                      className="size-3.5 rounded-sm border-gray-300 accent-primary"
+                    />
+                    <label htmlFor="show-dimensions-irreg" className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none">
+                      Tampilkan Dimensi & Legenda
+                    </label>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Button
+                type="button"
+                onClick={() => handleSaveResult("tidak-simetris")}
+                disabled={isSaving}
+                className="w-full h-9 text-xs font-semibold"
+              >
+                <IconDownload className="mr-1.5 size-4" />
+                {isSaving ? "Menyimpan..." : "Unduh Hasil Estimasi"}
+              </Button>
+            </div>
+          ) : (
+            <Card className="border-dashed border-border/80 bg-muted/20">
+              <CardContent className="p-6 text-center space-y-3 flex flex-col items-center justify-center min-h-[320px]">
+                <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                  <IconBulb className="size-6" />
+                </div>
+                <div className="space-y-1 max-w-xs">
+                  <h3 className="text-sm font-bold text-foreground">Hasil Kalkulasi & Visualisasi</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Tentukan denah toko pada kanvas di sebelah kiri, lalu klik <strong>Hitung Penempatan</strong> untuk melihat estimasi titik lampu & analisis kerapatan daya.
+                  </p>
                 </div>
               </CardContent>
             </Card>
-
-            <Button
-              type="button"
-              onClick={() => handleSaveResult("tidak-simetris")}
-              disabled={isSaving}
-              className="w-full h-9 text-xs font-semibold"
-            >
-              <IconDownload className="mr-1.5 size-4" />
-              {isSaving ? "Menyimpan..." : "Unduh Hasil Estimasi"}
-            </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <BottomNavigation />
