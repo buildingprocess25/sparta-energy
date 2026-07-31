@@ -25,6 +25,8 @@ export type StoreData = {
   terraceAreaM2: number
   salesAreaM2: number
   warehouseAreaM2: number
+  latitude?: number | null
+  longitude?: number | null
 }
 
 type Props = {

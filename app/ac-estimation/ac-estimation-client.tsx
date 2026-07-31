@@ -121,11 +121,22 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
 
   const [isResultOpen, setIsResultOpen] = useState(false)
 
-  // Handle store selection and auto-fill sales area
   const handleStoreSelect = (store: StoreData | null) => {
     setSelectedStore(store)
     if (store && store.salesAreaM2) {
       setSalesArea(store.salesAreaM2)
+    }
+    if (
+      store &&
+      store.latitude !== null &&
+      store.latitude !== undefined &&
+      store.longitude !== null &&
+      store.longitude !== undefined &&
+      !isNaN(store.latitude) &&
+      !isNaN(store.longitude)
+    ) {
+      setPosition([store.latitude, store.longitude])
+      setCoordInput(`${store.latitude}, ${store.longitude}`)
     }
   }
 

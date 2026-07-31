@@ -8,20 +8,38 @@ import {
 } from "@/lib/jobs/sync-stores"
 
 const stores = parseStoreSheetRows([
-  ["Store Name", "branch_name", "Store-Code"],
-  ["Toko Satu", "SIDOARJO", "u001"],
-  ["Toko Dua", "MALANG", "U002"],
-  ["Toko Dua", "MALANG", "U002"],
-  ["", "", ""],
+  ["Store Name", "branch_name", "Store-Code", "F/R", "Titik Koordinat"],
+  ["Toko Satu", "SIDOARJO", "u001", "R", "0.50954 101.4494"],
+  ["Toko Dua", "MALANG", "U002", "F", "0.56754 101.45326"],
+  ["Toko Dua", "MALANG", "U002", "F", "0.56754 101.45326"],
+  ["", "", "", "", ""],
 ])
 
 assert.deepEqual(stores, [
-  { code: "U001", name: "Toko Satu", branch: "SIDOARJO" },
-  { code: "U002", name: "Toko Dua", branch: "MALANG" },
+  {
+    code: "U001",
+    name: "Toko Satu",
+    branch: "SIDOARJO",
+    latitude: 0.50954,
+    longitude: 101.4494,
+  },
+  {
+    code: "U002",
+    name: "Toko Dua",
+    branch: "MALANG",
+    latitude: 0.56754,
+    longitude: 101.45326,
+  },
 ])
 
 assert.deepEqual(filterNewStores(stores, new Set(["U001"])), [
-  { code: "U002", name: "Toko Dua", branch: "MALANG" },
+  {
+    code: "U002",
+    name: "Toko Dua",
+    branch: "MALANG",
+    latitude: 0.56754,
+    longitude: 101.45326,
+  },
 ])
 
 assert.throws(

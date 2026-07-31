@@ -72,6 +72,8 @@ model Store {
   terraceAreaM2   Decimal   @map("terrace_area_m2")
   salesAreaM2     Decimal   @map("sales_area_m2")
   warehouseAreaM2 Decimal   @map("warehouse_area_m2")
+  latitude        Float?    @map("latitude")
+  longitude       Float?    @map("longitude")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   audits          Audit[]

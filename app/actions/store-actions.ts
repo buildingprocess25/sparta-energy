@@ -84,6 +84,8 @@ export async function searchStoresAction(query: string = "") {
         terraceAreaM2: true,
         salesAreaM2: true,
         warehouseAreaM2: true,
+        latitude: true,
+        longitude: true,
       },
     })
 
@@ -95,6 +97,8 @@ export async function searchStoresAction(query: string = "") {
       terraceAreaM2: Number(s.terraceAreaM2),
       salesAreaM2: Number(s.salesAreaM2),
       warehouseAreaM2: Number(s.warehouseAreaM2),
+      latitude: s.latitude ?? null,
+      longitude: s.longitude ?? null,
     }))
   } catch (error) {
     console.error("[searchStoresAction] Error:", error)
@@ -126,6 +130,8 @@ export async function getStoreByCodeAction(code: string) {
         terraceAreaM2: true,
         salesAreaM2: true,
         warehouseAreaM2: true,
+        latitude: true,
+        longitude: true,
       },
     })
 
@@ -139,6 +145,8 @@ export async function getStoreByCodeAction(code: string) {
       terraceAreaM2: Number(store.terraceAreaM2),
       salesAreaM2: Number(store.salesAreaM2),
       warehouseAreaM2: Number(store.warehouseAreaM2),
+      latitude: store.latitude ?? null,
+      longitude: store.longitude ?? null,
     }
   } catch (error) {
     console.error("[getStoreByCodeAction] Error:", error)
