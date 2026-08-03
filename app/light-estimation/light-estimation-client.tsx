@@ -2704,6 +2704,16 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         </div>
                       </div>
 
+                      {/* Soft Limit Warning Banner when active lamps drop below nmin */}
+                      {stats.n > 0 && stats.n < stats.nmin && (
+                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-[10.5px] font-medium text-amber-800 dark:text-amber-300 flex items-start gap-2 leading-relaxed">
+                          <IconInfoCircle className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                          <div>
+                            <b>Peringatan Batas Minimum:</b> Jumlah lampu aktif saat ini (<b>{stats.n} titik</b>) berada di bawah batas acuan minimum (<b>{stats.nmin} titik Target</b>). Tingkat pencahayaan toko berpotensi terlalu redup di bawah acuan standar.
+                          </div>
+                        </div>
+                      )}
+
                       {/* Reset Lampu Button if any lamp is disabled */}
                       {irregDisabledLamps.length > 0 && (
                         <div className="flex items-center justify-between pt-1 border-t border-emerald-500/20 text-[11px]">
