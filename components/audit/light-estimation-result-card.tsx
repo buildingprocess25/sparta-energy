@@ -264,14 +264,14 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
 
           {/* Data rows */}
           <div style={{ padding: "0 16px", marginBottom: "8px" }}>
-            <Row label="Mode Kalkulator" value={modeLabel} />
             <Row label="Luas Ruangan" value={`${area.toFixed(1)} m²`} />
             <Row label="Spesifikasi LED" value={`${watt}W · ${lampLen}m`} />
             <Row label="Rentang Titik Lampu" value={minLamps && maxLamps && minLamps !== maxLamps ? `${minLamps} – ${maxLamps} Titik` : `${totalLamps} Titik`} />
             <Row label="Grid Layout Acuan" value={`${rows} Baris × ${lampsPerRow} Kolom (${totalLamps} Unit)`} />
-            <Row label="Jarak Baris / Samping" value={`${Number(rowSpacing).toFixed(2)}m / ${Number(sideMargin).toFixed(2)}m`} />
+            <Row label="Jarak Antar Baris" value={`${Number(rowSpacing).toFixed(2)} m`} />
+            <Row label="Jarak Samping" value={`${Number(sideMargin).toFixed(2)} m`} />
             <Row 
-              label="Kerapatan Daya" 
+              label="Energy Ratio Index" 
               value={
                 minLamps && maxLamps && minLamps !== maxLamps && area > 0 
                   ? `${((minLamps * watt) / area).toFixed(2)} – ${((maxLamps * watt) / area).toFixed(2)} W/m²` 
@@ -301,7 +301,7 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
             let cardDescription = (
               <div style={{ color: "#92400e" }}>
                 Peringatan: 
-                {!checkRasioTol && ` Kerapatan daya di luar standar (${Number(rasio).toFixed(2)} W/m²).`}
+                {!checkRasioTol && ` Energy Ratio Index di luar standar (${Number(rasio).toFixed(2)} W/m²).`}
                 {!checkSampingTol && ` Jarak samping di luar standar (${Number(sideMargin).toFixed(2)}m).`}
                 {!checkBarisTol && ` Jarak baris terlalu lebar (${Number(rowSpacing).toFixed(2)}m).`}
               </div>

@@ -69,7 +69,7 @@ const FIXED_OY = 30    // Y offset for origin
 
 const SHAPES = [
   { id: "custom", label: "Custom Canvas (Preset / Gambar)" },
-  { id: "rect", label: "Kotak Tidak Simetris" },
+  { id: "rect", label: "Persegi Panjang / Kotak" },
   { id: "trap", label: "Trapesium" },
   { id: "L", label: "Bentuk L" },
 ]
@@ -91,10 +91,10 @@ function checkStandards(rasio: number, jarakSamping: number, jarakBaris: number)
   let rasioStatus: "ok" | "low" | "high" = "ok"
   if (rasio < 4.0) {
     rasioStatus = "low"
-    issues.push(`Kerapatan daya (${rasio.toFixed(2)} W/m²) di bawah target ideal (4.0 W/m²).`)
+    issues.push(`Energy Ratio Index (${rasio.toFixed(2)} W/m²) di bawah target ideal (4.0 W/m²).`)
   } else if (rasio > 5.0) {
     rasioStatus = "high"
-    issues.push(`Kerapatan daya (${rasio.toFixed(2)} W/m²) di atas target ideal (5.0 W/m²).`)
+    issues.push(`Energy Ratio Index (${rasio.toFixed(2)} W/m²) di atas target ideal (5.0 W/m²).`)
   }
 
   let sampingStatus: "ok" | "near" | "far" = "ok"
@@ -387,7 +387,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           {isOpen && (
             <div className="border-t border-sky-500/10 pt-2 animate-in fade-in slide-in-from-top-1 duration-200 space-y-1.5">
               <p>
-                Kerapatan daya saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>. Konfigurasi ini merupakan <b>tata letak paling optimal (best effort)</b> yang disesuaikan dengan geometri denah toko.
+                Energy Ratio Index saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>. Konfigurasi ini merupakan <b>tata letak paling optimal (best effort)</b> yang disesuaikan dengan geometri denah toko.
               </p>
               <p className="text-[10.5px] text-muted-foreground">
                 Meskipun nilainya sedikit bergeser dari acuan ideal (4.0 - 5.0 W/m²), mengubah jumlah baris justru berpotensi memperburuk kerataan pencahayaan atau membuat area gelap.
@@ -418,7 +418,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
             {isOver ? (
               <div className="space-y-1.5">
                 <p>
-                  Kerapatan daya saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>, di luar batas toleransi wajar (Potensi pemborosan energi).
+                  Energy Ratio Index saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>, di luar batas toleransi wajar (Potensi pemborosan energi).
                 </p>
                 <ul className="list-disc pl-4 space-y-1 mt-1 text-muted-foreground">
                   <li>
@@ -432,7 +432,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
             ) : (
               <div className="space-y-1.5">
                 <p>
-                  Kerapatan daya saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>, di luar batas toleransi wajar (Kondisi pencahayaan berpotensi terlalu redup).
+                  Energy Ratio Index saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>, di luar batas toleransi wajar (Kondisi pencahayaan berpotensi terlalu redup).
                 </p>
                 <ul className="list-disc pl-4 space-y-1 mt-1 text-muted-foreground">
                   <li>
@@ -2544,7 +2544,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   : "border-amber-500/25 bg-amber-50/30 dark:bg-amber-950/15"
                 }`}>
                 <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
-                  <CardTitle className="text-sm font-semibold">Hasil Kalkulasi — Tidak Simetris</CardTitle>
+                  <CardTitle className="text-sm font-semibold">Hasil Kalkulasi Tata Letak</CardTitle>
                   <span
                     onClick={() => setInfoOpen(true)}
                     className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${irregCheck.overallStatus === "ideal"
@@ -2572,7 +2572,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                           </div>
                           <div className="hidden sm:inline text-muted-foreground/40">•</div>
                           <div>
-                            Kerapatan Daya: <span className="font-semibold text-foreground">{stats.luas > 0 ? `${((stats.nmin * watt) / stats.luas).toFixed(2)} – ${((stats.nmax * watt) / stats.luas).toFixed(2)}` : "0.00"} W/m²</span>
+                            Energy Ratio Index: <span className="font-semibold text-foreground">{stats.luas > 0 ? `${((stats.nmin * watt) / stats.luas).toFixed(2)} – ${((stats.nmax * watt) / stats.luas).toFixed(2)}` : "0.00"} W/m²</span>
                           </div>
                         </div>
                       </div>
@@ -2583,72 +2583,6 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         <StatBox label="Jarak" subLabel="Per Baris" value={Number(stats.rowSpacing)?.toFixed(2)} unit=" m" variant={Number(stats.rowSpacing) <= 1.9 ? "success" : Number(stats.rowSpacing) <= 2.2 ? "info" : "warning"} />
                         <StatBox label="Jarak" subLabel="Samping" value={activeMargin.toFixed(2)} unit=" m" variant={irregCheck.sampingStatus === "ok" ? "success" : activeMargin >= 0.2 && activeMargin <= 0.8 ? "info" : "warning"} />
                       </div>
-                      <SmartSuggestions rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} check={irregCheck} />
-
-                      {/* Compliance Info / Warning Alerts */}
-                      {irregCheck.overallStatus === "ideal" ? (
-                        <div className="mt-2.5 p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-50/30 dark:bg-emerald-950/15 text-emerald-800 dark:text-emerald-300 text-[11px] space-y-1">
-                          <div className="font-bold flex items-center gap-1.5 text-emerald-800 dark:text-emerald-400">
-                            ✨ Tata Letak Memenuhi Standar Ideal:
-                          </div>
-                          <p className="pl-1 text-emerald-700 dark:text-emerald-400 font-medium leading-normal">
-                            Seluruh parameter penempatan lampu berada dalam rentang ideal (kerapatan daya, jarak samping, dan jarak baris optimal).
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setInfoOpen(true)}
-                            className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold underline mt-1 block hover:opacity-80"
-                          >
-                            Lihat Detail Standar Acuan &rarr;
-                          </button>
-                        </div>
-                      ) : irregCheck.overallStatus === "toleransi" ? (
-                        <div className="mt-2.5 p-2.5 rounded-xl border border-sky-500/20 bg-sky-50/30 dark:bg-sky-950/15 text-sky-800 dark:text-sky-300 text-[11px] space-y-1">
-                          <div className="font-bold flex items-center gap-1.5 text-sky-800 dark:text-sky-400">
-                            🔵 Standar Toleransi (Penyesuaian Layout Toko):
-                          </div>
-                          <p className="pl-1 text-sky-700 dark:text-sky-400 font-medium leading-normal">
-                            Tata letak ini disesuaikan dengan dimensi toko dan merupakan opsi paling seimbang (optimal). Parameter masih dalam batas toleransi teknis yang aman.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setInfoOpen(true)}
-                            className="text-[10px] text-sky-600 dark:text-sky-400 font-bold underline mt-1 block hover:opacity-80"
-                          >
-                            Lihat Detail Standar Acuan &rarr;
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="mt-2.5 p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-800 dark:text-amber-300 text-[11px] space-y-1.5">
-                          <div className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-400">
-                            ⚠️ Parameter Di Luar Standar:
-                          </div>
-                          <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
-                            {irregCheck.issues.map((issue, idx) => (
-                              <li key={idx} className="text-amber-700 dark:text-amber-400 font-medium">{issue}</li>
-                            ))}
-                          </ul>
-                          <button
-                            type="button"
-                            onClick={() => setInfoOpen(true)}
-                            className="text-[10px] text-amber-600 dark:text-amber-400 font-bold underline mt-1.5 block hover:opacity-80"
-                          >
-                            Lihat Detail Standar Acuan &rarr;
-                          </button>
-                        </div>
-                      )}
-
-                      {irregDisabledLamps.length > 0 && (
-                        <div className="border-t border-border/60 pt-2 mt-2 flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => setIrregDisabledLamps([])}
-                            className="text-[10px] text-primary hover:underline font-semibold"
-                          >
-                            Reset Lampu Nonaktif ({irregDisabledLamps.length})
-                          </button>
-                        </div>
-                      )}
                     </>
                   ) : (
                     <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
@@ -2664,10 +2598,16 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   <CardTitle className="text-xs font-bold">Referensi Denah Penempatan</CardTitle>
                   {stats.n > 0 && (
                     <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold cursor-pointer flex items-center gap-1 ${inRange ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}
+                      className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${
+                        irregCheck.overallStatus === "ideal"
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                          : irregCheck.overallStatus === "toleransi"
+                            ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                            : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                      }`}
                       onClick={() => setInfoOpen(true)}
                     >
-                      {inRange ? "Dalam Standar" : "Di Luar Standar"}
+                      {irregCheck.statusLabel}
                       <IconInfoCircle className="size-3" />
                     </span>
                   )}
@@ -2681,35 +2621,184 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       height: `${CANVAS_H}px`
                     }}
                   />
-                  <div className="p-3 text-[10px] text-muted-foreground border-t border-border/50 leading-relaxed">
-                    <div className="flex gap-4 mb-1.5 text-[10px] font-medium justify-center">
-                      <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-2.5 py-0.5 rounded-full font-semibold">
-                        <span className="inline-block size-1.5 bg-emerald-500 rounded-full" />
-                        Layout Acuan Visual ({stats.n} Titik)
+
+                  {/* High Visibility / Mencolok Layout Acuan & Daya Active Summary Card */}
+                  <div className="p-3.5 space-y-3 border-t border-border/60 bg-muted/20">
+                    <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-teal-500/10 dark:from-emerald-500/15 dark:via-emerald-500/5 dark:to-teal-500/15 p-3.5 space-y-3 shadow-xs">
+                      {/* Header with status badge */}
+                      <div className="flex items-center justify-between gap-2 border-b border-emerald-500/20 pb-2.5">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                          <IconBulb className="size-4 text-amber-500 shrink-0" />
+                          <span>Layout Acuan Visual & Daya Terpakai (Aktif)</span>
+                        </div>
+                        {irregDisabledLamps.length > 0 ? (
+                          <span className="text-[10px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                            <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            {irregDisabledLamps.length} Lampu Dimatikan
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                            <span className="size-1.5 rounded-full bg-emerald-500" />
+                            Semua Lampu Aktif
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Prominent Stat Grid */}
+                      <div className="grid grid-cols-2 gap-2.5">
+                        {/* Box 1: Titik Lampu Aktif */}
+                        <div className="bg-background/90 dark:bg-background/70 rounded-xl p-3 border border-border/70 flex flex-col justify-between shadow-2xs">
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between gap-1">
+                            <span>Titik Lampu Aktif</span>
+                            <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
+                              Grid {stats.nRow}×{stats.nPerRow}
+                            </span>
+                          </div>
+                          <div className="my-1">
+                            <span className="text-2xl font-black tracking-tight text-foreground">{stats.n}</span>
+                            <span className="text-xs font-bold text-muted-foreground ml-1.5">Titik</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground font-medium pt-1.5 border-t border-border/40 flex items-center justify-between gap-1">
+                            <span>Susunan Matriks:</span>
+                            <b className="text-foreground font-bold text-[10.5px]">{stats.nRow} baris × {stats.nPerRow} unit</b>
+                          </div>
+                        </div>
+
+                        {/* Box 2: Total Daya Listrik Terpakai */}
+                        <div className="bg-background/90 dark:bg-background/70 rounded-xl p-3 border border-border/70 flex flex-col justify-between shadow-2xs">
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between gap-1">
+                            <span>Daya Terpakai</span>
+                            <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
+                              {watt}W / LED
+                            </span>
+                          </div>
+                          <div className="my-1 flex items-baseline gap-1">
+                            <span className="text-2xl font-black tracking-tight text-primary">
+                              {(stats.n * watt).toFixed(0)}
+                            </span>
+                            <span className="text-xs font-bold text-muted-foreground">Watt</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground font-medium pt-1.5 border-t border-border/40 flex items-center justify-between gap-1">
+                            <span>Energy Ratio Index:</span>
+                            <b className="text-foreground font-bold text-[10.5px]">{activeIrregRasio.toFixed(2)} W/m²</b>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Detail metrics breakdown */}
+                      <div className="text-[10.5px] text-muted-foreground bg-background/50 dark:bg-background/30 rounded-lg px-3 py-2 border border-emerald-500/15 flex flex-wrap items-center justify-between gap-y-1.5 gap-x-2 leading-relaxed">
+                        <div>
+                          📍 Jarak Baris: <b className="text-foreground">{stats.rowSpacing}m</b> · Margin Samping: <b className="text-foreground">{activeMargin.toFixed(2)}m</b>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span>📐 Luas: <b className="text-foreground">{stats.luas} m²</b></span>
+                          <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                            irregCheck.overallStatus === "ideal"
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                              : irregCheck.overallStatus === "toleransi"
+                                ? "bg-sky-500/15 text-sky-700 dark:text-sky-400"
+                                : "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                          }`}>
+                            {irregCheck.statusLabel}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Reset Lampu Button if any lamp is disabled */}
+                      {irregDisabledLamps.length > 0 && (
+                        <div className="flex items-center justify-between pt-1 border-t border-emerald-500/20 text-[11px]">
+                          <span className="text-amber-700 dark:text-amber-400 font-semibold text-[10.5px]">
+                            💡 Daya & titik berkurang otomatis sesuai lampu aktif.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setIrregDisabledLamps([])}
+                            className="text-[10px] bg-primary text-primary-foreground font-bold px-2.5 py-1 rounded-md hover:opacity-90 transition-all shadow-2xs"
+                          >
+                            Reset semua lampu
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-[10px] text-muted-foreground flex items-start gap-1.5 leading-snug px-0.5">
+                      <span className="shrink-0 text-amber-500 font-bold">💡</span>
+                      <span>
+                        <b>Petunjuk Interaktif:</b> Klik/sentuh lampu di denah kanvas untuk menonaktifkan atau mengaktifkan kembali unit tertentu. Jumlah titik & total daya listrik terpakai di atas akan menyesuaikan secara real-time.
                       </span>
-                      <span className="flex items-center gap-1">Grid: {stats.nRow} baris × {stats.nPerRow} kolom</span>
                     </div>
-                    <div>
-                      {stats.n} lampu terplot · {stats.nRow} baris × {stats.nPerRow}/baris · Jarak baris: {stats.rowSpacing}m · Margin: {activeMargin.toFixed(2)}m · Luas: {stats.luas}m²
+
+                    <div className="flex items-center gap-2 pt-0.5 px-0.5">
+                      <input
+                        id="show-dimensions-irreg"
+                        type="checkbox"
+                        checked={showDimensions}
+                        onChange={e => setShowDimensions(e.target.checked)}
+                        className="size-3.5 rounded-sm border-gray-300 accent-primary cursor-pointer"
+                      />
+                      <label htmlFor="show-dimensions-irreg" className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none">
+                        Tampilkan Dimensi & Legenda
+                      </label>
                     </div>
-                    <div className="text-amber-600 dark:text-amber-400 font-medium mt-1">
-                      💡 Sentuh/klik lampu di denah untuk menonaktifkan atau mengaktifkan kembali lampu tertentu secara manual.
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mb-3 px-4">
-                    <input
-                      id="show-dimensions-irreg"
-                      type="checkbox"
-                      checked={showDimensions}
-                      onChange={e => setShowDimensions(e.target.checked)}
-                      className="size-3.5 rounded-sm border-gray-300 accent-primary"
-                    />
-                    <label htmlFor="show-dimensions-irreg" className="text-[11px] font-medium text-muted-foreground cursor-pointer select-none">
-                      Tampilkan Dimensi & Legenda
-                    </label>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Rekomendasi Pintar (Moved below Referensi Denah Penempatan & Layout Acuan Visual) */}
+              <SmartSuggestions rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} check={irregCheck} />
+
+              {/* Compliance Info / Warning Alerts */}
+              {irregCheck.overallStatus === "ideal" ? (
+                <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 text-xs space-y-1.5 shadow-2xs">
+                  <div className="font-bold flex items-center gap-1.5 text-emerald-800 dark:text-emerald-400">
+                    ✨ Tata Letak Memenuhi Standar Ideal:
+                  </div>
+                  <p className="pl-1 text-emerald-700 dark:text-emerald-400 font-medium leading-relaxed text-[11px]">
+                    Seluruh parameter penempatan lampu berada dalam rentang ideal (kerapatan daya, jarak samping, dan jarak baris optimal).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setInfoOpen(true)}
+                    className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold underline mt-1 block hover:opacity-80"
+                  >
+                    Lihat Detail Acuan Standar Tata Letak & Daya &rarr;
+                  </button>
+                </div>
+              ) : irregCheck.overallStatus === "toleransi" ? (
+                <div className="p-3 rounded-xl border border-sky-500/30 bg-sky-50/40 dark:bg-sky-950/20 text-sky-800 dark:text-sky-300 text-xs space-y-1.5 shadow-2xs">
+                  <div className="font-bold flex items-center gap-1.5 text-sky-800 dark:text-sky-400">
+                    🔵 Standar Toleransi (Penyesuaian Layout Toko):
+                  </div>
+                  <p className="pl-1 text-sky-700 dark:text-sky-400 font-medium leading-relaxed text-[11px]">
+                    Tata letak ini disesuaikan dengan dimensi toko dan merupakan opsi paling seimbang (optimal). Parameter masih dalam batas toleransi teknis yang aman.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setInfoOpen(true)}
+                    className="text-[11px] text-sky-600 dark:text-sky-400 font-bold underline mt-1 block hover:opacity-80"
+                  >
+                    Lihat Detail Acuan Standar Tata Letak & Daya &rarr;
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-50/40 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 text-xs space-y-1.5 shadow-2xs">
+                  <div className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-400">
+                    ⚠️ Parameter Di Luar Standar:
+                  </div>
+                  <ul className="list-disc pl-4 space-y-1 text-muted-foreground text-[11px]">
+                    {irregCheck.issues.map((issue, idx) => (
+                      <li key={idx} className="text-amber-700 dark:text-amber-400 font-medium">{issue}</li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => setInfoOpen(true)}
+                    className="text-[11px] text-amber-600 dark:text-amber-400 font-bold underline mt-1.5 block hover:opacity-80"
+                  >
+                    Lihat Detail Acuan Standar Tata Letak & Daya &rarr;
+                  </button>
+                </div>
+              )}
 
               <Button
                 type="button"
@@ -2730,7 +2819,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 <div className="space-y-1 max-w-xs">
                   <h3 className="text-sm font-bold text-foreground">Hasil Kalkulasi & Visualisasi</h3>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Tentukan denah toko pada kanvas di sebelah kiri, lalu klik <strong>Hitung Penempatan</strong> untuk melihat estimasi titik lampu & analisis kerapatan daya.
+                    Tentukan denah toko pada kanvas di sebelah kiri, lalu klik <strong>Hitung Penempatan</strong> untuk melihat estimasi titik lampu & analisis Energy Ratio Index.
                   </p>
                 </div>
               </CardContent>
@@ -2788,17 +2877,17 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <div className="flex items-start gap-1.5 text-amber-600 dark:text-amber-400 font-semibold">
                       <span className="inline-block size-2 rounded-full bg-amber-500 mt-1 shrink-0" />
                       <div>
-                        <b>🟡 Di Luar Standar:</b> Nilai kerapatan atau jarak melebihi batas toleransi wajar.
+                        <b>🟡 Di Luar Standar:</b> Nilai Energy Ratio Index atau jarak melebihi batas toleransi wajar.
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  {/* 1. Kerapatan Daya */}
+                  {/* 1. Energy Ratio Index */}
                   <div className="border border-border/60 rounded-xl p-3 bg-muted/20 space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <span className="font-bold text-foreground">1. Kerapatan Daya (Target: 4.0 - 5.0 W/m²)</span>
+                      <span className="font-bold text-foreground">1. Energy Ratio Index (Target: 4.0 - 5.0 W/m²)</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeCheck.rasioStatus === "ok"
                         ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                         : currentRasio >= 3.5 && currentRasio <= 5.5
@@ -2816,8 +2905,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         {currentRasio >= 3.5 && currentRasio <= 5.5
                           ? "ℹ️ Berada dalam batas toleransi wajar penyesuaian denah toko."
                           : activeCheck.rasioStatus === "low"
-                            ? "⚠️ Kerapatan daya terlalu rendah, toko berpotensi redup."
-                            : "⚠️ Kerapatan daya terlalu tinggi, terjadi pemborosan energi."}
+                            ? "⚠️ Energy Ratio Index terlalu rendah, toko berpotensi redup."
+                            : "⚠️ Energy Ratio Index terlalu tinggi, terjadi pemborosan energi."}
                       </p>
                     )}
                   </div>
