@@ -2829,7 +2829,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 <div className="space-y-1 max-w-xs">
                   <h3 className="text-sm font-bold text-foreground">Hasil Kalkulasi & Visualisasi</h3>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Tentukan denah toko pada kanvas di sebelah kiri, lalu klik <strong>Hitung Penempatan</strong> untuk melihat estimasi titik lampu & analisis Energy Ratio Index.
+                    Tentukan denah toko pada kanvas, lalu klik <strong>Hitung Penempatan</strong> untuk melihat estimasi titik lampu & analisis Energy Ratio Index.
                   </p>
                 </div>
               </CardContent>
