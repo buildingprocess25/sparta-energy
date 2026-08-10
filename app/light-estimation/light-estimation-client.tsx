@@ -1167,7 +1167,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
     // Place and draw lamps if calculated
     if (showLamps) {
-      const lamps = placeLamps(pts, usedJarak, usedMargin, usedOrient, lampLen, usedSpasi)
+      const lamps = placeLamps(pts, usedJarak, usedMargin, usedOrient, lampLen, usedSpasi, activeBaris, activeLpb)
       const lampLen_px = lampLen * sc.scale
       const lampW_px = Math.max(3, LAMP_TUBE_W * sc.scale)
 
@@ -1619,7 +1619,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       const activeJarakPerbaris = H2 / (activeBaris + 1)
       const activeJarakSamping = (W2 - activeLpb * lampLen) / 2
 
-      lamps = placeLamps(pts, activeJarakPerbaris, activeJarakSamping, "h", lampLen, 0)
+      lamps = placeLamps(pts, activeJarakPerbaris, activeJarakSamping, "h", lampLen, 0, activeBaris, activeLpb)
       if (lamps.length > 0) {
         nRow = activeBaris
         nPerRow = activeLpb
@@ -1924,7 +1924,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     const usedMargin = (W2 - activeLpb * lampLen) / 2
     const usedJarak = H2 / (activeBaris + 1)
 
-    const lamps = placeLamps(pts, usedJarak, usedMargin, "h", lampLen, 0)
+    const lamps = placeLamps(pts, usedJarak, usedMargin, "h", lampLen, 0, activeBaris, activeLpb)
 
     // Find closest lamp to (cx, cy)
     let closestIdx = -1

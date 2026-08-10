@@ -35,7 +35,9 @@ export function placeLamps(
   margin: number,
   orient: "h" | "v" = "h",
   lampLen: number = LAMP_LEN,
-  spasiLampu: number = 0
+  spasiLampu: number = 0,
+  targetBaris?: number,
+  targetLpb?: number
 ): PlacedLamp[] {
   if (!pts || pts.length < 3) return []
   const xs = pts.map((p) => p.x),
@@ -50,7 +52,9 @@ export function placeLamps(
   const half = lampLen / 2
 
   if (orient === "h") {
-    const nY = Math.max(1, Math.floor((H - 2 * margin) / jarak) + 1)
+    const nY = targetBaris && targetBaris > 0
+      ? targetBaris
+      : Math.max(1, jarak > 0 ? Math.round(H / jarak) - 1 : 1)
     const dY = H / (nY + 1)
 
     for (let r = 0; r < nY; r++) {
@@ -66,13 +70,17 @@ export function placeLamps(
       if (leftX === null || rightX === null) continue
 
       const rowW = rightX - leftX
-      const nPerRow = Math.max(
+      const calculatedN = Math.max(
         1,
-        Math.floor((rowW - 2 * margin + spasiLampu) / (lampLen + spasiLampu))
+        Math.floor((rowW - 2 * margin + spasiLampu + 0.001) / (lampLen + spasiLampu))
       )
+      const nPerRow = targetLpb && targetLpb > 0
+        ? Math.min(targetLpb, calculatedN)
+        : calculatedN
+
       const usedW =
         nPerRow * lampLen + (nPerRow > 1 ? (nPerRow - 1) * spasiLampu : 0)
-      if (usedW > rowW) continue
+      if (usedW > rowW + 0.001) continue
 
       const jarakSamping = (rowW - usedW) / 2
       const firstX = leftX + jarakSamping + half
@@ -80,15 +88,17 @@ export function placeLamps(
       for (let c = 0; c < nPerRow; c++) {
         const x = firstX + c * (lampLen + spasiLampu)
         if (
-          pointInPolygon({ x: x - half, y }, pts) &&
-          pointInPolygon({ x: x + half, y }, pts)
+          pointInPolygon({ x: x - half + 0.001, y }, pts) &&
+          pointInPolygon({ x: x + half - 0.001, y }, pts)
         ) {
           lamps.push({ x, y, dir: "h" })
         }
       }
     }
   } else {
-    const nX = Math.max(1, Math.floor((W - 2 * margin) / jarak) + 1)
+    const nX = targetBaris && targetBaris > 0
+      ? targetBaris
+      : Math.max(1, jarak > 0 ? Math.round(W / jarak) - 1 : 1)
     const dX = W / (nX + 1)
 
     for (let c = 0; c < nX; c++) {
@@ -104,13 +114,17 @@ export function placeLamps(
       if (topY === null || bottomY === null) continue
 
       const colH = bottomY - topY
-      const nPerCol = Math.max(
+      const calculatedN = Math.max(
         1,
-        Math.floor((colH - 2 * margin + spasiLampu) / (lampLen + spasiLampu))
+        Math.floor((colH - 2 * margin + spasiLampu + 0.001) / (lampLen + spasiLampu))
       )
+      const nPerCol = targetLpb && targetLpb > 0
+        ? Math.min(targetLpb, calculatedN)
+        : calculatedN
+
       const usedH =
         nPerCol * lampLen + (nPerCol > 1 ? (nPerCol - 1) * spasiLampu : 0)
-      if (usedH > colH) continue
+      if (usedH > colH + 0.001) continue
 
       const jarakAtas = (colH - usedH) / 2
       const firstY = topY + jarakAtas + half
@@ -118,8 +132,8 @@ export function placeLamps(
       for (let r = 0; r < nPerCol; r++) {
         const y = firstY + r * (lampLen + spasiLampu)
         if (
-          pointInPolygon({ x, y: y - half }, pts) &&
-          pointInPolygon({ x, y: y + half }, pts)
+          pointInPolygon({ x, y: y - half + 0.001 }, pts) &&
+          pointInPolygon({ x, y: y + half - 0.001 }, pts)
         ) {
           lamps.push({ x, y, dir: "v" })
         }
