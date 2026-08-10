@@ -62,6 +62,13 @@ function getClosestPointOnSegment(
   return { x: closestX, y: closestY, dist, t }
 }
 
+function formatDim(val: number, maxDecimals = 3): string {
+  if (isNaN(val) || !isFinite(val)) return "0"
+  const factor = Math.pow(10, maxDecimals)
+  const rounded = Math.round((val + Number.EPSILON) * factor) / factor
+  return String(rounded)
+}
+
 const CANVAS_H = 340
 const FIXED_SCALE = 24 // px/m for custom drawing
 const FIXED_OX = 30    // X offset for origin
@@ -682,27 +689,27 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       return prev.map((pt, i) => {
         if (dir === "end" && i === p2Idx) {
           return {
-            x: Number((pt.x + deltaX).toFixed(1)),
-            y: Number((pt.y + deltaY).toFixed(1))
+            x: Number((pt.x + deltaX).toFixed(3)),
+            y: Number((pt.y + deltaY).toFixed(3))
           }
         }
         if (dir === "start" && i === p1Idx) {
           return {
-            x: Number((pt.x - deltaX).toFixed(1)),
-            y: Number((pt.y - deltaY).toFixed(1))
+            x: Number((pt.x - deltaX).toFixed(3)),
+            y: Number((pt.y - deltaY).toFixed(3))
           }
         }
         if (dir === "center") {
           if (i === p1Idx) {
             return {
-              x: Number((pt.x - deltaX / 2).toFixed(1)),
-              y: Number((pt.y - deltaY / 2).toFixed(1))
+              x: Number((pt.x - deltaX / 2).toFixed(3)),
+              y: Number((pt.y - deltaY / 2).toFixed(3))
             }
           }
           if (i === p2Idx) {
             return {
-              x: Number((pt.x + deltaX / 2).toFixed(1)),
-              y: Number((pt.y + deltaY / 2).toFixed(1))
+              x: Number((pt.x + deltaX / 2).toFixed(3)),
+              y: Number((pt.y + deltaY / 2).toFixed(3))
             }
           }
         }
@@ -744,7 +751,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         const p2 = customPts[(i + 1) % customPts.length]
         if (p1 && p2) {
           const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
-          next.push(Number(dist.toFixed(1)))
+          next.push(Number(dist.toFixed(3)))
         }
       }
       return next
@@ -1014,7 +1021,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           ctx.fillStyle = ptLabelFill
           ctx.font = "8px sans-serif"
           ctx.textAlign = "left"
-          ctx.fillText(`T${idx + 1} (${adjustedPts[idx].x.toFixed(1)},${adjustedPts[idx].y.toFixed(1)})`, sp.cx + 6, sp.cy - 3)
+          ctx.fillText(`T${idx + 1} (${formatDim(adjustedPts[idx].x)},${formatDim(adjustedPts[idx].y)})`, sp.cx + 6, sp.cy - 3)
         })
 
         // Draw segment length labels parallel to dashed wall lines in drawing mode
@@ -1041,7 +1048,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               angle += Math.PI
             }
 
-            const segText = `${lenVal.toFixed(1)}m`
+            const segText = `${formatDim(lenVal)}m`
 
             ctx.save()
             ctx.translate(mx, my - 8)
@@ -1347,15 +1354,15 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     const ptX = sc.offX - 14
     const ptY = sc.offY + (sc.rH * sc.scale) / 2
 
-    drawHaloText(`${sc.rW.toFixed(1)}m (LT)`, ltX, ltY, isDark ? "#38bdf8" : "#0284c7", false)
-    drawHaloText(`${sc.rH.toFixed(1)}m (PT)`, ptX, ptY, isDark ? "#c4b5fd" : "#6d28d9", true)
+    drawHaloText(`${formatDim(sc.rW)}m (LT)`, ltX, ltY, isDark ? "#38bdf8" : "#0284c7", false)
+    drawHaloText(`${formatDim(sc.rH)}m (PT)`, ptX, ptY, isDark ? "#c4b5fd" : "#6d28d9", true)
 
     if (shape === "rect") {
       registerTarget({ label: "Lebar Atas (LA)", paramKey: "rTop", value: parsedP.rTop, cx: ltX, cy: ltY })
       registerTarget({ label: "Panjang Kiri (PKi)", paramKey: "rLeft", value: parsedP.rLeft, cx: ptX, cy: ptY })
     } else if (shape === "trap") {
       registerTarget({ label: "Lebar Bawah (LB)", paramKey: "tBot", value: parsedP.tBot, cx: ltX, cy: ltY })
-      registerTarget({ label: "Panjang Total (PT)", paramKey: "tH", value: parsedP.tH, cx: ptX, cy: ptY })
+      registerTarget({ label: "Panjang Total (PT)", paramKey: "tH", value: parsedP.tH, cx: ptX, cy: ltY })
     } else if (shape === "L") {
       registerTarget({ label: "Lebar Total (LT)", paramKey: "lL", value: parsedP.lL, cx: ltX, cy: ltY })
       registerTarget({ label: "Panjang Total (PT)", paramKey: "lP", value: parsedP.lP, cx: ptX, cy: ptY })
@@ -1368,11 +1375,11 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
       let sideLabels: string[] = []
       if (shape === "rect") {
-        sideLabels = [`LA ${p.rTop}m`, `PKa ${p.rRight}m`, `LB ${p.rBot}m`, `PKi ${p.rLeft}m`]
+        sideLabels = [`LA ${formatDim(parsedP.rTop)}m`, `PKa ${formatDim(parsedP.rRight)}m`, `LB ${formatDim(parsedP.rBot)}m`, `PKi ${formatDim(parsedP.rLeft)}m`]
       } else if (shape === "trap") {
-        sideLabels = [`LA ${p.tTop}m`, `Miring`, `LB ${p.tBot}m`, `PT ${p.tH}m`]
+        sideLabels = [`LA ${formatDim(parsedP.tTop)}m`, `Miring`, `LB ${formatDim(parsedP.tBot)}m`, `PT ${formatDim(parsedP.tH)}m`]
       } else if (shape === "L") {
-        sideLabels = [`LT ${p.lL}m`, `PS ${p.lH}m`, `LS ${p.lW}m`, `Sisi L`, `Sisi Bawa`, `PT ${p.lP}m`]
+        sideLabels = [`LT ${formatDim(parsedP.lL)}m`, `PS ${formatDim(parsedP.lH)}m`, `LS ${formatDim(parsedP.lW)}m`, `Sisi L`, `Sisi Bawa`, `PT ${formatDim(parsedP.lP)}m`]
       } else if (shape === "custom") {
         sideLabels = sPts.map((_, i) => {
           const rawLen = segmentLengths[i]
@@ -1383,9 +1390,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           if (!lenVal && adjustedPts.length > i) {
             const pt1 = adjustedPts[i]
             const pt2 = adjustedPts[(i + 1) % adjustedPts.length]
-            lenVal = Number(Math.hypot(pt2.x - pt1.x, pt2.y - pt1.y).toFixed(1))
+            lenVal = Number(Math.hypot(pt2.x - pt1.x, pt2.y - pt1.y).toFixed(3))
           }
-          return `${lenVal.toFixed(1)}m`
+          return `${formatDim(lenVal)}m`
         })
       }
 
@@ -1635,7 +1642,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     const calculatedMaxLamps = res ? res.maxLamps : maxLamps
 
     setStats({
-      luas: Number(luas.toFixed(1)),
+      luas: Number(luas.toFixed(2)),
       nmin: calculatedMinLamps,
       nmax: calculatedMaxLamps,
       n: activeTotalLamps,
@@ -1809,7 +1816,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (!customClosed) {
       const mx = (cx - FIXED_OX) / FIXED_SCALE
       const my = (cy - FIXED_OY) / FIXED_SCALE
-      const snapped = { x: Number(Math.max(0, mx).toFixed(1)), y: Number(Math.max(0, my).toFixed(1)) }
+      const snapped = { x: Number(Math.max(0, mx).toFixed(3)), y: Number(Math.max(0, my).toFixed(3)) }
       pushCurrentToHistory()
       setCustomPts(prev => [...prev, snapped])
       setSelectedNodeIdx(null)
@@ -1834,8 +1841,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (activeDragIdx !== null) {
       const mx = (cx - offX) / scale
       const my = (cy - offY) / scale
-      const newX = Number(Math.max(0, mx).toFixed(1))
-      const newY = Number(Math.max(0, my).toFixed(1))
+      const newX = Number(Math.max(0, mx).toFixed(3))
+      const newY = Number(Math.max(0, my).toFixed(3))
 
       setCustomPts(prev => {
         const next = [...prev]
@@ -2249,7 +2256,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.rTop}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("rTop", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2260,7 +2267,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.rBot}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("rBot", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2275,7 +2282,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.rLeft}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("rLeft", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2286,7 +2293,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.rRight}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("rRight", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2305,7 +2312,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.tTop}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("tTop", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2316,7 +2323,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.tBot}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("tBot", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2331,7 +2338,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.tH}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("tH", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2342,7 +2349,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.tOff}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("tOff", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2361,7 +2368,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.lL}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("lL", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2372,7 +2379,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.lP}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("lP", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2387,7 +2394,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.lW}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("lW", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2398,7 +2405,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <Input
                       type="number"
                       value={p.lH}
-                      step={0.5}
+                      step="any"
                       onChange={e => setParam("lH", e.target.value)}
                       onBlur={e => {
                         const val = parseFloat(e.target.value)
@@ -2471,8 +2478,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                             </div>
                             <Input
                               type="number"
-                              step={0.5}
-                              min={0.5}
+                              step="any"
+                              min={0.1}
                               value={len}
                               onChange={(e) => {
                                 const val = e.target.value
