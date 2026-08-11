@@ -210,25 +210,51 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       const openMeteoTemp = res.maxTemp as number
       const maxTemp = openMeteoTemp
 
-      // Menentukan Cluster BTU
+      // Menentukan Cluster BTU & Batas Min/Max (Kalkulator AC 2023 v2)
       let clusterBtu = 0
+      let minBtu = 0
+      let maxBtu = 0
       if (maxTemp > 35) {
         clusterBtu = 751
+        minBtu = 751
+        maxBtu = 900
       } else if (maxTemp >= 27 && maxTemp <= 35) {
         clusterBtu = 600
+        minBtu = 600
+        maxBtu = 749
       } else {
         clusterBtu = 450
+        minBtu = 450
+        maxBtu = 599
       }
 
-      // Rumus User
+      // Rumus Total BTU
       const area = Number(salesArea)
       const totalBtu = area * clusterBtu
 
-      const rawQty = totalBtu / 18000
-      const remainder = rawQty % 1
+      // Logika Pembulatan Qty Unit (Evaluasi Down vs UP terhadap Rentang Target BTU/m2)
+      const downQty = Math.floor(totalBtu / 18000)
+      const upQty = Math.ceil(totalBtu / 18000)
 
-      // Jika desimal > 0.5 bulatkan ke atas, jika <= 0.5 bulatkan ke bawah
-      let finalUnit = remainder > 0.5 ? Math.ceil(rawQty) : Math.floor(rawQty)
+      const actualDownBtuPerM2 = (downQty * 18000) / area
+      const actualUpBtuPerM2 = (upQty * 18000) / area
+
+      let finalUnit = 0
+      if (actualDownBtuPerM2 >= minBtu && actualDownBtuPerM2 <= maxBtu) {
+        finalUnit = downQty
+      } else if (actualUpBtuPerM2 >= minBtu && actualUpBtuPerM2 <= maxBtu) {
+        finalUnit = upQty
+      } else {
+        const distDown =
+          actualDownBtuPerM2 < minBtu
+            ? minBtu - actualDownBtuPerM2
+            : actualDownBtuPerM2 - maxBtu
+        const distUp =
+          actualUpBtuPerM2 < minBtu
+            ? minBtu - actualUpBtuPerM2
+            : actualUpBtuPerM2 - maxBtu
+        finalUnit = distDown <= distUp ? downQty : upQty
+      }
 
       // Minimal 1 unit jika area > 0
       if (finalUnit < 1) finalUnit = 1

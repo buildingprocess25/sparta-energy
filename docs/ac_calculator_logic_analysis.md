@@ -27,29 +27,50 @@ Nilai BTU per meter persegi ditentukan berdasarkan suhu luar ruangan maksimal (`
 ### B. Rumus Total Kebutuhan BTU (`totalBtu`)
 $$totalBtu = Luas\ Area\ Sales\ (m^2) \times clusterBtu$$
 
-### C. Pembulatan Unit AC (`acUnits`)
+### C. Pembulatan Unit AC (`acUnits`) — Mengikuti *Kalkulator AC new 2023 ver 2.xlsx*
 Kalkulator berasumsi menggunakan unit AC standar berkapasitas **2 PK** (setara dengan **18.000 BTU/h**).
-$$rawQty = \frac{totalBtu}{18.000}$$
 
-Aturan pembulatan desimal:
-* Jika nilai desimal sisa pembagian **lebih dari 0.5**, dibulatkan ke atas (`Math.ceil`).
-* Jika nilai desimal sisa pembagian **kurang dari atau sama dengan 0.5**, dibulatkan ke bawah (`Math.floor`).
-* **Batas Minimum**: Jumlah AC minimal adalah **1 unit** jika luas area sales > 0.
+Bukan sekadar pembulatan matematika desimal biasa, kalkulator mengevaluasi nilai **BTU/m² Aktual** terhadap rentang ideal cluster `[Min, Max]`:
+
+1. **Hitung Opsi Pembulatan**:
+   - `downQty` = $\lfloor \text{totalBtu} / 18.000 \rfloor$
+   - `upQty` = $\lceil \text{totalBtu} / 18.000 \rceil$
+2. **Hitung BTU/m² Aktual**:
+   - `actualDownBtuPerM2` = $(\text{downQty} \times 18.000) / \text{Luas Sales}$
+   - `actualUpBtuPerM2` = $(\text{upQty} \times 18.000) / \text{Luas Sales}$
+3. **Kriteria Keputusan**:
+   - Jika `actualDownBtuPerM2` berada dalam rentang `[minBtu, maxBtu]`, pilih `downQty`.
+   - Jika `actualUpBtuPerM2` berada dalam rentang `[minBtu, maxBtu]`, pilih `upQty`.
+   - Jika keduanya di luar rentang, pilih opsi dengan deviasi terbawah/teratas terkecil ke batas rentang.
+4. **Batas Minimum**: Jumlah AC minimal adalah **1 unit** jika luas area sales > 0.
 
 *Formula Kode*:
 ```typescript
-const rawQty = totalBtu / 18000
-const remainder = rawQty % 1
-let finalUnit = remainder > 0.5 ? Math.ceil(rawQty) : Math.floor(rawQty)
+const downQty = Math.floor(totalBtu / 18000)
+const upQty = Math.ceil(totalBtu / 18000)
+
+const actualDownBtuPerM2 = (downQty * 18000) / area
+const actualUpBtuPerM2 = (upQty * 18000) / area
+
+let finalUnit = 0
+if (actualDownBtuPerM2 >= minBtu && actualDownBtuPerM2 <= maxBtu) {
+  finalUnit = downQty
+} else if (actualUpBtuPerM2 >= minBtu && actualUpBtuPerM2 <= maxBtu) {
+  finalUnit = upQty
+} else {
+  const distDown = actualDownBtuPerM2 < minBtu ? minBtu - actualDownBtuPerM2 : actualDownBtuPerM2 - maxBtu
+  const distUp = actualUpBtuPerM2 < minBtu ? minBtu - actualUpBtuPerM2 : actualUpBtuPerM2 - maxBtu
+  finalUnit = distDown <= distUp ? downQty : upQty
+}
 if (finalUnit < 1) finalUnit = 1
 ```
 
 ---
 
 ## 3. Contoh Simulasi Perhitungan
-Misalkan sebuah toko dengan Luas Area Sales = **130 m²** berada di daerah panas dengan suhu luar maksimal **36°C**:
-1. Karena suhu $36^\circ C > 35^\circ C$, maka **`clusterBtu = 751 BTU/m²`**.
-2. **`totalBtu`** = $130 \times 751 = 97.630\ BTU$.
-3. **`rawQty`** = $97.630 / 18.000 = 5.4239$.
-4. **Sisa desimal** = $0.4239$ (karena $\le 0.5$, maka dibulatkan ke bawah).
-5. **`acUnits`** = **5 Unit AC (2 PK)**.
+Misalkan sebuah toko dengan Luas Area Sales = **139 m²** berada di daerah sejuk dengan suhu luar maksimal **26°C**:
+1. Karena suhu $26^\circ C < 27^\circ C$, maka **`clusterBtu = 450 BTU/m²`** dengan rentang ideal **`[450 - 599 BTU/m²]`**.
+2. **`totalBtu`** = $139 \times 450 = 62.550\ BTU$.
+3. **`downQty`** = $\lfloor 62.550 / 18.000 \rfloor = 3$ unit $\rightarrow$ `actualDownBtuPerM2` = $(3 \times 18.000)/139 = \mathbf{388.49\ BTU/m^2}$ (di luar rentang).
+4. **`upQty`** = $\lceil 62.550 / 18.000 \rceil = 4$ unit $\rightarrow$ `actualUpBtuPerM2` = $(4 \times 18.000)/139 = \mathbf{517.98\ BTU/m^2}$ (masuk rentang 450-599).
+5. **`acUnits`** = **4 Unit AC (2 PK)** (karena opsi UP memenuhi rentang ideal).
