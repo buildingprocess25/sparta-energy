@@ -577,7 +577,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
                       !coordInput ||
                       (storeMode === "existing"
                         ? !selectedStore
-                        : !newStoreCode || !newStoreName)
+                        : !newStoreName || !newStoreBranch)
                     }
                     className="h-10 w-full max-w-xs shadow-md font-semibold text-xs"
                   >
@@ -685,7 +685,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
               !coordInput ||
               (storeMode === "existing"
                 ? !selectedStore
-                : !newStoreCode || !newStoreName)
+                : !newStoreName || !newStoreBranch)
             }
             className="h-11 w-full shadow-lg"
           >
