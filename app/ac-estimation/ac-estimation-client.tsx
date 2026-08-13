@@ -481,8 +481,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
                       Suhu Otomatis Peta (Open-Meteo)
                     </FieldLabel>
                     <p className="text-[11px] leading-relaxed text-muted-foreground">
-                      Suhu historis 1 tahun terakhir ditarik secara otomatis
-                      berdasarkan koordinat toko pada peta.
+                      Suhu historis 2 tahun terakhir ditarik secara otomatis
+                      berdasarkan koordinat toko pada peta dengan perhitungan Suhu Desain 2% Exceedance.
                     </p>
                   </div>
                   <Field>
@@ -552,6 +552,11 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
                     </div>
                   </div>
 
+                  {/* Keterangan Penjelasan Suhu Desain 2% (2 Tahun) */}
+                  <div className="rounded-xl border border-blue-200/60 bg-blue-50/60 p-3 text-[11px] leading-relaxed text-blue-950 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-200">
+                    <span className="font-semibold text-blue-900 dark:text-blue-100">💡 Penjelasan Suhu Desain 2%:</span> Suhu ini diambil dari 2% jam terpanas dalam 2 tahun terakhir (Open-Meteo API). Selama 98% waktu dalam 2 tahun, suhu lingkungan toko berada di bawah atau sama dengan <strong className="font-bold text-primary">{result.maxTemp}°C</strong>.
+                  </div>
+
                   <div className="border-t border-border/50 pt-3">
                     <p className="mb-1 text-xs font-medium text-muted-foreground">
                       Rekomendasi Pemasangan
@@ -592,7 +597,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
                   <div className="space-y-1.5 max-w-xs">
                     <h3 className="text-sm font-bold text-foreground">Ringkasan Estimasi AC</h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Pilih identitas toko, isi luas area sales, dan posisi peta di sebelah kiri untuk menghitung kebutuhan AC.
+                      Lengkapi identitas toko, luas area sales, dan posisi peta pada form untuk menghitung kebutuhan AC.
                     </p>
                   </div>
                   <Button
@@ -656,6 +661,11 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
                         <span className="text-xs font-normal">BTU</span>
                       </p>
                     </div>
+                  </div>
+
+                  {/* Keterangan Penjelasan Suhu Desain 2% (2 Tahun) */}
+                  <div className="rounded-xl border border-blue-200/60 bg-blue-50/60 p-3 text-[11px] leading-relaxed text-blue-950 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-200">
+                    <span className="font-semibold text-blue-900 dark:text-blue-100">💡 Penjelasan Suhu Desain 2%:</span> Suhu ini diambil dari 2% jam terpanas dalam 2 tahun terakhir (Open-Meteo API). Selama 98% waktu dalam 2 tahun, suhu lingkungan toko berada di bawah atau sama dengan <strong className="font-bold text-primary">{result.maxTemp}°C</strong>.
                   </div>
 
                   <div className="border-t border-border/50 pt-3">

@@ -1,8 +1,8 @@
 export async function getTemperature(lat: string, lng: string) {
   try {
     const sekarang = new Date()
-    const tahunLalu = new Date()
-    tahunLalu.setDate(sekarang.getDate() - 365)
+    const duaTahunLalu = new Date()
+    duaTahunLalu.setDate(sekarang.getDate() - 365 * 2) // Data 2 tahun ke belakang
 
     const formatTanggal = (tanggal: Date) => {
       const tahun = tanggal.getFullYear()
@@ -14,7 +14,7 @@ export async function getTemperature(lat: string, lng: string) {
     const url = new URL("https://archive-api.open-meteo.com/v1/archive")
     url.searchParams.append("latitude", lat)
     url.searchParams.append("longitude", lng)
-    url.searchParams.append("start_date", formatTanggal(tahunLalu))
+    url.searchParams.append("start_date", formatTanggal(duaTahunLalu))
     url.searchParams.append("end_date", formatTanggal(sekarang))
     url.searchParams.append("hourly", "temperature_2m")
     url.searchParams.append("timezone", "Asia/Jakarta")
@@ -41,20 +41,27 @@ export async function getTemperature(lat: string, lng: string) {
     const suhuTerurut = [...suhuTersaring].sort((a, b) => b - a)
 
     // =========================================================================
-    // UBAH PERINGKAT SUHU TERBESAR YANG INGIN DIAMBIL DI SINI:
+    // PERSENTASE SUHU DESAIN (ASHRAE Exceedance Rate):
+    // 2% = Suhu terpanas 2% diabaikan (98% waktu suhu lingkungan di bawah angka ini)
+    // Hitung indeks secara otomatis berdasarkan total jam data (misal ~17.520 jam untuk 2 tahun)
     // =========================================================================
-    // Indeks array dimulai dari 0 (0-indexed).
-    // - indeks 0  = data terbesar ke-1 (suhu tertinggi absolut)
-    // - indeks 87 = data terbesar ke-88 (sesuai permintaan saat ini)
-    // Silakan ubah angka di bawah ini untuk mengambil urutan terbesar lainnya:
-    const RANK_INDEX = 174
+    const EXCEEDANCE_PERCENT = 2
+
+    const targetIndex = Math.floor(
+      suhuTerurut.length * (EXCEEDANCE_PERCENT / 100)
+    )
+    const rankIndex = Math.max(0, targetIndex - 1)
 
     const maxTemp =
-      suhuTerurut[RANK_INDEX] !== undefined
-        ? suhuTerurut[RANK_INDEX]
+      suhuTerurut[rankIndex] !== undefined
+        ? suhuTerurut[rankIndex]
         : suhuTerurut[0]
 
-    return { maxTemp }
+    return {
+      maxTemp,
+      totalHours: suhuTerurut.length,
+      exceedancePercent: EXCEEDANCE_PERCENT,
+    }
   } catch (error) {
     console.error("Gagal mendapatkan suhu:", error)
     return {
