@@ -146,6 +146,7 @@ export function AuditStep2({
         plnPowerVa: auditState.plnPowerVa,
         areas: auditState.areas,
         equipments: auditState.equipments,
+        savedAreas: auditState.savedAreas,
       })
 
       if ("error" in result && result.error) {

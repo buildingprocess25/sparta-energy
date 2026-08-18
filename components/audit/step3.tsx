@@ -438,6 +438,7 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * e
         plnPowerVa: auditState.plnPowerVa,
         areas: auditState.areas,
         equipments: auditState.equipments,
+        savedAreas: auditState.savedAreas,
         plnHistory: rows,
       })
 

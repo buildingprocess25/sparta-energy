@@ -17,10 +17,14 @@ function toAreaTarget(areaName: string): AreaTarget {
 }
 
 function getSingleDuration(start: string, end: string) {
-  const [sh, sm] = (start || "08:00").split(":").map(Number)
-  const [eh, em] = (end || "22:00").split(":").map(Number)
+  if (!start || !end) return 14
+  if (start === "00:00" && (end === "23:59" || end === "00:00" || end === "24:00")) {
+    return 24
+  }
+  const [sh, sm] = start.split(":").map(Number)
+  const [eh, em] = end.split(":").map(Number)
   let diffMinutes = eh * 60 + em - (sh * 60 + sm)
-  if (diffMinutes < 0) diffMinutes += 24 * 60
+  if (diffMinutes <= 0) diffMinutes += 24 * 60
   return diffMinutes / 60
 }
 
@@ -275,17 +279,6 @@ export async function getAuditDraft(auditId: string) {
       }
     }
 
-    const equipments: EquipmentState[] = []
-    const groupedItems: Record<string, typeof audit.items> = {}
-
-    audit.items.forEach((item) => {
-      const key = `${item.areaTarget}-${item.customName}`
-      if (!groupedItems[key]) {
-        groupedItems[key] = []
-      }
-      groupedItems[key].push(item)
-    })
-
     const fromAreaTarget = (target: AreaTarget) => {
       if (target === "PARKING") return "Parkiran"
       if (target === "TERRACE") return "Teras"
@@ -293,65 +286,79 @@ export async function getAuditDraft(auditId: string) {
       return "Gudang, Toilet & Selasar"
     }
 
+    const storeIs24Hours = Boolean(audit.store.is24Hours)
+    const storeOpenTime = audit.store.openTime || "07:00"
+
+    const formatTime = (hours: number) => {
+      // 24 hours detection: only when the equipment itself operates ~24 hours
+      if (hours >= 23.8) {
+        return {
+          start: "00:00",
+          end: "23:59",
+        }
+      }
+
+      const defaultOpen = (storeOpenTime && storeOpenTime !== "00:00") ? storeOpenTime : "08:00"
+      const [sh, sm] = defaultOpen.split(":").map(Number)
+      const totalMinutes = (sh * 60 + sm) + Math.round(hours * 60)
+      const endH = Math.floor(totalMinutes / 60) % 24
+      const endM = totalMinutes % 60
+      const pad = (n: number) => String(n).padStart(2, "0")
+      return {
+        start: `${pad(sh)}:${pad(sm)}`,
+        end: `${pad(endH)}:${pad(endM)}`,
+      }
+    }
+
+    const equipments: EquipmentState[] = []
     const savedAreasSet = new Set<string>()
 
-    Object.entries(groupedItems).forEach(([key, items]) => {
+    // Separate AC items (grouped to reconstruct per-unit AC state) and non-AC items (each preserved independently)
+    const acGroups: Record<string, typeof audit.items> = {}
+    const nonAcItems: (typeof audit.items)[number][] = []
+
+    audit.items.forEach((item) => {
+      const isAC =
+        (item.customName || "").toLowerCase().includes("ac") ||
+        (item.customName || "").toLowerCase().includes("air conditioner")
+      if (isAC) {
+        const key = `${item.areaTarget}-${item.customName}`
+        if (!acGroups[key]) {
+          acGroups[key] = []
+        }
+        acGroups[key].push(item)
+      } else {
+        nonAcItems.push(item)
+      }
+    })
+
+    // 1. Process AC groups
+    Object.entries(acGroups).forEach(([, items]) => {
       const first = items[0]
       const areaName = fromAreaTarget(first.areaTarget)
       savedAreasSet.add(areaName)
 
-      const isAC =
-        (first.customName || "").toLowerCase().includes("ac") ||
-        (first.customName || "").toLowerCase().includes("air conditioner")
+      const quantity = items.length
+      const startTimes: string[] = []
+      const endTimes: string[] = []
+      const brandIds: (string | undefined)[] = []
+      const brandNames: string[] = []
+      const kws: number[] = []
+      const usagesArr: number[] = []
+      const runningKwsArr: number[] = []
+      const standbyKwsArr: number[] = []
 
-      let quantity = 0
-      let startTimes: string[] = []
-      let endTimes: string[] = []
-      let brandIds: (string | undefined)[] = []
-      let brandNames: string[] = []
-      let kws: number[] = []
-      let usagesArr: number[] = []
-      let runningKwsArr: number[] = []
-      let standbyKwsArr: number[] = []
-
-      const formatTime = (hours: number) => {
-        const startHour = 8
-        let endHour = startHour + Math.round(hours)
-        if (endHour >= 24) endHour = 23
-        const pad = (n: number) => String(n).padStart(2, "0")
-        return {
-          start: `${pad(startHour)}:00`,
-          end: `${pad(endHour)}:00`,
-        }
-      }
-
-      if (isAC) {
-        quantity = items.length
-        items.forEach((item) => {
-          const t = formatTime(Number(item.operationalHours))
-          startTimes.push(t.start)
-          endTimes.push(t.end)
-          brandIds.push(item.equipmentBrandId || undefined)
-          brandNames.push(item.brandName || "")
-          kws.push(Number(item.baseKw))
-          usagesArr.push(0)
-          runningKwsArr.push(Number(item.equipmentBrand?.runningKw ?? item.baseKw))
-          standbyKwsArr.push(Number(item.equipmentBrand?.standbyKw ?? Number(item.baseKw) * 0.05))
-        })
-      } else {
-        quantity = items.reduce((sum, item) => sum + item.qty, 0)
-        const t = formatTime(Number(first.operationalHours))
-        startTimes = Array(quantity).fill(t.start)
-        endTimes = Array(quantity).fill(t.end)
-        brandIds = Array(quantity).fill(first.equipmentBrandId || undefined)
-        brandNames = Array(quantity).fill(first.brandName || "")
-        kws = Array(quantity).fill(Number(first.baseKw))
-
-        const usageVal = first.usageCount ?? (first.equipmentType?.calcMethod === "TRANSACTION" ? 50 : first.equipmentType?.calcMethod === "BATCH" ? 6 : 0)
-        usagesArr = Array(quantity).fill(usageVal)
-        runningKwsArr = Array(quantity).fill(Number(first.equipmentBrand?.runningKw ?? first.baseKw))
-        standbyKwsArr = Array(quantity).fill(Number(first.equipmentBrand?.standbyKw ?? Number(first.baseKw) * 0.05))
-      }
+      items.forEach((item) => {
+        const t = formatTime(Number(item.operationalHours))
+        startTimes.push(t.start)
+        endTimes.push(t.end)
+        brandIds.push(item.equipmentBrandId || undefined)
+        brandNames.push(item.brandName || "")
+        kws.push(Number(item.baseKw))
+        usagesArr.push(0)
+        runningKwsArr.push(Number(item.equipmentBrand?.runningKw ?? item.baseKw))
+        standbyKwsArr.push(Number(item.equipmentBrand?.standbyKw ?? Number(item.baseKw) * 0.05))
+      })
 
       equipments.push({
         id: first.id,
@@ -370,6 +377,47 @@ export async function getAuditDraft(auditId: string) {
         isConfigured: true,
         calcMethod: first.equipmentType?.calcMethod ?? "STANDARD",
         calcDuration: first.equipmentType?.calcDuration ?? 0,
+        usages: usagesArr,
+        runningKws: runningKwsArr,
+        standbyKws: standbyKwsArr,
+      })
+    })
+
+    // 2. Process non-AC items independently (preserves multiple separate items of same type)
+    nonAcItems.forEach((item) => {
+      const areaName = fromAreaTarget(item.areaTarget)
+      savedAreasSet.add(areaName)
+
+      const quantity = item.qty || 1
+      const t = formatTime(Number(item.operationalHours))
+      const startTimes = Array(quantity).fill(t.start)
+      const endTimes = Array(quantity).fill(t.end)
+      const brandIds = Array(quantity).fill(item.equipmentBrandId || undefined)
+      const brandNames = Array(quantity).fill(item.brandName || "")
+      const kws = Array(quantity).fill(Number(item.baseKw))
+
+      const usageVal = item.usageCount ?? (item.equipmentType?.calcMethod === "TRANSACTION" ? 50 : item.equipmentType?.calcMethod === "BATCH" ? 6 : 0)
+      const usagesArr = Array(quantity).fill(usageVal)
+      const runningKwsArr = Array(quantity).fill(Number(item.equipmentBrand?.runningKw ?? item.baseKw))
+      const standbyKwsArr = Array(quantity).fill(Number(item.equipmentBrand?.standbyKw ?? Number(item.baseKw) * 0.05))
+
+      equipments.push({
+        id: item.id,
+        areaName,
+        name: item.customName || "",
+        brandId: item.equipmentBrandId || undefined,
+        brandName: item.brandName || undefined,
+        brandIds,
+        brandNames,
+        kw: Number(item.baseKw),
+        kws,
+        quantity,
+        startTimes,
+        endTimes,
+        selected: true,
+        isConfigured: true,
+        calcMethod: item.equipmentType?.calcMethod ?? "STANDARD",
+        calcDuration: item.equipmentType?.calcDuration ?? 0,
         usages: usagesArr,
         runningKws: runningKwsArr,
         standbyKws: standbyKwsArr,
