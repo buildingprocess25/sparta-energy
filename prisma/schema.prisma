@@ -149,6 +149,7 @@ model AuditItem {
   baseKw            Decimal         @map("base_kw")
   estimatedDailyKwh Decimal         @map("estimated_daily_kwh")
   usageCount        Int?            @map("usage_count")
+  notes             String?         @map("notes")
   
   audit             Audit           @relation(fields: [auditId], references: [id])
   equipmentType     EquipmentType?  @relation(fields: [equipmentTypeId], references: [id])

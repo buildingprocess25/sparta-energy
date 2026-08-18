@@ -160,6 +160,7 @@ export async function saveAuditDraft(input: SaveDraftInput) {
                 equipmentTypeId: eqTypeId,
                 areaTarget: toAreaTarget(eq.areaName),
                 customName: eq.name,
+                notes: eq.notes?.trim() || null,
                 brandName: eq.brandNames?.[i] ?? eq.brandName ?? "",
                 equipmentBrandId: eq.brandIds?.[i] ?? eq.brandId ?? null,
                 qty: 1,
@@ -189,6 +190,7 @@ export async function saveAuditDraft(input: SaveDraftInput) {
               equipmentTypeId: eqTypeId,
               areaTarget: toAreaTarget(eq.areaName),
               customName: eq.name,
+              notes: eq.notes?.trim() || null,
               brandName: eq.brandNames?.[0] ?? eq.brandName ?? "",
               equipmentBrandId: eq.brandIds?.[0] ?? eq.brandId ?? null,
               qty: eq.quantity,
@@ -313,14 +315,23 @@ export async function getAuditDraft(auditId: string) {
     const equipments: EquipmentState[] = []
     const savedAreasSet = new Set<string>()
 
+    const parseNameAndNotes = (rawName: string | null) => {
+      const str = rawName || ""
+      const noteMatch = str.match(/\s*\[NOTE:(.*)\]$/)
+      const cleanName = noteMatch ? str.replace(/\s*\[NOTE:(.*)\]$/, "") : str
+      const notes = noteMatch ? noteMatch[1].trim() : undefined
+      return { cleanName, notes }
+    }
+
     // Separate AC items (grouped to reconstruct per-unit AC state) and non-AC items (each preserved independently)
     const acGroups: Record<string, typeof audit.items> = {}
     const nonAcItems: (typeof audit.items)[number][] = []
 
     audit.items.forEach((item) => {
+      const { cleanName } = parseNameAndNotes(item.customName)
       const isAC =
-        (item.customName || "").toLowerCase().includes("ac") ||
-        (item.customName || "").toLowerCase().includes("air conditioner")
+        cleanName.toLowerCase().includes("ac") ||
+        cleanName.toLowerCase().includes("air conditioner")
       if (isAC) {
         const key = `${item.areaTarget}-${item.customName}`
         if (!acGroups[key]) {
@@ -337,6 +348,9 @@ export async function getAuditDraft(auditId: string) {
       const first = items[0]
       const areaName = fromAreaTarget(first.areaTarget)
       savedAreasSet.add(areaName)
+
+      const { cleanName, notes: parsedNote } = parseNameAndNotes(first.customName)
+      const itemNotes = first.notes || parsedNote
 
       const quantity = items.length
       const startTimes: string[] = []
@@ -363,7 +377,8 @@ export async function getAuditDraft(auditId: string) {
       equipments.push({
         id: first.id,
         areaName,
-        name: first.customName || "",
+        name: cleanName || "",
+        notes: itemNotes,
         brandId: first.equipmentBrandId || undefined,
         brandName: first.brandName || undefined,
         brandIds,
@@ -388,6 +403,9 @@ export async function getAuditDraft(auditId: string) {
       const areaName = fromAreaTarget(item.areaTarget)
       savedAreasSet.add(areaName)
 
+      const { cleanName, notes: parsedNote } = parseNameAndNotes(item.customName)
+      const itemNotes = item.notes || parsedNote
+
       const quantity = item.qty || 1
       const t = formatTime(Number(item.operationalHours))
       const startTimes = Array(quantity).fill(t.start)
@@ -404,7 +422,8 @@ export async function getAuditDraft(auditId: string) {
       equipments.push({
         id: item.id,
         areaName,
-        name: item.customName || "",
+        name: cleanName || "",
+        notes: itemNotes,
         brandId: item.equipmentBrandId || undefined,
         brandName: item.brandName || undefined,
         brandIds,

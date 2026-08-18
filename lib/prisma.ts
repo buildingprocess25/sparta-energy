@@ -8,6 +8,14 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient() {
   const adapter = new PrismaPg(dbPool)
+  
+  // Auto-migration: ensure notes column exists in audit_items table
+  dbPool
+    .query("ALTER TABLE audit_items ADD COLUMN IF NOT EXISTS notes TEXT;")
+    .catch((err) => {
+      console.warn("[DB Auto-Migration] Note: audit_items notes column check:", err?.message)
+    })
+
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],

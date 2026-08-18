@@ -609,9 +609,22 @@ export function AuditResultDB({
                     className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="max-w-50 truncate text-xs font-medium">
-                        {item.customName ?? getAreaLabel(item.areaTarget)}
-                      </p>
+                      {(() => {
+                        const raw = item.customName ?? getAreaLabel(item.areaTarget)
+                        const match = raw.match(/^(.*?)(?:\s*\[NOTE:(.*?)\])?$/)
+                        const title = match?.[1] || raw
+                        const note = (item as any).notes || match?.[2]
+                        return (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="truncate text-xs font-medium">{title}</p>
+                            {note ? (
+                              <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[9.5px] font-normal text-muted-foreground">
+                                📝 {note}
+                              </span>
+                            ) : null}
+                          </div>
+                        )
+                      })()}
                       <p className="text-[10px] text-muted-foreground">
                         {item.qty} unit · {(() => { const h = Number(item.operationalHours); return h >= 23.98 ? "24" : parseFloat(h.toFixed(1)) })()}j ·{" "}
                         {Number(item.baseKw)}kW

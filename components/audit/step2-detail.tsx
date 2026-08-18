@@ -69,6 +69,7 @@ type EquipmentItem = {
   standbyKws?: number[]
   calcMethod?: string
   calcDuration?: number
+  notes?: string
 }
 
 type Step2DetailProps = {
@@ -99,10 +100,14 @@ type Step2DetailProps = {
 }
 
 const getSingleDuration = (start: string, end: string) => {
+  if (!start || !end) return 14
+  if (start === "00:00" && (end === "23:59" || end === "00:00" || end === "24:00")) {
+    return 24
+  }
   const [sh, sm] = (start || "08:00").split(":").map(Number)
   const [eh, em] = (end || "22:00").split(":").map(Number)
   let diffMinutes = eh * 60 + em - (sh * 60 + sm)
-  if (diffMinutes < 0) diffMinutes += 24 * 60
+  if (diffMinutes <= 0) diffMinutes += 24 * 60
   return diffMinutes / 60
 }
 
@@ -185,14 +190,21 @@ function EquipmentRow({
         </div>
 
         <div className="min-w-0 flex-1">
-          <h3
-            className={cn(
-              "truncate text-sm font-semibold",
-              isSelected ? "text-foreground" : "text-muted-foreground"
-            )}
-          >
-            {item.name} {item.brandName ? `(${item.brandName})` : ""}
-          </h3>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <h3
+              className={cn(
+                "truncate text-sm font-semibold",
+                isSelected ? "text-foreground" : "text-muted-foreground"
+              )}
+            >
+              {item.name} {item.brandName ? `(${item.brandName})` : ""}
+            </h3>
+            {item.notes ? (
+              <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                📝 {item.notes}
+              </span>
+            ) : null}
+          </div>
           <div className="flex items-center gap-2 text-xs">
             <p
               className={cn(
@@ -331,6 +343,7 @@ export function AuditStep2Detail({
         usages: e.usages,
         runningKws: e.runningKws,
         standbyKws: e.standbyKws,
+        notes: e.notes,
       }))
     }
     // Fall back to DB master items (no mock fallback)
@@ -371,6 +384,7 @@ export function AuditStep2Detail({
         usages: i.usages || Array(i.quantity || 1).fill(i.calcMethod === "TRANSACTION" ? 50 : i.calcMethod === "BATCH" ? 6 : 0),
         runningKws: i.runningKws || Array(i.quantity || 1).fill(i.kw ?? 0),
         standbyKws: i.standbyKws || Array(i.quantity || 1).fill((i.kw ?? 0) * 0.05),
+        notes: i.notes,
       }))
     )
   }, [items, areaName, syncEqs])
@@ -448,6 +462,7 @@ export function AuditStep2Detail({
   const [usages, setUsages] = React.useState<number[]>([])
   const [runningKws, setRunningKws] = React.useState<number[]>([])
   const [standbyKws, setStandbyKws] = React.useState<number[]>([])
+  const [notes, setNotes] = React.useState<string>("")
 
   const activeEquipment = React.useMemo(() => {
     return (
@@ -604,6 +619,7 @@ export function AuditStep2Detail({
       : Array(qty).fill(eq?.standbyKws?.[0] ?? (eq?.kw ?? 0) * 0.05)
     setRunningKws(defaultRunningKws)
     setStandbyKws(defaultStandbyKws)
+    setNotes(eq?.notes || "")
 
     setIsConfigOpen(true)
   }
@@ -1112,6 +1128,23 @@ export function AuditStep2Detail({
                 ))}
               </div>
 
+              {/* Catatan / Keterangan Tambahan (Opsional) — Diletakkan di bawah setelah Brand & Jam Operasional */}
+              <div className="space-y-1.5 rounded-xl border border-input/60 bg-muted/20 p-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-foreground">
+                    Keterangan / Catatan Tambahan
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground">Opsional</span>
+                </div>
+                <Input
+                  type="text"
+                  placeholder="Contoh: Khusus malam hari, chiller minuman, dll"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="h-9 rounded-lg bg-background text-xs placeholder:text-muted-foreground/60"
+                />
+              </div>
+
               <div className="flex items-center justify-between gap-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -1214,6 +1247,7 @@ export function AuditStep2Detail({
                         usages,
                         runningKws: finalRunningKws,
                         standbyKws: finalStandbyKws,
+                        notes: notes.trim() || undefined,
                       }
                     })
                   )
@@ -1235,7 +1269,7 @@ export function AuditStep2Detail({
               </span>
               <div className="flex items-baseline gap-1">
                 <span className="text-xl font-bold">
-                  {totalAreaDailyKwh.toFixed(1).replace(/\.0$/, "")}
+                  {totalAreaDailyKwh.toFixed(2).replace(/\.?0+$/, "") || "0"}
                 </span>
                 <span className="text-[10px] font-bold uppercase opacity-60">
                   kWh/hari

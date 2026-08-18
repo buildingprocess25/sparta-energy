@@ -7,6 +7,7 @@ export interface EquipmentState {
   id: string
   areaName: string // e.g. "Sales Area", "Teras", "Parkir", "Gudang, Toilet & Selasar"
   name: string
+  notes?: string
   brandId?: string
   brandName?: string
   brandIds?: (string | undefined)[]

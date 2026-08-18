@@ -353,7 +353,7 @@ Estimasi Kebutuhan Alat: ${calc.equipmentEstimateKwhPerMonth.toFixed(0)} kWh/bul
 Aktual Rata-rata PLN: ${calc.avgActualPlnKwhPerMonth.toFixed(0)} kWh/bulan
 Tipe Rekomendasi (Hard-coded fallback calc): ${calc.recommendationType}
 Daftar Peralatan (Format: Qty x Nama = Est Kwh/hari):
-${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.quantity * getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00")).toFixed(1)} kWh/hari`).join("\n")}
+${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name}${eq.notes ? ` (Ket: ${eq.notes})` : ""} = ${(eq.kw * eq.quantity * getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00")).toFixed(1)} kWh/hari`).join("\n")}
 `
         const aiResult = await getDemoAiRecommendation(
           auditSummary,
