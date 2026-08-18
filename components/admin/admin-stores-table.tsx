@@ -248,11 +248,6 @@ export function AdminStoresTable({
                 </SortableHeader>
               </TableHead>
               <TableHead className="text-right">
-                <SortableHeader column="std" align="right">
-                  STD
-                </SortableHeader>
-              </TableHead>
-              <TableHead className="text-right">
                 <SortableHeader column="actualPln" align="right">
                   PLN
                 </SortableHeader>
@@ -309,9 +304,6 @@ export function AdminStoresTable({
                       <IconClipboardCheck className="size-4" />
                       <span>{formatDate(store.latest_audit_date)}</span>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatStd(store.std)}
                   </TableCell>
                   <TableCell className="text-right">
                     {formatKwh(store.actual_pln)}

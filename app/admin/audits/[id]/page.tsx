@@ -422,9 +422,9 @@ export default async function AdminAuditDetailPage({
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card>
           <CardHeader>
-            <CardTitle>Tren PLN, Baseline & STD</CardTitle>
+            <CardTitle>Tren Pemakaian PLN &amp; Baseline</CardTitle>
             <CardDescription>
-              Aktual PLN, baseline audit, dan STD yang tersimpan pada audit ini.
+              Perbandingan aktual pemakaian PLN dan baseline estimasi beban pada audit ini.
             </CardDescription>
           </CardHeader>
           <CardContent>

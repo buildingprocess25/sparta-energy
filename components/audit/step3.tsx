@@ -506,33 +506,25 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name}${eq.notes ? ` 
                     </AlertDescription>
                   </Alert>
 
-                  <section className="rounded-lg border bg-card">
+                  <section className="rounded-xl border bg-card shadow-sm overflow-hidden">
                     <Table className="min-w-full table-fixed">
                       <TableHeader>
-                        <TableRow>
+                        <TableRow className="bg-muted/40">
                           <TableHead
                             className={cn(
-                              "text-[10px] font-bold tracking-wider text-muted-foreground uppercase",
-                              monthColumnWidthClass
+                              "text-[10px] font-bold tracking-wider text-muted-foreground uppercase px-4 py-3",
+                              "w-[55%]"
                             )}
                           >
                             Bulan &amp; Tahun
                           </TableHead>
                           <TableHead
                             className={cn(
-                              "text-center text-[10px] font-bold tracking-wider whitespace-normal text-muted-foreground uppercase",
-                              valueColumnWidthClass
+                              "text-center text-[10px] font-bold tracking-wider text-muted-foreground uppercase px-4 py-3",
+                              "w-[45%]"
                             )}
                           >
                             Konsumsi (kWh)
-                          </TableHead>
-                          <TableHead
-                            className={cn(
-                              "text-center text-[10px] font-bold tracking-wider whitespace-normal text-muted-foreground uppercase",
-                              stdColumnWidthClass
-                            )}
-                          >
-                            Trans/Hari (STD)
                           </TableHead>
                         </TableRow>
                       </TableHeader>
@@ -540,13 +532,13 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name}${eq.notes ? ` 
                       <TableBody>
                         {rows.map((row, idx) => (
                           <TableRow key={idx}>
-                            <TableCell className="px-1 py-0.5">
+                            <TableCell className="px-4 py-2.5">
                               <MonthYearCell
                                 value={row.month}
                                 onChange={(val) => updateRow(idx, "month", val)}
                               />
                             </TableCell>
-                            <TableCell className="px-1 py-0.5">
+                            <TableCell className="px-4 py-2.5">
                               <Input
                                 type="number"
                                 placeholder="0"
@@ -554,18 +546,7 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name}${eq.notes ? ` 
                                 onChange={(e) =>
                                   updateRow(idx, "kwh", e.target.value)
                                 }
-                                className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                              />
-                            </TableCell>
-                            <TableCell className="px-1 py-0.5">
-                              <Input
-                                type="number"
-                                placeholder="0"
-                                value={row.std || ""}
-                                onChange={(e) =>
-                                  updateRow(idx, "std", e.target.value)
-                                }
-                                className="h-7 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-[11px] ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                                className="h-8 w-full rounded-none border-0 border-b bg-transparent px-0 text-center text-xs font-semibold ring-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                               />
                             </TableCell>
                           </TableRow>

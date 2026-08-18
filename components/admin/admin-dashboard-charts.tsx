@@ -24,7 +24,7 @@ type ConsumptionTrendPoint = {
   month: string
   actualPln: number
   baseline: number
-  std: number
+  std?: number
 }
 
 type EfficiencyBreakdownDatum = {
@@ -40,12 +40,8 @@ const consumptionChartConfig = {
     color: "var(--chart-2)",
   },
   baseline: {
-    label: "Baseline",
+    label: "Baseline (Estimasi)",
     color: "var(--muted-foreground)",
-  },
-  std: {
-    label: "Avg STD",
-    color: "#f7e788",
   },
 } satisfies ChartConfig
 
@@ -74,7 +70,6 @@ function formatK(value: unknown) {
 }
 
 function formatTooltipValue(value: unknown, key: string) {
-  if (key === "std") return `${formatK(value)} STD`
   return `${formatK(value)} kWh`
 }
 
@@ -107,14 +102,6 @@ export function ConsumptionTrendChart({
               stopOpacity={0.04}
             />
           </linearGradient>
-          <linearGradient id="stdFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="var(--color-std)" stopOpacity={0.18} />
-            <stop
-              offset="95%"
-              stopColor="var(--color-std)"
-              stopOpacity={0.03}
-            />
-          </linearGradient>
         </defs>
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis
@@ -125,21 +112,11 @@ export function ConsumptionTrendChart({
           tick={{ fontSize: 11 }}
         />
         <YAxis
-          yAxisId="kwh"
           tickLine={false}
           axisLine={false}
           tickMargin={8}
           tick={{ fontSize: 11 }}
           tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
-        />
-        <YAxis
-          yAxisId="std"
-          orientation="right"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          tick={{ fontSize: 11 }}
-          tickFormatter={(value) => formatK(value)}
         />
         <ChartTooltip
           content={
@@ -175,7 +152,6 @@ export function ConsumptionTrendChart({
         <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="3 3" />
         {showBaseline ? (
           <Area
-            yAxisId="kwh"
             dataKey="baseline"
             type="monotone"
             stroke="var(--color-baseline)"
@@ -185,15 +161,6 @@ export function ConsumptionTrendChart({
           />
         ) : null}
         <Area
-          yAxisId="std"
-          dataKey="std"
-          type="monotone"
-          stroke="var(--color-std)"
-          strokeWidth={2}
-          fill="url(#stdFill)"
-        />
-        <Area
-          yAxisId="kwh"
           dataKey="actualPln"
           type="monotone"
           stroke="var(--color-actualPln)"

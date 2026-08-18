@@ -235,11 +235,6 @@ export function AdminAuditsTable({
                 <SortableHeader column="status">Status</SortableHeader>
               </TableHead>
               <TableHead className="text-right">
-                <SortableHeader column="std" align="right">
-                  STD
-                </SortableHeader>
-              </TableHead>
-              <TableHead className="text-right">
                 <SortableHeader column="actualPln" align="right">
                   Actual PLN
                 </SortableHeader>
@@ -300,9 +295,6 @@ export function AdminAuditsTable({
                     </div>
                   </TableCell>
                   <TableCell>{getStatusBadge(audit.isBoros)}</TableCell>
-                  <TableCell className="text-right">
-                    {formatStd(audit.std)}
-                  </TableCell>
                   <TableCell className="text-right">
                     {formatKwh(audit.actualPln)}
                   </TableCell>

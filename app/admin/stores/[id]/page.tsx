@@ -451,9 +451,9 @@ export default async function AdminStoreDetailPage({
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card>
           <CardHeader>
-            <CardTitle>Tren PLN & STD</CardTitle>
+            <CardTitle>Tren Pemakaian Listrik PLN</CardTitle>
             <CardDescription>
-              Aktual PLN dan STD dari audit terakhir toko ini.
+              Riwayat aktual pemakaian listrik PLN dari audit toko ini.
             </CardDescription>
           </CardHeader>
           <CardContent>

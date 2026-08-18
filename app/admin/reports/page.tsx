@@ -44,7 +44,7 @@ const reportCards: ReportCard[] = [
   {
     report: "store-data",
     title: "Export Toko Bulanan",
-    description: "STD, PLN kWh, baseline, cabang, dan tipe toko per audit.",
+    description: "PLN kWh, baseline, cabang, dan tipe toko per audit.",
     icon: IconFileSpreadsheet,
   },
   {

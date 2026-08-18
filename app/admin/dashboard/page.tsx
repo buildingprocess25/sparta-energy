@@ -523,9 +523,9 @@ export default async function AdminDashboardPage({
       <section>
         <Card size="sm">
           <CardHeader>
-            <CardTitle>Tren PLN, Baseline & STD</CardTitle>
+            <CardTitle>Tren Pemakaian PLN &amp; Baseline</CardTitle>
             <CardDescription>
-              Rata-rata dari audit terakhir tiap toko.
+              Rata-rata aktual PLN dan baseline estimasi beban dari audit toko.
             </CardDescription>
           </CardHeader>
           <CardContent>
