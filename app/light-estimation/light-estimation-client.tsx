@@ -81,6 +81,15 @@ const SHAPES = [
   { id: "L", label: "Bentuk L" },
 ]
 
+interface SnapGuide {
+  type: "h" | "v"
+  pos: number
+  fromCanvas: { x: number; y: number }
+  toCanvas: { x: number; y: number }
+  snapType: "orthogonal" | "alignment"
+  refNodeIdx: number
+}
+
 interface StandardCheckResult {
   overallStatus: "ideal" | "toleransi" | "diluar"
   isAllOk: boolean
@@ -579,7 +588,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
   const [expandDir, setExpandDir] = useState<"end" | "start" | "center">("center")
   const [segmentLengths, setSegmentLengths] = useState<(number | string)[]>([])
+  const [editingSegmentIdx, setEditingSegmentIdx] = useState<number | null>(null)
   const [activeDragIdx, setActiveDragIdx] = useState<number | null>(null)
+  const [activeSnapGuides, setActiveSnapGuides] = useState<SnapGuide[]>([])
   const [selectedNodeIdx, setSelectedNodeIdx] = useState<number | null>(null)
   const [hoverEdge, setHoverEdge] = useState<{ cx: number; cy: number; segmentIdx: number } | null>(null)
 
@@ -737,7 +748,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     setCanvasEditTarget(null)
   }, [canvasEditTarget, handleUpdateSegmentLength, expandDir])
 
-  // Keep segmentLengths in sync with customPts and customClosed
+  // Keep segmentLengths in sync with customPts and customClosed (while preserving user active typing)
   useEffect(() => {
     if (customPts.length < 2) {
       setSegmentLengths([])
@@ -747,6 +758,11 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     setSegmentLengths(prev => {
       const next: (number | string)[] = []
       for (let i = 0; i < count; i++) {
+        // If user is currently typing in this input, keep the user's ongoing typed string!
+        if (editingSegmentIdx === i && prev[i] !== undefined) {
+          next.push(prev[i])
+          continue
+        }
         const p1 = customPts[i]
         const p2 = customPts[(i + 1) % customPts.length]
         if (p1 && p2) {
@@ -756,7 +772,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       }
       return next
     })
-  }, [customPts, customClosed])
+  }, [customPts, customClosed, editingSegmentIdx])
 
   const adjustedPts = customPts
   const [stats, setStats] = useState({
@@ -1573,6 +1589,57 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
       })
 
+      // Render Smart Alignment & Magnetic Snap Guides (Canva/Figma Style)
+      if (activeSnapGuides.length > 0 && activeDragIdx !== null) {
+        activeSnapGuides.forEach(g => {
+          ctx.save()
+          // Dashed guide line
+          ctx.beginPath()
+          ctx.moveTo(g.fromCanvas.x, g.fromCanvas.y)
+          ctx.lineTo(g.toCanvas.x, g.toCanvas.y)
+          ctx.strokeStyle = g.snapType === "orthogonal" ? "rgba(6, 182, 212, 0.9)" : "rgba(168, 85, 247, 0.9)"
+          ctx.lineWidth = 1.5
+          ctx.setLineDash([4, 3])
+          ctx.stroke()
+
+          // Draw reference indicator on target node
+          const refPt = customPts[g.refNodeIdx]
+          if (refPt) {
+            const refC = toC(refPt)
+            ctx.beginPath()
+            ctx.arc(refC.cx, refC.cy, 7, 0, Math.PI * 2)
+            ctx.strokeStyle = g.snapType === "orthogonal" ? "#06b6d4" : "#a855f7"
+            ctx.fillStyle = g.snapType === "orthogonal" ? "rgba(6, 182, 212, 0.25)" : "rgba(168, 85, 247, 0.25)"
+            ctx.lineWidth = 2
+            ctx.setLineDash([])
+            ctx.fill()
+            ctx.stroke()
+          }
+
+          // Indicator on active drag point
+          const activePt = customPts[activeDragIdx]
+          if (activePt) {
+            const dragC = toC(activePt)
+            ctx.beginPath()
+            ctx.arc(dragC.cx, dragC.cy, 9, 0, Math.PI * 2)
+            ctx.strokeStyle = g.snapType === "orthogonal" ? "#06b6d4" : "#a855f7"
+            ctx.lineWidth = 2
+            ctx.setLineDash([])
+            ctx.stroke()
+
+            // Badge text (90° or Align)
+            ctx.font = "bold 8.5px sans-serif"
+            ctx.fillStyle = g.snapType === "orthogonal" ? "#0891b2" : "#7e22ce"
+            ctx.textAlign = "left"
+            ctx.textBaseline = "bottom"
+            const labelText = g.snapType === "orthogonal" ? "⦜ 90°" : "⫿ Sejajar"
+            ctx.fillText(labelText, dragC.cx + 12, dragC.cy - 6)
+          }
+
+          ctx.restore()
+        })
+      }
+
       if (hoverEdge && activeDragIdx === null) {
         ctx.beginPath()
         ctx.arc(hoverEdge.cx, hoverEdge.cy, 6, 0, Math.PI * 2)
@@ -1589,7 +1656,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         ctx.fillText("+", hoverEdge.cx, hoverEdge.cy)
       }
     }
-  }, [shape, parsedP, adjustedPts, customClosed, lampLen, calcResult, resolvedTheme, irregOverrideBaris, irregOverrideLpb, irregDisabledLamps, showDimensions, isSaving, selectedNodeIdx, hoverEdge, activeDragIdx])
+  }, [shape, parsedP, adjustedPts, customClosed, lampLen, calcResult, resolvedTheme, irregOverrideBaris, irregOverrideLpb, irregDisabledLamps, showDimensions, isSaving, selectedNodeIdx, hoverEdge, activeDragIdx, activeSnapGuides])
 
   const updateStats = useCallback(() => {
     const pts = buildPolygon(shape, parsedP, adjustedPts, customClosed)
@@ -1839,15 +1906,93 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     const offY = sc ? sc.offY : FIXED_OY
 
     if (activeDragIdx !== null) {
-      const mx = (cx - offX) / scale
-      const my = (cy - offY) / scale
-      const newX = Number(Math.max(0, mx).toFixed(3))
-      const newY = Number(Math.max(0, my).toFixed(3))
+      const rawMx = (cx - offX) / scale
+      const rawMy = (cy - offY) / scale
+      let newX = Math.max(0, rawMx)
+      let newY = Math.max(0, rawMy)
+
+      // Snapping threshold (approx 9-10 px)
+      const snapThresholdPx = 10
+      const snapThresholdM = snapThresholdPx / scale
+      const guides: SnapGuide[] = []
+      const n = customPts.length
+      const prevIdx = (activeDragIdx - 1 + n) % n
+      const nextIdx = (activeDragIdx + 1) % n
+
+      let snappedX = false
+      let snappedY = false
+
+      // 1. Orthogonal Snapping (90 degree snap with direct neighbor edges)
+      const neighbors = [
+        { idx: prevIdx, pt: customPts[prevIdx] },
+        { idx: nextIdx, pt: customPts[nextIdx] }
+      ].filter(item => item.pt && item.idx !== activeDragIdx)
+
+      for (const { idx, pt } of neighbors) {
+        if (!snappedY && Math.abs(rawMy - pt.y) <= snapThresholdM) {
+          newY = pt.y
+          snappedY = true
+          guides.push({
+            type: "h",
+            pos: pt.y,
+            fromCanvas: { x: 0, y: offY + pt.y * scale },
+            toCanvas: { x: W, y: offY + pt.y * scale },
+            snapType: "orthogonal",
+            refNodeIdx: idx
+          })
+        }
+        if (!snappedX && Math.abs(rawMx - pt.x) <= snapThresholdM) {
+          newX = pt.x
+          snappedX = true
+          guides.push({
+            type: "v",
+            pos: pt.x,
+            fromCanvas: { x: offX + pt.x * scale, y: 0 },
+            toCanvas: { x: offX + pt.x * scale, y: CANVAS_H },
+            snapType: "orthogonal",
+            refNodeIdx: idx
+          })
+        }
+      }
+
+      // 2. Smart Alignment Snapping with other nodes in the polygon
+      for (let i = 0; i < n; i++) {
+        if (i === activeDragIdx || i === prevIdx || i === nextIdx) continue
+        const pt = customPts[i]
+        if (!pt) continue
+
+        if (!snappedY && Math.abs(rawMy - pt.y) <= snapThresholdM) {
+          newY = pt.y
+          snappedY = true
+          guides.push({
+            type: "h",
+            pos: pt.y,
+            fromCanvas: { x: 0, y: offY + pt.y * scale },
+            toCanvas: { x: W, y: offY + pt.y * scale },
+            snapType: "alignment",
+            refNodeIdx: i
+          })
+        }
+        if (!snappedX && Math.abs(rawMx - pt.x) <= snapThresholdM) {
+          newX = pt.x
+          snappedX = true
+          guides.push({
+            type: "v",
+            pos: pt.x,
+            fromCanvas: { x: offX + pt.x * scale, y: 0 },
+            toCanvas: { x: offX + pt.x * scale, y: CANVAS_H },
+            snapType: "alignment",
+            refNodeIdx: i
+          })
+        }
+      }
+
+      setActiveSnapGuides(guides)
 
       setCustomPts(prev => {
         const next = [...prev]
         if (next[activeDragIdx]) {
-          next[activeDragIdx] = { x: newX, y: newY }
+          next[activeDragIdx] = { x: Number(newX.toFixed(3)), y: Number(newY.toFixed(3)) }
         }
         return next
       })
@@ -1903,6 +2048,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         dragStartSnapshotRef.current = null
       }
 
+      setActiveSnapGuides([])
       setActiveDragIdx(null)
     }
   }, [activeDragIdx, customPts, pushSnapshot])
@@ -2214,8 +2360,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       </div>
 
                       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/40 border border-border/40 rounded-lg px-2.5 py-1.5 leading-snug">
-                        <span className="shrink-0">💡</span>
-                        <span>Klik titik pada kanvas untuk aktifkan Hapus Titik · Drag titik untuk geser · Ctrl+Z untuk Undo</span>
+                        <span className="shrink-0">🧲</span>
+                        <span><b>Magnet Otomatis:</b> Drag titik untuk mengunci sudut siku 90° & garis sejajar · Tekan <b>Enter</b> pada kotak angka untuk terapkan ukuran</span>
                       </div>
                     </div>
                   </div>
@@ -2480,17 +2626,24 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                               type="number"
                               step="any"
                               min={0.1}
-                              value={len}
+                              value={len !== undefined ? len : ""}
+                              onFocus={() => setEditingSegmentIdx(idx)}
                               onChange={(e) => {
                                 const val = e.target.value
                                 setSegmentLengths(prev => {
                                   const next = [...prev]
-                                  next[idx] = val as any
+                                  next[idx] = val
                                   return next
                                 })
-                                const numVal = parseFloat(val)
-                                if (!isNaN(numVal) && numVal > 0) {
-                                  handleUpdateSegmentLength(idx, numVal)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  const numVal = parseFloat(String(segmentLengths[idx]))
+                                  if (!isNaN(numVal) && numVal > 0) {
+                                    handleUpdateSegmentLength(idx, numVal)
+                                  }
+                                  setEditingSegmentIdx(null)
+                                  e.currentTarget.blur()
                                 }
                               }}
                               onBlur={(e) => {
@@ -2498,6 +2651,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                                 if (!isNaN(numVal) && numVal > 0) {
                                   handleUpdateSegmentLength(idx, numVal)
                                 }
+                                setEditingSegmentIdx(null)
                               }}
                               className="h-7 text-[11px]"
                             />
