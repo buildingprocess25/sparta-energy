@@ -1206,7 +1206,21 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
       // Legenda & Koordinat grouping
       const uniqueYs = Array.from(new Set(lamps.map(l => Number(l.y.toFixed(4))))).sort((a, b) => a - b)
-      const uniqueXs = Array.from(new Set(lamps.map(l => Number(l.x.toFixed(4))))).sort((a, b) => a - b)
+      
+      // Cluster X coordinates to prevent overlapping column numbers on irregular shapes
+      const rawXs = Array.from(new Set(lamps.map(l => Number(l.x.toFixed(4))))).sort((a, b) => a - b)
+      const columnClusters: { avgX: number; xs: number[] }[] = []
+      const CLUSTER_THRESH = Math.max(0.6, lampLen * 0.6)
+
+      rawXs.forEach(x => {
+        const lastCluster = columnClusters[columnClusters.length - 1]
+        if (!lastCluster || (x - lastCluster.avgX) > CLUSTER_THRESH) {
+          columnClusters.push({ avgX: x, xs: [x] })
+        } else {
+          lastCluster.xs.push(x)
+          lastCluster.avgX = lastCluster.xs.reduce((sum, v) => sum + v, 0) / lastCluster.xs.length
+        }
+      })
 
       const yToRowLetter: Record<number, string> = {}
       uniqueYs.forEach((y, idx) => {
@@ -1231,8 +1245,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         // Column headers (1, 2, 3...)
         ctx.textAlign = "center"
         ctx.textBaseline = "bottom"
-        uniqueXs.forEach((x, idx) => {
-          const cx = sc.offX + x * sc.scale
+        columnClusters.forEach((col, idx) => {
+          const cx = sc.offX + col.avgX * sc.scale
           const labelY = sc.offY + (sc.minY ?? 0) * sc.scale - 8
           ctx.fillText((idx + 1).toString(), cx, labelY)
         })
@@ -1310,9 +1324,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       // Draw JS and JB dimension lines
       if (showDimensions) {
         // Draw JS
-        if (uniqueXs.length > 0) {
+        if (columnClusters.length > 0) {
           const leftWallX = sc.offX + (sc.minX ?? 0) * sc.scale
-          const firstColX = sc.offX + uniqueXs[0] * sc.scale
+          const firstColX = sc.offX + columnClusters[0].avgX * sc.scale
           const jsY = sc.offY + (sc.minY ?? 0) * sc.scale + 15
           drawArrow(leftWallX, jsY, firstColX, jsY, isDark ? "rgba(239,68,68,0.8)" : "rgba(220,38,38,0.9)", `JS ${usedMargin.toFixed(2)}m`)
         }
