@@ -697,7 +697,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       const deltaX = dx * (scale - 1)
       const deltaY = dy * (scale - 1)
 
-      return prev.map((pt, i) => {
+      const updated = prev.map((pt, i) => {
         if (dir === "end" && i === p2Idx) {
           return {
             x: Number((pt.x + deltaX).toFixed(3)),
@@ -726,6 +726,16 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         }
         return pt
       })
+
+      const minX = Math.min(...updated.map(p => p.x))
+      const minY = Math.min(...updated.map(p => p.y))
+      if (minX < 0 || minY < 0) {
+        return updated.map(p => ({
+          x: Number((p.x - minX).toFixed(3)),
+          y: Number((p.y - minY).toFixed(3))
+        }))
+      }
+      return updated
     })
   }, [expandDir, pushCurrentToHistory])
 
@@ -1365,10 +1375,16 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     }
 
     // Render Bottom (LT) and Left (PT) Bounding Dimensions
-    const ltX = sc.offX + (sc.rW * sc.scale) / 2
-    const ltY = sc.offY + sc.rH * sc.scale + 14
-    const ptX = sc.offX - 14
-    const ptY = sc.offY + (sc.rH * sc.scale) / 2
+    const minX = sc.minX ?? 0
+    const minY = sc.minY ?? 0
+    const leftEdge = sc.offX + minX * sc.scale
+    const topEdge = sc.offY + minY * sc.scale
+    const bottomEdge = topEdge + sc.rH * sc.scale
+
+    const ltX = leftEdge + (sc.rW * sc.scale) / 2
+    const ltY = bottomEdge + 14
+    const ptX = leftEdge - 14
+    const ptY = topEdge + (sc.rH * sc.scale) / 2
 
     drawHaloText(`${formatDim(sc.rW)}m (LT)`, ltX, ltY, isDark ? "#38bdf8" : "#0284c7", false)
     drawHaloText(`${formatDim(sc.rH)}m (PT)`, ptX, ptY, isDark ? "#c4b5fd" : "#6d28d9", true)
@@ -1844,8 +1860,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         }
 
         if (bestSegIdx !== -1 && bestClosest) {
-          const mX = Number(Math.max(0, (bestClosest.x - offX) / scale).toFixed(1))
-          const mY = Number(Math.max(0, (bestClosest.y - offY) / scale).toFixed(1))
+          const mX = Number(((bestClosest.x - offX) / scale).toFixed(1))
+          const mY = Number(((bestClosest.y - offY) / scale).toFixed(1))
           const snapped = { x: mX, y: mY }
           const insertIdx = bestSegIdx + 1
 
@@ -1883,9 +1899,23 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (!customClosed) {
       const mx = (cx - FIXED_OX) / FIXED_SCALE
       const my = (cy - FIXED_OY) / FIXED_SCALE
-      const snapped = { x: Number(Math.max(0, mx).toFixed(3)), y: Number(Math.max(0, my).toFixed(3)) }
+      const newPt = { x: mx, y: my }
       pushCurrentToHistory()
-      setCustomPts(prev => [...prev, snapped])
+      setCustomPts(prev => {
+        const combined = [...prev, newPt]
+        const minX = Math.min(0, ...combined.map(p => p.x))
+        const minY = Math.min(0, ...combined.map(p => p.y))
+        if (minX < 0 || minY < 0) {
+          return combined.map(p => ({
+            x: Number((p.x - minX).toFixed(3)),
+            y: Number((p.y - minY).toFixed(3))
+          }))
+        }
+        return combined.map(p => ({
+          x: Number(p.x.toFixed(3)),
+          y: Number(p.y.toFixed(3))
+        }))
+      })
       setSelectedNodeIdx(null)
     }
   }, [shape, customClosed, customPts, parsedP, pushCurrentToHistory])
@@ -1908,8 +1938,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (activeDragIdx !== null) {
       const rawMx = (cx - offX) / scale
       const rawMy = (cy - offY) / scale
-      let newX = Math.max(0, rawMx)
-      let newY = Math.max(0, rawMy)
+      let newX = rawMx
+      let newY = rawMy
 
       // Snapping threshold (approx 9-10 px)
       const snapThresholdPx = 10
@@ -2046,6 +2076,18 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           }
         }
         dragStartSnapshotRef.current = null
+      }
+
+      // Auto-normalize if any points moved into negative coordinates (e.g. dragged above or to the left)
+      if (customPts.length > 0) {
+        const minX = Math.min(...customPts.map(p => p.x))
+        const minY = Math.min(...customPts.map(p => p.y))
+        if (minX < 0 || minY < 0) {
+          setCustomPts(prev => prev.map(p => ({
+            x: Number((p.x - minX).toFixed(3)),
+            y: Number((p.y - minY).toFixed(3))
+          })))
+        }
       }
 
       setActiveSnapGuides([])
