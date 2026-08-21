@@ -335,12 +335,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (variant === "success") {
       cardCls = "border-emerald-500/25 bg-emerald-50/40 dark:bg-emerald-950/15"
       textCls = "text-emerald-700 dark:text-emerald-400"
-    } else if (variant === "info") {
+    } else if (variant === "info" || variant === "warning") {
       cardCls = "border-sky-500/25 bg-sky-50/40 dark:bg-sky-950/15"
       textCls = "text-sky-700 dark:text-sky-400"
-    } else if (variant === "warning") {
-      cardCls = "border-amber-500/25 bg-amber-50/40 dark:bg-amber-950/15"
-      textCls = "text-amber-700 dark:text-amber-400"
     }
 
     const valStr = String(value)
@@ -2663,7 +2660,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               <div className="space-y-3.5 border-t border-border/60 pt-3">
                 {/* Spesifikasi Lampu Read-Only (Standar Audit) */}
                 <div className="bg-muted/30 rounded-xl p-2.5 border border-border/50 text-[10px] text-muted-foreground leading-normal flex items-center gap-2">
-                  <IconBulb className="size-4 text-amber-500 shrink-0" />
+                  <IconBulb className="size-4 text-primary shrink-0" />
                   <div>
                     <span className="font-bold text-foreground block">Spesifikasi Lampu Standar Audit</span>
                     TL LED 1.22 meter (13.5 Watt) per unit.
@@ -2696,9 +2693,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               {/* Hasil Kalkulasi Card */}
               <Card className={`transition-all duration-300 ${irregCheck.overallStatus === "ideal"
                 ? "border-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15"
-                : irregCheck.overallStatus === "toleransi"
-                  ? "border-sky-500/25 bg-sky-50/30 dark:bg-sky-950/15"
-                  : "border-amber-500/25 bg-amber-50/30 dark:bg-amber-950/15"
+                : "border-sky-500/25 bg-sky-50/30 dark:bg-sky-950/15"
                 }`}>
                 <CardHeader className="py-3 flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-sm font-semibold">Hasil Kalkulasi Tata Letak</CardTitle>
@@ -2706,9 +2701,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     onClick={() => setInfoOpen(true)}
                     className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${irregCheck.overallStatus === "ideal"
                       ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                      : irregCheck.overallStatus === "toleransi"
-                        ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                      : "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                       }`}>
                     {irregCheck.statusLabel}
                     <IconInfoCircle className="size-3" />
@@ -2737,13 +2730,13 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       <div className="grid grid-cols-2 gap-2.5">
                         <StatBox label="Estimasi" subLabel="Jumlah Baris" value={stats.nRow} unit=" baris" />
                         <StatBox label="Estimasi Unit" subLabel="Per Baris" value={stats.nPerRow} unit=" unit" />
-                        <StatBox label="Jarak" subLabel="Per Baris" value={Number(stats.rowSpacing)?.toFixed(2)} unit=" m" variant={Number(stats.rowSpacing) <= 1.9 ? "success" : Number(stats.rowSpacing) <= 2.2 ? "info" : "warning"} />
-                        <StatBox label="Jarak" subLabel="Samping" value={activeMargin.toFixed(2)} unit=" m" variant={irregCheck.sampingStatus === "ok" ? "success" : activeMargin >= 0.2 && activeMargin <= 0.8 ? "info" : "warning"} />
+                        <StatBox label="Jarak" subLabel="Per Baris" value={Number(stats.rowSpacing)?.toFixed(2)} unit=" m" variant={Number(stats.rowSpacing) <= 1.9 ? "success" : "info"} />
+                        <StatBox label="Jarak" subLabel="Samping" value={activeMargin.toFixed(2)} unit=" m" variant={irregCheck.sampingStatus === "ok" ? "success" : "info"} />
                       </div>
                     </>
                   ) : (
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
-                      Tidak ada konfigurasi otomatis yang memenuhi standar rasio 4.0 – 5.0 W/m² untuk dimensi ini. Coba sesuaikan koordinat atau bentuk bangunan.
+                    <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 text-xs text-sky-700 dark:text-sky-400">
+                      Konfigurasi otomatis disesuaikan untuk geometri denah saat ini. Anda dapat menyempurnakan titik sudut jika diperlukan.
                     </div>
                   )}
                 </CardContent>
