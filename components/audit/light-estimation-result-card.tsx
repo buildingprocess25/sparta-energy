@@ -267,20 +267,7 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
             <Row label="Luas Ruangan" value={`${area.toFixed(1)} m²`} />
             <Row label="Spesifikasi LED" value={`${watt}W · ${lampLen}m`} />
             <Row label="Rentang Titik Lampu" value={minLamps && maxLamps && minLamps !== maxLamps ? `${minLamps} – ${maxLamps} Titik` : `${totalLamps} Titik`} />
-            <Row 
-              label="Grid Layout Acuan" 
-              value={
-                rows * lampsPerRow === totalLamps
-                  ? `${rows} Baris × ${lampsPerRow} Kolom (${totalLamps} Unit)`
-                  : `${rows} Baris × ${lampsPerRow} Kolom (Maks. ${rows * lampsPerRow} Unit)`
-              } 
-            />
-            {rows * lampsPerRow !== totalLamps && (
-              <Row 
-                label="Titik Lampu Terpasang" 
-                value={`${totalLamps} Unit (Disesuaikan Bentuk Denah)`} 
-              />
-            )}
+            <Row label="Grid Layout Acuan" value={`${rows} Baris × ${lampsPerRow} Kolom`} />
             <Row label="Jarak Antar Baris" value={`${Number(rowSpacing).toFixed(2)} m`} />
             <Row label="Jarak Samping" value={`${Number(sideMargin).toFixed(2)} m`} />
             <Row 
@@ -295,56 +282,17 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
 
           {/* Recommendation highlight */}
           {(() => {
-            const checkRasioIdeal = rasio >= 4.0 && rasio <= 5.0
-            const checkSampingIdeal = Number(sideMargin) >= 0.3 && Number(sideMargin) <= 0.6
-            const checkBarisIdeal = Number(rowSpacing) <= 1.9
-            const isIdeal = checkRasioIdeal && checkSampingIdeal && checkBarisIdeal
-
-            const checkRasioTol = rasio >= 3.5 && rasio <= 5.5
-            const checkSampingTol = Number(sideMargin) >= 0.2 && Number(sideMargin) <= 0.8
-            const checkBarisTol = Number(rowSpacing) <= 2.2
-            const isToleransi = !isIdeal && checkRasioTol && checkSampingTol && checkBarisTol
-
-            let cardBg = "linear-gradient(135deg, #fffbeb, #fef3c7)"
-            let cardBorder = "1.5px solid #fde68a"
-            let cardTitleColor = "#b45309"
-            let cardTitle = "Parameter Di Luar Standar"
-            let cardCountColor = "#92400e"
-            let cardUnitColor = "#d97706"
-            let cardDescription = (
-              <div style={{ color: "#92400e" }}>
-                Peringatan: 
-                {!checkRasioTol && ` Energy Ratio Index di luar standar (${Number(rasio).toFixed(2)} W/m²).`}
-                {!checkSampingTol && ` Jarak samping di luar standar (${Number(sideMargin).toFixed(2)}m).`}
-                {!checkBarisTol && ` Jarak baris terlalu lebar (${Number(rowSpacing).toFixed(2)}m).`}
-              </div>
+            const cardBg = "linear-gradient(135deg, #f0fdf4, #dcfce7)"
+            const cardBorder = "1.5px solid #bbf7d0"
+            const cardTitleColor = "#15803d"
+            const cardTitle = "Rekomendasi Penataan Lampu"
+            const cardCountColor = "#166534"
+            const cardUnitColor = "#16a34a"
+            const cardDescription = (
+              <span style={{ color: "#166534" }}>
+                Grid {rows}×{lampsPerRow} merupakan tata letak pencahayaan standar toko (Rasio: {Number(rasio).toFixed(2)} W/m², Jarak samping: {Number(sideMargin).toFixed(2)}m, Jarak baris: {Number(rowSpacing).toFixed(2)}m).
+              </span>
             )
-
-            if (isIdeal) {
-              cardBg = "linear-gradient(135deg, #f0fdf4, #dcfce7)"
-              cardBorder = "1.5px solid #bbf7d0"
-              cardTitleColor = "#15803d"
-              cardTitle = "Standar Ideal"
-              cardCountColor = "#166534"
-              cardUnitColor = "#16a34a"
-              cardDescription = (
-                <span>
-                  Grid {rows}×{lampsPerRow} ({totalLamps} unit) memenuhi semua standar ideal layout dan energi (Rasio: {Number(rasio).toFixed(2)} W/m², Jarak samping: {Number(sideMargin).toFixed(2)}m, Jarak baris: {Number(rowSpacing).toFixed(2)}m).
-                </span>
-              )
-            } else if (isToleransi) {
-              cardBg = "linear-gradient(135deg, #eff6ff, #dbeafe)"
-              cardBorder = "1.5px solid #bfdbfe"
-              cardTitleColor = "#1d4ed8"
-              cardTitle = "Standar Toleransi (Penyesuaian Denah)"
-              cardCountColor = "#1e40af"
-              cardUnitColor = "#2563eb"
-              cardDescription = (
-                <span style={{ color: "#1e3a8a" }}>
-                  Grid {rows}×{lampsPerRow} ({totalLamps} unit) disesuaikan dengan denah toko dan merupakan tata letak paling optimal (Rasio: {Number(rasio).toFixed(2)} W/m², Jarak samping: {Number(sideMargin).toFixed(2)}m, Jarak baris: {Number(rowSpacing).toFixed(2)}m).
-                </span>
-              )
-            }
 
             const displayRange = minLamps && maxLamps && minLamps !== maxLamps ? `${minLamps}–${maxLamps}` : `${totalLamps}`
 
@@ -408,16 +356,6 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
                     }}
                   >
                     Unit LED
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "8px",
-                      color: "#6b7280",
-                      marginTop: "1px",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    (Acuan: {totalLamps} Unit)
                   </div>
                 </div>
               </div>
