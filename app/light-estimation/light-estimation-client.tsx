@@ -1725,8 +1725,17 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
       lamps = placeLamps(pts, activeJarakPerbaris, activeJarakSamping, "h", lampLen, 0, activeBaris, activeLpb)
       if (lamps.length > 0) {
-        nRow = activeBaris
-        nPerRow = activeLpb
+        // Group by y coordinate to determine actual rows and lamps per row drawn in the polygon
+        const yGroups = new Map<number, number>()
+        lamps.forEach((l) => {
+          const roundedY = Math.round(l.y * 100) / 100
+          yGroups.set(roundedY, (yGroups.get(roundedY) || 0) + 1)
+        })
+        const actualRowsCount = yGroups.size
+        const actualMaxPerRow = yGroups.size > 0 ? Math.max(...yGroups.values()) : activeLpb
+
+        nRow = actualRowsCount > 0 ? actualRowsCount : activeBaris
+        nPerRow = actualMaxPerRow > 0 ? actualMaxPerRow : activeLpb
         rowSpacing = activeJarakPerbaris
       }
     }
@@ -2866,9 +2875,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         {/* Box 1: Titik Lampu Aktif */}
                         <div className="bg-background/90 dark:bg-background/70 rounded-xl p-3 border border-border/70 flex flex-col justify-between shadow-2xs">
                           <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between gap-1">
-                            <span>Titik Lampu Aktif</span>
+                            <span>Titik Lampu Terpasang</span>
                             <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
-                              Grid {stats.nRow}×{stats.nPerRow}
+                              {stats.n === stats.nRow * stats.nPerRow ? `Grid ${stats.nRow}×${stats.nPerRow}` : `Grid Acuan ${stats.nRow}×${stats.nPerRow}`}
                             </span>
                           </div>
                           <div className="my-1">
@@ -2877,7 +2886,11 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                           </div>
                           <div className="text-[10px] text-muted-foreground font-medium pt-1.5 border-t border-border/40 flex items-center justify-between gap-1">
                             <span>Susunan Matriks:</span>
-                            <b className="text-foreground font-bold text-[10.5px]">{stats.nRow} baris × {stats.nPerRow} unit</b>
+                            <b className="text-foreground font-bold text-[10.5px]">
+                              {stats.n === stats.nRow * stats.nPerRow
+                                ? `${stats.nRow} baris × ${stats.nPerRow} unit (${stats.n} titik)`
+                                : `${stats.nRow} baris × ${stats.nPerRow} kolom (${stats.n} titik di dalam denah)`}
+                            </b>
                           </div>
                         </div>
 

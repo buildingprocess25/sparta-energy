@@ -267,7 +267,20 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
             <Row label="Luas Ruangan" value={`${area.toFixed(1)} m²`} />
             <Row label="Spesifikasi LED" value={`${watt}W · ${lampLen}m`} />
             <Row label="Rentang Titik Lampu" value={minLamps && maxLamps && minLamps !== maxLamps ? `${minLamps} – ${maxLamps} Titik` : `${totalLamps} Titik`} />
-            <Row label="Grid Layout Acuan" value={`${rows} Baris × ${lampsPerRow} Kolom (${totalLamps} Unit)`} />
+            <Row 
+              label="Grid Layout Acuan" 
+              value={
+                rows * lampsPerRow === totalLamps
+                  ? `${rows} Baris × ${lampsPerRow} Kolom (${totalLamps} Unit)`
+                  : `${rows} Baris × ${lampsPerRow} Kolom (Maks. ${rows * lampsPerRow} Unit)`
+              } 
+            />
+            {rows * lampsPerRow !== totalLamps && (
+              <Row 
+                label="Titik Lampu Terpasang" 
+                value={`${totalLamps} Unit (Disesuaikan Bentuk Denah)`} 
+              />
+            )}
             <Row label="Jarak Antar Baris" value={`${Number(rowSpacing).toFixed(2)} m`} />
             <Row label="Jarak Samping" value={`${Number(sideMargin).toFixed(2)} m`} />
             <Row 
