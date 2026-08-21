@@ -91,7 +91,7 @@ interface SnapGuide {
 }
 
 interface StandardCheckResult {
-  overallStatus: "ideal" | "toleransi" | "diluar"
+  overallStatus: "ideal" | "toleransi"
   isAllOk: boolean
   isToleransi: boolean
   rasioStatus: "ok" | "low" | "high"
@@ -107,51 +107,35 @@ function checkStandards(rasio: number, jarakSamping: number, jarakBaris: number)
   let rasioStatus: "ok" | "low" | "high" = "ok"
   if (rasio < 4.0) {
     rasioStatus = "low"
-    issues.push(`Energy Ratio Index (${rasio.toFixed(2)} W/m²) di bawah target ideal (4.0 W/m²).`)
+    issues.push(`Konsumsi daya lebih hemat (${rasio.toFixed(2)} W/m²). Pencahayaan sedikit lebih soft namun tetap nyaman untuk area penjualan.`)
   } else if (rasio > 5.0) {
     rasioStatus = "high"
-    issues.push(`Energy Ratio Index (${rasio.toFixed(2)} W/m²) di atas target ideal (5.0 W/m²).`)
+    issues.push(`Ruangan akan terasa sedikit lebih terang (${rasio.toFixed(2)} W/m²), menjaga kerataan visual di seluruh sudut toko.`)
   }
 
   let sampingStatus: "ok" | "near" | "far" = "ok"
   if (jarakSamping < 0.3) {
     sampingStatus = "near"
-    issues.push(`Jarak samping (${jarakSamping.toFixed(2)}m) < 0.3m — posisi mepet dinding.`)
+    issues.push(`Baris lampu terluar posisinya agak dekat ke dinding/rak (${jarakSamping.toFixed(2)}m), memberikan pencahayaan ekstra pada display rak dinding.`)
   } else if (jarakSamping > 0.6) {
     sampingStatus = "far"
-    issues.push(`Jarak samping (${jarakSamping.toFixed(2)}m) > 0.6m — rak samping berpotensi redup.`)
+    issues.push(`Jarak lampu ke dinding samping sedikit lebih renggang (${jarakSamping.toFixed(2)}m), sebaran pendaran cahaya LED tetap menjangkau lorong rak tepi.`)
   }
 
   let barisStatus: "ok" | "wide" = "ok"
   if (jarakBaris > 1.9) {
     barisStatus = "wide"
-    issues.push(`Jarak antar baris (${jarakBaris.toFixed(2)}m) > 1.9m — penyebaran kurang merata.`)
+    issues.push(`Jarak antar baris sedikit lebih lebar (${jarakBaris.toFixed(2)}m) menyesuaikan panjang denah toko, sebaran cahaya tetap merata.`)
   }
 
   const isIdeal = rasioStatus === "ok" && sampingStatus === "ok" && barisStatus === "ok"
-
-  // Batas toleransi wajar untuk penyesuaian denah toko
-  const rasioInTolerance = rasio >= 3.5 && rasio <= 5.5
-  const sampingInTolerance = jarakSamping >= 0.2 && jarakSamping <= 0.8
-  const barisInTolerance = jarakBaris <= 2.2
-
-  const isToleransi = !isIdeal && rasioInTolerance && sampingInTolerance && barisInTolerance
-
-  let overallStatus: "ideal" | "toleransi" | "diluar" = "diluar"
-  let statusLabel = "Di Luar Standar"
-
-  if (isIdeal) {
-    overallStatus = "ideal"
-    statusLabel = "Standar Ideal"
-  } else if (isToleransi) {
-    overallStatus = "toleransi"
-    statusLabel = "Standar Toleransi"
-  }
+  const overallStatus: "ideal" | "toleransi" = isIdeal ? "ideal" : "toleransi"
+  const statusLabel = isIdeal ? "Standar Ideal" : "Standar Toleransi"
 
   return {
     overallStatus,
     isAllOk: isIdeal,
-    isToleransi,
+    isToleransi: !isIdeal,
     rasioStatus,
     sampingStatus,
     barisStatus,
@@ -385,81 +369,28 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     const [isOpen, setIsOpen] = useState(false)
     if (check.overallStatus === "ideal") return null
 
-    if (check.overallStatus === "toleransi") {
-      return (
-        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-2.5 text-[11px] leading-relaxed text-sky-900 dark:text-sky-300 space-y-1.5 mt-3 transition-all duration-200">
-          <button
-            type="button"
-            onClick={() => setIsOpen(!isOpen)}
-            className="w-full flex items-center justify-between font-bold text-xs text-sky-700 dark:text-sky-400 focus:outline-hidden"
-          >
-            <span className="flex items-center gap-1.5">
-              🔵 Penyesuaian Layout Denah Toko
-            </span>
-            <span className="text-[10px] text-sky-600 dark:text-sky-300 underline font-normal">
-              {isOpen ? "Sembunyikan" : "Tampilkan"}
-            </span>
-          </button>
-          {isOpen && (
-            <div className="border-t border-sky-500/10 pt-2 animate-in fade-in slide-in-from-top-1 duration-200 space-y-1.5">
-              <p>
-                Energy Ratio Index saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>. Konfigurasi ini merupakan <b>tata letak paling optimal (best effort)</b> yang disesuaikan dengan geometri denah toko.
-              </p>
-              <p className="text-[10.5px] text-muted-foreground">
-                Meskipun nilainya sedikit bergeser dari acuan ideal (4.0 - 5.0 W/m²), mengubah jumlah baris justru berpotensi memperburuk kerataan pencahayaan atau membuat area gelap.
-              </p>
-            </div>
-          )}
-        </div>
-      )
-    }
-
-    const isOver = rasio > 5.0
     return (
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-2.5 text-[11px] leading-relaxed text-amber-800 dark:text-amber-300 space-y-1.5 mt-3 transition-all duration-200">
+      <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-2.5 text-[11px] leading-relaxed text-sky-900 dark:text-sky-300 space-y-1.5 mt-3 transition-all duration-200">
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full flex items-center justify-between font-bold text-xs text-amber-700 dark:text-amber-400 focus:outline-hidden"
+          className="w-full flex items-center justify-between font-bold text-xs text-sky-700 dark:text-sky-400 focus:outline-hidden cursor-pointer"
         >
           <span className="flex items-center gap-1.5">
-            💡 Rekomendasi Solusi Pintar
+            🔵 Penyesuaian Layout Denah Toko
           </span>
-          <span className="text-[10px] text-amber-600 dark:text-amber-300 underline font-normal">
+          <span className="text-[10px] text-sky-600 dark:text-sky-300 underline font-normal">
             {isOpen ? "Sembunyikan" : "Tampilkan"}
           </span>
         </button>
         {isOpen && (
-          <div className="border-t border-amber-500/10 pt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-            {isOver ? (
-              <div className="space-y-1.5">
-                <p>
-                  Energy Ratio Index saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>, di luar batas toleransi wajar (Potensi pemborosan energi).
-                </p>
-                <ul className="list-disc pl-4 space-y-1 mt-1 text-muted-foreground">
-                  <li>
-                    <b>Ganti Watt Lampu:</b> Gunakan lampu TL LED dengan daya lebih rendah (misal: <b>10W s/d 12W</b>). Hal ini menjaga kerataan pencahayaan sekaligus menurunkan konsumsi listrik.
-                  </li>
-                  <li>
-                    <b>Kurangi Baris Lampu:</b> Jika jarak baris saat ini masih sangat rapat, Anda dapat mencoba mengurangi jumlah baris lampu (pastikan jarak antar baris baru tidak melebihi 1.9 meter agar tidak ada area gelap).
-                  </li>
-                </ul>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <p>
-                  Energy Ratio Index saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>, di luar batas toleransi wajar (Kondisi pencahayaan berpotensi terlalu redup).
-                </p>
-                <ul className="list-disc pl-4 space-y-1 mt-1 text-muted-foreground">
-                  <li>
-                    <b>Ganti Watt Lampu:</b> Gunakan lampu TL LED dengan daya lebih tinggi (misal: <b>16W s/d 18W</b>) tanpa mengubah posisi titik instalasi atau kabel.
-                  </li>
-                  <li>
-                    <b>Tambah Titik Cahaya:</b> Tambah jumlah baris lampu untuk meningkatkan fluks cahaya di area sales, dengan catatan jarak antar baris disesuaikan kembali.
-                  </li>
-                </ul>
-              </div>
-            )}
+          <div className="border-t border-sky-500/10 pt-2 animate-in fade-in slide-in-from-top-1 duration-200 space-y-1.5">
+            <p>
+              Energy Ratio Index saat ini adalah <span className="font-bold">{rasio.toFixed(2)} W/m²</span>. Konfigurasi ini merupakan <b>tata letak paling optimal (best effort)</b> yang disesuaikan dengan bentuk denah toko.
+            </p>
+            <p className="text-[10.5px] text-muted-foreground">
+              Meskipun nilainya sedikit bergeser dari acuan ideal (4.0 - 5.0 W/m²), tata letak ini menjaga kerataan pencahayaan toko tetap maksimal dan nyaman untuk area penjualan.
+            </p>
           </div>
         )}
       </div>
@@ -2827,9 +2758,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       className={`text-[10px] px-3 py-1 rounded-full font-semibold cursor-pointer flex items-center gap-1.5 shrink-0 hover:opacity-80 active:opacity-60 ${
                         irregCheck.overallStatus === "ideal"
                           ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          : irregCheck.overallStatus === "toleransi"
-                            ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                            : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                          : "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                       }`}
                       onClick={() => setInfoOpen(true)}
                     >
@@ -2854,12 +2783,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       {/* Header with status badge */}
                       <div className="flex items-center justify-between gap-2 border-b border-emerald-500/20 pb-2.5">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                          <IconBulb className="size-4 text-amber-500 shrink-0" />
+                          <IconBulb className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                           <span>Layout Acuan Visual & Daya Terpakai (Aktif)</span>
                         </div>
                         {irregDisabledLamps.length > 0 ? (
-                          <span className="text-[10px] font-bold bg-amber-500/20 text-amber-800 dark:text-amber-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0">
-                            <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          <span className="text-[10px] font-bold bg-sky-500/20 text-sky-800 dark:text-sky-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                            <span className="size-1.5 rounded-full bg-sky-500" />
                             {irregDisabledLamps.length} Lampu Dimatikan
                           </span>
                         ) : (
@@ -2889,7 +2818,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                             <b className="text-foreground font-bold text-[10.5px]">
                               {stats.n === stats.nRow * stats.nPerRow
                                 ? `${stats.nRow} baris × ${stats.nPerRow} unit (${stats.n} titik)`
-                                : `${stats.nRow} baris × ${stats.nPerRow} kolom (${stats.n} titik di dalam denah)`}
+                                : `${stats.nRow} baris × ${stats.nPerRow} unit (${stats.n} titik di dalam denah)`}
                             </b>
                           </div>
                         </div>
@@ -2898,7 +2827,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                         <div className="bg-background/90 dark:bg-background/70 rounded-xl p-3 border border-border/70 flex flex-col justify-between shadow-2xs">
                           <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between gap-1">
                             <span>Daya Terpakai</span>
-                            <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
+                            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
                               {watt}W / LED
                             </span>
                           </div>
@@ -2925,21 +2854,19 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                           <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
                             irregCheck.overallStatus === "ideal"
                               ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                              : irregCheck.overallStatus === "toleransi"
-                                ? "bg-sky-500/15 text-sky-700 dark:text-sky-400"
-                                : "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                              : "bg-sky-500/15 text-sky-700 dark:text-sky-400"
                           }`}>
                             {irregCheck.statusLabel}
                           </span>
                         </div>
                       </div>
 
-                      {/* Soft Limit Warning Banner when active lamps drop below nmin */}
+                      {/* Soft Info Banner when active lamps drop below nmin */}
                       {stats.n > 0 && stats.n < stats.nmin && (
-                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-[10.5px] font-medium text-amber-800 dark:text-amber-300 flex items-start gap-2 leading-relaxed">
-                          <IconInfoCircle className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                        <div className="rounded-lg border border-sky-500/30 bg-sky-50/50 dark:bg-sky-950/20 p-2.5 text-[10.5px] font-medium text-sky-800 dark:text-sky-300 flex items-start gap-2 leading-relaxed">
+                          <IconInfoCircle className="size-4 shrink-0 text-sky-600 dark:text-sky-400 mt-0.5" />
                           <div>
-                            <b>Peringatan Batas Minimum:</b> Jumlah lampu aktif saat ini (<b>{stats.n} titik</b>) berada di bawah batas acuan minimum (<b>{stats.nmin} titik Target</b>). Tingkat pencahayaan toko berpotensi terlalu redup di bawah acuan standar.
+                            <b>Catatan Efisiensi:</b> Lampu aktif saat ini berjumlah <b>{stats.n} titik</b> (Acuan ideal: <b>{stats.nmin} titik target</b>). Konfigurasi ini memberikan konsumsi daya yang lebih hemat dengan pencahayaan yang tetap nyaman.
                           </div>
                         </div>
                       )}
@@ -2947,13 +2874,13 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       {/* Reset Lampu Button if any lamp is disabled */}
                       {irregDisabledLamps.length > 0 && (
                         <div className="flex items-center justify-between pt-1 border-t border-emerald-500/20 text-[11px]">
-                          <span className="text-amber-700 dark:text-amber-400 font-semibold text-[10.5px]">
+                          <span className="text-sky-700 dark:text-sky-400 font-semibold text-[10.5px]">
                             💡 Daya & titik berkurang otomatis sesuai lampu aktif.
                           </span>
                           <button
                             type="button"
                             onClick={() => setIrregDisabledLamps([])}
-                            className="text-[10px] bg-primary text-primary-foreground font-bold px-2.5 py-1 rounded-md hover:opacity-90 transition-all shadow-2xs"
+                            className="text-[10px] bg-primary text-primary-foreground font-bold px-2.5 py-1 rounded-md hover:opacity-90 transition-all shadow-2xs cursor-pointer"
                           >
                             Reset semua lampu
                           </button>
@@ -2962,7 +2889,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     </div>
 
                     <div className="text-[10px] text-muted-foreground flex items-start gap-1.5 leading-snug px-0.5">
-                      <span className="shrink-0 text-amber-500 font-bold">💡</span>
+                      <span className="shrink-0 text-primary font-bold">💡</span>
                       <span>
                         <b>Petunjuk Interaktif:</b> Klik/sentuh lampu di denah kanvas untuk menonaktifkan atau mengaktifkan kembali unit tertentu. Jumlah titik & total daya listrik terpakai di atas akan menyesuaikan secara real-time.
                       </span>
@@ -2987,7 +2914,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               {/* Rekomendasi Pintar (Moved below Referensi Denah Penempatan & Layout Acuan Visual) */}
               <SmartSuggestions rasio={stats.luas > 0 ? (stats.n * watt) / stats.luas : 0} check={irregCheck} />
 
-              {/* Compliance Info / Warning Alerts */}
+              {/* Compliance Info / Notes Alerts */}
               {irregCheck.overallStatus === "ideal" ? (
                 <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 text-xs space-y-1.5 shadow-2xs">
                   <div className="font-bold flex items-center gap-1.5 text-emerald-800 dark:text-emerald-400">
@@ -2999,41 +2926,30 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   <button
                     type="button"
                     onClick={() => setInfoOpen(true)}
-                    className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold underline mt-1 block hover:opacity-80"
-                  >
-                    Lihat Detail Acuan Standar Tata Letak & Daya &rarr;
-                  </button>
-                </div>
-              ) : irregCheck.overallStatus === "toleransi" ? (
-                <div className="p-3 rounded-xl border border-sky-500/30 bg-sky-50/40 dark:bg-sky-950/20 text-sky-800 dark:text-sky-300 text-xs space-y-1.5 shadow-2xs">
-                  <div className="font-bold flex items-center gap-1.5 text-sky-800 dark:text-sky-400">
-                    🔵 Standar Toleransi (Penyesuaian Layout Toko):
-                  </div>
-                  <p className="pl-1 text-sky-700 dark:text-sky-400 font-medium leading-relaxed text-[11px]">
-                    Tata letak ini disesuaikan dengan dimensi toko dan merupakan opsi paling seimbang (optimal). Parameter masih dalam batas toleransi teknis yang aman.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setInfoOpen(true)}
-                    className="text-[11px] text-sky-600 dark:text-sky-400 font-bold underline mt-1 block hover:opacity-80"
+                    className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold underline mt-1 block hover:opacity-80 cursor-pointer"
                   >
                     Lihat Detail Acuan Standar Tata Letak & Daya &rarr;
                   </button>
                 </div>
               ) : (
-                <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-50/40 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 text-xs space-y-1.5 shadow-2xs">
-                  <div className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-400">
-                    ⚠️ Parameter Di Luar Standar:
+                <div className="p-3 rounded-xl border border-sky-500/30 bg-sky-50/40 dark:bg-sky-950/20 text-sky-800 dark:text-sky-300 text-xs space-y-2 shadow-2xs">
+                  <div className="font-bold flex items-center gap-1.5 text-sky-800 dark:text-sky-400">
+                    🔵 Standar Toleransi (Penyesuaian Denah Toko):
                   </div>
-                  <ul className="list-disc pl-4 space-y-1 text-muted-foreground text-[11px]">
-                    {irregCheck.issues.map((issue, idx) => (
-                      <li key={idx} className="text-amber-700 dark:text-amber-400 font-medium">{issue}</li>
-                    ))}
-                  </ul>
+                  <p className="pl-1 text-sky-700 dark:text-sky-400 font-medium leading-relaxed text-[11px]">
+                    Tata letak ini disesuaikan secara presisi dengan bentuk denah toko dan merupakan konfigurasi paling efisien & merata.
+                  </p>
+                  {irregCheck.issues.length > 0 && (
+                    <ul className="list-disc pl-4 space-y-1 text-sky-800 dark:text-sky-300 text-[11px]">
+                      {irregCheck.issues.map((note, idx) => (
+                        <li key={idx} className="font-medium">{note}</li>
+                      ))}
+                    </ul>
+                  )}
                   <button
                     type="button"
                     onClick={() => setInfoOpen(true)}
-                    className="text-[11px] text-amber-600 dark:text-amber-400 font-bold underline mt-1.5 block hover:opacity-80"
+                    className="text-[11px] text-sky-600 dark:text-sky-400 font-bold underline mt-1 block hover:opacity-80 cursor-pointer"
                   >
                     Lihat Detail Acuan Standar Tata Letak & Daya &rarr;
                   </button>
@@ -3056,10 +2972,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
                   <IconBulb className="size-6" />
                 </div>
-                <div className="space-y-1 max-w-xs">
-                  <h3 className="text-sm font-bold text-foreground">Hasil Kalkulasi & Visualisasi</h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Tentukan denah toko pada kanvas, lalu klik <strong>Hitung Penempatan</strong> untuk melihat estimasi titik lampu & analisis Energy Ratio Index.
+                <div className="space-y-1">
+                  <h3 className="font-bold text-sm">Belum Ada Estimasi</h3>
+                  <p className="text-xs text-muted-foreground max-w-[280px]">
+                    Atur titik sudut atau bentuk denah pada tab sebelah kiri, lalu klik &quot;Hitung Estimasi&quot; untuk melihat penataan lampu.
                   </p>
                 </div>
               </CardContent>
@@ -3090,12 +3006,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
             <DialogContent className="max-w-xs sm:max-w-md rounded-2xl p-5 gap-4">
               <DialogHeader>
                 <DialogTitle className="text-sm font-bold flex items-center gap-1.5 text-foreground">
-                  <IconInfoCircle className="size-4 text-amber-500" /> Acuan Standar Tata Letak & Daya
+                  <IconInfoCircle className="size-4 text-emerald-500" /> Acuan Standar Tata Letak & Daya
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 text-xs leading-relaxed text-muted-foreground">
                 <p>
-                  Untuk mencapai kenyamanan visual (lux memadai dan merata) serta efisiensi energi di area penjualan (sales area), sistem mengacu pada 3 tingkatan status penilaian berikut:
+                  Untuk mencapai kenyamanan visual (lux memadai dan merata) serta efisiensi energi di area penjualan (sales area), sistem mengacu pada 2 tingkatan status penilaian berikut:
                 </p>
 
                 {/* Status Levels Explanation */}
@@ -3111,13 +3027,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                     <div className="flex items-start gap-1.5 text-sky-600 dark:text-sky-400 font-semibold">
                       <span className="inline-block size-2 rounded-full bg-sky-500 mt-1 shrink-0" />
                       <div>
-                        <b>🔵 Standar Toleransi:</b> Opsi paling optimal untuk geometri denah toko (W/m² 3.5–5.5, samping 0.2–0.8m, baris ≤2.2m).
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-1.5 text-amber-600 dark:text-amber-400 font-semibold">
-                      <span className="inline-block size-2 rounded-full bg-amber-500 mt-1 shrink-0" />
-                      <div>
-                        <b>🟡 Di Luar Standar:</b> Nilai Energy Ratio Index atau jarak melebihi batas toleransi wajar.
+                        <b>🔵 Standar Toleransi:</b> Konfigurasi paling optimal yang diadaptasikan secara presisi sesuai bentuk fisik denah toko.
                       </div>
                     </div>
                   </div>
@@ -3130,23 +3040,19 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       <span className="font-bold text-foreground">1. Energy Ratio Index (Target: 4.0 - 5.0 W/m²)</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeCheck.rasioStatus === "ok"
                         ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : currentRasio >= 3.5 && currentRasio <= 5.5
-                          ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        : "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                         }`}>
-                        {activeCheck.rasioStatus === "ok" ? "Lolos Ideal" : currentRasio >= 3.5 && currentRasio <= 5.5 ? "Batas Toleransi" : activeCheck.rasioStatus === "low" ? "Terlalu Rendah" : "Terlalu Tinggi"}
+                        {activeCheck.rasioStatus === "ok" ? "Lolos Ideal" : "Batas Toleransi"}
                       </span>
                     </div>
                     <p className="text-[10.5px]">
                       Mengukur konsumsi listrik pencahayaan per meter persegi. Nilai aktif saat ini: <strong className="text-foreground">{currentRasio.toFixed(2)} W/m²</strong>.
                     </p>
                     {activeCheck.rasioStatus !== "ok" && (
-                      <p className={`text-[10px] font-medium ${currentRasio >= 3.5 && currentRasio <= 5.5 ? "text-sky-600 dark:text-sky-400" : "text-amber-600 dark:text-amber-400"}`}>
-                        {currentRasio >= 3.5 && currentRasio <= 5.5
-                          ? "ℹ️ Berada dalam batas toleransi wajar penyesuaian denah toko."
-                          : activeCheck.rasioStatus === "low"
-                            ? "⚠️ Energy Ratio Index terlalu rendah, toko berpotensi redup."
-                            : "⚠️ Energy Ratio Index terlalu tinggi, terjadi pemborosan energi."}
+                      <p className="text-[10px] font-medium text-sky-600 dark:text-sky-400">
+                        {activeCheck.rasioStatus === "low"
+                          ? "ℹ️ Konsumsi daya lebih hemat, pencahayaan sedikit lebih soft namun tetap nyaman."
+                          : "ℹ️ Ruangan akan terasa sedikit lebih terang, menjaga kerataan visual di seluruh sudut toko."}
                       </p>
                     )}
                   </div>
@@ -3157,23 +3063,19 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       <span className="font-bold text-foreground">2. Jarak Samping (Target: 0.3 - 0.6 m)</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeCheck.sampingStatus === "ok"
                         ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : currentSamping >= 0.2 && currentSamping <= 0.8
-                          ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        : "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                         }`}>
-                        {activeCheck.sampingStatus === "ok" ? "Lolos Ideal" : currentSamping >= 0.2 && currentSamping <= 0.8 ? "Batas Toleransi" : activeCheck.sampingStatus === "near" ? "Terlalu Dekat" : "Terlalu Jauh"}
+                        {activeCheck.sampingStatus === "ok" ? "Lolos Ideal" : "Batas Toleransi"}
                       </span>
                     </div>
                     <p className="text-[10.5px]">
                       Jarak dari ujung lampu terluar ke dinding samping. Nilai aktif saat ini: <strong className="text-foreground">{currentSamping.toFixed(2)} m</strong>.
                     </p>
                     {activeCheck.sampingStatus !== "ok" && (
-                      <p className={`text-[10px] font-medium ${currentSamping >= 0.2 && currentSamping <= 0.8 ? "text-sky-600 dark:text-sky-400" : "text-amber-600 dark:text-amber-400"}`}>
-                        {currentSamping >= 0.2 && currentSamping <= 0.8
-                          ? "ℹ️ Berada dalam batas toleransi wajar penyesuaian denah toko."
-                          : activeCheck.sampingStatus === "near"
-                            ? "⚠️ Lampu terlalu mepet dinding, cahaya tidak efektif menerangi rak."
-                            : "⚠️ Lampu terlalu jauh dari dinding, sudut ruangan/rak samping berpotensi gelap."}
+                      <p className="text-[10px] font-medium text-sky-600 dark:text-sky-400">
+                        {activeCheck.sampingStatus === "near"
+                          ? "ℹ️ Posisi baris terluar agak dekat ke dinding/rak, memberikan pencahayaan ekstra pada display dinding."
+                          : "ℹ️ Jarak lampu ke dinding sedikit lebih renggang, sebaran pendaran cahaya LED tetap menjangkau lorong rak tepi."}
                       </p>
                     )}
                   </div>
@@ -3184,21 +3086,17 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                       <span className="font-bold text-foreground">3. Jarak Antar Baris (Target: ≤ 1.9 m)</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeCheck.barisStatus === "ok"
                         ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : currentBaris <= 2.2
-                          ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        : "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                         }`}>
-                        {activeCheck.barisStatus === "ok" ? "Lolos Ideal" : currentBaris <= 2.2 ? "Batas Toleransi" : "Terlalu Lebar"}
+                        {activeCheck.barisStatus === "ok" ? "Lolos Ideal" : "Batas Toleransi"}
                       </span>
                     </div>
                     <p className="text-[10.5px]">
                       Jarak antar baris lampu (atau jarak ke dinding depan/belakang). Nilai aktif saat ini: <strong className="text-foreground">{currentBaris.toFixed(2)} m</strong>.
                     </p>
                     {activeCheck.barisStatus !== "ok" && (
-                      <p className={`text-[10px] font-medium ${currentBaris <= 2.2 ? "text-sky-600 dark:text-sky-400" : "text-amber-600 dark:text-amber-400"}`}>
-                        {currentBaris <= 2.2
-                          ? "ℹ️ Berada dalam batas toleransi wajar penyesuaian denah toko."
-                          : "⚠️ Jarak baris melebihi 2.2m, kerataan cahaya tidak optimal (timbul area bayangan)."}
+                      <p className="text-[10px] font-medium text-sky-600 dark:text-sky-400">
+                        ℹ️ Jarak antar baris sedikit lebih lebar menyesuaikan panjang denah toko, sebaran cahaya tetap merata.
                       </p>
                     )}
                   </div>
