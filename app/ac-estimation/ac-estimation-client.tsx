@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner"
 import { getTemperature } from "@/app/actions/get-temperature"
 import { getRabData } from "@/app/actions/get-rab-data"
+import { saveAcEstimationLog } from "@/app/actions/save-ac-estimation-log"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Drawer,
@@ -276,13 +277,15 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
   }
 
   const handleSaveImage = async () => {
-    if (!resultCardRef.current) return
+    if (!resultCardRef.current || !result) return
     setIsSaving(true)
     try {
       const storeLabel =
         storeMode === "existing"
           ? (selectedStore?.code ?? "toko")
           : newStoreCode || "toko"
+
+      // 1. Unduh Gambar Bukti Hasil Estimasi
       const dataUrl = await toPng(resultCardRef.current, {
         pixelRatio: 2,
         cacheBust: true,
@@ -298,14 +301,43 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       link.href = blobUrl
       link.click()
 
-      toast.success("Gambar hasil estimasi berhasil diunduh!")
+      toast.success("Hasil estimasi berhasil disimpan!")
 
       setTimeout(() => {
         URL.revokeObjectURL(blobUrl)
       }, 100)
+
+      // 2. Kirim Log Validasi ke Google Sheets di Background (Silent Logging)
+      const storeCode =
+        storeMode === "existing" ? (selectedStore?.code ?? "") : newStoreCode
+      const storeName =
+        storeMode === "existing" ? (selectedStore?.name ?? "") : newStoreName
+      const branch =
+        storeMode === "existing" ? (selectedStore?.branch ?? "") : newStoreBranch
+
+      saveAcEstimationLog({
+        storeCode,
+        storeName,
+        branch,
+        salesArea: result.area,
+        maxTemp: result.maxTemp,
+        clusterBtu: result.clusterBtu,
+        totalBtu: result.totalBtu,
+        recommendedUnits: result.acUnits,
+        latitude: position[0],
+        longitude: position[1],
+        notes: "Validasi kalkulator AC",
+      }).then((logRes) => {
+        if (!logRes.success) {
+          console.warn("[Google Sheets Log]", logRes.error)
+        }
+      }).catch((err) => {
+        console.warn("[Google Sheets Log] Error:", err)
+      })
+
     } catch (err) {
       console.error(err)
-      toast.error("Gagal mengunduh gambar hasil estimasi.")
+      toast.error("Gagal menyimpan hasil estimasi.")
     } finally {
       setIsSaving(false)
     }
