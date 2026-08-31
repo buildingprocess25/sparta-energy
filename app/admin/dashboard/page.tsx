@@ -210,7 +210,7 @@ const monthNumberByLabel: Record<string, number> = {
 
 const trendMonthFormatter = new Intl.DateTimeFormat("id-ID", {
   month: "short",
-  year: "2-digit",
+  year: "numeric",
 })
 
 function normalizeTrendMonth(
@@ -292,7 +292,6 @@ function getConsumptionTrend(audits: CompletedAuditRow[]) {
 
   return Array.from(grouped.values())
     .sort((a, b) => a.sortValue - b.sortValue)
-    .slice(-6)
     .map((item) => ({
       month: item.month,
       actualPln: item.count > 0 ? Math.round(item.actualTotal / item.count) : 0,

@@ -4,7 +4,6 @@ import { IconArrowRight } from "@tabler/icons-react"
 
 import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
-import { DemoLoginButton } from "@/components/demo-login-button"
 import landingImage from "../assets/landing.png"
 
 export default function Page() {
@@ -44,14 +43,11 @@ export default function Page() {
           size="lg"
           className="w-full rounded-2xl text-base font-semibold"
         >
-          {/*nanti ganti ke login*/}
           <Link href="/login">
             Mulai Sekarang
             <IconArrowRight data-icon="inline-end" />
           </Link>
         </Button>
-
-        <DemoLoginButton />
       </div>
     </main>
   )

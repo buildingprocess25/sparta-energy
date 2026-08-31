@@ -13,6 +13,10 @@ import {
   YAxis,
 } from "recharts"
 
+import { useState, useMemo, useEffect } from "react"
+import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react"
+import { Button } from "@/components/ui/button"
+
 import {
   type ChartConfig,
   ChartContainer,
@@ -73,6 +77,8 @@ function formatTooltipValue(value: unknown, key: string) {
   return `${formatK(value)} kWh`
 }
 
+const PAGE_SIZE = 6
+
 export function ConsumptionTrendChart({
   data,
   showBaseline = true,
@@ -80,15 +86,80 @@ export function ConsumptionTrendChart({
   data: ConsumptionTrendPoint[]
   showBaseline?: boolean
 }) {
+  const [startIndex, setStartIndex] = useState(() =>
+    Math.max(0, data.length - PAGE_SIZE)
+  )
+
+  useEffect(() => {
+    setStartIndex(Math.max(0, data.length - PAGE_SIZE))
+  }, [data.length])
+
+  const clampedStartIndex = Math.min(
+    Math.max(0, data.length - PAGE_SIZE),
+    Math.max(0, startIndex)
+  )
+
+  const visibleData = useMemo(() => {
+    if (data.length <= PAGE_SIZE) return data
+    return data.slice(clampedStartIndex, clampedStartIndex + PAGE_SIZE)
+  }, [data, clampedStartIndex])
+
+  const canGoPrev = clampedStartIndex > 0
+  const canGoNext = clampedStartIndex + PAGE_SIZE < data.length
+
   return (
-    <ChartContainer
-      config={consumptionChartConfig}
-      className="aspect-auto h-72 w-full"
-    >
-      <AreaChart
-        data={data}
-        margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
+    <div className="flex flex-col gap-2">
+      {data.length > PAGE_SIZE && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-muted-foreground">
+          <span className="font-medium">
+            Periode: <strong className="text-foreground">{visibleData[0]?.month}</strong> s/d{" "}
+            <strong className="text-foreground">
+              {visibleData[visibleData.length - 1]?.month}
+            </strong>{" "}
+            <span className="text-[11px] font-normal text-muted-foreground/80">
+              ({data.length} bulan data)
+            </span>
+          </span>
+
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              disabled={!canGoPrev}
+              onClick={() => setStartIndex((prev) => Math.max(0, prev - 1))}
+            >
+              <IconChevronLeft className="size-3.5" />
+              <span>Sebelumnya</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              disabled={!canGoNext}
+              onClick={() =>
+                setStartIndex((prev) =>
+                  Math.min(Math.max(0, data.length - PAGE_SIZE), prev + 1)
+                )
+              }
+            >
+              <span>Berikutnya</span>
+              <IconChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <ChartContainer
+        config={consumptionChartConfig}
+        className="aspect-auto h-72 w-full"
       >
+        <AreaChart
+          data={visibleData}
+          margin={{ top: 12, right: 12, left: -12, bottom: 0 }}
+        >
         <defs>
           <linearGradient id="actualFill" x1="0" y1="0" x2="0" y2="1">
             <stop
@@ -168,7 +239,8 @@ export function ConsumptionTrendChart({
           fill="url(#actualFill)"
         />
       </AreaChart>
-    </ChartContainer>
+      </ChartContainer>
+    </div>
   )
 }
 

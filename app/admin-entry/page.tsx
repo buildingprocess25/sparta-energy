@@ -34,46 +34,45 @@ export default async function AdminEntryPage() {
           </p>
 
           <p className="max-w-xs text-sm leading-6 text-muted-foreground">
-            Masuk sebagai auditor untuk audit semua toko, atau buka dashboard
-            center admin untuk monitoring lintas cabang.
+            Pilih peran untuk melanjutkan.
           </p>
         </div>
 
         <div className="grid gap-3">
           <Link
             href="/dashboard"
-            className="group flex min-h-32 items-center gap-4 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-colors hover:bg-muted/50"
+            className="group flex items-center gap-4 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-colors hover:bg-muted/50"
           >
             <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <IconClipboardCheck className="size-6" />
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-lg font-semibold">Mode Auditor</span>
-              <span className="mt-1 block text-sm leading-5 text-muted-foreground">
-                Buka dashboard auditor dengan akses semua cabang aktif.
+            <span className="min-w-0 flex-1 space-y-0.5">
+              <span className="block text-base font-semibold leading-tight">Mode Auditor</span>
+              <span className="block text-sm leading-tight text-muted-foreground">
+                Audit energi toko
               </span>
-              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                (Saran gunakan mobile untuk mode ini)
+              <span className="block text-xs leading-tight text-muted-foreground/80">
+                (Disarankan Mobile)
               </span>
             </span>
           </Link>
 
           <Link
             href="/admin/dashboard"
-            className="group flex min-h-32 items-center gap-4 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-colors hover:bg-muted/50"
+            className="group flex items-center gap-4 rounded-2xl border bg-card p-4 text-card-foreground shadow-sm transition-colors hover:bg-muted/50"
           >
             <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
               <IconLayoutDashboard className="size-6" />
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-lg font-semibold">
+            <span className="min-w-0 flex-1 space-y-0.5">
+              <span className="block text-base font-semibold leading-tight">
                 Dashboard Admin
               </span>
-              <span className="mt-1 block text-sm leading-5 text-muted-foreground">
-                Pantau performa toko, cabang, tren PLN, dan prioritas audit.
+              <span className="block text-sm leading-tight text-muted-foreground">
+                Monitoring & analitik cabang
               </span>
-              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                (Saran gunakan desktop untuk mode ini)
+              <span className="block text-xs leading-tight text-muted-foreground/80">
+                (Disarankan Desktop)
               </span>
             </span>
           </Link>
