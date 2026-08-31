@@ -6,8 +6,8 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm (match lockfile version 9)
+RUN npm install -g pnpm@9
 
 # Install dependencies based on pnpm-lock.yaml
 COPY package.json pnpm-lock.yaml* ./
@@ -16,7 +16,7 @@ RUN pnpm install --frozen-lockfile
 # 2. Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
-RUN npm install -g pnpm
+RUN npm install -g pnpm@9
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
