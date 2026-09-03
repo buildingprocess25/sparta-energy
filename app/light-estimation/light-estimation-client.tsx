@@ -1312,27 +1312,149 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         }
       })
 
-      // Draw JS and JB dimension lines
-      if (showDimensions) {
-        // Draw JS
-        if (columnClusters.length > 0) {
-          const leftWallX = sc.offX + (sc.minX ?? 0) * sc.scale
-          const firstColX = sc.offX + columnClusters[0].avgX * sc.scale
-          const jsY = sc.offY + (sc.minY ?? 0) * sc.scale + 15
-          drawArrow(leftWallX, jsY, firstColX, jsY, isDark ? "rgba(239,68,68,0.8)" : "rgba(220,38,38,0.9)", `JS ${usedMargin.toFixed(2)}m`)
-        }
-        // Draw JB
-        if (uniqueYs.length > 0) {
-          const jbX = sc.offX + (sc.minX ?? 0) * sc.scale + 20
-          if (uniqueYs.length > 1) {
-            const firstRowY = sc.offY + uniqueYs[0] * sc.scale
-            const secondRowY = sc.offY + uniqueYs[1] * sc.scale
-            drawArrow(jbX, firstRowY, jbX, secondRowY, isDark ? "rgba(16,185,129,0.8)" : "rgba(5,150,105,0.9)", `JB ${usedJarak.toFixed(2)}m`)
-          } else {
-            const topWallY = sc.offY + (sc.minY ?? 0) * sc.scale
-            const firstRowY = sc.offY + uniqueYs[0] * sc.scale
-            drawArrow(jbX, topWallY, jbX, firstRowY, isDark ? "rgba(16,185,129,0.8)" : "rgba(5,150,105,0.9)", `JB ${usedJarak.toFixed(2)}m`)
+      // Draw JS and JB dimension lines (CAD-Precision Wall-to-Lamp Measurements)
+      if (showDimensions && lamps.length > 0) {
+        // Sort lamps to find top-left lamp (A1) and second row lamp (B1)
+        const sortedLamps = [...lamps].sort((a, b) => {
+          const yDiff = a.y - b.y
+          if (Math.abs(yDiff) > 0.05) return yDiff
+          return a.x - b.x
+        })
+
+        const lampA1 = sortedLamps[0]
+        if (lampA1) {
+          const lampA1TipX = lampA1.x - lampLen / 2
+          const targetY = lampA1.y
+
+          // Find exact left wall intersection on polygon edge at y = targetY
+          let exactWallX = sc.minX ?? 0
+          let maxIntersectX = -Infinity
+          const nPts = pts.length
+          for (let i = 0; i < nPts; i++) {
+            const p1 = pts[i]
+            const p2 = pts[(i + 1) % nPts]
+            if ((p1.y <= targetY && p2.y >= targetY) || (p2.y <= targetY && p1.y >= targetY)) {
+              if (Math.abs(p2.y - p1.y) > 0.0001) {
+                const t = (targetY - p1.y) / (p2.y - p1.y)
+                const ix = p1.x + t * (p2.x - p1.x)
+                if (ix <= lampA1TipX + 0.05 && ix > maxIntersectX) {
+                  maxIntersectX = ix
+                }
+              }
+            }
           }
+          if (maxIntersectX !== -Infinity) {
+            exactWallX = maxIntersectX
+          }
+
+          const wallCanvasX = sc.offX + exactWallX * sc.scale
+          const lampTipCanvasX = sc.offX + lampA1TipX * sc.scale
+          const targetCanvasY = sc.offY + targetY * sc.scale
+          const jsDist = Math.max(0, lampA1TipX - exactWallX)
+
+          // Draw tick lines / extension lines for JS
+          ctx.save()
+          ctx.strokeStyle = isDark ? "rgba(239,68,68,0.5)" : "rgba(220,38,38,0.5)"
+          ctx.lineWidth = 0.6
+          ctx.setLineDash([2, 2])
+          // Tick at wall
+          ctx.beginPath()
+          ctx.moveTo(wallCanvasX, targetCanvasY - 6)
+          ctx.lineTo(wallCanvasX, targetCanvasY + 6)
+          ctx.stroke()
+          // Tick at lamp tip
+          ctx.beginPath()
+          ctx.moveTo(lampTipCanvasX, targetCanvasY - 6)
+          ctx.lineTo(lampTipCanvasX, targetCanvasY + 6)
+          ctx.stroke()
+          ctx.setLineDash([])
+          ctx.restore()
+
+          // Draw double-headed arrow from exact wall intersection to lamp A1 tip
+          drawArrow(
+            wallCanvasX,
+            targetCanvasY,
+            lampTipCanvasX,
+            targetCanvasY,
+            isDark ? "rgba(239,68,68,0.9)" : "rgba(220,38,38,1)",
+            `JS ${jsDist.toFixed(2)}m (A1)`
+          )
+        }
+
+        // Draw JB (Jarak Antar Baris: A1 ke B1)
+        if (uniqueYs.length > 1) {
+          const rowAY = uniqueYs[0]
+          const rowBY = uniqueYs[1]
+          const lampInRowA = lamps.find(l => Math.abs(l.y - rowAY) < 0.01)
+          const lampInRowB = lamps.find(l => Math.abs(l.y - rowBY) < 0.01)
+
+          if (lampInRowA && lampInRowB) {
+            const jbX = sc.offX + (lampA1 ? lampA1.x : lampInRowA.x) * sc.scale
+            const firstRowY = sc.offY + rowAY * sc.scale
+            const secondRowY = sc.offY + rowBY * sc.scale
+            const jbDist = rowBY - rowAY
+
+            // Draw ticks for JB
+            ctx.save()
+            ctx.strokeStyle = isDark ? "rgba(16,185,129,0.5)" : "rgba(5,150,105,0.5)"
+            ctx.lineWidth = 0.6
+            ctx.setLineDash([2, 2])
+            ctx.beginPath()
+            ctx.moveTo(jbX - 6, firstRowY)
+            ctx.lineTo(jbX + 6, firstRowY)
+            ctx.moveTo(jbX - 6, secondRowY)
+            ctx.lineTo(jbX + 6, secondRowY)
+            ctx.stroke()
+            ctx.setLineDash([])
+            ctx.restore()
+
+            drawArrow(
+              jbX,
+              firstRowY,
+              jbX,
+              secondRowY,
+              isDark ? "rgba(16,185,129,0.9)" : "rgba(5,150,105,1)",
+              `JB ${jbDist.toFixed(2)}m (A-B)`
+            )
+          }
+        } else if (lampA1) {
+          // If only 1 row, measure from top wall to top edge of lamp
+          const targetX = lampA1.x
+          const lampTopY = lampA1.y - LAMP_TUBE_W / 2
+
+          let exactTopWallY = sc.minY ?? 0
+          let maxIntersectY = -Infinity
+          const nPts = pts.length
+          for (let i = 0; i < nPts; i++) {
+            const p1 = pts[i]
+            const p2 = pts[(i + 1) % nPts]
+            if ((p1.x <= targetX && p2.x >= targetX) || (p2.x <= targetX && p1.x >= targetX)) {
+              if (Math.abs(p2.x - p1.x) > 0.0001) {
+                const t = (targetX - p1.x) / (p2.x - p1.x)
+                const iy = p1.y + t * (p2.y - p1.y)
+                if (iy <= lampTopY + 0.05 && iy > maxIntersectY) {
+                  maxIntersectY = iy
+                }
+              }
+            }
+          }
+          if (maxIntersectY !== -Infinity) {
+            exactTopWallY = maxIntersectY
+          }
+
+          const jbCanvasX = sc.offX + targetX * sc.scale
+          const wallCanvasY = sc.offY + exactTopWallY * sc.scale
+          const lampCanvasY = sc.offY + lampTopY * sc.scale
+          const jbDist = Math.max(0, lampTopY - exactTopWallY)
+
+          drawArrow(
+            jbCanvasX,
+            wallCanvasY,
+            jbCanvasX,
+            lampCanvasY,
+            isDark ? "rgba(16,185,129,0.9)" : "rgba(5,150,105,1)",
+            `JB ${jbDist.toFixed(2)}m`
+          )
         }
       }
     }
