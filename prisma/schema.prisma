@@ -20,6 +20,8 @@ model User {
   audits        Audit[]
   sessions      Session[]
   accounts      Account[]
+  acCalculatorLogs    AcCalculatorLog[]
+  lightCalculatorLogs LightCalculatorLog[]
 
   @@map("users")
 }
@@ -202,4 +204,58 @@ enum RecommendationType {
   TRAINING
   REPAIR
   MAINTENANCE
+}
+
+enum StoreMode {
+  EXISTING
+  NEW
+}
+
+model AcCalculatorLog {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String?   @map("user_id") @db.Uuid
+  userEmail        String?   @map("user_email")
+  storeMode        StoreMode @default(EXISTING) @map("store_mode")
+  storeCode        String?   @map("store_code")
+  storeName        String?   @map("store_name")
+  branch           String?
+  salesArea        Decimal   @map("sales_area")
+  maxTemp          Decimal   @map("max_temp")
+  clusterBtu       Int       @map("cluster_btu")
+  totalBtu         Int       @map("total_btu")
+  recommendedUnits Int       @map("recommended_units")
+  latitude         Float?
+  longitude        Float?
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user             User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("ac_calculator_logs")
+}
+
+model LightCalculatorLog {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String?   @map("user_id") @db.Uuid
+  userEmail        String?   @map("user_email")
+  storeMode        StoreMode @default(EXISTING) @map("store_mode")
+  storeCode        String?   @map("store_code")
+  storeName        String?   @map("store_name")
+  branch           String?
+  salesArea        Decimal   @map("sales_area")
+  shapeType        String?   @map("shape_type")
+  dimensions       String?
+  lampWatt         Decimal   @map("lamp_watt")
+  minUnits         Int       @map("min_units")
+  maxUnits         Int       @map("max_units")
+  installedUnits   Int       @map("installed_units")
+  targetLux        Int?      @map("target_lux")
+  powerRatio       Decimal?  @map("power_ratio")
+  standardStatus   String?   @map("standard_status")
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user             User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("light_calculator_logs")
 }

@@ -18,6 +18,7 @@ import { toPng } from "html-to-image"
 import { toast } from "sonner"
 import { useTheme } from "next-themes"
 import { getRabData } from "@/app/actions/get-rab-data"
+import { saveLightEstimationLog } from "@/app/actions/save-light-estimation-log"
 import { LightEstimationResultCard, type LightEstimationResultCardData } from "@/components/audit/light-estimation-result-card"
 import {
   calcSimetris,
@@ -843,6 +844,33 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           link.click()
 
           toast.success("Gambar hasil estimasi berhasil diunduh!")
+
+          // Simpan log kalkulator lampu ke database
+          if (cardData) {
+            saveLightEstimationLog({
+              storeCode: cardData.storeCode,
+              storeName: cardData.storeName,
+              branch: cardData.storeBranch,
+              storeMode,
+              salesArea: cardData.area,
+              shapeType: cardData.shapeLabel,
+              dimensions: mode === "simetris" && simResult ? `${simResult.L} x ${simResult.W} m` : undefined,
+              lampWatt: cardData.watt,
+              minUnits: cardData.minLamps,
+              maxUnits: cardData.maxLamps,
+              installedUnits: cardData.totalLamps,
+              targetLux: 350,
+              powerRatio: cardData.rasio,
+              standardStatus: cardData.rasio >= 7.5 && cardData.rasio <= 11.5 ? "ideal" : "toleransi",
+              notes: `Kalkulator Lampu (${cardData.mode})`,
+            }).then((res) => {
+              if (!res.success) {
+                console.warn("[Light Estimation Log]", res.error)
+              }
+            }).catch((err) => {
+              console.warn("[Light Estimation Log] Error:", err)
+            })
+          }
 
           setTimeout(() => {
             URL.revokeObjectURL(blobUrl)

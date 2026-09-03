@@ -2,11 +2,13 @@
 
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
 
 export type SaveAcEstimationPayload = {
-  storeCode: string
-  storeName: string
-  branch: string
+  storeCode?: string | null
+  storeName?: string | null
+  branch?: string | null
+  storeMode?: "existing" | "new" | "EXISTING" | "NEW"
   salesArea: number
   maxTemp: number
   clusterBtu: number
@@ -18,19 +20,21 @@ export type SaveAcEstimationPayload = {
 }
 
 export type SaveAcEstimationResult =
-  | { success: true; message: string; updatedRange?: string }
+  | { success: true; message: string; updatedRange?: string; logId?: string }
   | { success: false; error: string }
 
-function requiredEnv(name: string): string {
-  const value = process.env[name]?.trim()
-  if (!value) throw new Error(`Environment variable ${name} belum diatur di server.`)
-  return value
+function getEnvOptional(name: string): string | undefined {
+  return process.env[name]?.trim()
 }
 
 async function fetchAccessToken(): Promise<string> {
-  const clientId = requiredEnv("GOOGLE_CLIENT_ID")
-  const clientSecret = requiredEnv("GOOGLE_CLIENT_SECRET")
-  const refreshToken = requiredEnv("GOOGLE_REFRESH_TOKEN")
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim()
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim()
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN?.trim()
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error("Google OAuth credentials are not fully configured in environment.")
+  }
 
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -63,103 +67,131 @@ export async function saveAcEstimationLog(
   payload: SaveAcEstimationPayload
 ): Promise<SaveAcEstimationResult> {
   try {
-    const spreadsheetId = process.env.GOOGLE_AC_LOG_SPREADSHEET_ID?.trim()
-    if (!spreadsheetId) {
-      return {
-        success: false,
-        error:
-          "GOOGLE_AC_LOG_SPREADSHEET_ID belum dikonfigurasi di file .env server.",
-      }
-    }
-
     // 1. Ambil info user yang sedang login (jika ada)
     let userIdentifier = "Tamu / Belum Login"
+    let loggedInUserId: string | null = null
+    let loggedInUserEmail: string | null = null
+
     try {
       const session = await auth.api.getSession({ headers: await headers() })
       if (session?.user) {
+        loggedInUserId = session.user.id
+        loggedInUserEmail = session.user.email || null
         userIdentifier = session.user.email || session.user.name || session.user.id
       }
     } catch {
       // Fallback jika tanpa session
     }
 
-    // 2. Format Waktu WIB (Asia/Jakarta)
-    const now = new Date()
-    const formatter = new Intl.DateTimeFormat("id-ID", {
-      timeZone: "Asia/Jakarta",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    })
-    const formattedTimestamp = formatter.format(now).replace(/\./g, ":")
+    const normalizedStoreMode =
+      payload.storeMode === "new" || payload.storeMode === "NEW"
+        ? "NEW"
+        : "EXISTING"
 
-    // 3. Format Koordinat
-    const coordinatesStr =
-      payload.latitude !== undefined &&
-      payload.latitude !== null &&
-      payload.longitude !== undefined &&
-      payload.longitude !== null
-        ? `${payload.latitude}, ${payload.longitude}`
-        : "-"
-
-    // 4. Baris Data Sesuai Header Google Sheet
-    // Kolom: Timestamp, Email/User, Kode Toko, Nama Toko, Cabang, Luas Sales, Suhu Max, Cluster BTU, Total BTU, Rekomendasi Unit, Koordinat, Catatan
-    const rowValues = [
-      formattedTimestamp,
-      userIdentifier,
-      payload.storeCode || "-",
-      payload.storeName || "-",
-      payload.branch || "-",
-      payload.salesArea,
-      payload.maxTemp,
-      payload.clusterBtu,
-      payload.totalBtu,
-      payload.recommendedUnits,
-      coordinatesStr,
-      payload.notes || "Validasi Kalkulator AC",
-    ]
-
-    // 5. Dapatkan Token & Kirim ke Google Sheets Append API
-    const accessToken = await fetchAccessToken()
-    const targetRange = encodeURIComponent("RAW_LOGS!A:L")
-    const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
-      spreadsheetId
-    )}/values/${targetRange}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`
-
-    const sheetResponse = await fetch(appendUrl, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        values: [rowValues],
-      }),
-    })
-
-    if (!sheetResponse.ok) {
-      const errorJson = await sheetResponse.json().catch(() => null)
-      console.error("[saveAcEstimationLog] Sheets API Error:", errorJson)
-      return {
-        success: false,
-        error:
-          errorJson?.error?.message ||
-          `Google Sheets API merespons dengan status error (${sheetResponse.status}).`,
-      }
+    // 2. Simpan ke Database (PostgreSQL via Prisma)
+    let savedLogId: string | undefined
+    try {
+      const dbLog = await (prisma as any).acCalculatorLog.create({
+        data: {
+          userId: loggedInUserId,
+          userEmail: loggedInUserEmail,
+          storeMode: normalizedStoreMode,
+          storeCode: payload.storeCode || null,
+          storeName: payload.storeName || null,
+          branch: payload.branch || null,
+          salesArea: payload.salesArea,
+          maxTemp: payload.maxTemp,
+          clusterBtu: payload.clusterBtu,
+          totalBtu: payload.totalBtu,
+          recommendedUnits: payload.recommendedUnits,
+          latitude: payload.latitude ?? null,
+          longitude: payload.longitude ?? null,
+          notes: payload.notes || "Validasi Kalkulator AC",
+        },
+      })
+      savedLogId = dbLog.id
+    } catch (dbErr) {
+      console.warn("[saveAcEstimationLog] DB Save warning:", dbErr)
     }
 
-    const resData = (await sheetResponse.json()) as {
-      updates?: { updatedRange?: string }
+    // 3. Simpan ke Google Sheets (Background / Silent) jika dikonfigurasi
+    const spreadsheetId = getEnvOptional("GOOGLE_AC_LOG_SPREADSHEET_ID")
+    let updatedRange: string | undefined
+
+    if (spreadsheetId) {
+      try {
+        const now = new Date()
+        const formatter = new Intl.DateTimeFormat("id-ID", {
+          timeZone: "Asia/Jakarta",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        })
+        const formattedTimestamp = formatter.format(now).replace(/\./g, ":")
+
+        const coordinatesStr =
+          payload.latitude !== undefined &&
+          payload.latitude !== null &&
+          payload.longitude !== undefined &&
+          payload.longitude !== null
+            ? `${payload.latitude}, ${payload.longitude}`
+            : "-"
+
+        const rowValues = [
+          formattedTimestamp,
+          userIdentifier,
+          payload.storeCode || "-",
+          payload.storeName || "-",
+          payload.branch || "-",
+          payload.salesArea,
+          payload.maxTemp,
+          payload.clusterBtu,
+          payload.totalBtu,
+          payload.recommendedUnits,
+          coordinatesStr,
+          payload.notes || "Validasi Kalkulator AC",
+        ]
+
+        const accessToken = await fetchAccessToken()
+        const targetRange = encodeURIComponent("RAW_LOGS!A:L")
+        const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
+          spreadsheetId
+        )}/values/${targetRange}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`
+
+        const sheetResponse = await fetch(appendUrl, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            values: [rowValues],
+          }),
+        })
+
+        if (sheetResponse.ok) {
+          const resData = (await sheetResponse.json()) as {
+            updates?: { updatedRange?: string }
+          }
+          updatedRange = resData.updates?.updatedRange
+        } else {
+          const errorJson = await sheetResponse.json().catch(() => null)
+          console.warn("[saveAcEstimationLog] Sheets API Error:", errorJson)
+        }
+      } catch (sheetsErr) {
+        console.warn("[saveAcEstimationLog] Sheets Append warning:", sheetsErr)
+      }
     }
 
     return {
       success: true,
-      message: "Hasil estimasi AC berhasil divalidasi dan dicatat ke Google Sheets.",
-      updatedRange: resData.updates?.updatedRange,
+      message: "Hasil estimasi AC berhasil dicatat.",
+      updatedRange,
+      logId: savedLogId,
     }
   } catch (error) {
     console.error("[saveAcEstimationLog] Exception:", error)
@@ -168,7 +200,7 @@ export async function saveAcEstimationLog(
       error:
         error instanceof Error
           ? error.message
-          : "Terjadi kesalahan internal saat menyimpan log ke Google Sheets.",
+          : "Terjadi kesalahan internal saat menyimpan log.",
     }
   }
 }

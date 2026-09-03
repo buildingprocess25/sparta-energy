@@ -7,6 +7,7 @@ import { useTheme } from "next-themes"
 import {
   IconBolt,
   IconBuildingStore,
+  IconCalculator,
   IconCheck,
   IconChevronRight,
   IconClipboardList,
@@ -129,6 +130,11 @@ const navGroups: AdminNavGroup[] = [
         label: "Performa Cabang",
         href: "/admin/branches",
         icon: ChartNoAxesColumn,
+      },
+      {
+        label: "Log Kalkulator",
+        href: "/admin/calculator-logs",
+        icon: IconCalculator,
       },
       {
         label: "Smart Energy Meter",

@@ -319,6 +319,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
         storeCode,
         storeName,
         branch,
+        storeMode,
         salesArea: result.area,
         maxTemp: result.maxTemp,
         clusterBtu: result.clusterBtu,
@@ -329,10 +330,10 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
         notes: "Validasi kalkulator AC",
       }).then((logRes) => {
         if (!logRes.success) {
-          console.warn("[Google Sheets Log]", logRes.error)
+          console.warn("[AC Estimation Log]", logRes.error)
         }
       }).catch((err) => {
-        console.warn("[Google Sheets Log] Error:", err)
+        console.warn("[AC Estimation Log] Error:", err)
       })
 
     } catch (err) {
