@@ -804,6 +804,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
     if (mode === "simetris") {
       if (!simResult) return
+      const maxLampsAdjusted = Math.max(simResult.range.maxLamps, activeSimTotalLamps)
       cardData = {
         storeCode: activeStoreCode,
         storeName: activeStoreName,
@@ -815,7 +816,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         lampLen: lampLen,
         totalLamps: activeSimTotalLamps,
         minLamps: simResult.range.minLamps,
-        maxLamps: simResult.range.maxLamps,
+        maxLamps: maxLampsAdjusted,
         rows: activeSimBaris,
         lampsPerRow: activeSimLpb,
         rowSpacing: activeSimJarakPerbaris,
@@ -828,7 +829,9 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       const shapeObj = SHAPES.find(s => s.id === shape)
       const pts = buildPolygon(shape, parsedP, adjustedPts, customClosed)
       const W2_val = pts ? (Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x))) : 1
-      const activeMargin = calcResult ? ((W2_val - stats.nPerRow * lampLen) / 2) : 0.45
+      const activeLpb = irregOverrideLpb !== null ? irregOverrideLpb : (calcResult ? calcResult.lampuPerbaris : stats.nPerRow)
+      const activeMarginVal = calcResult ? ((W2_val - activeLpb * lampLen) / 2) : 0.45
+      const maxLampsAdjusted = Math.max(stats.nmax, stats.n)
 
       cardData = {
         storeCode: activeStoreCode,
@@ -841,11 +844,11 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         lampLen: lampLen,
         totalLamps: stats.n,
         minLamps: stats.nmin,
-        maxLamps: stats.nmax,
+        maxLamps: maxLampsAdjusted,
         rows: stats.nRow,
         lampsPerRow: stats.nPerRow,
         rowSpacing: Number(stats.rowSpacing),
-        sideMargin: activeMargin,
+        sideMargin: activeMarginVal,
         rasio: Number(stats.luas > 0 ? (stats.n * watt) / stats.luas : 0),
         layoutSnapshot: getCanvasDataUrl(),
       }
@@ -1731,7 +1734,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       : 0
 
     const calculatedMinLamps = res ? res.minLamps : minLamps
-    const calculatedMaxLamps = res ? res.maxLamps : maxLamps
+    const rawMaxLamps = res ? res.maxLamps : maxLamps
+    const calculatedMaxLamps = isCalculated && activeTotalLamps > 0
+      ? Math.max(rawMaxLamps, activeTotalLamps)
+      : rawMaxLamps
 
     setStats({
       luas: Number(luas.toFixed(2)),
@@ -1750,9 +1756,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (!pts || pts.length === 0) return 0.45
     const xs = pts.map(pt => pt.x)
     const W2 = Math.max(...xs) - Math.min(...xs)
-    const margin = (W2 - stats.nPerRow * lampLen) / 2
+    const activeLpb = irregOverrideLpb !== null ? irregOverrideLpb : calcResult.lampuPerbaris
+    const margin = (W2 - activeLpb * lampLen) / 2
     return margin > 0 ? margin : 0.45
-  }, [calcResult, shape, parsedP, adjustedPts, customClosed, stats.nPerRow, lampLen])
+  }, [calcResult, shape, parsedP, adjustedPts, customClosed, irregOverrideLpb, lampLen])
 
   const activeIrregRasio = useMemo(() => {
     return stats.luas > 0 ? (stats.n * watt) / stats.luas : 0

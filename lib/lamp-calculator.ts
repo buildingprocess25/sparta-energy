@@ -370,7 +370,7 @@ export function calcSimetris(
 
   // Acuan standar target 4.0 s/d 5.0 W/m² (Excel standard)
   const minLamps = limitMinLamps
-  const maxLamps = limitMaxLamps
+  const maxLamps = Math.max(limitMaxLamps, total)
 
   return {
     baris,
@@ -420,7 +420,7 @@ export function calcIregular(
   const rasio = Math.round(((sim.total * watt) / area) * 100) / 100
   // Acuan standar target 4.0 s/d 5.0 W/m² (Excel standard) berdasarkan luas aktual polygon
   const minLamps = Math.ceil((4.0 * area) / watt)
-  const maxLamps = Math.ceil((5.0 * area) / watt)
+  const maxLamps = Math.max(Math.ceil((5.0 * area) / watt), sim.total)
 
   return {
     baris: sim.baris,
