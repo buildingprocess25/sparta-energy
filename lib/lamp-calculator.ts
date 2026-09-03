@@ -56,42 +56,61 @@ export function placeLamps(
       ? targetBaris
       : Math.max(1, jarak > 0 ? Math.round(H / jarak) - 1 : 1)
     const dY = H / (nY + 1)
+    const nPts = pts.length
 
     for (let r = 0; r < nY; r++) {
       const y = minY + (r + 1) * dY
-      let leftX: number | null = null,
-        rightX: number | null = null
-      for (let x = minX; x <= maxX; x += 0.1) {
-        if (pointInPolygon({ x, y }, pts)) {
-          if (leftX === null) leftX = x
-          rightX = x
+
+      // Exact analytic horizontal ray intersection with polygon edges
+      const intersections: number[] = []
+      for (let i = 0; i < nPts; i++) {
+        const p1 = pts[i]
+        const p2 = pts[(i + 1) % nPts]
+        if ((p1.y <= y && p2.y > y) || (p2.y <= y && p1.y > y)) {
+          if (Math.abs(p2.y - p1.y) > 0.00001) {
+            const t = (y - p1.y) / (p2.y - p1.y)
+            const ix = p1.x + t * (p2.x - p1.x)
+            intersections.push(ix)
+          }
         }
       }
-      if (leftX === null || rightX === null) continue
+      intersections.sort((a, b) => a - b)
+      if (intersections.length < 2) continue
 
-      const rowW = rightX - leftX
-      const calculatedN = Math.max(
-        1,
-        Math.floor((rowW - 2 * margin + spasiLampu + 0.001) / (lampLen + spasiLampu))
-      )
-      const nPerRow = targetLpb && targetLpb > 0
-        ? Math.min(targetLpb, calculatedN)
-        : calculatedN
+      // Process interior horizontal spans for this row
+      for (let s = 0; s < intersections.length - 1; s += 2) {
+        const leftX = intersections[s]
+        const rightX = intersections[s + 1]
+        const rowW = rightX - leftX
+        if (rowW < lampLen * 0.8) continue
 
-      const usedW =
-        nPerRow * lampLen + (nPerRow > 1 ? (nPerRow - 1) * spasiLampu : 0)
-      if (usedW > rowW + 0.001) continue
+        // Independent per-row lamp fitting
+        let calculatedN = Math.floor((rowW - 2 * margin + spasiLampu + 0.001) / (lampLen + spasiLampu))
+        if (calculatedN < 1 && rowW >= lampLen) {
+          calculatedN = Math.floor((rowW + 0.001) / (lampLen + spasiLampu))
+        }
+        calculatedN = Math.max(0, calculatedN)
 
-      const jarakSamping = (rowW - usedW) / 2
-      const firstX = leftX + jarakSamping + half
+        const nPerRow = targetLpb && targetLpb > 0
+          ? Math.min(targetLpb, calculatedN)
+          : calculatedN
 
-      for (let c = 0; c < nPerRow; c++) {
-        const x = firstX + c * (lampLen + spasiLampu)
-        if (
-          pointInPolygon({ x: x - half + 0.001, y }, pts) &&
-          pointInPolygon({ x: x + half - 0.001, y }, pts)
-        ) {
-          lamps.push({ x, y, dir: "h" })
+        if (nPerRow <= 0) continue
+
+        const usedW = nPerRow * lampLen + (nPerRow > 1 ? (nPerRow - 1) * spasiLampu : 0)
+        if (usedW > rowW + 0.001) continue
+
+        const jarakSamping = (rowW - usedW) / 2
+        const firstX = leftX + jarakSamping + half
+
+        for (let c = 0; c < nPerRow; c++) {
+          const x = firstX + c * (lampLen + spasiLampu)
+          if (
+            pointInPolygon({ x: x - half + 0.001, y }, pts) &&
+            pointInPolygon({ x: x + half - 0.001, y }, pts)
+          ) {
+            lamps.push({ x, y, dir: "h" })
+          }
         }
       }
     }
@@ -100,42 +119,60 @@ export function placeLamps(
       ? targetBaris
       : Math.max(1, jarak > 0 ? Math.round(W / jarak) - 1 : 1)
     const dX = W / (nX + 1)
+    const nPts = pts.length
 
     for (let c = 0; c < nX; c++) {
       const x = minX + (c + 1) * dX
-      let topY: number | null = null,
-        bottomY: number | null = null
-      for (let y = minY; y <= maxY; y += 0.1) {
-        if (pointInPolygon({ x, y }, pts)) {
-          if (topY === null) topY = y
-          bottomY = y
+
+      // Exact analytic vertical ray intersection with polygon edges
+      const intersections: number[] = []
+      for (let i = 0; i < nPts; i++) {
+        const p1 = pts[i]
+        const p2 = pts[(i + 1) % nPts]
+        if ((p1.x <= x && p2.x > x) || (p2.x <= x && p1.x > x)) {
+          if (Math.abs(p2.x - p1.x) > 0.00001) {
+            const t = (x - p1.x) / (p2.x - p1.x)
+            const iy = p1.y + t * (p2.y - p1.y)
+            intersections.push(iy)
+          }
         }
       }
-      if (topY === null || bottomY === null) continue
+      intersections.sort((a, b) => a - b)
+      if (intersections.length < 2) continue
 
-      const colH = bottomY - topY
-      const calculatedN = Math.max(
-        1,
-        Math.floor((colH - 2 * margin + spasiLampu + 0.001) / (lampLen + spasiLampu))
-      )
-      const nPerCol = targetLpb && targetLpb > 0
-        ? Math.min(targetLpb, calculatedN)
-        : calculatedN
+      // Process interior vertical spans for this column
+      for (let s = 0; s < intersections.length - 1; s += 2) {
+        const topY = intersections[s]
+        const bottomY = intersections[s + 1]
+        const colH = bottomY - topY
+        if (colH < lampLen * 0.8) continue
 
-      const usedH =
-        nPerCol * lampLen + (nPerCol > 1 ? (nPerCol - 1) * spasiLampu : 0)
-      if (usedH > colH + 0.001) continue
+        let calculatedN = Math.floor((colH - 2 * margin + spasiLampu + 0.001) / (lampLen + spasiLampu))
+        if (calculatedN < 1 && colH >= lampLen) {
+          calculatedN = Math.floor((colH + 0.001) / (lampLen + spasiLampu))
+        }
+        calculatedN = Math.max(0, calculatedN)
 
-      const jarakAtas = (colH - usedH) / 2
-      const firstY = topY + jarakAtas + half
+        const nPerCol = targetLpb && targetLpb > 0
+          ? Math.min(targetLpb, calculatedN)
+          : calculatedN
 
-      for (let r = 0; r < nPerCol; r++) {
-        const y = firstY + r * (lampLen + spasiLampu)
-        if (
-          pointInPolygon({ x, y: y - half + 0.001 }, pts) &&
-          pointInPolygon({ x, y: y + half - 0.001 }, pts)
-        ) {
-          lamps.push({ x, y, dir: "v" })
+        if (nPerCol <= 0) continue
+
+        const usedH = nPerCol * lampLen + (nPerCol > 1 ? (nPerCol - 1) * spasiLampu : 0)
+        if (usedH > colH + 0.001) continue
+
+        const jarakAtas = (colH - usedH) / 2
+        const firstY = topY + jarakAtas + half
+
+        for (let r = 0; r < nPerCol; r++) {
+          const y = firstY + r * (lampLen + spasiLampu)
+          if (
+            pointInPolygon({ x, y: y - half + 0.001 }, pts) &&
+            pointInPolygon({ x, y: y + half - 0.001 }, pts)
+          ) {
+            lamps.push({ x, y, dir: "v" })
+          }
         }
       }
     }
