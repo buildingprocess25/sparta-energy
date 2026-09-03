@@ -32,6 +32,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { toast } from "sonner"
@@ -270,20 +278,35 @@ export function CalculatorLogsClient({
     return `${selectedMonths.length} Bulan Terpilih`
   }, [selectedMonths])
 
-  // ── Export Excel Feature ──
-  const handleExportExcel = () => {
+  // Check if any filter is currently applied
+  const isFilterActive = useMemo(() => {
+    return (
+      Boolean(searchQuery.trim()) ||
+      selectedStoreMode !== "all" ||
+      selectedYear !== "all" ||
+      selectedMonths.length > 0 ||
+      selectedBranches.length > 0
+    )
+  }, [searchQuery, selectedStoreMode, selectedYear, selectedMonths, selectedBranches])
+
+  // ── Export Excel Feature (supports filtered vs all) ──
+  const handleExportExcel = (exportMode: "filtered" | "all" = "filtered") => {
     try {
       const isAc = activeTab === "ac"
       const nowStr = new Date().toISOString().slice(0, 10)
-      const periodLabel =
-        selectedMonths.length > 0
-          ? `Bulan_${selectedMonths.join("-")}_${selectedYear !== "all" ? selectedYear : currentYearNum}`
-          : selectedYear !== "all"
-            ? `Tahun_${selectedYear}`
-            : "Semua_Periode"
+      const isFilteredExport = exportMode === "filtered" && isFilterActive
+
+      const periodLabel = isFilteredExport
+        ? (selectedMonths.length > 0
+            ? `Bulan_${selectedMonths.join("-")}_${selectedYear !== "all" ? selectedYear : currentYearNum}_Terfilter`
+            : selectedYear !== "all"
+              ? `Tahun_${selectedYear}_Terfilter`
+              : "Data_Terfilter")
+        : (selectedYear !== "all" ? `Tahun_${selectedYear}_Semua` : "Semua_Riwayat")
 
       if (isAc) {
-        if (acLogs.data.length === 0) {
+        const sourceData = acLogs.data
+        if (sourceData.length === 0) {
           toast.error("Tidak ada data log AC untuk diekspor.")
           return
         }
@@ -304,7 +327,7 @@ export function CalculatorLogsClient({
           "Catatan",
         ]
 
-        const rows = acLogs.data.map((item) => [
+        const rows = sourceData.map((item) => [
           formatDateIndo(item.createdAt),
           item.userName ? `${item.userName} (${item.userEmail || "-"})` : item.userEmail || "-",
           item.storeMode === "NEW" ? "Toko Baru" : "Toko Terdaftar",
@@ -342,9 +365,10 @@ export function CalculatorLogsClient({
 
         XLSX.utils.book_append_sheet(wb, ws, "Log Kalkulator AC")
         XLSX.writeFile(wb, `Log_Kalkulator_AC_${periodLabel}_${nowStr}.xlsx`)
-        toast.success("File Excel Log AC berhasil diunduh!")
+        toast.success(`File Excel Log AC berhasil diunduh (${rows.length} baris ${isFilteredExport ? "sesuai filter" : ""})!`)
       } else {
-        if (lightLogs.data.length === 0) {
+        const sourceData = lightLogs.data
+        if (sourceData.length === 0) {
           toast.error("Tidak ada data log Lampu untuk diekspor.")
           return
         }
@@ -369,7 +393,7 @@ export function CalculatorLogsClient({
           "Catatan",
         ]
 
-        const rows = lightLogs.data.map((item) => [
+        const rows = sourceData.map((item) => [
           formatDateIndo(item.createdAt),
           item.userName ? `${item.userName} (${item.userEmail || "-"})` : item.userEmail || "-",
           item.storeMode === "NEW" ? "Toko Baru" : "Toko Terdaftar",
@@ -415,7 +439,7 @@ export function CalculatorLogsClient({
 
         XLSX.utils.book_append_sheet(wb, ws, "Log Kalkulator Lampu")
         XLSX.writeFile(wb, `Log_Kalkulator_Lampu_${periodLabel}_${nowStr}.xlsx`)
-        toast.success("File Excel Log Lampu berhasil diunduh!")
+        toast.success(`File Excel Log Lampu berhasil diunduh (${rows.length} baris ${isFilteredExport ? "sesuai filter" : ""})!`)
       }
     } catch (err) {
       console.error("[handleExportExcel] Error:", err)
@@ -458,14 +482,63 @@ export function CalculatorLogsClient({
             Reset Filter
           </Button>
 
-          <Button
-            onClick={handleExportExcel}
-            size="sm"
-            className="h-9 gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
-          >
-            <IconFileSpreadsheet className="size-4" />
-            Unduh Excel ({activeTab === "ac" ? "Log AC" : "Log Lampu"})
-          </Button>
+          {/* Export Dropdown with Transparent Filter Clarity */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                className="h-9 gap-2 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+              >
+                <IconFileSpreadsheet className="size-4" />
+                <span>
+                  Unduh Excel ({currentLogs.data.length} Data{isFilterActive ? " Terfilter" : ""})
+                </span>
+                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-white/20 text-white font-bold">
+                  {isFilterActive ? "Filter Aktif" : "Semua"}
+                </Badge>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72 p-2">
+              <DropdownMenuLabel className="text-xs font-bold text-muted-foreground px-2 py-1">
+                Pilihan Ekspor Excel ({activeTab === "ac" ? "Log AC" : "Log Lampu"})
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => handleExportExcel("filtered")}
+                className="flex flex-col items-start gap-0.5 p-2.5 cursor-pointer rounded-lg focus:bg-emerald-50 dark:focus:bg-emerald-950/40"
+              >
+                <div className="flex items-center justify-between w-full font-semibold text-xs text-foreground">
+                  <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                    <IconFilter className="size-3.5" />
+                    Unduh Sesuai Filter Saat Ini
+                  </span>
+                  <Badge variant="outline" className="text-[10px] font-bold">
+                    {currentLogs.data.length} Data
+                  </Badge>
+                </div>
+                <p className="text-[10.5px] text-muted-foreground">
+                  Hanya mengunduh data yang cocok dengan cabang, bulan, dan pencarian yang aktif.
+                </p>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleExportExcel("all")}
+                className="flex flex-col items-start gap-0.5 p-2.5 cursor-pointer rounded-lg mt-1 focus:bg-muted"
+              >
+                <div className="flex items-center justify-between w-full font-semibold text-xs text-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <IconDownload className="size-3.5" />
+                    Unduh Semua Riwayat Halaman
+                  </span>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {currentLogs.totalCount} Total
+                  </Badge>
+                </div>
+                <p className="text-[10.5px] text-muted-foreground">
+                  Mengunduh seluruh log tanpa terikat batasan filter saat ini.
+                </p>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -792,90 +865,147 @@ export function CalculatorLogsClient({
           </CardContent>
         </Card>
 
+        {/* Active Filter Transparency Banner */}
+        {isFilterActive && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-2 text-xs">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-semibold text-foreground flex items-center gap-1">
+                <IconFilter className="size-3.5 text-primary" />
+                Filter Aktif:
+              </span>
+              {searchQuery && (
+                <Badge variant="secondary" className="text-[10px] gap-1 font-medium bg-background border border-border">
+                  Cari: &ldquo;{searchQuery}&rdquo;
+                </Badge>
+              )}
+              {selectedStoreMode !== "all" && (
+                <Badge variant="secondary" className="text-[10px] font-medium bg-background border border-border">
+                  Status: {selectedStoreMode === "NEW" ? "Toko Baru" : "Toko Terdaftar"}
+                </Badge>
+              )}
+              {selectedBranches.length > 0 && (
+                <Badge variant="secondary" className="text-[10px] font-medium bg-background border border-border">
+                  Cabang: {selectedBranches.slice(0, 2).join(", ")}{selectedBranches.length > 2 ? ` +${selectedBranches.length - 2}` : ""}
+                </Badge>
+              )}
+              {selectedMonths.length > 0 && (
+                <Badge variant="secondary" className="text-[10px] font-medium bg-background border border-border">
+                  Bulan: {selectedMonths.map(m => MONTH_OPTIONS.find(opt => opt.value === m)?.label.slice(0, 3)).join(", ")}
+                </Badge>
+              )}
+              {selectedYear !== "all" && (
+                <Badge variant="secondary" className="text-[10px] font-medium bg-background border border-border">
+                  Tahun: {selectedYear}
+                </Badge>
+              )}
+              <span className="text-muted-foreground ml-1">
+                (Menampilkan <b>{currentLogs.data.length}</b> dari <b>{currentLogs.totalCount}</b> data)
+              </span>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleResetFilters}
+              className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              Hapus Filter
+            </Button>
+          </div>
+        )}
+
         {/* ── TAB 1: AC CALCULATOR LOGS ── */}
         <TabsContent value="ac" className="space-y-4">
-          <Card className="border-border/60 shadow-xs">
+          <Card className="border-border/60 shadow-xs overflow-hidden">
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b bg-muted/40 font-semibold text-muted-foreground">
+                <table className="w-full text-left text-xs min-w-[960px]">
+                  <thead className="border-b bg-muted/50 font-semibold text-muted-foreground">
                     <tr>
-                      <th className="px-4 py-3">Waktu</th>
-                      <th className="px-4 py-3">User / Auditor</th>
-                      <th className="px-4 py-3">Status Toko</th>
-                      <th className="px-4 py-3">Kode & Nama Toko</th>
-                      <th className="px-4 py-3">Cabang</th>
-                      <th className="px-4 py-3 text-right">Luas Sales</th>
-                      <th className="px-4 py-3 text-right">Suhu Max</th>
-                      <th className="px-4 py-3 text-right">Cluster BTU</th>
-                      <th className="px-4 py-3 text-right">Total BTU</th>
-                      <th className="px-4 py-3 text-center">Rekomendasi AC</th>
-                      <th className="px-4 py-3">Catatan</th>
+                      <th className="px-4 py-3.5 w-44">Waktu & Auditor</th>
+                      <th className="px-4 py-3.5 min-w-[220px]">Toko & Cabang</th>
+                      <th className="px-4 py-3.5 text-left w-40">Luas & Suhu Max</th>
+                      <th className="px-4 py-3.5 text-left w-48">Kebutuhan Beban BTU</th>
+                      <th className="px-4 py-3.5 text-center w-36">Rekomendasi AC</th>
+                      <th className="px-4 py-3.5 min-w-[160px]">Catatan</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
                     {acLogs.data.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
+                        <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
                           <IconAirConditioning className="mx-auto mb-2 size-8 opacity-40" />
                           Belum ada log riwayat kalkulator AC yang sesuai dengan filter.
                         </td>
                       </tr>
                     ) : (
                       acLogs.data.map((row) => (
-                        <tr key={row.id} className="hover:bg-muted/30">
-                          <td className="whitespace-nowrap px-4 py-3 font-medium text-foreground">
-                            {formatDateIndo(row.createdAt)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-foreground">
-                              {row.userName || row.userEmail || "Tamu"}
+                        <tr key={row.id} className="hover:bg-muted/30 transition-colors">
+                          {/* Waktu & Auditor */}
+                          <td className="px-4 py-3 align-top">
+                            <div className="font-semibold text-foreground whitespace-nowrap">
+                              {formatDateIndo(row.createdAt)}
                             </div>
-                            {row.userName && row.userEmail && (
-                              <div className="text-[11px] text-muted-foreground">{row.userEmail}</div>
-                            )}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3">
-                            {row.storeMode === "NEW" ? (
-                              <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400">
-                                Toko Baru
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-200 dark:border-blue-900/50 dark:text-blue-300">
-                                Terdaftar
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-semibold text-foreground">
-                              {row.storeName || "-"}
-                            </div>
-                            <div className="text-[11px] text-muted-foreground font-mono">
-                              {row.storeCode || "-"}
+                            <div className="text-[11px] text-muted-foreground truncate max-w-[160px] mt-0.5" title={row.userEmail || ""}>
+                              {row.userName || row.userEmail || "Tamu / Belum Login"}
                             </div>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 font-medium text-foreground">
-                            {row.branch || "-"}
+
+                          {/* Toko & Cabang */}
+                          <td className="px-4 py-3 align-top">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-foreground text-sm">
+                                {row.storeName || "Toko Tanpa Nama"}
+                              </span>
+                              {row.storeMode === "NEW" ? (
+                                <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400 text-[10px] px-1.5 py-0 h-4">
+                                  Toko Baru
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-200 dark:border-blue-900/50 dark:text-blue-300 text-[10px] px-1.5 py-0 h-4">
+                                  Terdaftar
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                              {row.storeCode && <span className="font-mono">{row.storeCode}</span>}
+                              {row.storeCode && row.branch && <span>•</span>}
+                              {row.branch && <span>{row.branch}</span>}
+                            </div>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-right font-mono">
-                            {row.salesArea.toLocaleString("id-ID")} m²
+
+                          {/* Luas & Suhu */}
+                          <td className="px-4 py-3 text-left align-top">
+                            <div className="font-bold text-foreground font-mono text-sm">
+                              {row.salesArea.toLocaleString("id-ID")} m²
+                            </div>
+                            <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                              Suhu: <span className="font-semibold text-foreground">{row.maxTemp}°C</span>
+                            </div>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-right font-mono">
-                            {row.maxTemp} °C
+
+                          {/* Beban BTU */}
+                          <td className="px-4 py-3 text-left align-top">
+                            <div className="font-bold text-blue-600 dark:text-blue-400 font-mono text-sm">
+                              {row.totalBtu.toLocaleString("id-ID")} <span className="text-[10px] font-normal text-muted-foreground">BTU/h</span>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                              Cluster: {row.clusterBtu.toLocaleString("id-ID")} BTU/m²
+                            </div>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-muted-foreground">
-                            {row.clusterBtu.toLocaleString("id-ID")}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-right font-mono font-semibold text-blue-600 dark:text-blue-400">
-                            {row.totalBtu.toLocaleString("id-ID")} BTU/h
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-center">
-                            <span className="inline-flex items-center justify-center rounded-md bg-blue-500/10 px-2.5 py-1 font-bold text-blue-700 dark:text-blue-300">
+
+                          {/* Rekomendasi AC */}
+                          <td className="px-4 py-3 text-center align-top">
+                            <span className="inline-flex items-center justify-center rounded-lg bg-blue-500/15 border border-blue-500/25 px-3 py-1.5 font-extrabold text-blue-700 dark:text-blue-300 text-sm shadow-2xs">
                               {row.recommendedUnits} Unit
                             </span>
                           </td>
-                          <td className="max-w-xs truncate px-4 py-3 text-muted-foreground" title={row.notes || ""}>
-                            {row.notes || "-"}
+
+                          {/* Catatan */}
+                          <td className="px-4 py-3 align-top text-muted-foreground">
+                            <div className="line-clamp-2 text-xs leading-relaxed" title={row.notes || ""}>
+                              {row.notes || "-"}
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -889,109 +1019,114 @@ export function CalculatorLogsClient({
 
         {/* ── TAB 2: LIGHTING CALCULATOR LOGS ── */}
         <TabsContent value="light" className="space-y-4">
-          <Card className="border-border/60 shadow-xs">
+          <Card className="border-border/60 shadow-xs overflow-hidden">
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b bg-muted/40 font-semibold text-muted-foreground">
+                <table className="w-full text-left text-xs min-w-[960px]">
+                  <thead className="border-b bg-muted/50 font-semibold text-muted-foreground">
                     <tr>
-                      <th className="px-4 py-3">Waktu</th>
-                      <th className="px-4 py-3">User / Auditor</th>
-                      <th className="px-4 py-3">Status Toko</th>
-                      <th className="px-4 py-3">Kode & Nama Toko</th>
-                      <th className="px-4 py-3">Cabang</th>
-                      <th className="px-4 py-3 text-right">Luas Sales</th>
-                      <th className="px-4 py-3">Bentuk & Dimensi</th>
-                      <th className="px-4 py-3 text-center">Watt Lampu</th>
-                      <th className="px-4 py-3 text-center">Rentang Rekomendasi</th>
-                      <th className="px-4 py-3 text-center">Terpasang (Layout)</th>
-                      <th className="px-4 py-3 text-right">Rasio W/m²</th>
-                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3.5 w-44">Waktu & Auditor</th>
+                      <th className="px-4 py-3.5 min-w-[220px]">Toko & Cabang</th>
+                      <th className="px-4 py-3.5 text-left w-36">Luas Sales</th>
+                      <th className="px-4 py-3.5 min-w-[160px]">Bentuk & Dimensi</th>
+                      <th className="px-4 py-3.5 text-center w-44">Titik Lampu (Unit)</th>
+                      <th className="px-4 py-3.5 text-center w-36">Rasio & Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
                     {lightLogs.data.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="px-4 py-12 text-center text-muted-foreground">
+                        <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
                           <IconBulb className="mx-auto mb-2 size-8 opacity-40" />
                           Belum ada log riwayat kalkulator Lampu yang sesuai dengan filter.
                         </td>
                       </tr>
                     ) : (
                       lightLogs.data.map((row) => (
-                        <tr key={row.id} className="hover:bg-muted/30">
-                          <td className="whitespace-nowrap px-4 py-3 font-medium text-foreground">
-                            {formatDateIndo(row.createdAt)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-foreground">
-                              {row.userName || row.userEmail || "Tamu"}
+                        <tr key={row.id} className="hover:bg-muted/30 transition-colors">
+                          {/* Waktu & Auditor */}
+                          <td className="px-4 py-3 align-top">
+                            <div className="font-semibold text-foreground whitespace-nowrap">
+                              {formatDateIndo(row.createdAt)}
                             </div>
-                            {row.userName && row.userEmail && (
-                              <div className="text-[11px] text-muted-foreground">{row.userEmail}</div>
-                            )}
+                            <div className="text-[11px] text-muted-foreground truncate max-w-[160px] mt-0.5" title={row.userEmail || ""}>
+                              {row.userName || row.userEmail || "Tamu / Belum Login"}
+                            </div>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3">
-                            {row.storeMode === "NEW" ? (
-                              <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400">
-                                Toko Baru
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-200 dark:border-blue-900/50 dark:text-blue-300">
-                                Terdaftar
-                              </Badge>
-                            )}
+
+                          {/* Toko & Cabang */}
+                          <td className="px-4 py-3 align-top">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-foreground text-sm">
+                                {row.storeName || "Toko Tanpa Nama"}
+                              </span>
+                              {row.storeMode === "NEW" ? (
+                                <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400 text-[10px] px-1.5 py-0 h-4">
+                                  Toko Baru
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-200 dark:border-blue-900/50 dark:text-blue-300 text-[10px] px-1.5 py-0 h-4">
+                                  Terdaftar
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                              {row.storeCode && <span className="font-mono">{row.storeCode}</span>}
+                              {row.storeCode && row.branch && <span>•</span>}
+                              {row.branch && <span>{row.branch}</span>}
+                            </div>
                           </td>
-                          <td className="px-4 py-3">
+
+                          {/* Luas Sales */}
+                          <td className="px-4 py-3 text-left align-top">
+                            <div className="font-bold text-foreground font-mono text-sm">
+                              {row.salesArea.toLocaleString("id-ID")} m²
+                            </div>
+                            <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                              {row.lampWatt}W LED
+                            </div>
+                          </td>
+
+                          {/* Bentuk & Dimensi */}
+                          <td className="px-4 py-3 align-top">
                             <div className="font-semibold text-foreground">
-                              {row.storeName || "-"}
-                            </div>
-                            <div className="text-[11px] text-muted-foreground font-mono">
-                              {row.storeCode || "-"}
-                            </div>
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 font-medium text-foreground">
-                            {row.branch || "-"}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-right font-mono">
-                            {row.salesArea.toLocaleString("id-ID")} m²
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-foreground">
                               {row.shapeType || "Simetris"}
                             </div>
-                            {row.dimensions && (
-                              <div className="text-[11px] text-muted-foreground font-mono">
-                                {row.dimensions}
-                              </div>
-                            )}
+                            <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                              {row.dimensions || "Kustom Canvas"}
+                            </div>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-center font-mono">
-                            {row.lampWatt} W
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-center font-mono">
-                            {row.minUnits} - {row.maxUnits} Unit
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-center">
-                            <span className="inline-flex items-center justify-center rounded-md bg-amber-500/10 px-2.5 py-1 font-bold text-amber-700 dark:text-amber-300">
+
+                          {/* Titik Lampu */}
+                          <td className="px-4 py-3 text-center align-top">
+                            <span className="inline-flex items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/25 px-3 py-1 font-extrabold text-amber-700 dark:text-amber-300 text-sm shadow-2xs">
                               {row.installedUnits} Unit
                             </span>
+                            <div className="text-[10.5px] text-muted-foreground font-mono mt-1">
+                              Rentang: {row.minUnits} - {row.maxUnits} Unit
+                            </div>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-right font-mono">
-                            {row.powerRatio ? `${row.powerRatio.toFixed(2)} W/m²` : "-"}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-center">
-                            {row.standardStatus === "ideal" ? (
-                              <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400">
-                                Ideal
-                              </Badge>
-                            ) : row.standardStatus === "toleransi" ? (
-                              <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400">
-                                Toleransi
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
+
+                          {/* Rasio & Status */}
+                          <td className="px-4 py-3 text-center align-top">
+                            <div className="font-bold text-foreground font-mono text-xs">
+                              {row.powerRatio ? `${row.powerRatio.toFixed(2)} W/m²` : "-"}
+                            </div>
+                            <div className="mt-1">
+                              {row.standardStatus === "ideal" ? (
+                                <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400 text-[10px] px-2 py-0.5">
+                                  Ideal
+                                </Badge>
+                              ) : row.standardStatus === "toleransi" ? (
+                                <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400 text-[10px] px-2 py-0.5">
+                                  Toleransi
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
+                                  {row.standardStatus || "-"}
+                                </Badge>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))
