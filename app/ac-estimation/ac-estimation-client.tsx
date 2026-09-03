@@ -292,7 +292,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
   }
 
   const handleSaveImage = async () => {
-    if (!resultCardRef.current || !result) return
+    if (isSaving || !resultCardRef.current || !result) return
     setIsSaving(true)
     try {
       const storeLabel =

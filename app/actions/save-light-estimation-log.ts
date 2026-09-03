@@ -48,7 +48,42 @@ export async function saveLightEstimationLog(
         ? "NEW"
         : "EXISTING"
 
-    const dbLog = await (prisma as any).lightCalculatorLog.create({
+    const lightModel = (prisma as any).lightCalculatorLog
+    if (!lightModel) {
+      return {
+        success: false,
+        error: "Model lightCalculatorLog belum tersedia.",
+      }
+    }
+
+    // Anti-Duplicate Guard (Check if identical log was created in the last 15 seconds)
+    try {
+      const recentDuplicate = await lightModel.findFirst({
+        where: {
+          storeMode: normalizedStoreMode,
+          storeCode: payload.storeCode || null,
+          storeName: payload.storeName || null,
+          branch: payload.branch || null,
+          salesArea: payload.salesArea,
+          installedUnits: payload.installedUnits,
+          createdAt: { gte: new Date(Date.now() - 15 * 1000) },
+        },
+        orderBy: { createdAt: "desc" },
+      })
+
+      if (recentDuplicate) {
+        console.log("[saveLightEstimationLog] Duplicate log request ignored within 15s cooldown.")
+        return {
+          success: true,
+          message: "Hasil estimasi lampu sudah dicatat sebelumnya.",
+          logId: recentDuplicate.id,
+        }
+      }
+    } catch (checkErr) {
+      console.warn("[saveLightEstimationLog] Duplicate check warning:", checkErr)
+    }
+
+    const dbLog = await lightModel.create({
       data: {
         userId: loggedInUserId,
         userEmail: loggedInUserEmail,

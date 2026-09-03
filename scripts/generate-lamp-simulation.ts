@@ -71,7 +71,7 @@ function calcSimetris(
     jarakSamping,
     rasio,
     minLamps: limitMinLamps,
-    maxLamps: limitMaxLamps,
+    maxLamps: Math.max(limitMaxLamps, total),
   }
 }
 

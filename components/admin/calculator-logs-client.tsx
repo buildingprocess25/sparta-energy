@@ -27,6 +27,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import type { AcLogItem, LightLogItem } from "@/lib/admin-calculator-queries"
@@ -104,10 +110,24 @@ export function CalculatorLogsClient({
 
   const [activeTab, setActiveTab] = useState<"ac" | "light">(initialTab || "ac")
   const [searchQuery, setSearchQuery] = useState(filters.q || "")
-  const [selectedBranch, setSelectedBranch] = useState(filters.branch || "all")
+  
+  // Multi-select Branches state
+  const initialBranches = useMemo(() => {
+    if (!filters.branch || filters.branch === "all") return []
+    return filters.branch.split(",").map(b => b.trim()).filter(Boolean)
+  }, [filters.branch])
+  const [selectedBranches, setSelectedBranches] = useState<string[]>(initialBranches)
+  const [branchSearch, setBranchSearch] = useState("")
+
+  // Multi-select Months state
+  const initialMonths = useMemo(() => {
+    if (!filters.month || filters.month === "all") return []
+    return filters.month.split(",").map(m => m.trim()).filter(Boolean)
+  }, [filters.month])
+  const [selectedMonths, setSelectedMonths] = useState<string[]>(initialMonths)
+
   const [selectedStoreMode, setSelectedStoreMode] = useState(filters.storeMode || "all")
   const [selectedYear, setSelectedYear] = useState(filters.year || "all")
-  const [selectedMonth, setSelectedMonth] = useState(filters.month || "all")
 
   // Generate Year options (current year down to 2 years ago)
   const currentYearNum = new Date().getFullYear()
@@ -120,22 +140,32 @@ export function CalculatorLogsClient({
     ]
   }, [currentYearNum])
 
-  const applyFilters = (overrides?: Partial<typeof filters> & { tab?: string; page?: number }) => {
+  const applyFilters = (overrides?: Partial<typeof filters> & { tab?: string; page?: number; branchList?: string[]; monthList?: string[] }) => {
     const params = new URLSearchParams()
     const tab = overrides?.tab ?? activeTab
     const q = overrides?.q !== undefined ? overrides.q : searchQuery
-    const branch = overrides?.branch !== undefined ? overrides.branch : selectedBranch
+    
+    const branchArr = overrides?.branchList !== undefined ? overrides.branchList : selectedBranches
+    const branchVal = overrides?.branch !== undefined 
+      ? overrides.branch 
+      : (branchArr.length > 0 ? branchArr.join(",") : "all")
+
     const storeMode = overrides?.storeMode !== undefined ? overrides.storeMode : selectedStoreMode
     const year = overrides?.year !== undefined ? overrides.year : selectedYear
-    const month = overrides?.month !== undefined ? overrides.month : selectedMonth
+
+    const monthArr = overrides?.monthList !== undefined ? overrides.monthList : selectedMonths
+    const monthVal = overrides?.month !== undefined 
+      ? overrides.month 
+      : (monthArr.length > 0 ? monthArr.join(",") : "all")
+
     const page = overrides?.page !== undefined ? overrides.page : 1
 
     params.set("tab", tab)
     if (q) params.set("q", q)
-    if (branch && branch !== "all") params.set("branch", branch)
+    if (branchVal && branchVal !== "all") params.set("branch", branchVal)
     if (storeMode && storeMode !== "all") params.set("storeMode", storeMode)
     if (year && year !== "all") params.set("year", year)
-    if (month && month !== "all") params.set("month", month)
+    if (monthVal && monthVal !== "all") params.set("month", monthVal)
     if (page > 1) params.set("page", String(page))
 
     startTransition(() => {
@@ -156,14 +186,89 @@ export function CalculatorLogsClient({
 
   const handleResetFilters = () => {
     setSearchQuery("")
-    setSelectedBranch("all")
+    setSelectedBranches([])
+    setSelectedMonths([])
     setSelectedStoreMode("all")
     setSelectedYear("all")
-    setSelectedMonth("all")
     startTransition(() => {
       router.push(`${pathname}?tab=${activeTab}`)
     })
   }
+
+  // Branch multi-select handlers
+  const handleToggleBranch = (bName: string) => {
+    const next = selectedBranches.includes(bName)
+      ? selectedBranches.filter((b) => b !== bName)
+      : [...selectedBranches, bName]
+    setSelectedBranches(next)
+    applyFilters({ branchList: next, page: 1 })
+  }
+
+  const handleSelectAllBranches = () => {
+    setSelectedBranches(branches)
+    applyFilters({ branchList: branches, page: 1 })
+  }
+
+  const handleClearBranches = () => {
+    setSelectedBranches([])
+    applyFilters({ branchList: [], page: 1 })
+  }
+
+  const filteredBranches = useMemo(() => {
+    if (!branchSearch.trim()) return branches
+    return branches.filter((b) => b.toLowerCase().includes(branchSearch.toLowerCase()))
+  }, [branches, branchSearch])
+
+  const branchTriggerLabel = useMemo(() => {
+    if (selectedBranches.length === 0 || selectedBranches.length === branches.length) {
+      return "Semua Cabang"
+    }
+    if (selectedBranches.length === 1) {
+      return selectedBranches[0]
+    }
+    return `${selectedBranches.length} Cabang Terpilih`
+  }, [selectedBranches, branches])
+
+  // Month multi-select handlers
+  const handleToggleMonth = (mVal: string) => {
+    const next = selectedMonths.includes(mVal)
+      ? selectedMonths.filter((m) => m !== mVal)
+      : [...selectedMonths, mVal].sort((a, b) => parseInt(a) - parseInt(b))
+    setSelectedMonths(next)
+    applyFilters({ monthList: next, page: 1 })
+  }
+
+  const handleSelectQuarter = (qMonths: string[]) => {
+    setSelectedMonths(qMonths)
+    applyFilters({ monthList: qMonths, page: 1 })
+  }
+
+  const handleSelectAllMonths = () => {
+    const allM = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+    setSelectedMonths(allM)
+    applyFilters({ monthList: allM, page: 1 })
+  }
+
+  const handleClearMonths = () => {
+    setSelectedMonths([])
+    applyFilters({ monthList: [], page: 1 })
+  }
+
+  const monthTriggerLabel = useMemo(() => {
+    if (selectedMonths.length === 0 || selectedMonths.length === 12) {
+      return "Semua Bulan"
+    }
+    if (selectedMonths.length === 1) {
+      const found = MONTH_OPTIONS.find((m) => m.value === selectedMonths[0])
+      return found ? found.label : "1 Bulan"
+    }
+    if (selectedMonths.length <= 2) {
+      return selectedMonths
+        .map((m) => MONTH_OPTIONS.find((opt) => opt.value === m)?.label.slice(0, 3))
+        .join(", ")
+    }
+    return `${selectedMonths.length} Bulan Terpilih`
+  }, [selectedMonths])
 
   // ── Export Excel Feature ──
   const handleExportExcel = () => {
@@ -171,8 +276,8 @@ export function CalculatorLogsClient({
       const isAc = activeTab === "ac"
       const nowStr = new Date().toISOString().slice(0, 10)
       const periodLabel =
-        selectedMonth !== "all"
-          ? `${MONTH_OPTIONS.find((m) => m.value === selectedMonth)?.label}_${selectedYear !== "all" ? selectedYear : currentYearNum}`
+        selectedMonths.length > 0
+          ? `Bulan_${selectedMonths.join("-")}_${selectedYear !== "all" ? selectedYear : currentYearNum}`
           : selectedYear !== "all"
             ? `Tahun_${selectedYear}`
             : "Semua_Periode"
@@ -443,12 +548,12 @@ export function CalculatorLogsClient({
         {/* Filter Bar */}
         <Card className="border-border/60 bg-muted/20 shadow-xs">
           <CardContent className="p-4">
-            <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
+            <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
               {/* Search Bar */}
-              <div className="relative md:col-span-2">
+              <div className="relative">
                 <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Cari toko, kode, auditor, catatan..."
+                  placeholder="Cari toko, kode, auditor..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-9 pl-9 text-xs"
@@ -487,27 +592,183 @@ export function CalculatorLogsClient({
                 </Select>
               </div>
 
-              {/* Bulan & Tahun Filter */}
-              <div className="flex gap-1.5">
-                <Select
-                  value={selectedMonth}
-                  onValueChange={(val) => {
-                    setSelectedMonth(val)
-                    applyFilters({ month: val, page: 1 })
-                  }}
-                >
-                  <SelectTrigger className="h-9 flex-1 text-xs">
-                    <SelectValue placeholder="Bulan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MONTH_OPTIONS.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Multi-Select Cabang Filter */}
+              <div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      type="button"
+                      className="h-9 w-full justify-between px-3 text-xs font-normal border-input bg-background hover:bg-muted/50"
+                    >
+                      <span className="truncate flex items-center gap-1.5">
+                        <IconMapPin className="size-3.5 text-muted-foreground shrink-0" />
+                        <span className="truncate">{branchTriggerLabel}</span>
+                      </span>
+                      {selectedBranches.length > 0 && selectedBranches.length < branches.length ? (
+                        <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-bold shrink-0 bg-primary/10 text-primary">
+                          {selectedBranches.length}
+                        </Badge>
+                      ) : null}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-3 space-y-2.5" align="start">
+                    <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                      <span className="text-xs font-bold text-foreground">Filter Cabang</span>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllBranches}
+                          className="text-[10px] text-primary hover:underline font-medium"
+                        >
+                          Pilih Semua
+                        </button>
+                        <span className="text-[10px] text-muted-foreground">·</span>
+                        <button
+                          type="button"
+                          onClick={handleClearBranches}
+                          className="text-[10px] text-muted-foreground hover:underline"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
 
+                    <Input
+                      placeholder="Cari cabang..."
+                      value={branchSearch}
+                      onChange={(e) => setBranchSearch(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+
+                    <div className="max-h-52 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                      {filteredBranches.length === 0 ? (
+                        <p className="text-center py-4 text-xs text-muted-foreground">Cabang tidak ditemukan.</p>
+                      ) : (
+                        filteredBranches.map((b) => {
+                          const isChecked = selectedBranches.includes(b)
+                          return (
+                            <label
+                              key={b}
+                              className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-muted/60 cursor-pointer text-xs select-none transition-colors"
+                            >
+                              <Checkbox
+                                checked={isChecked}
+                                onCheckedChange={() => handleToggleBranch(b)}
+                              />
+                              <span className={`truncate ${isChecked ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                                {b}
+                              </span>
+                            </label>
+                          )
+                        })
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Multi-Select Bulan Filter */}
+              <div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      type="button"
+                      className="h-9 w-full justify-between px-3 text-xs font-normal border-input bg-background hover:bg-muted/50"
+                    >
+                      <span className="truncate flex items-center gap-1.5">
+                        <IconCalendar className="size-3.5 text-muted-foreground shrink-0" />
+                        <span className="truncate">{monthTriggerLabel}</span>
+                      </span>
+                      {selectedMonths.length > 0 && selectedMonths.length < 12 ? (
+                        <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-bold shrink-0 bg-primary/10 text-primary">
+                          {selectedMonths.length}
+                        </Badge>
+                      ) : null}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-3 space-y-3" align="start">
+                    <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                      <span className="text-xs font-bold text-foreground">Filter Bulan</span>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllMonths}
+                          className="text-[10px] text-primary hover:underline font-medium"
+                        >
+                          Semua
+                        </button>
+                        <span className="text-[10px] text-muted-foreground">·</span>
+                        <button
+                          type="button"
+                          onClick={handleClearMonths}
+                          className="text-[10px] text-muted-foreground hover:underline"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Kuartal Shortcuts */}
+                    <div className="grid grid-cols-4 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectQuarter(["1", "2", "3"])}
+                        className="rounded-md border border-border/70 py-1 text-[10px] font-semibold hover:bg-muted text-center transition-colors"
+                      >
+                        Q1 (Jan-Mar)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectQuarter(["4", "5", "6"])}
+                        className="rounded-md border border-border/70 py-1 text-[10px] font-semibold hover:bg-muted text-center transition-colors"
+                      >
+                        Q2 (Apr-Jun)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectQuarter(["7", "8", "9"])}
+                        className="rounded-md border border-border/70 py-1 text-[10px] font-semibold hover:bg-muted text-center transition-colors"
+                      >
+                        Q3 (Jul-Sep)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectQuarter(["10", "11", "12"])}
+                        className="rounded-md border border-border/70 py-1 text-[10px] font-semibold hover:bg-muted text-center transition-colors"
+                      >
+                        Q4 (Okt-Des)
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1 max-h-52 overflow-y-auto pr-1">
+                      {MONTH_OPTIONS.filter((m) => m.value !== "all").map((m) => {
+                        const isChecked = selectedMonths.includes(m.value)
+                        return (
+                          <label
+                            key={m.value}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/60 cursor-pointer text-xs select-none transition-colors"
+                          >
+                            <Checkbox
+                              checked={isChecked}
+                              onCheckedChange={() => handleToggleMonth(m.value)}
+                            />
+                            <span className={isChecked ? "font-semibold text-foreground" : "text-muted-foreground"}>
+                              {m.label}
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Tahun Filter */}
+              <div>
                 <Select
                   value={selectedYear}
                   onValueChange={(val) => {
@@ -515,36 +776,13 @@ export function CalculatorLogsClient({
                     applyFilters({ year: val, page: 1 })
                   }}
                 >
-                  <SelectTrigger className="h-9 w-28 text-xs">
+                  <SelectTrigger className="h-9 text-xs">
                     <SelectValue placeholder="Tahun" />
                   </SelectTrigger>
                   <SelectContent>
                     {yearOptions.map((y) => (
                       <SelectItem key={y.value} value={y.value}>
                         {y.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Cabang Filter */}
-              <div>
-                <Select
-                  value={selectedBranch}
-                  onValueChange={(val) => {
-                    setSelectedBranch(val)
-                    applyFilters({ branch: val, page: 1 })
-                  }}
-                >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Semua Cabang" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Cabang</SelectItem>
-                    {branches.map((b) => (
-                      <SelectItem key={b} value={b}>
-                        {b}
                       </SelectItem>
                     ))}
                   </SelectContent>

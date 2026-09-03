@@ -768,6 +768,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   const [exportCardData, setExportCardData] = useState<LightEstimationResultCardData | null>(null)
 
   const handleSaveResult = (mode: "simetris" | "tidak-simetris") => {
+    if (isSaving) return
+    setIsSaving(true)
     let cardData: LightEstimationResultCardData | null = null
 
     const getSvgDataUrlBase64 = () => {

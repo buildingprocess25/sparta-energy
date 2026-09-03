@@ -1,5 +1,5 @@
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
 
 const LAMP_WATT = 13.5;
 const LAMP_LEN = 1.22;
@@ -54,7 +54,7 @@ function calcSimetris(lebar, panjang, areaSales, watt = LAMP_WATT, lampLen = LAM
     jarakSamping,
     rasio,
     minLamps: limitMinLamps,
-    maxLamps: limitMaxLamps,
+    maxLamps: Math.max(limitMaxLamps, total),
   };
 }
 

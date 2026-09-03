@@ -88,28 +88,60 @@ export async function saveAcEstimationLog(
         ? "NEW"
         : "EXISTING"
 
-    // 2. Simpan ke Database (PostgreSQL via Prisma)
+    // 2. Anti-Duplicate Guard (Check if identical log was created in the last 15 seconds)
+    const acModel = (prisma as any).acCalculatorLog
+    if (acModel) {
+      try {
+        const recentDuplicate = await acModel.findFirst({
+          where: {
+            storeMode: normalizedStoreMode,
+            storeCode: payload.storeCode || null,
+            storeName: payload.storeName || null,
+            branch: payload.branch || null,
+            salesArea: payload.salesArea,
+            recommendedUnits: payload.recommendedUnits,
+            createdAt: { gte: new Date(Date.now() - 15 * 1000) },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+
+        if (recentDuplicate) {
+          console.log("[saveAcEstimationLog] Duplicate log request ignored within 15s cooldown.")
+          return {
+            success: true,
+            message: "Hasil estimasi sudah dicatat sebelumnya.",
+            logId: recentDuplicate.id,
+          }
+        }
+      } catch (checkErr) {
+        console.warn("[saveAcEstimationLog] Duplicate check warning:", checkErr)
+      }
+    }
+
+    // 3. Simpan ke Database (PostgreSQL via Prisma)
     let savedLogId: string | undefined
     try {
-      const dbLog = await (prisma as any).acCalculatorLog.create({
-        data: {
-          userId: loggedInUserId,
-          userEmail: loggedInUserEmail,
-          storeMode: normalizedStoreMode,
-          storeCode: payload.storeCode || null,
-          storeName: payload.storeName || null,
-          branch: payload.branch || null,
-          salesArea: payload.salesArea,
-          maxTemp: payload.maxTemp,
-          clusterBtu: payload.clusterBtu,
-          totalBtu: payload.totalBtu,
-          recommendedUnits: payload.recommendedUnits,
-          latitude: payload.latitude ?? null,
-          longitude: payload.longitude ?? null,
-          notes: payload.notes || "Validasi Kalkulator AC",
-        },
-      })
-      savedLogId = dbLog.id
+      if (acModel) {
+        const dbLog = await acModel.create({
+          data: {
+            userId: loggedInUserId,
+            userEmail: loggedInUserEmail,
+            storeMode: normalizedStoreMode,
+            storeCode: payload.storeCode || null,
+            storeName: payload.storeName || null,
+            branch: payload.branch || null,
+            salesArea: payload.salesArea,
+            maxTemp: payload.maxTemp,
+            clusterBtu: payload.clusterBtu,
+            totalBtu: payload.totalBtu,
+            recommendedUnits: payload.recommendedUnits,
+            latitude: payload.latitude ?? null,
+            longitude: payload.longitude ?? null,
+            notes: payload.notes || "Validasi Kalkulator AC",
+          },
+        })
+        savedLogId = dbLog.id
+      }
     } catch (dbErr) {
       console.warn("[saveAcEstimationLog] DB Save warning:", dbErr)
     }

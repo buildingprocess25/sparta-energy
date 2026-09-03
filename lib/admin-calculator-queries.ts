@@ -65,24 +65,80 @@ export type LightLogItem = {
   createdAt: string
 }
 
-function getDateRange(year?: string, month?: string) {
-  if (!year || year === "all") return undefined
+function applyDateFilter(where: any, year?: string, month?: string) {
+  let monthList: number[] = []
+  if (month && month !== "all" && month.trim() !== "") {
+    monthList = month
+      .split(",")
+      .map((m) => parseInt(m.trim(), 10))
+      .filter((m) => !isNaN(m) && m >= 1 && m <= 12)
+  }
 
-  const y = parseInt(year, 10)
-  if (isNaN(y)) return undefined
+  const currentYear = new Date().getFullYear()
+  const isYearSelected = Boolean(year && year !== "all" && !isNaN(parseInt(year!, 10)))
+  const targetYear = isYearSelected ? parseInt(year!, 10) : currentYear
 
-  if (month && month !== "all") {
-    const m = parseInt(month, 10)
-    if (!isNaN(m) && m >= 1 && m <= 12) {
+  // If no month selected and year is "all", show all
+  if (monthList.length === 0 && (!year || year === "all")) {
+    return
+  }
+
+  // If no month selected, but specific year is selected
+  if (monthList.length === 0 && isYearSelected) {
+    where.createdAt = {
+      gte: new Date(Date.UTC(targetYear, 0, 1, 0, 0, 0)),
+      lte: new Date(Date.UTC(targetYear, 11, 31, 23, 59, 59, 999)),
+    }
+    return
+  }
+
+  // If month(s) are selected (whether year is selected or "all")
+  const yearsToQuery = isYearSelected ? [targetYear] : [currentYear, currentYear - 1, currentYear - 2]
+  const dateRanges: { createdAt: { gte: Date; lte: Date } }[] = []
+
+  for (const y of yearsToQuery) {
+    for (const m of monthList) {
       const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0))
+      // Last day of month m
       const end = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999))
-      return { gte: start, lte: end }
+      dateRanges.push({ createdAt: { gte: start, lte: end } })
     }
   }
 
-  const start = new Date(Date.UTC(y, 0, 1, 0, 0, 0))
-  const end = new Date(Date.UTC(y, 11, 31, 23, 59, 59, 999))
-  return { gte: start, lte: end }
+  if (dateRanges.length === 1) {
+    where.createdAt = dateRanges[0].createdAt
+  } else if (dateRanges.length > 1) {
+    if (!where.AND) where.AND = []
+    where.AND.push({ OR: dateRanges })
+  }
+}
+
+function applyBranchFilter(where: any, branch?: string) {
+  if (!branch || branch === "all" || branch.trim() === "") return
+
+  const branchList = branch
+    .split(",")
+    .map((b) => b.trim())
+    .filter(Boolean)
+
+  if (branchList.length === 1) {
+    where.branch = { equals: branchList[0], mode: "insensitive" }
+  } else if (branchList.length > 1) {
+    where.branch = { in: branchList, mode: "insensitive" }
+  }
+}
+
+function applySearchFilter(where: any, q?: string) {
+  if (!q || q.trim() === "") return
+  const query = q.trim()
+  const searchConditions = [
+    { storeCode: { contains: query, mode: "insensitive" } },
+    { storeName: { contains: query, mode: "insensitive" } },
+    { userEmail: { contains: query, mode: "insensitive" } },
+    { notes: { contains: query, mode: "insensitive" } },
+  ]
+  if (!where.AND) where.AND = []
+  where.AND.push({ OR: searchConditions })
 }
 
 export async function getAcCalculatorLogs(filters: AcLogFilters = {}) {
@@ -102,24 +158,9 @@ export async function getAcCalculatorLogs(filters: AcLogFilters = {}) {
     where.storeMode = storeMode
   }
 
-  if (branch !== "all" && branch.trim() !== "") {
-    where.branch = { equals: branch, mode: "insensitive" }
-  }
-
-  const dateFilter = getDateRange(year, month)
-  if (dateFilter) {
-    where.createdAt = dateFilter
-  }
-
-  if (q && q.trim() !== "") {
-    const query = q.trim()
-    where.OR = [
-      { storeCode: { contains: query, mode: "insensitive" } },
-      { storeName: { contains: query, mode: "insensitive" } },
-      { userEmail: { contains: query, mode: "insensitive" } },
-      { notes: { contains: query, mode: "insensitive" } },
-    ]
-  }
+  applyBranchFilter(where, branch)
+  applyDateFilter(where, year, month)
+  applySearchFilter(where, q)
 
   try {
     const acModel = (prisma as any).acCalculatorLog
@@ -207,9 +248,9 @@ export async function getLightCalculatorLogs(filters: LightLogFilters = {}) {
     where.storeMode = storeMode
   }
 
-  if (branch !== "all" && branch.trim() !== "") {
-    where.branch = { equals: branch, mode: "insensitive" }
-  }
+  applyBranchFilter(where, branch)
+  applyDateFilter(where, year, month)
+  applySearchFilter(where, q)
 
   if (shapeType !== "all" && shapeType.trim() !== "") {
     where.shapeType = shapeType
@@ -217,21 +258,6 @@ export async function getLightCalculatorLogs(filters: LightLogFilters = {}) {
 
   if (standardStatus !== "all" && standardStatus.trim() !== "") {
     where.standardStatus = standardStatus
-  }
-
-  const dateFilter = getDateRange(year, month)
-  if (dateFilter) {
-    where.createdAt = dateFilter
-  }
-
-  if (q && q.trim() !== "") {
-    const query = q.trim()
-    where.OR = [
-      { storeCode: { contains: query, mode: "insensitive" } },
-      { storeName: { contains: query, mode: "insensitive" } },
-      { userEmail: { contains: query, mode: "insensitive" } },
-      { notes: { contains: query, mode: "insensitive" } },
-    ]
   }
 
   try {
