@@ -831,8 +831,8 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
       const shapeObj = SHAPES.find(s => s.id === shape)
       const pts = buildPolygon(shape, parsedP, adjustedPts, customClosed)
       const W2_val = pts ? (Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x))) : 1
-      const activeLpb = irregOverrideLpb !== null ? irregOverrideLpb : (calcResult ? calcResult.lampuPerbaris : stats.nPerRow)
-      const activeMarginVal = calcResult ? ((W2_val - activeLpb * lampLen) / 2) : 0.45
+      const effectiveLpb = stats.nPerRow > 0 ? stats.nPerRow : (irregOverrideLpb !== null ? irregOverrideLpb : (calcResult ? calcResult.lampuPerbaris : 0))
+      const activeMarginVal = calcResult ? ((W2_val - effectiveLpb * lampLen) / 2) : 0.45
       const maxLampsAdjusted = Math.max(stats.nmax, stats.n)
 
       cardData = {
@@ -850,7 +850,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         rows: stats.nRow,
         lampsPerRow: stats.nPerRow,
         rowSpacing: Number(stats.rowSpacing),
-        sideMargin: activeMarginVal,
+        sideMargin: activeMarginVal > 0 ? activeMarginVal : 0.45,
         rasio: Number(stats.luas > 0 ? (stats.n * watt) / stats.luas : 0),
         layoutSnapshot: getCanvasDataUrl(),
       }
@@ -1119,12 +1119,12 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
     // Calculate active parameters with overrides
     const activeBaris = irregOverrideBaris !== null ? irregOverrideBaris : (calcResult ? calcResult.baris : 0)
-    const activeLpb = irregOverrideLpb !== null ? irregOverrideLpb : (calcResult ? calcResult.lampuPerbaris : 0)
+    const effectiveLpb = stats.nPerRow > 0 ? stats.nPerRow : (irregOverrideLpb !== null ? irregOverrideLpb : (calcResult ? calcResult.lampuPerbaris : 0))
 
     const W2 = Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x))
     const H2 = Math.max(...pts.map(p => p.y)) - Math.min(...pts.map(p => p.y))
 
-    const usedMargin = calcResult ? ((W2 - activeLpb * lampLen) / 2) : 0.45
+    const usedMargin = calcResult ? ((W2 - effectiveLpb * lampLen) / 2) : 0.45
     const usedJarak = calcResult ? (H2 / (activeBaris + 1)) : 1.9
     const usedOrient = "h"
     const usedSpasi = 0
@@ -1191,7 +1191,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
 
     // Place and draw lamps if calculated
     if (showLamps) {
-      const lamps = placeLamps(pts, usedJarak, usedMargin, usedOrient, lampLen, usedSpasi, activeBaris, activeLpb)
+      const lamps = placeLamps(pts, usedJarak, usedMargin, usedOrient, lampLen, usedSpasi, activeBaris, effectiveLpb)
       const lampLen_px = lampLen * sc.scale
       const lampW_px = Math.max(3, LAMP_TUBE_W * sc.scale)
 
@@ -1725,6 +1725,15 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         const actualRowsCount = yGroups.size
         const actualMaxPerRow = yGroups.size > 0 ? Math.max(...yGroups.values()) : activeLpb
 
+        // If actual lamps per row is less than target (e.g. 13 instead of 14), re-center with actualMaxPerRow
+        if (actualMaxPerRow > 0 && actualMaxPerRow < activeLpb && irregOverrideLpb === null) {
+          const centeredMargin = (W2 - actualMaxPerRow * lampLen) / 2
+          const centeredLamps = placeLamps(pts, activeJarakPerbaris, centeredMargin, "h", lampLen, 0, activeBaris, actualMaxPerRow)
+          if (centeredLamps.length > 0) {
+            lamps = centeredLamps
+          }
+        }
+
         nRow = actualRowsCount > 0 ? actualRowsCount : activeBaris
         nPerRow = actualMaxPerRow > 0 ? actualMaxPerRow : activeLpb
         rowSpacing = activeJarakPerbaris
@@ -1758,10 +1767,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (!pts || pts.length === 0) return 0.45
     const xs = pts.map(pt => pt.x)
     const W2 = Math.max(...xs) - Math.min(...xs)
-    const activeLpb = irregOverrideLpb !== null ? irregOverrideLpb : calcResult.lampuPerbaris
-    const margin = (W2 - activeLpb * lampLen) / 2
+    const effectiveLpb = stats.nPerRow > 0 ? stats.nPerRow : (irregOverrideLpb !== null ? irregOverrideLpb : calcResult.lampuPerbaris)
+    const margin = (W2 - effectiveLpb * lampLen) / 2
     return margin > 0 ? margin : 0.45
-  }, [calcResult, shape, parsedP, adjustedPts, customClosed, irregOverrideLpb, lampLen])
+  }, [calcResult, shape, parsedP, adjustedPts, customClosed, stats.nPerRow, irregOverrideLpb, lampLen])
 
   const activeIrregRasio = useMemo(() => {
     return stats.luas > 0 ? (stats.n * watt) / stats.luas : 0
@@ -2128,16 +2137,16 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     const sc = getScaleInfo(pts, W, CANVAS_H)
 
     // Calculate active layout spacing
-    const activeBaris = irregOverrideBaris !== null ? irregOverrideBaris : calcResult.baris
-    const activeLpb = irregOverrideLpb !== null ? irregOverrideLpb : calcResult.lampuPerbaris
+    const activeBaris = irregOverrideBaris !== null ? irregOverrideBaris : (calcResult ? calcResult.baris : 0)
+    const effectiveLpb = stats.nPerRow > 0 ? stats.nPerRow : (irregOverrideLpb !== null ? irregOverrideLpb : (calcResult ? calcResult.lampuPerbaris : 0))
 
     const W2 = Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x))
     const H2 = Math.max(...pts.map(p => p.y)) - Math.min(...pts.map(p => p.y))
 
-    const usedMargin = (W2 - activeLpb * lampLen) / 2
-    const usedJarak = H2 / (activeBaris + 1)
+    const usedMargin = calcResult ? ((W2 - effectiveLpb * lampLen) / 2) : 0.45
+    const usedJarak = calcResult ? (H2 / (activeBaris + 1)) : 1.9
 
-    const lamps = placeLamps(pts, usedJarak, usedMargin, "h", lampLen, 0, activeBaris, activeLpb)
+    const lamps = placeLamps(pts, usedJarak, usedMargin, "h", lampLen, 0, activeBaris, effectiveLpb)
 
     // Find closest lamp to (cx, cy)
     let closestIdx = -1
