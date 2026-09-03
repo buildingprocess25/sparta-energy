@@ -141,12 +141,16 @@ export async function saveAcEstimationLog(
             ? `${payload.latitude}, ${payload.longitude}`
             : "-"
 
+        const storeTypeLabel =
+          normalizedStoreMode === "NEW" ? "Toko Baru" : "Toko Terdaftar"
+
         const rowValues = [
           formattedTimestamp,
           userIdentifier,
           payload.storeCode || "-",
           payload.storeName || "-",
           payload.branch || "-",
+          storeTypeLabel,
           payload.salesArea,
           payload.maxTemp,
           payload.clusterBtu,
@@ -157,7 +161,7 @@ export async function saveAcEstimationLog(
         ]
 
         const accessToken = await fetchAccessToken()
-        const targetRange = encodeURIComponent("RAW_LOGS!A:L")
+        const targetRange = encodeURIComponent("RAW_LOGS!A:M")
         const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
           spreadsheetId
         )}/values/${targetRange}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`

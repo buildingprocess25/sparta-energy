@@ -21,6 +21,14 @@ import { getRabData } from "@/app/actions/get-rab-data"
 import { saveAcEstimationLog } from "@/app/actions/save-ac-estimation-log"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
   Drawer,
   DrawerContent,
   DrawerHeader,
@@ -108,19 +116,21 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
   const [isPending, startTransition] = useTransition()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const [result, setResult] = useState<{
+  type EstimationResult = {
     area: number
     maxTemp: number
-    openMeteoTemp: number | null // dari Open-Meteo API
+    openMeteoTemp: number | null
     clusterBtu: number
     totalBtu: number
     acUnits: number
-  } | null>(null)
+  }
+
+  const [result, setResult] = useState<EstimationResult | null>(null)
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [isResultOpen, setIsResultOpen] = useState(false)
 
   const [mapSnapshot, setMapSnapshot] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-
-  const [isResultOpen, setIsResultOpen] = useState(false)
 
   const handleStoreSelect = (store: StoreData | null) => {
     setSelectedStore(store)
@@ -194,6 +204,11 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
     }
 
     setErrorMsg(null)
+    setIsConfirmOpen(true)
+  }
+
+  const executeCalculate = () => {
+    setIsConfirmOpen(false)
     setResult(null)
 
     startTransition(async () => {
@@ -742,6 +757,74 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
             </DrawerFooter>
           </DrawerContent>
         </Drawer>
+
+        {/* Confirmation Modal Before Calculating */}
+        <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                <IconCalculator className="size-5 text-blue-600" />
+                Konfirmasi Parameter Input AC
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                Pastikan data toko, luas area, dan lokasi berikut sudah sesuai dengan kondisi aktual sebelum sistem melakukan kalkulasi beban pendinginan.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-xs">
+              <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5 space-y-2.5">
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Status Toko</span>
+                  <span className="font-semibold text-foreground">
+                    {storeMode === "existing" ? "Toko Terdaftar" : "Toko Baru"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Nama Toko</span>
+                  <span className="font-semibold text-foreground text-right">
+                    {storeMode === "existing" ? selectedStore?.name : newStoreName || "-"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Cabang</span>
+                  <span className="font-semibold text-foreground">
+                    {storeMode === "existing" ? selectedStore?.branch || "-" : newStoreBranch || "-"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start border-t border-border/50 pt-2">
+                  <span className="text-muted-foreground font-medium">Luas Area Sales</span>
+                  <span className="font-bold text-blue-600 dark:text-blue-400 font-mono">
+                    {salesArea} m²
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Titik Lokasi Peta</span>
+                  <span className="font-mono text-muted-foreground text-[11px]">
+                    {position[0].toFixed(4)}, {position[1].toFixed(4)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsConfirmOpen(false)}
+                className="h-9 text-xs"
+              >
+                Periksa Kembali
+              </Button>
+              <Button
+                type="button"
+                onClick={executeCalculate}
+                className="h-9 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
+              >
+                Ya, Lanjutkan Hitung
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center border-t border-border/60 bg-background/90 p-4 backdrop-blur lg:hidden">

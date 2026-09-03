@@ -161,6 +161,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   const [lampLen, setLampLen] = useState<number>(1.22)
   const [isSaving, setIsSaving] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const exportCardRef = useRef<HTMLDivElement | null>(null)
 
   // ── Preset Shape Dialog States & Handlers ──
@@ -729,6 +730,35 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   const [isCalculated, setIsCalculated] = useState<boolean>(false)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const resultCanvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  const handleRequestCalculate = () => {
+    if (storeMode === "existing" && !selectedStore) {
+      toast.error("Pilih toko terlebih dahulu.")
+      return
+    }
+    if (storeMode === "new" && (!newStoreName || !newStoreBranch)) {
+      toast.error("Lengkapi Nama Toko dan Cabang terlebih dahulu.")
+      return
+    }
+    if (shape === "custom" && !customClosed) {
+      toast.error("Selesaikan dan tutup poligon kustom terlebih dahulu.")
+      return
+    }
+    if (!stats.luas || stats.luas <= 0) {
+      toast.error("Luas area harus lebih dari 0.")
+      return
+    }
+
+    setIsConfirmOpen(true)
+  }
+
+  const executeCalculate = () => {
+    setIsConfirmOpen(false)
+    setIsCalculated(true)
+    setIrregOverrideBaris(null)
+    setIrregOverrideLpb(null)
+    setIrregDisabledLamps([])
+  }
 
   // Reset calculations when inputs change
   useEffect(() => {
@@ -2701,12 +2731,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 type="button"
                 className="w-full h-9 mt-4 text-xs font-semibold"
                 disabled={shape === "custom" && !customClosed}
-                onClick={() => {
-                  setIsCalculated(true)
-                  setIrregOverrideBaris(null)
-                  setIrregOverrideLpb(null)
-                  setIrregDisabledLamps([])
-                }}
+                onClick={handleRequestCalculate}
               >
                 Hitung Penempatan
               </Button>
@@ -3498,6 +3523,68 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               className="h-8 text-xs font-semibold"
             >
               Hapus Titik
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Modal Before Calculating */}
+      <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <IconBulb className="size-5 text-amber-500" />
+              Konfirmasi Parameter Input Lampu
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              Pastikan data toko, luas area, dan dimensi bentuk ruang sudah sesuai dengan kondisi aktual sebelum sistem menghitung tata letak penempatan lampu.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5 space-y-2.5">
+              <div className="flex justify-between items-start">
+                <span className="text-muted-foreground font-medium">Status Toko</span>
+                <span className="font-semibold text-foreground">
+                  {storeMode === "existing" ? "Toko Terdaftar" : "Toko Baru"}
+                </span>
+              </div>
+              <div className="flex justify-between items-start">
+                <span className="text-muted-foreground font-medium">Nama Toko</span>
+                <span className="font-semibold text-foreground text-right">
+                  {storeMode === "existing" ? selectedStore?.name : newStoreName || "-"}
+                </span>
+              </div>
+              <div className="flex justify-between items-start">
+                <span className="text-muted-foreground font-medium">Cabang</span>
+                <span className="font-semibold text-foreground">
+                  {storeMode === "existing" ? selectedStore?.branch || "-" : newStoreBranch || "-"}
+                </span>
+              </div>
+              <div className="flex justify-between items-start border-t border-border/50 pt-2">
+                <span className="text-muted-foreground font-medium">Luas Area Sales</span>
+                <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">
+                  {stats.luas.toFixed(2)} m²
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsConfirmOpen(false)}
+              className="h-9 text-xs"
+            >
+              Periksa Kembali
+            </Button>
+            <Button
+              type="button"
+              onClick={executeCalculate}
+              className="h-9 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold"
+            >
+              Ya, Lanjutkan Hitung
             </Button>
           </DialogFooter>
         </DialogContent>
