@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import { LAMP_CALCULATOR_VERSION } from "@/lib/calculator-versions"
 
 export type LightEstimationResultCardData = {
   storeCode: string
@@ -167,6 +168,17 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
                   }}
                 >
                   Energy
+                </div>
+                <div
+                  style={{
+                    fontSize: "6.5px",
+                    fontWeight: 500,
+                    color: "rgba(255, 255, 255, 0.55)",
+                    letterSpacing: "0.05em",
+                    marginTop: "2px",
+                  }}
+                >
+                  {LAMP_CALCULATOR_VERSION}
                 </div>
               </div>
             </div>

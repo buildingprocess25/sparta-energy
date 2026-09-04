@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link"
 import { IconBulb, IconArrowLeft, IconRefresh, IconGrid3x3, IconPolygon, IconSquare, IconChevronRight, IconDownload, IconInfoCircle, IconCheck, IconEdit, IconTrash, IconX, IconPointer, IconArrowBackUp, IconArrowForwardUp } from "@tabler/icons-react"
 import { Header } from "@/components/header"
+import { LAMP_CALCULATOR_VERSION } from "@/lib/calculator-versions"
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -2302,6 +2303,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
         variant="dashboard-back"
         title="Kalkulator Lampu"
         subtitle="Simulasi penempatan lampu TL/LED"
+        badge={LAMP_CALCULATOR_VERSION}
         backHref="/dashboard"
       />
 

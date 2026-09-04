@@ -4,6 +4,7 @@ import React, { useState, useTransition, useEffect, useRef } from "react"
 import dynamic from "next/dynamic"
 import { toPng } from "html-to-image"
 import { Header } from "@/components/header"
+import { AC_CALCULATOR_VERSION } from "@/lib/calculator-versions"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -364,6 +365,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       <Header
         variant="dashboard-back"
         title="Hitung Kebutuhan AC"
+        badge={AC_CALCULATOR_VERSION}
         backHref="/dashboard"
         className="px-0"
       />

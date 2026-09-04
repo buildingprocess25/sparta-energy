@@ -12,12 +12,14 @@ type DashboardLogoHeaderProps = {
   variant: "dashboard"
   title: string
   subtitle?: string
+  badge?: string
 }
 
 type DashboardBackHeaderProps = {
   variant: "dashboard-back"
   title: string
   subtitle?: string
+  badge?: string
   backHref?: string
   backLabel?: string
   onBack?: () => void
@@ -27,6 +29,7 @@ type TitleOnlyHeaderProps = {
   variant: "title-only"
   title: string
   subtitle?: string
+  badge?: string
 }
 
 type DashboardHeaderProps = (
@@ -74,9 +77,16 @@ function Header(props: DashboardHeaderProps) {
       {props.variant === "dashboard" ? (
         <div className="flex min-h-8 items-center justify-between gap-3">
           <div className="flex min-w-0 flex-col">
-            <h1 className="truncate text-base font-semibold text-primary">
-              {props.title}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-base font-semibold text-primary">
+                {props.title}
+              </h1>
+              {props.badge && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/70">
+                  {props.badge}
+                </span>
+              )}
+            </div>
             {props.subtitle && (
               <p className="truncate text-xs font-medium text-muted-foreground">
                 {props.subtitle}
@@ -115,7 +125,14 @@ function Header(props: DashboardHeaderProps) {
             </Button>
           )}
           <div className="flex min-w-0 flex-col">
-            <h1 className="truncate text-base font-semibold">{props.title}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-base font-semibold">{props.title}</h1>
+              {props.badge && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/70">
+                  {props.badge}
+                </span>
+              )}
+            </div>
             {props.subtitle && (
               <p className="truncate text-xs font-medium text-muted-foreground">
                 {props.subtitle}
@@ -125,7 +142,14 @@ function Header(props: DashboardHeaderProps) {
         </div>
       ) : (
         <div className="flex min-h-8 min-w-0 flex-col justify-center">
-          <h1 className="truncate text-base font-semibold">{props.title}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="truncate text-base font-semibold">{props.title}</h1>
+            {props.badge && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/70">
+                {props.badge}
+              </span>
+            )}
+          </div>
           {props.subtitle && (
             <p className="truncate text-xs font-medium text-muted-foreground">
               {props.subtitle}
