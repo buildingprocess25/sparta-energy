@@ -203,7 +203,7 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
                 letterSpacing: "0.05em",
               }}
             >
-              Pencahayaan LED Toko
+              Lampu TL Area Sales
             </div>
           </div>
         </div>
@@ -276,12 +276,11 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
 
           {/* Data rows */}
           <div style={{ padding: "0 16px", marginBottom: "8px" }}>
-            <Row label="Luas Ruangan" value={`${area.toFixed(1)} m²`} />
-            <Row label="Spesifikasi LED" value={`${watt}W · ${lampLen}m`} />
-            <Row label="Rentang Titik Lampu" value={minLamps && maxLamps && minLamps !== maxLamps ? `${minLamps} – ${maxLamps} Titik` : `${totalLamps} Titik`} />
-            <Row label="Grid Layout Acuan" value={`${rows} Baris × ${lampsPerRow} Kolom`} />
-            <Row label="Jarak Antar Baris" value={`${Number(rowSpacing).toFixed(2)} m`} />
-            <Row label="Jarak Samping" value={`${Number(sideMargin).toFixed(2)} m`} />
+            <Row label="Luas Plafond Efektif Lampu TL" value={`${area.toFixed(1)} m²`} />
+            <Row label="Spesifikasi LED | (Daya · Panjang)" value={`${watt}W · ${lampLen}m`} />
+            <Row label="Referensi Layout Lampu" value={`${rows} Baris × ${lampsPerRow} Kolom`} />
+            <Row label="Jarak Antar Baris (JB)" value={`${Number(rowSpacing).toFixed(2)} m`} />
+            <Row label="Jarak Samping (JS)" value={`${Number(sideMargin).toFixed(2)} m`} />
             <Row 
               label="Energy Ratio Index" 
               value={
@@ -297,14 +296,9 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
             const cardBg = "linear-gradient(135deg, #f0fdf4, #dcfce7)"
             const cardBorder = "1.5px solid #bbf7d0"
             const cardTitleColor = "#15803d"
-            const cardTitle = "Rekomendasi Penataan Lampu"
+            const cardTitle = "Rekomendasi Jumlah Titik Lampu"
             const cardCountColor = "#166534"
             const cardUnitColor = "#16a34a"
-            const cardDescription = (
-              <span style={{ color: "#166534" }}>
-                Grid {rows}×{lampsPerRow} merupakan tata letak pencahayaan standar toko (Rasio: {Number(rasio).toFixed(2)} W/m², Jarak samping: {Number(sideMargin).toFixed(2)}m, Jarak baris: {Number(rowSpacing).toFixed(2)}m).
-              </span>
-            )
 
             const displayRange = minLamps && maxLamps && minLamps !== maxLamps ? `${minLamps}–${maxLamps}` : `${totalLamps}`
 
@@ -315,34 +309,25 @@ export function LightEstimationResultCard({ cardRef, data }: Props) {
                   borderRadius: "10px",
                   background: cardBg,
                   border: cardBorder,
-                  padding: "10px 14px",
+                  padding: "12px 16px",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  gap: "10px",
+                  gap: "12px",
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
-                      fontSize: "9px",
-                      fontWeight: 700,
+                      fontSize: "11px",
+                      fontWeight: 800,
                       color: cardTitleColor,
                       textTransform: "uppercase",
-                      letterSpacing: "0.08em",
+                      letterSpacing: "0.06em",
+                      lineHeight: "1.3",
                     }}
                   >
                     {cardTitle}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "10.5px",
-                      color: "#374151",
-                      marginTop: "2px",
-                      lineHeight: "1.3"
-                    }}
-                  >
-                    {cardDescription}
                   </div>
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>

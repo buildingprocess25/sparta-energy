@@ -14,6 +14,7 @@ Format penomoran versi mengikuti aturan [Semantic Versioning (SemVer)](https://s
 - Standardisasi versi engine kalkulator (`v1.1.0`) pada header web dan kartu unduhan hasil estimasi (PNG).
 - Penempatan label versi di bawah branding SPARTA ENERGY pada kartu unduhan.
 - Integrasi pencatatan log hasil estimasi lampu ke database via server action (`saveLightEstimationLog`).
+- Penyesuaian terminologi kartu hasil download (Luas Plafond Efektif, Referensi Layout Lampu, Label Jarak JB & JS, serta pembersihan teks ringkasan agar lebih ringkas & fokus).
 
 ### Baseline Capabilities
 - Algoritma polygon ray-intersection untuk penempatan titik lampu otomatis pada denah toko simetris maupun custom poligon tidak beraturan.

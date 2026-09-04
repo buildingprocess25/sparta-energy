@@ -14,6 +14,7 @@ Format penomoran versi mengikuti aturan [Semantic Versioning (SemVer)](https://s
 - Standardisasi versi engine kalkulator (`v1.1.0`) pada header web dan kartu unduhan hasil estimasi (PNG).
 - Penempatan label versi di bawah branding SPARTA ENERGY pada kartu unduhan.
 - Integrasi pencatatan log hasil estimasi ke database via server action (`saveAcEstimationLog`).
+- Penyederhanaan teks modal konfirmasi perhitungan ("Titik Koordinat Toko") dan pembersihan sub-keterangan hasil agar ringkas & fokus.
 
 ### Baseline Capabilities
 - Perhitungan Cooling Load (BTU/hr & PK) berbasis luas ruangan, volume, dan tinggi plafon.

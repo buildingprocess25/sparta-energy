@@ -604,7 +604,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
 
                   {/* Keterangan Penjelasan Suhu Desain 2% (2 Tahun) */}
                   <div className="rounded-xl border border-blue-200/60 bg-blue-50/60 p-3 text-[11px] leading-relaxed text-blue-950 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-200">
-                    <span className="font-semibold text-blue-900 dark:text-blue-100">💡 Penjelasan Suhu Desain 2%:</span> Suhu ini diambil dari 2% jam terpanas dalam 2 tahun terakhir (Open-Meteo API). Selama 98% waktu dalam 2 tahun, suhu lingkungan toko berada di bawah atau sama dengan <strong className="font-bold text-primary">{result.maxTemp}°C</strong>.
+                    <span className="font-semibold text-blue-900 dark:text-blue-100">💡 Penjelasan Suhu Desain 2%:</span> Suhu ini diambil dari 2% jam terpanas dalam 2 tahun terakhir (Open-Meteo API).
                   </div>
 
                   <div className="border-t border-border/50 pt-3">
@@ -619,12 +619,6 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
                         Unit AC 2 PK
                       </span>
                     </div>
-                    <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                      Total beban pendinginan{" "}
-                      {new Intl.NumberFormat("id-ID").format(result.totalBtu)}{" "}
-                      BTU dibagi kapasitas 1 unit AC 2 PK (18.000 BTU)
-                      menghasilkan rekomendasi {result.acUnits} unit.
-                    </p>
                   </div>
 
                   <Button
@@ -678,9 +672,6 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
               <DrawerTitle className="text-lg font-semibold text-primary">
                 Kebutuhan AC
               </DrawerTitle>
-              <DrawerDescription>
-                Kebutuhan pendinginan berdasarkan parameter toko.
-              </DrawerDescription>
             </DrawerHeader>
 
             {result && (
@@ -715,7 +706,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
 
                   {/* Keterangan Penjelasan Suhu Desain 2% (2 Tahun) */}
                   <div className="rounded-xl border border-blue-200/60 bg-blue-50/60 p-3 text-[11px] leading-relaxed text-blue-950 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-200">
-                    <span className="font-semibold text-blue-900 dark:text-blue-100">💡 Penjelasan Suhu Desain 2%:</span> Suhu ini diambil dari 2% jam terpanas dalam 2 tahun terakhir (Open-Meteo API). Selama 98% waktu dalam 2 tahun, suhu lingkungan toko berada di bawah atau sama dengan <strong className="font-bold text-primary">{result.maxTemp}°C</strong>.
+                    <span className="font-semibold text-blue-900 dark:text-blue-100">💡 Penjelasan Suhu Desain 2%:</span> Suhu ini diambil dari 2% jam terpanas dalam 2 tahun terakhir (Open-Meteo API).
                   </div>
 
                   <div className="border-t border-border/50 pt-3">
@@ -730,12 +721,6 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
                         Unit AC 2 PK
                       </span>
                     </div>
-                    <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                      Total beban pendinginan{" "}
-                      {new Intl.NumberFormat("id-ID").format(result.totalBtu)}{" "}
-                      BTU dibagi kapasitas 1 unit AC 2 PK (18.000 BTU)
-                      menghasilkan rekomendasi {result.acUnits} unit.
-                    </p>
                   </div>
                 </div>
               </div>
@@ -766,10 +751,10 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
                 <IconCalculator className="size-5 text-blue-600" />
-                Konfirmasi Parameter Input AC
+                Konfirmasi Parameter Perhitungan
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
-                Pastikan data toko, luas area, dan lokasi berikut sudah sesuai dengan kondisi aktual sebelum sistem melakukan kalkulasi beban pendinginan.
+                Pastikan data toko, luasan area sales dan titik koordinat sudah sesuai dengan data aktual.
               </DialogDescription>
             </DialogHeader>
 
@@ -800,7 +785,7 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
                   </span>
                 </div>
                 <div className="flex justify-between items-start">
-                  <span className="text-muted-foreground font-medium">Titik Lokasi Peta</span>
+                  <span className="text-muted-foreground font-medium">Titik Koordinat Toko</span>
                   <span className="font-mono text-muted-foreground text-[11px]">
                     {position[0].toFixed(4)}, {position[1].toFixed(4)}
                   </span>
