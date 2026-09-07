@@ -3329,7 +3329,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 <div className="bg-slate-50 dark:bg-[#0c0d12] border border-border/70 rounded-xl p-2 flex flex-col items-center justify-center">
                   <svg width="180" height="85" viewBox="0 0 180 85" className="block">
                     <rect x="35" y="22" width="110" height="45" fill="rgba(245,158,11,0.06)" stroke="#f59e0b" strokeWidth="1.5" rx="2" />
-                    <text x="90" y="47" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#f59e0b">Area Sales Toko</text>
+                    <text x="90" y="47" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#f59e0b">Luas Plafond Efektif</text>
                     {/* LT Arrow */}
                     <line x1="35" y1="13" x2="145" y2="13" stroke="#38bdf8" strokeWidth="1.2" />
                     <text x="90" y="9" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#0284c7">Lebar Toko (LT)</text>
@@ -3670,7 +3670,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               Konfirmasi Parameter Input Lampu
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
-              Pastikan data toko, luas area, dan dimensi bentuk ruang sudah sesuai dengan kondisi aktual sebelum sistem menghitung tata letak penempatan lampu.
+              Pastikan data toko, luas plafond efektif, dan dimensi bentuk ruang sudah sesuai dengan kondisi aktual sebelum sistem menghitung tata letak penempatan lampu.
             </DialogDescription>
           </DialogHeader>
 
@@ -3695,7 +3695,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                 </span>
               </div>
               <div className="flex justify-between items-start border-t border-border/50 pt-2">
-                <span className="text-muted-foreground font-medium">Luas Area Sales</span>
+                <span className="text-muted-foreground font-medium">Luas Plafond Efektif Lampu TL</span>
                 <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">
                   {stats.luas.toFixed(2)} m²
                 </span>

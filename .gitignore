@@ -35,11 +35,21 @@ pnpm-debug.log*
 .env
 .kiro/
 
-# import-stores.ts
-
 # env files
 .env*.local
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# simulation and export artifacts
+Simulasi_Kalkulator_Lampu*.csv
+Simulasi_Kalkulator_Lampu*.xlsx
+Ringkasan_Analisis_Kalkulator_Lampu*.csv
+Dokumen_Logika_dan_Hirarki_Kalkulator_Lampu*
+temp_build_*
+temp_docx_build/
+*.docx
+*.rtf
+*.doc
+*.html
