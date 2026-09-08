@@ -227,7 +227,9 @@ function getBreadcrumbItems(pathname: string) {
 
 async function handleLogout() {
   await signOut()
-  window.location.href = process.env.NEXT_PUBLIC_PORTAL_URL || "http://localhost:5173/"
+  const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+  const portalUrl = isLocal ? (process.env.NEXT_PUBLIC_PORTAL_URL || 'http://localhost:5173/') : 'https://sparta-alfamart.web.id/';
+  window.location.href = portalUrl;
 }
 
 function AdminSidebar({ user }: { user: AdminUser }) {
