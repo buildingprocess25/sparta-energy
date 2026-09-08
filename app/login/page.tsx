@@ -21,6 +21,15 @@ function LoginToastNotice() {
       toast.error("Sesi Anda telah berakhir. Silakan login kembali.")
       sessionStorage.removeItem("auth-toast")
     }
+
+    const error = searchParams.get("error")
+    if (error === "sso_user_not_found") {
+      toast.error("Akun Anda tidak ditemukan di SPARTA Energy.")
+    } else if (error === "sso_exchange_failed") {
+      toast.error("Gagal melakukan pertukaran token SSO.")
+    } else if (error === "sso_token_missing") {
+      toast.error("Token SSO tidak valid atau hilang.")
+    }
   }, [searchParams])
 
   return null

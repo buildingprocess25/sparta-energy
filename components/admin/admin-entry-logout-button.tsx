@@ -8,7 +8,7 @@ import { signOut } from "@/lib/auth-client"
 export function AdminEntryLogoutButton() {
   async function handleLogout() {
     await signOut()
-    window.location.href = "/login"
+    window.location.href = process.env.NEXT_PUBLIC_PORTAL_URL || "http://localhost:5173/"
   }
 
   return (

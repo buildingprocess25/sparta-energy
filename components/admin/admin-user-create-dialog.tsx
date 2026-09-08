@@ -45,10 +45,6 @@ export function CreateUserDialog({
 }) {
   const [email, setEmail] = useState("")
   const [fullName, setFullName] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [role, setRole] = useState<"USER" | "ADMIN">("USER")
   const [branch, setBranch] = useState<string>("none")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -57,17 +53,12 @@ export function CreateUserDialog({
     role === "ADMIN" ? null : branch === "none" ? null : branch
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-  const isPasswordValid = password === confirmPassword
 
   // Reset form states when opened
   useEffect(() => {
     if (open) {
       setEmail("")
       setFullName("")
-      setPassword("")
-      setConfirmPassword("")
-      setShowPassword(false)
-      setShowConfirmPassword(false)
       setRole("USER")
       setBranch("none")
       setIsSubmitting(false)
@@ -82,20 +73,13 @@ export function CreateUserDialog({
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
 
-    if (!email.trim() || !password || !confirmPassword) {
-      toast.error("Email, password, dan konfirmasi password wajib diisi")
+    if (!email.trim()) {
+      toast.error("Email wajib diisi")
       return
     }
 
     if (!isEmailValid) {
       toast.error("Format email tidak valid")
-      return
-    }
-
-
-
-    if (password !== confirmPassword) {
-      toast.error("Password dan Konfirmasi Password tidak cocok")
       return
     }
 
@@ -107,7 +91,6 @@ export function CreateUserDialog({
       const result = await createUser({
         email: email.trim().toLowerCase(),
         fullName: fullName.trim() || null,
-        password,
         role,
         branch: normalizedBranch,
       })
@@ -165,68 +148,7 @@ export function CreateUserDialog({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="create-password">Password *</Label>
-              <div className="relative">
-                <Input
-                  id="create-password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Masukkan password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isSubmitting}
-                  className="pr-10"
-                  autoComplete="new-password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-                  tabIndex={-1}
-                  disabled={isSubmitting}
-                >
-                  {showPassword ? (
-                    <IconEyeOff className="size-4" />
-                  ) : (
-                    <IconEye className="size-4" />
-                  )}
-                </button>
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="create-confirm-password">Konfirmasi Password *</Label>
-              <div className="relative">
-                <Input
-                  id="create-confirm-password"
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="Ketik ulang password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isSubmitting}
-                  className="pr-10"
-                  autoComplete="new-password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((prev) => !prev)}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-                  tabIndex={-1}
-                  disabled={isSubmitting}
-                >
-                  {showConfirmPassword ? (
-                    <IconEyeOff className="size-4" />
-                  ) : (
-                    <IconEye className="size-4" />
-                  )}
-                </button>
-              </div>
-              {password && confirmPassword && password !== confirmPassword && (
-                <p className="text-xs text-destructive">Password tidak cocok</p>
-              )}
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="create-role">Role *</Label>
@@ -284,7 +206,7 @@ export function CreateUserDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !email.trim() || !password || !confirmPassword || !isEmailValid || !isPasswordValid}
+              disabled={isSubmitting || !email.trim() || !isEmailValid}
             >
               {isSubmitting && (
                 <IconLoader2

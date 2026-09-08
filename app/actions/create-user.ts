@@ -15,7 +15,6 @@ type ActionResult = {
 type CreateUserInput = {
   email: string
   fullName: string | null
-  password: string
   role: "USER" | "ADMIN"
   branch: string | null
 }
@@ -30,12 +29,12 @@ export async function createUser(
   try {
     await requireAdmin()
 
-    const { email, fullName, password, role, branch } = input
+    const { email, fullName, role, branch } = input
 
-    if (!email || !password) {
+    if (!email) {
       return {
         success: false,
-        message: "Email dan password wajib diisi",
+        message: "Email wajib diisi",
       }
     }
 
@@ -47,8 +46,6 @@ export async function createUser(
         message: "Format email tidak valid",
       }
     }
-
-
 
     if (role !== "USER" && role !== "ADMIN") {
       return {
@@ -72,13 +69,14 @@ export async function createUser(
 
     const trimmedFullName = fullName?.trim() || null
     const normalizedBranch = role === "ADMIN" ? null : branch?.trim() || null
+    const dummyPassword = crypto.randomBytes(16).toString("hex")
 
     // Execute in a transaction to create both User and Account
     await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
           email: normalizedEmail,
-          passwordHash: hashPassword(password),
+          passwordHash: hashPassword(dummyPassword),
           role,
           fullName: trimmedFullName,
           branch: normalizedBranch,
@@ -92,12 +90,35 @@ export async function createUser(
           accountId: newUser.id,
           providerId: "credential",
           userId: newUser.id,
-          password: hashPassword(password),
+          password: hashPassword(dummyPassword),
           createdAt: new Date(),
           updatedAt: new Date(),
         },
       })
     })
+
+    // S2S SYNC to login-sparta
+    try {
+      const apiUrl = process.env.SPARTA_API_URL || "http://localhost:10000"
+      const apiKey = process.env.SPARTA_INTERNAL_API_KEY || "sparta-internal-sync-key-2026"
+      await fetch(`${apiUrl}/v1/admin/users/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-sparta-internal-key": apiKey
+        },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          fullName: trimmedFullName || normalizedEmail,
+          branchCode: normalizedBranch || "HEAD",
+          branchName: normalizedBranch || "HEAD",
+          role,
+          moduleId: "energy"
+        })
+      })
+    } catch (e) {
+      console.error("[S2S SYNC] Failed to sync energy user to SSO", e)
+    }
 
     revalidatePath("/admin/users")
 

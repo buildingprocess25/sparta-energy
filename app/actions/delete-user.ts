@@ -80,6 +80,27 @@ export async function deleteUser(
       })
     })
 
+    // S2S SYNC DELETE to login-sparta
+    if (userToDelete.email) {
+      try {
+        const apiUrl = process.env.SPARTA_API_URL || "http://localhost:10000"
+        const apiKey = process.env.SPARTA_INTERNAL_API_KEY || "sparta-internal-sync-key-2026"
+        await fetch(`${apiUrl}/v1/admin/users/sync-delete`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-sparta-internal-key": apiKey
+          },
+          body: JSON.stringify({
+            email: userToDelete.email,
+            moduleId: "energy"
+          })
+        })
+      } catch (e) {
+        console.error("[S2S SYNC] Failed to sync delete user from SSO", e)
+      }
+    }
+
     revalidatePath("/admin/users")
 
     const nameDisplay = userToDelete.fullName || userToDelete.email

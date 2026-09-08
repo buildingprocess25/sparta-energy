@@ -138,7 +138,7 @@ export function EditUserDialog({
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isSubmitting}
+                disabled
               />
             </div>
 

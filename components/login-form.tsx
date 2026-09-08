@@ -74,62 +74,15 @@ export function LoginForm({
         )}
 
         <Field>
-          <FieldLabel htmlFor="email">Email</FieldLabel>
-          <div className="relative">
-            <IconMail className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="email"
-              type="email"
-              placeholder="Masukkan Email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="bg-background pl-9"
-              disabled={isPending}
-            />
-          </div>
-        </Field>
-        <Field>
-          <div className="flex items-center">
-            <FieldLabel htmlFor="password">Password</FieldLabel>
-          </div>
-          <div className="relative">
-            <IconLock className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              required
-              placeholder="Masukkan Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="bg-background px-9"
-              disabled={isPending}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-              tabIndex={-1}
-            >
-              {showPassword ? (
-                <IconEye className="size-4" />
-              ) : (
-                <IconEyeOff className="size-4" />
-              )}
-            </button>
-          </div>
-        </Field>
-        <FieldGroup>
-          <Field orientation="horizontal">
-            <Checkbox id="remember" defaultChecked />
-            <FieldLabel htmlFor="remember" className="font-normal">
-              Ingat saya
-            </FieldLabel>
-          </Field>
-        </FieldGroup>
-        <Field>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? "Masuk..." : "Login"}
+          <Button
+            type="button"
+            onClick={() => {
+              window.location.href = process.env.NEXT_PUBLIC_SSO_PORTAL_URL || "http://localhost:5173"
+            }}
+            disabled={isPending}
+            className="w-full h-12 text-base font-bold bg-[#005a9e] hover:bg-[#004a80] transition-transform active:scale-[0.98] shadow-md"
+          >
+            {isPending ? "Masuk..." : "Masuk via SPARTA SSO"}
           </Button>
         </Field>
         <Field className="gap-1">

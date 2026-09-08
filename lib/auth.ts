@@ -4,6 +4,7 @@ import { dbPool } from "@/lib/db-pool"
 
 export const auth = betterAuth({
   database: dbPool,
+  secret: process.env.BETTER_AUTH_SECRET,
 
   // Map onto our existing "users" table columns
   user: {
@@ -29,10 +30,7 @@ export const auth = betterAuth({
     },
     expiresIn: 8 * 60 * 60, // 8 hours in seconds (default for regular users)
     updateAge: 60 * 60, // refresh cookie after 1 hour of activity
-    cookieCache: {
-      enabled: true,
-      maxAge: 8 * 60 * 60, // match session TTL
-    },
+    // cookieCache disabled: SSO manually inserts sessions to DB, cache would bypass DB lookup
   },
 
   account: {
@@ -72,3 +70,67 @@ export const auth = betterAuth({
 
 export type Session = typeof auth.$Infer.Session
 export type User = typeof auth.$Infer.Session.user
+
+// ─── ROBUST SSO SESSION FALLBACK ───────────────────────────────────────────
+// Monkey-patch getSession so that Server Actions and Server Components
+// transparently resolve the session from the 'sso_session' cookie if the
+// standard better-auth cookie fails or is missing.
+const originalGetSession = auth.api.getSession;
+// @ts-ignore
+auth.api.getSession = async (options: any) => {
+  const result = await originalGetSession(options);
+  if (result?.user) return result;
+
+  if (options?.headers) {
+    let cookieStr = "";
+    if (typeof options.headers.get === 'function') {
+      cookieStr = options.headers.get("cookie") || "";
+    } else if (typeof options.headers === 'object' && 'cookie' in options.headers) {
+      cookieStr = String(options.headers.cookie);
+    }
+
+    const match = cookieStr.match(/sso_session=([^;]+)/);
+    if (match) {
+      const ssoToken = match[1];
+      const { prisma } = await import("@/lib/prisma");
+      const dbSession = await prisma.session.findUnique({
+        where: { token: ssoToken },
+        include: { user: true }
+      });
+      if (dbSession && dbSession.expiresAt > new Date()) {
+        return {
+          session: dbSession as any,
+          user: dbSession.user as any
+        };
+      }
+    }
+  }
+  return result;
+}
+
+const originalSignOut = auth.api.signOut;
+// @ts-ignore
+auth.api.signOut = async (options: any) => {
+  if (options?.headers) {
+    let cookieStr = "";
+    if (typeof options.headers.get === 'function') {
+      cookieStr = options.headers.get("cookie") || "";
+    } else if (typeof options.headers === 'object' && 'cookie' in options.headers) {
+      cookieStr = String(options.headers.cookie);
+    }
+    const match = cookieStr.match(/sso_session=([^;]+)/);
+    if (match) {
+      const ssoToken = match[1];
+      try {
+        const { prisma } = await import("@/lib/prisma");
+        await prisma.session.deleteMany({
+          where: { token: ssoToken }
+        });
+        console.log("[Auth] Deleted SSO session from DB on signOut");
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+  return await originalSignOut(options);
+}

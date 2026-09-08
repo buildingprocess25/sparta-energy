@@ -16,7 +16,31 @@ import { DraftListSection } from "@/components/dashboard/draft-list-section"
 
 
 export default async function DashboardPage() {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const requestHeaders = await headers()
+  let session = await auth.api.getSession({ headers: requestHeaders })
+
+
+
+  // Fallback: if better-auth session fails (e.g. from SSO callback), try sso_session cookie
+  if (!session?.user) {
+    const cookieHeader = requestHeaders.get("cookie") || ""
+    const ssoMatch = cookieHeader.match(/sso_session=([^;]+)/)
+    if (ssoMatch) {
+      const ssoToken = ssoMatch[1]
+      const dbSession = await prisma.session.findUnique({
+        where: { token: ssoToken },
+        include: { user: true }
+      })
+      if (dbSession && dbSession.expiresAt > new Date()) {
+        // Valid SSO session - create proper better-auth session
+        session = {
+          session: dbSession as any,
+          user: dbSession.user as any,
+        }
+      }
+    }
+  }
+
   if (!session?.user) redirect("/login?reason=session-expired")
 
   // Get all audits for stores in user's branch

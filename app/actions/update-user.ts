@@ -137,10 +137,33 @@ export async function updateUser(
     }
 
     // Execute update
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: updateData,
     })
+
+    // S2S SYNC UPDATE to login-sparta
+    try {
+      const apiUrl = process.env.SPARTA_API_URL || "http://localhost:10000"
+      const apiKey = process.env.SPARTA_INTERNAL_API_KEY || "sparta-internal-sync-key-2026"
+      await fetch(`${apiUrl}/v1/admin/users/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-sparta-internal-key": apiKey
+        },
+        body: JSON.stringify({
+          email: updatedUser.email,
+          fullName: updatedUser.fullName || updatedUser.email,
+          branchCode: updatedUser.branch || "HEAD",
+          branchName: updatedUser.branch || "HEAD",
+          role: updatedUser.role,
+          moduleId: "energy"
+        })
+      })
+    } catch (e) {
+      console.error("[S2S SYNC] Failed to sync-update user to SSO", e)
+    }
 
     revalidatePath("/admin/users")
 
