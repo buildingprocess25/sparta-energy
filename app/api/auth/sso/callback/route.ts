@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
-import { serializeSignedCookie } from "better-call";
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -68,21 +67,7 @@ export async function GET(request: Request) {
     console.log("[SSO Callback] Session created for user:", user.email);
 
     const response = NextResponse.redirect(new URL("/dashboard", request.url));
-    
-    // Create properly signed cookie exactly as better-auth does it
-    const secret = process.env.BETTER_AUTH_SECRET!;
-    const signedCookieValue = await serializeSignedCookie("better-auth.session_token", sessionToken, secret, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 8 * 60 * 60,
-    });
-    
-    // Manually append the Set-Cookie header to have full control over the string
-    response.headers.append("Set-Cookie", signedCookieValue);
-    
-    // Also set the plain sso_session cookie for our robust fallback interceptor
+    // The proxy and auth helper resolve this fallback cookie from the session table.
     response.cookies.set("sso_session", sessionToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
