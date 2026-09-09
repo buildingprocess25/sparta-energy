@@ -68,7 +68,8 @@ export async function GET(request: Request) {
 
     console.log("[SSO Callback] Session created for user:", user.email);
 
-    const response = NextResponse.redirect(new URL("/dashboard", baseUrl));
+    const redirectPath = user.role === "ADMIN" ? "/admin-entry" : "/dashboard";
+    const response = NextResponse.redirect(new URL(redirectPath, baseUrl));
     // The proxy and auth helper resolve this fallback cookie from the session table.
     response.cookies.set("sso_session", sessionToken, {
         httpOnly: true,
