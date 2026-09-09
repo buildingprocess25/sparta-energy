@@ -1,8 +1,25 @@
+"use server"
+
 export async function getTemperature(lat: string, lng: string) {
   try {
+    const latNum = parseFloat(lat)
+    const lngNum = parseFloat(lng)
+
+    if (isNaN(latNum) || isNaN(lngNum)) {
+      throw new Error("Koordinat latitude atau longitude tidak valid")
+    }
+
+    // Bulatkan koordinat ke 3 desimal (~100m) untuk meningkatkan hit rate cache server
+    const roundedLat = latNum.toFixed(3)
+    const roundedLng = lngNum.toFixed(3)
+
     const sekarang = new Date()
-    const duaTahunLalu = new Date()
-    duaTahunLalu.setDate(sekarang.getDate() - 365 * 2) // Data 2 tahun ke belakang
+    // Open-Meteo Archive memiliki lag data 2-5 hari, mundur 5 hari agar selalu valid di archive API
+    const endDate = new Date(sekarang)
+    endDate.setDate(sekarang.getDate() - 5)
+
+    const startDate = new Date(endDate)
+    startDate.setDate(endDate.getDate() - 365 * 2) // Data 2 tahun ke belakang
 
     const formatTanggal = (tanggal: Date) => {
       const tahun = tanggal.getFullYear()
@@ -12,18 +29,21 @@ export async function getTemperature(lat: string, lng: string) {
     }
 
     const url = new URL("https://archive-api.open-meteo.com/v1/archive")
-    url.searchParams.append("latitude", lat)
-    url.searchParams.append("longitude", lng)
-    url.searchParams.append("start_date", formatTanggal(duaTahunLalu))
-    url.searchParams.append("end_date", formatTanggal(sekarang))
+    url.searchParams.append("latitude", roundedLat)
+    url.searchParams.append("longitude", roundedLng)
+    url.searchParams.append("start_date", formatTanggal(startDate))
+    url.searchParams.append("end_date", formatTanggal(endDate))
     url.searchParams.append("hourly", "temperature_2m")
     url.searchParams.append("timezone", "Asia/Jakarta")
 
-    // Menggunakan browser fetch biasa karena dijalankan di Client-Side
-    const response = await fetch(url.toString(), { cache: "no-store" })
+    // Menggunakan server-side fetch dengan Next.js revalidation cache (7 hari) dan timeout 25 detik
+    const response = await fetch(url.toString(), {
+      next: { revalidate: 60 * 60 * 24 * 7 }, // Cache 7 hari di server
+      signal: AbortSignal.timeout(25000), // Timeout 25 detik
+    })
 
     if (!response.ok) {
-      throw new Error(`Open-Meteo API Error: ${response.status}`)
+      throw new Error(`Open-Meteo API Error: ${response.status} ${response.statusText}`)
     }
 
     const data = await response.json()
@@ -34,7 +54,7 @@ export async function getTemperature(lat: string, lng: string) {
     )
 
     if (suhuTersaring.length === 0) {
-      throw new Error("Data suhu tidak ditemukan")
+      throw new Error("Data suhu tidak ditemukan untuk lokasi ini")
     }
 
     // Urutkan suhu dari tertinggi ke terendah
@@ -43,7 +63,7 @@ export async function getTemperature(lat: string, lng: string) {
     // =========================================================================
     // PERSENTASE SUHU DESAIN (ASHRAE Exceedance Rate):
     // 2% = Suhu terpanas 2% diabaikan (98% waktu suhu lingkungan di bawah angka ini)
-    // Hitung indeks secara otomatis berdasarkan total jam data (misal ~17.520 jam untuk 2 tahun)
+    // Hitung indeks secara otomatis berdasarkan total jam data
     // =========================================================================
     const EXCEEDANCE_PERCENT = 2
 
@@ -72,3 +92,4 @@ export async function getTemperature(lat: string, lng: string) {
     }
   }
 }
+
