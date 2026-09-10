@@ -1,9 +1,9 @@
 # Spesifikasi & Notula Desain: Kalkulator Layout & Pemetaan AC Sparta Energy
 
 > **Status Dokumen:** Rancangan & Bahan Diskusi Teknis  
-> **Tanggal Pembaruan:** 9 September 2026  
+> **Tanggal Pembaruan:** 10 September 2026  
 > **Proyek:** Sparta Energy Management System (`sparta-energy`)  
-> **Topik:** Fitur Pemetaan Posisi AC Split Wall Berbasis Geometri Canvas & Thermal Gradient  
+> **Topik:** Fitur Pemetaan Posisi AC Split Wall Berbasis Geometri Canvas, Thermal Gradient & Integrasi Tools  
 
 ---
 
@@ -68,16 +68,35 @@ Setiap unit AC Split Wall digambarkan menempel pada segmen garis dinding (edge p
 
 ## 4. Aturan Penempatan Fisik & Batasan Ruang (*Placement & Constraint Rules*)
 
-### **A. Aturan Blok Khusus / Zona Terlarang (*Restricted Zones*)**
-Selain poligon denah toko, canvas mendukung penandaan blok-blok khusus:
+### **A. Aturan Blok Khusus & Alasan Teknis Lapangan (*Restricted Zones*)**
 1. **Area Kusen / Kaca / Pintu Depan**:
-   - *Rule*: Dilarang menempatkan unit fisik indoor AC pada segmen dinding ini (karena tidak ada bidang dinding bata/dudukan bracket dan tingkat kebocoran panas tinggi).
+   - *Rule*: Dilarang menempatkan unit fisik indoor AC pada segmen dinding ini.
+   - *Alasan*: Tidak ada bidang dinding bata/dudukan bracket struktural yang kuat dan tingkat radiasi kebocoran panas dari luar sangat tinggi.
 2. **Area Open Chiller / Showcase Terbuka**:
-   - *Rule*: Dilarang mengarahkan semburan AC langsung (*no direct draft*) ke arah muka open chiller agar tidak merusak tirai udara (*air curtain*) chiller yang dapat memicu bunga es dan boros listrik.
-3. **Area Kasir**:
-   - *Rule*: Jaga agar tidak ada semburan langsung kecepatan tinggi tepat di atas kepala kasir (*draft discomfort*).
+   - *Rule*: Dilarang menempatkan unit fisik AC di dinding tepat di atas chiller dan dilarang mengarahkan semburan AC langsung (*no direct draft*) ke arah muka open chiller.
+   - *Alasan*:
+     - **Akses Servis & Maintenance**: Bodi chiller menghalangi tangga teknisi saat cuci AC/servis berkala.
+     - **Risiko Kebocoran Air Kondensasi**: Pipa/talang AC yang tersumbat berisiko meneteskan air langsung ke dalam produk display atau modul kelistrikan chiller.
+     - **Kerusakan Tirai Udara (*Air Curtain*)**: Hembusan angin kencang mengoyak lapisan udara dingin internal chiller sehingga memicu bunga es dan pemborosan listrik kompresor.
+3. **Area Kasir / Meja POS**:
+   - *Rule*: Dilarang memasang unit fisik di dinding belakang/atas kasir dan hindari semburan kencang langsung ke meja POS.
+   - *Alasan*:
+     - **Halangan Properti & Visual**: Dinding area kasir dipenuhi rak rokok (*backwall*), layar TV *Menu Board*, papan neon box promosi, dan instalasi POS yang menghalangi sirkulasi hisap/hembus AC.
+     - **Kenyamanan Staf (*Thermal Comfort*)**: Menghindari *draft discomfort* bagi staf kasir yang bertugas diam di satu titik sepanjang waktu shift.
 
-### **B. Aturan Clearance & Jarak Fisik Antar AC**
+### **B. Mekanisme Penandaan di Interactive Canvas**
+1. **Penandaan Segmen Garis Dinding (Wall Edge Toggle)**:
+   - User mengklik segmen garis dinding poligon toko untuk mengubah statusnya:
+     - 🧱 *Dinding Solid (Bata)*: Garis tegas abu-abu/hitam (Bisa dipasang AC).
+     - 🚪 *Kusen / Kaca / Pintu Depan*: Garis oranye strip putus-putus (`- - -`) dengan label *"Kaca/Pintu"*.
+     - 🚫 *Dinding Terhalang Properti (Backwall Kasir)*: Garis merah strip dengan label *"Terhalang"*.
+   - Segmen garis terlarang memiliki fitur **Snap Prevention** (titik AC otomatis menolak/mengunci jika ditarik ke garis ini).
+2. **Penandaan Blok Fixture Lantai (Furniture Blocks)**:
+   - Tersedia tombol cepat **`+ Tambah Blok Chiller`** (kotak berarsir Cyan 🧊) dan **`+ Tambah Meja Kasir`** (kotak berarsir Kuning/Oranye 🛒).
+   - Blok dapat digeser (*drag*) merapat ke dinding. Dinding di belakang blok chiller otomatis terkunci.
+   - **Collision Warning**: Jika kerucut semburan AC ($70^\circ$) mengarah langsung ke muka blok chiller ($< 3.5\text{ m}$), garis semburan berubah warna kuning/merah dengan peringatan aktif.
+
+### **C. Aturan Clearance & Jarak Fisik Antar AC**
 - **Jarak Antar Unit di Dinding yang Sama**: Minimal $\ge 2.5 - 3.0\text{ meter}$ untuk menghindari *short-cycling* (udara dingin langsung tersedot unit tetangga).
 - **Jarak dari Sudut/Pojokan Dinding**: Minimal $\ge 0.5 - 1.0\text{ meter}$ dari sudut pertemuan dua dinding agar sirkulasi udara samping tidak terhambat.
 
@@ -97,13 +116,36 @@ graph TD
 
 ---
 
+## 6. Keputusan Desain Produk & Integrasi Arsitektur
+
+### **A. Model Akses Ganda (Two-Way Accessibility)**
+Fitur ini dibangun sebagai **tool baru tersendiri (`/ac-layout`)**, namun terhubung secara mulus dengan alat yang sudah ada:
+1. **Pintu Akses 1 (Alur Lanjutan dari Kalkulator AC - `/ac-estimation`)**:
+   - Setelah user menghitung kebutuhan BTU dan memperoleh hasil (misal: 4 unit Daikin 2 PK), terdapat tombol aksi **"Petakan Posisi di Denah (Visual Layout) ➔"**.
+   - Sistem melakukan *seamless redirect* ke `/ac-layout` dengan menyertakan parameter toko, luas, dan kuantitas unit awal secara otomatis.
+2. **Pintu Akses 2 (Akses Cepat dari Dashboard Utama)**:
+   - Terdaftar di `CalculatorGrid` sebagai kartu mandiri berdampingan dengan Kalkulator AC dan Kalkulator Lampu.
+   - Auditor toko eksisting dapat langsung menggambar denah dan mengevaluasi posisi AC tanpa kewajiban mengisi form cuaca/GPS terlebih dahulu.
+
+### **B. Konsistensi Acuan & Resolusi Selisih Unit (Beban Termal vs Tata Letak Fisik)**
+- **Baseline Acuan Tetap**: Menggunakan formula baku Kalkulator AC (Kapasitas per unit Daikin 2 PK = 18.000 BTU/h, klaster suhu Open-Meteo 450 / 600 / 751 BTU/m²).
+- **Penanganan Fenomena Selisih Angka Lapangan**:
+  1. *Kasus Rekomendasi Beban 5 Unit $\rightarrow$ Di Denah Cukup 4 Unit*:
+     - Terjadi karena luas lantai terpotong blok Open Chiller/Gudang (luas efektif berkurang), atau bentuk ruangan persegi kompak sehingga 4 unit sudah mencapai superposisi cakupan $\ge 90\%$.
+  2. *Kasus Rekomendasi Beban 4 Unit $\rightarrow$ Di Denah Memerlukan 5 Unit*:
+     - Terjadi pada ruangan berbentuk huruf L, banyak sekat, atau lorong memanjang di mana lemparan angin 7.5 meter tidak dapat berbelok ke sudut mati (*dead zone*).
+- **Panel Evaluasi Ganda & Smart Insight**:
+  Antarmuka menampilkan panel komparasi transparan antara **Target Beban Termal (BTU)** dan **Persentase Cakupan Denah Fisik (%)** disertai catatan cerdas (*smart insights*) untuk memberikan justifikasi penghematan CAPEX/OPEX yang valid bagi manajemen dan tim audit.
+
+---
+
 ## 7. Rangkuman & Rekapitulasi Cepat (Teks & Tabel Bersih)
 
 Berikut adalah rangkuman cepat seluruh parameter, batasan jarak, dan aturan penempatan dalam format teks dan tabel bersih:
 
 ### A. Tabel Aturan & Batasan Penempatan
 
-| Parameter / Aturan | Nilai / Standar | Keterangan Teknis |
+| Parameter / Aturan | Nilai / Standar | Keterangan Teknis Lapangan |
 | :--- | :--- | :--- |
 | **Model Unit AC** | AC Split Wall 2 PK Daikin | Standar unit terpasang di toko |
 | **Kapasitas Pendinginan** | 18.000 BTU/h per unit | Kapasitas pendinginan per unit |
@@ -112,9 +154,9 @@ Berikut adalah rangkuman cepat seluruh parameter, batasan jarak, dan aturan pene
 | **Jarak Lemparan Maksimal** | 7.5 meter | Batas terjauh dorongan angin blower |
 | **Jarak Minimal Antar AC** | Minimal 2.5 sampai 3.0 meter | Mencegah short-cycling (saling sedot udara dingin) |
 | **Jarak Minimal dari Sudut Dinding** | Minimal 0.5 sampai 1.0 meter | Menjaga sirkulasi udara samping dari tembok |
-| **Zona Pintu / Kusen / Kaca Depan** | Dilarang pasang unit AC fisik | Tidak ada tembok dudukan bracket & panas luar tinggi |
-| **Zona Open Chiller / Showcase** | Dilarang semburan angin langsung | Mencegah rusaknya tirai udara dingin & boros listrik |
-| **Zona Kasir** | Hindari semburan kencang langsung | Menjaga kenyamanan kerja staf kasir |
+| **Zona Pintu / Kusen / Kaca Depan** | Dilarang pasang unit AC fisik | Tidak ada tembok dudukan bracket & beban radiasi luar tinggi |
+| **Zona Open Chiller / Showcase** | Dilarang pasang di atas & semburan langsung | Mencegah kerusakan air curtain, akses servis terhalang, & tetesan air |
+| **Zona Kasir** | Dilarang pasang di atas & semburan kencang | Terhalang TV menu/backwall/rak rokok & menjaga kenyamanan kerja kasir |
 
 ### B. Tabel Zonasi Sebaran Hawa Dingin (Gradien Biru)
 
