@@ -53,3 +53,6 @@ temp_docx_build/
 *.rtf
 *.doc
 *.html
+*.xlsx
+*.xls
+*.csv

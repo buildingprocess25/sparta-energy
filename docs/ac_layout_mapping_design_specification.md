@@ -1,7 +1,7 @@
 # Spesifikasi & Notula Desain: Kalkulator Layout & Pemetaan AC Sparta Energy
 
 > **Status Dokumen:** Rancangan & Bahan Diskusi Teknis  
-> **Tanggal Pembaruan:** 10 September 2026  
+> **Tanggal Pembaruan:** 11 September 2026  
 > **Proyek:** Sparta Energy Management System (`sparta-energy`)  
 > **Topik:** Fitur Pemetaan Posisi AC Split Wall Berbasis Geometri Canvas, Thermal Gradient & Integrasi Tools  
 
@@ -165,6 +165,29 @@ Berikut adalah rangkuman cepat seluruh parameter, batasan jarak, dan aturan pene
 | **Zona 1: Dingin Maksimal** | 0 sampai 2.5 meter | Biru Pekat (90% pekat) | Hembusan langsung, suhu 14 - 16 C, angin kencang (1.5 - 2.5 m/s) |
 | **Zona 2: Sejuk Efektif** | 2.5 sampai 5.5 meter | Biru Sedang (50% pekat) | Udara sejuk rata, suhu nyaman 22 - 24 C, angin sepoi-sepoi |
 | **Zona 3: Batas Lemparan** | 5.5 sampai 7.5 meter | Biru Pudar ke Transparan | Batas akhir dorongan angin, mengandalkan sirkulasi ruangan |
+
+---
+
+## 8. Daftar Pustaka & Rujukan Normatif (*Normative References*)
+
+Berikut adalah referensi tertulis resmi yang mendasari parameter teknis, aturan jarak, dan batasan penempatan AC dalam sistem ini:
+
+1. **Pabrikan & Manual Book (Daikin)**:
+   - *Daikin Room Air Conditioner Installation Manual (Wall-Mounted Series FTKC / FTV 2 PK)*: Ketentuan *side clearance* ($\ge 50 - 500\text{ mm}$), *ceiling clearance*, dan pencegahan *discharge obstruction*.
+   - *Daikin Engineering Data Book / Service Manual (FTKC50 / FTV50 Series)*: Data laju aliran volume udara indoor ($17.5 - 19.8\text{ m}^3/\text{menit} \approx 600 - 700\text{ CFM}$) dan profil *air velocity distribution / throw distance*.
+   - Portal Resmi: [Daikin Indonesia Technical Portal](https://www.daikin.co.id/) & [Daikin Comfort Technical Resources](https://www.daikincomfort.com/).
+
+2. **Standar Rekayasa Termal Internasional (ASHRAE)**:
+   - *ASHRAE Handbook — Fundamentals (Chapter: Space Air Diffusion)*: Definisi *Throw Distance* pada *terminal velocity* $V_t = 0.25\text{ m/s}$, teori *Turbulent Free Jet* (sudut sebaran $60^\circ - 70^\circ$), dan *Air Diffusion Performance Index* (ADPI).
+   - *ASHRAE Standard 55 (Thermal Environmental Conditions for Human Occupancy)*: Batasan *Draft Rate* (DR) dan kenyamanan termal bagi pekerja statis (*stationary occupants* / staf kasir).
+   - *ASHRAE Handbook — Refrigeration (Chapter: Retail Food Store Refrigeration Systems)* & *ANSI/ASHRAE Standard 72*: Pengaruh hembusan angin HVAC toko terhadap stabilitas tirai udara (*air curtain*) open chiller.
+
+3. **Jurnal & Penelitian Ilmiah**:
+   - *Foster, A.M., et al.* (International Journal of Refrigeration): *"Effect of ambient air movement on the performance of refrigerated display cabinets"* ([DOI: 10.1016/j.ijrefrig.2004.11.006](https://doi.org/10.1016/j.ijrefrig.2004.11.006)) — Bukti ilmiah bahwa hembusan AC yang mengarah langsung ke open chiller merusak tirai udara dan menaikkan beban infiltrasi panas 67%–81%.
+   - *MDPI Energies*: *"Investigation on Air Curtain Performance and Infiltration Load of Open Refrigerated Display Cabinets"* ([MDPI Article](https://www.mdpi.com/1996-1073/14/19/6257)).
+
+4. **Pedoman MEP Toko Retail Modern**:
+   - Standar teknis fit-out minimarket/supermarket terkait zonasi bebas kondensasi di atas chiller display dan zonasi perabotan kasir/backwall.
 
 ---
 
