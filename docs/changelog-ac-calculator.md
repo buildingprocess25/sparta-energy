@@ -4,8 +4,18 @@ Semua perubahan dan riwayat perbaikan pada engine kalkulator estimasi kebutuhan 
 
 Format penomoran versi mengikuti aturan [Semantic Versioning (SemVer)](https://semver.org/):
 - **MAJOR** (`v2.0.0`): Perombakan total rumus dasar / arsitektur perhitungan.
-- **MINOR** (`v1.1.0`): Penyesuaian formula beban termal, penambahan parameter bangunan/geometri, atau fitur baru.
+- **MINOR** (`v1.1.0` / `v2.2.0`): Penyesuaian formula beban termal, penambahan parameter bangunan/geometri, atau fitur baru.
 - **PATCH** (`v1.1.1`): Perbaikan bug kecil, penyesuaian UI/UX, atau perbaikan glitch visual/export kartu unduhan.
+
+---
+
+## [v1.2.0] - 2026-09-15
+### Added
+- Penetapan standar operasional resmi tahun 2026 menggunakan **`v1.2.0`** berbasis **Flat Closest Deviation (Target 600 BTU/m²)**.
+- Tingkat kesesuaian mencapai 98.6% (358 dari 363 toko peremajaan) identik dengan rasio riil tim operasional di lapangan.
+- Eliminasi aturan pembulatan buatan asimetris untuk menjamin objektivitas audit dan efisiensi anggaran pengadaan (CAPEX).
+- Dokumentasi varian komparasi **`v1.2-adj`** (eksperimen klaster suhu asimetris A/B/C) sebagai arsip riset.
+- Dokumentasi konsep **`Interpolasi - Soon 2027`** sebagai roadmap R&D jangka panjang berbasis formula linier dinamis suhu mikro tanpa mengunci nomor versi software.
 
 ---
 

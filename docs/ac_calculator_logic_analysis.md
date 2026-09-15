@@ -1,135 +1,115 @@
-# Analisis Logika & Rumus Kalkulator AC
+# Analisis & Dokumentasi Logika Kalkulator AC (v1.1.0, v1.2.0, v1.2-adj, dan Interpolasi - Soon 2027)
 
-Dokumen ini menjelaskan logika dan rumus perhitungan yang digunakan dalam **Kalkulator AC** pada file [ac-estimation-client.tsx](file:///d:/Coding/sparta-energy/app/ac-estimation/ac-estimation-client.tsx#L202-L238).
-
----
-
-## 1. Alur Kerja Perhitungan
-Kalkulator AC menghitung kebutuhan unit pendingin ruangan (AC) berdasarkan lokasi koordinat toko dan luas area sales dengan langkah-langkah berikut:
-1. **Fetch Suhu Lokal**: Sistem mengambil suhu udara luar maksimal (`maxTemp`) menggunakan koordinat GPS (Latitude/Longitude) via **Open-Meteo API**.
-2. **Kategori Beban Panas (BTU/m²)**: Mengelompokkan beban panas ruangan berdasarkan suhu udara luar lokal.
-3. **Kalkulasi Total BTU**: Mengalikan luas area sales dengan nilai beban panas per m².
-4. **Estimasi Jumlah AC**: Menghitung kebutuhan unit AC 2 PK (kapasitas 18.000 BTU/h per unit).
+Dokumen ini mencatat evolusi metode, logika perhitungan, dan roadmap kebutuhan unit AC (2 PK / 18.000 BTU) untuk toko retail pada SPARTA Energy.
 
 ---
 
-## 2. Parameter & Rumus Detail
+## 1. Ringkasan Roadmap & 4 Model Logika Perhitungan
 
-### A. Kategori Beban Panas Ruangan (`clusterBtu`)
-Nilai BTU per meter persegi ditentukan berdasarkan suhu luar ruangan maksimal (`maxTemp` dalam °C):
-* **Suhu Ekstrem Panas (> 35°C)**:
-  $$clusterBtu = 751\ BTU/m^2$$
-* **Suhu Standar (27°C s/d 35°C)**:
-  $$clusterBtu = 600\ BTU/m^2$$
-* **Suhu Sejuk (< 27°C)**:
-  $$clusterBtu = 450\ BTU/m^2$$
-
-### B. Rumus Total Kebutuhan BTU (`totalBtu`)
-$$totalBtu = Luas\ Area\ Sales\ (m^2) \times clusterBtu$$
-
-### C. Pembulatan Unit AC (`acUnits`) — Mengikuti *Kalkulator AC new 2023 ver 2.xlsx*
-Kalkulator berasumsi menggunakan unit AC standar berkapasitas **2 PK** (setara dengan **18.000 BTU/h**).
-
-Bukan sekadar pembulatan matematika desimal biasa, kalkulator mengevaluasi nilai **BTU/m² Aktual** terhadap rentang ideal cluster `[Min, Max]`:
-
-1. **Hitung Opsi Pembulatan**:
-   - `downQty` = $\lfloor \text{totalBtu} / 18.000 \rfloor$
-   - `upQty` = $\lceil \text{totalBtu} / 18.000 \rceil$
-2. **Hitung BTU/m² Aktual**:
-   - `actualDownBtuPerM2` = $(\text{downQty} \times 18.000) / \text{Luas Sales}$
-   - `actualUpBtuPerM2` = $(\text{upQty} \times 18.000) / \text{Luas Sales}$
-3. **Kriteria Keputusan**:
-   - Jika `actualDownBtuPerM2` berada dalam rentang `[minBtu, maxBtu]`, pilih `downQty`.
-   - Jika `actualUpBtuPerM2` berada dalam rentang `[minBtu, maxBtu]`, pilih `upQty`.
-   - Jika keduanya di luar rentang, pilih opsi dengan deviasi terbawah/teratas terkecil ke batas rentang.
-4. **Batas Minimum**: Jumlah AC minimal adalah **1 unit** jika luas area sales > 0.
-
-*Formula Kode*:
-```typescript
-const downQty = Math.floor(totalBtu / 18000)
-const upQty = Math.ceil(totalBtu / 18000)
-
-const actualDownBtuPerM2 = (downQty * 18000) / area
-const actualUpBtuPerM2 = (upQty * 18000) / area
-
-let finalUnit = 0
-if (actualDownBtuPerM2 >= minBtu && actualDownBtuPerM2 <= maxBtu) {
-  finalUnit = downQty
-} else if (actualUpBtuPerM2 >= minBtu && actualUpBtuPerM2 <= maxBtu) {
-  finalUnit = upQty
-} else {
-  const distDown = actualDownBtuPerM2 < minBtu ? minBtu - actualDownBtuPerM2 : actualDownBtuPerM2 - maxBtu
-  const distUp = actualUpBtuPerM2 < minBtu ? minBtu - actualUpBtuPerM2 : actualUpBtuPerM2 - maxBtu
-  finalUnit = distDown <= distUp ? downQty : upQty
-}
-if (finalUnit < 1) finalUnit = 1
-```
+| Parameter | v1.1.0 (Baku Excel 2023) | v1.2.0 (Standar Resmi 2026) | v1.2-adj (Varian Komparasi) | Interpolasi - Soon 2027 |
+| :--- | :--- | :--- | :--- | :--- |
+| **Status Roadmap** | Versi Historis / Produksi Awal | **Standar Utama Operasional 2026** | Varian Arsip Riset | **Roadmap R&D Jangka Panjang** |
+| **Konsep Acuan** | 3 Klaster Suhu (450 / 600 / 751) | **Flat 600 BTU/m²** | 3 Klaster Suhu (450 / 600 / 751) | **Target Linier Universal (+18.625 / °C)** |
+| **Aturan Pembulatan** | Strict Minimum (Wajib naik jika di bawah batas) | **Deviasi Terdekat Murni (Closest Distance)** | Klaster A: Round Up<br>Klaster B: Deviasi Terdekat<br>Klaster C: Round Down | Deviasi Terdekat ke Titik Interpolasi Suhu |
+| **Batas Pengaman** | Kaku per rentang bucket | Kaku per target 600 BTU/m² | Batas bawah & atas terjaga per klaster | Batas Bawah Mutlak 450 & Batas Atas Mutlak 900 |
+| **Kelebihan Utama** | Jaminan dingin 100% | **98.6% sesuai rasio lapangan, objektif & hemat CAPEX** | Transisi mulus di suhu sejuk & hemat di suhu panas | Sangat proporsional terhadap variasi cuaca harian |
+| **Kekurangan / Catatan** | Boros CAPEX & listrik pada luas kritis | Menjaga stabilitas tanpa manipulasi buatan | Ada penambahan unit pada toko ekstrem klaster C | Memerlukan kesiapan data telemetri cuaca mikro |
 
 ---
 
-## 3. Contoh Simulasi Perhitungan
-Misalkan sebuah toko dengan Luas Area Sales = **139 m²** berada di daerah sejuk dengan suhu luar maksimal **26°C**:
-1. Karena suhu $26^\circ C < 27^\circ C$, maka **`clusterBtu = 450 BTU/m²`** dengan rentang ideal **`[450 - 599 BTU/m²]`**.
-2. **`totalBtu`** = $139 \times 450 = 62.550\ BTU$.
-3. **`downQty`** = $\lfloor 62.550 / 18.000 \rfloor = 3$ unit $\rightarrow$ `actualDownBtuPerM2` = $(3 \times 18.000)/139 = \mathbf{388.49\ BTU/m^2}$ (di luar rentang).
-4. **`upQty`** = $\lceil 62.550 / 18.000 \rceil = 4$ unit $\rightarrow$ `actualUpBtuPerM2` = $(4 \times 18.000)/139 = \mathbf{517.98\ BTU/m^2}$ (masuk rentang 450-599).
-5. **`acUnits`** = **4 Unit AC (2 PK)** (karena opsi UP memenuhi rentang ideal).
+## 2. Rincian Logika Masing-Masing Model
+
+### A. Versi 1.1.0 (v1.1.0): Standar Baku Excel 2023 (Strict Minimum Range)
+Mengikuti aturan historis `Kalkulator AC new 2023 ver 2.xlsx`:
+* **Klaster Beban**:
+  * Suhu di bawah 27°C: Target 450 BTU/m² (Rentang 450 - 599)
+  * Suhu 27°C s/d 35°C: Target 600 BTU/m² (Rentang 600 - 749)
+  * Suhu di atas 35°C: Target 751 BTU/m² (Rentang 751 - 900)
+* **Logika Pemilihan Unit**:
+  Jika opsi pembulatan ke bawah menghasilkan densitas di bawah batas minimal (misal di bawah 600 BTU/m² pada Klaster B), sistem **wajib memilih pembulatan ke atas**.
 
 ---
 
-## 4. Studi Kasus Lapangan: Pertanyaan Cabang Luwu (Kasus 120 m² vs 121 m² & 129,89 m²)
-
-### A. Latar Belakang Permasalahan
-Tim lapangan / auditor di cabang Luwu mempertanyakan hasil kalkulator untuk toko dengan luas **129,89 m² (Suhu 30,7 °C)** yang menghasilkan **5 Unit AC**, serta perbandingan antara **120 m² (4 Unit)** vs **121 m² (5 Unit)** pada suhu 33 °C.
-
-Pertanyaan dari lapangan:
-> *"Kenapa tambah 1 m² (dari 120 ke 121 m²) langsung naik 1 unit AC (padahal cuma tambah 600 BTU)?"*
-> *"Pada luas 129,89 m² (77.934 BTU), angkanya lebih dekat ke 4 unit (72.000 BTU) daripada ke 5 unit (90.000 BTU) dengan batas tengah 81.000 BTU (4,5 unit). Kenapa tetap keluar 5 unit?"*
-
----
-
-### B. Penjelasan Teknis & Alasan Rumus Menghasilkan 5 Unit
-
-Sistem mengeluarkan 5 Unit karena **100% konsisten mengikuti Aturan Baku Resmi dari Excel `Kalkulator AC new 2023 ver 2.xlsx`**:
-
-1. **Kasus 120 m² vs 121 m² (Suhu 33 °C — Cluster 600 BTU/m², Rentang 600 – 749 BTU/m²):**
-   * **Luas 120 m²:**
-     * 4 Unit: $72.000 \div 120 = \mathbf{600,0\text{ BTU/m}^2}$ $\rightarrow$ **Memenuhi batas minimal 600** $\rightarrow$ Hasil: **4 Unit**.
-   * **Luas 121 m²:**
-     * Opsi 4 Unit: $72.000 \div 121 = \mathbf{595,0\text{ BTU/m}^2}$ $\rightarrow$ **Kurang dari 600 BTU/m²** (Gagal syarat minimal).
-     * Opsi 5 Unit: $90.000 \div 121 = \mathbf{743,8\text{ BTU/m}^2}$ $\rightarrow$ **Masuk rentang 600 – 749** $\rightarrow$ Hasil: **5 Unit**.
-   * **Penyebab:** Angka 600 BTU/m² pada rumus Excel diperlakukan sebagai **batas bawah kaku (*strict minimum*)**. Begitu hasil pembagian menghasilkan < 600 (meskipun cuma kurang 5 BTU), opsi 4 unit langsung gugur.
-
-2. **Kasus 129,89 m² (Suhu 30,7 °C — Cluster 600 BTU/m²):**
-   * Kebutuhan Standar: $129,89 \times 600 = \mathbf{77.934\text{ BTU}}$
-   * **Opsi 4 Unit (72.000 BTU):** Densitas $= 72.000 \div 129,89 = \mathbf{554,3\text{ BTU/m}^2}$ *(Defisit -45,7 BTU/m² dari standar 600, toko rawan gerah saat beban puncak siang hari)*.
-   * **Opsi 5 Unit (90.000 BTU):** Densitas $= 90.000 \div 129,89 = \mathbf{692,9\text{ BTU/m}^2}$ *(Masuk pas di dalam rentang standar 600 – 749 BTU/m²)*.
-   * **Keputusan Baku:** Sistem memilih **5 Unit** demi menjamin standar kenyamanan termal toko.
+### B. Versi 1.2.0 (v1.2.0): Standar Operasional 2026 (Flat Closest Deviation)
+Standar resmi yang ditetapkan untuk operasional tahun 2026:
+* **Target Beban**: Flat 600 BTU/m² (standar kenyamanan ritel nasional).
+* **Logika Pemilihan Unit**:
+  Membandingkan opsi pembulatan ke bawah (`Math.floor`) dan ke atas (`Math.ceil`), lalu memilih opsi yang selisih densitas aktualnya paling dekat dengan 600 BTU/m².
+* **Hasil Validasi Lapangan**:
+  Dari 363 toko peremajaan, **358 toko (98.6%) menghasilkan angka yang sama persis** dengan rasio manual lama yang terbukti stabil di lapangan, dan 5 toko menghemat 1 unit AC tanpa ada pembengkakan anggaran.
 
 ---
 
-### C. Perbandingan Sudut Pandang (Standar Baku vs Logika Lapangan)
-
-| Parameter | Sudut Pandang Standar Baku (Perancang Rumus) | Sudut Pandang Lapangan (Auditor / Cabang) |
-| :--- | :--- | :--- |
-| **Prioritas Utama** | **Kenyamanan Suhu Ruangan (*Cooling Compliance*)** | **Efisiensi Investasi & Beban Daya (*Cost/Power Efficiency*)** |
-| **Filosofi** | Tidak boleh ada toko yang densitasnya di bawah 600 BTU/m² agar AC tidak bekerja *overload* terus-menerus. | Jangan tambah 1 unit AC penuh (18.000 BTU / ~1.500 W) jika kebutuhan belum melewati titik tengah 0,5 unit (81.000 BTU). |
-| **Batas Ambang** | Batas bawah kaku: $600\text{ BTU/m}^2$. | Titik tengah matematis: $4,5\text{ unit (81.000 BTU)}$. |
-| **Hasil pada 129,89 m²** | **5 Unit AC (90.000 BTU / 693 BTU/m²)** | **4 Unit AC (72.000 BTU / 554 BTU/m²)** |
+### C. Versi 1.2-adj (v1.2-adj): Varian Klaster Suhu Asimetris
+Varian eksperimen yang menggabungkan 3 klaster klasik dengan aturan pembulatan asimetris per zona cuaca:
+1. **Klaster A (< 27°C)**: Target 450 BTU/m², pembulatan ke atas (`Math.ceil`) untuk cadangan dingin daerah sejuk.
+2. **Klaster B (27°C - 35°C)**: Target 600 BTU/m², pembulatan deviasi terdekat ke 600.
+3. **Klaster C (> 35°C)**: Target 751 BTU/m², pembulatan ke bawah (`Math.floor`) untuk menahan lonjakan CAPEX.
+* *Status*: Disimpan sebagai arsip perbandingan teknis.
 
 ---
 
-## 5. Opsi Solusi & Bahan Pertimbangan Masa Depan
+### D. Interpolasi - Soon 2027: Roadmap R&D Jangka Panjang
+Konsep berbasis rumus kurva linier bertahap yang dinamis terhadap temperatur riil lingkungan tanpa terikat batas versi angka:
+* **Rumus Interpolasi Beban Suhu**:
+  * `Target BTU = 600 + (Suhu - 27) * 18.625`
+* **Batas Pengaman Mutlak (Clamping)**:
+  * **Batas Bawah (Floor)**: Minimal 450 BTU/m² (untuk suhu 19°C ke bawah)
+  * **Batas Atas (Ceiling)**: Maksimal 900 BTU/m² (untuk suhu 43°C ke atas)
+* **Logika Pemilihan Unit**:
+  Memilih pembulatan yang deviasinya paling dekat ke angka hasil interpolasi suhu toko tersebut.
 
-Jika di masa depan manajemen / tim audit memutuskan untuk merevisi rumus agar lebih selaras dengan efisiensi CAPEX/OPEX cabang, berikut 3 alternatif yang dapat dipilih:
+#### Tabel Target BTU Hasil Interpolasi Berdasarkan Suhu:
+* **Suhu 15°C - 18°C**: 450.00 BTU/m² (Terkunci di Batas Bawah / Floor)
+* **Suhu 19°C**: 450.94 BTU/m²
+* **Suhu 22°C**: 506.88 BTU/m²
+* **Suhu 25°C**: 562.81 BTU/m²
+* **Suhu 27°C**: 600.00 BTU/m² (Titik Acuan Dasar Ritel)
+* **Suhu 30°C**: 655.88 BTU/m²
+* **Suhu 33°C**: 711.75 BTU/m²
+* **Suhu 35°C**: 749.00 BTU/m²
+* **Suhu 38°C**: 804.88 BTU/m²
+* **Suhu 41°C**: 860.81 BTU/m²
+* **Suhu 43°C - 45°C**: 900.00 BTU/m² (Terkunci di Batas Atas / Ceiling)
 
-* **Opsi 1 — Pertahankan Rumus Baku Saat Ini (Status Quo):**
-  * *Kelebihan:* Toko selalu sejuk dan tidak ada komplain gerah dari konsumen/operasional toko.
-  * *Kekurangan:* Biaya pengadaan AC dan daya terpasang PLN lebih tinggi untuk toko luas 121–134 m².
-* **Opsi 2 — Logika Titik Tengah / Rounding Standar (`Math.round`):**
-  * Membulatkan unit berdasarkan titik tengah 0,5 PK (9.000 BTU).
-  * Kebutuhan $\le 4,5$ unit (81.000 BTU) $\rightarrow$ 4 Unit; Kebutuhan $> 4,5$ unit $\rightarrow$ 5 Unit.
-  * *Hasil:* Luas 120–134 m² akan menjadi 4 Unit; Luas $\ge 135\text{ m}^2$ menjadi 5 Unit.
-* **Opsi 3 — Toleransi Margin Defisit (5% s/d 10%):**
-  * Mengizinkan densitas turun sampai 550 BTU/m² sebelum mewajibkan penambahan unit AC baru.
+---
 
+## 3. Contoh Komparasi 4 Model (Toko Luas 130 m², AC 2 PK = 18.000 BTU)
+
+| Kondisi Cuaca | Suhu Luar | v1.1.0 (Baku 2023) | **v1.2.0 (Resmi 2026)** | v1.2-adj (Asimetris) | Interpolasi - Soon 2027 |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Daerah Sejuk** | 25°C | 4 Unit (554 BTU) | **4 Unit (554 BTU)** | 4 Unit (554 BTU) | 4 Unit (554 BTU) |
+| **Batas Sejuk** | 26.5°C | 4 Unit (554 BTU) | **4 Unit (554 BTU)** | 4 Unit (554 BTU) | 4 Unit (554 BTU) |
+| **Standar Normal** | 30°C | 5 Unit (692 BTU) | **4 Unit (554 BTU)** | 4 Unit (554 BTU) | 5 Unit (692 BTU) |
+| **Sangat Panas** | 36°C | 6 Unit (831 BTU) | **5 Unit (692 BTU)** | 5 Unit (692 BTU) | 6 Unit (831 BTU) |
+
+---
+
+## 4. Kesimpulan Implementasi
+
+1. **Standar Operasional 2026**: Menggunakan **`v1.2.0`** (Flat Closest Deviation 600 BTU/m²) sebagai acuan resmi pengadaan dan relokasi AC.
+2. **Roadmap R&D 2027**: Mengembangkan dan mengkaji model **`Interpolasi - Soon 2027`** seiring integrasi data telemetri suhu mikro pada toko-toko SPARTA Energy.
+
+---
+
+## 5. File Simulasi Data
+
+Data komparasi lengkap untuk seluruh kombinasi luas (50 m² – 200 m²) dan suhu luar (15°C – 45°C) dengan total **4.681 baris data** tersedia di file:
+- **[Perbandingan_Kalkulator_AC_v1_vs_v2_vs_v2.2_vs_v3.xlsx](file:///d:/Coding/sparta-energy/Perbandingan_Kalkulator_AC_v1_vs_v2_vs_v2.2_vs_v3.xlsx)**
+- **[Perbandingan_Kalkulator_AC_v1_vs_v2_vs_v2.2_vs_v3.csv](file:///d:/Coding/sparta-energy/Perbandingan_Kalkulator_AC_v1_vs_v2_vs_v2.2_vs_v3.csv)**
+
+**Struktur Urutan Kolom:**
+1. `Suhu (C)`: Suhu maksimal luar ruangan (15 s/d 45)
+2. `Luas (m2)`: Luas area sales toko (50 s/d 200)
+3. `Target BTU (V1/V2/V2.2)`: Target beban klaster acuan (450 / 600 / 751)
+4. `Qty V1 (Baku)`: Jumlah unit AC metode baku Excel 2023
+5. `BTU/m2 V1`: Densitas pendinginan aktual V1
+6. `Qty V2.0 (Flat)`: Jumlah unit AC metode V2.0 deviasi flat
+7. `BTU/m2 V2.0`: Densitas pendinginan aktual V2.0
+8. `Qty V2.2 (Aktual 2026)`: Jumlah unit AC metode V2.2 operasional 2026
+9. `BTU/m2 V2.2`: Densitas pendinginan aktual V2.2
+10. `Selisih V2.2 ke Target`: Deviasi densitas aktual V2.2 terhadap target klaster
+11. `Target BTU (V3)`: Target beban linier dinamis V3 dengan pengaman floor/ceiling
+12. `Qty V3 (Rencana 2027)`: Jumlah unit AC metode V3 roadmap 2027
+13. `BTU/m2 V3`: Densitas pendinginan aktual V3
+14. `Selisih V3 ke Target`: Deviasi densitas aktual V3 terhadap target dinamis suhu

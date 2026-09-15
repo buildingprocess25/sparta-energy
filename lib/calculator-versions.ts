@@ -7,5 +7,5 @@
  * - PATCH: Minor bug fixes, UI styling polishes, typo fixes
  */
 
-export const AC_CALCULATOR_VERSION = "v1.1.0"
+export const AC_CALCULATOR_VERSION = "v1.2.0"
 export const LAMP_CALCULATOR_VERSION = "v1.1.0"
