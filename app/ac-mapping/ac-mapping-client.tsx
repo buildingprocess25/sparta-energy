@@ -34,8 +34,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { StoreCombobox } from "@/components/audit/store-combobox"
 import { toast } from "sonner"
 import { getTemperature } from "@/app/actions/get-temperature"
-import { getScaleInfo, Point } from "@/lib/lamp-calculator"
-import { calcPolygonArea } from "@/lib/polygon-utils"
+import { getScaleInfo } from "@/lib/lamp-calculator"
+import { calcPolygonArea, type Point } from "@/lib/polygon-utils"
 import type { StoreData } from "@/app/audit/start/start-client"
 
 interface AcMappingClientProps {
@@ -1576,7 +1576,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}
-      <Header />
+      <Header
+        variant="dashboard-back"
+        title="Mapping & Layout AC"
+        subtitle="Kalkulator Pemetaan Tata Letak AC Daikin 2 PK"
+        backHref="/dashboard"
+      />
 
       <main className="container max-w-6xl mx-auto px-4 py-6 space-y-6">
         {/* Top Bar Navigation */}

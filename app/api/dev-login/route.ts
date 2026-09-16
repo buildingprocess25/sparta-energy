@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     })
 
     // 4. Set session cookies for both SSO fallback and better-auth
-    const isProduction = process.env.NODE_ENV === "production"
+    const isProduction = (process.env.NODE_ENV as string) === "production"
 
     response.cookies.set("sso_session", sessionToken, {
       httpOnly: true,
