@@ -7,6 +7,7 @@ import {
   IconBolt,
   IconBuildingStore,
   IconChartBar,
+  IconDownload,
   IconFileDescription,
   IconLeaf,
   IconSortAscending,
@@ -298,6 +299,16 @@ export default async function AdminAuditDetailPage({
               <IconArrowLeft data-icon="inline-start" />
               Riwayat Audit
             </Link>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="border-emerald-600/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+          >
+            <a href={`/admin/audits/${audit.id}/export`} download>
+              <IconDownload data-icon="inline-start" />
+              Download .xlsx
+            </a>
           </Button>
           <Button asChild>
             <Link href={`/admin/stores/${audit.store.id}`}>
