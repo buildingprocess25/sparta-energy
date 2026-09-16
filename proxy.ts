@@ -7,6 +7,7 @@ const guestOnlyRoutes = new Set(["/", "/login"])
 
 const publicPrefixes = [
   "/api/auth",
+  "/api/dev-login",
   "/_next",
   "/favicon.ico",
   "/assets",
