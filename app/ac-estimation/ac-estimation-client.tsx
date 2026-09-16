@@ -252,18 +252,28 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       // LOGIKA PERHITUNGAN AC (SPARTA ENERGY)
       // ============================================================================
 
-      // [STANDAR RESMI OPERASIONAL 2026: v1.2.0] Flat Closest Deviation (Target 600 BTU/m²)
-      // Terbukti 98.6% sejalan dengan rasio historis riil lapangan & paling hemat CAPEX.
-      const TARGET_BTU_V120 = 600
-      const totalBtuV120 = area * TARGET_BTU_V120
-      const downQty = Math.floor(totalBtuV120 / 18000)
-      const upQty = Math.ceil(totalBtuV120 / 18000)
+      // [STANDAR RESMI OPERASIONAL 2026: v1.2.0] Deviasi Terdekat per Klaster Suhu (450 / 600 / 751 BTU/m²)
+      // - Suhu < 27°C  : Target 450 BTU/m² (Daerah Sejuk)
+      // - Suhu 27-35°C : Target 600 BTU/m² (Standar Normal Ritel)
+      // - Suhu > 35°C  : Target 751 BTU/m² (Daerah Panas Ekstrem)
+      let targetBtu = 600
+      if (maxTemp > 35) {
+        targetBtu = 751
+      } else if (maxTemp < 27) {
+        targetBtu = 450
+      } else {
+        targetBtu = 600
+      }
+
+      const totalBtu = area * targetBtu
+      const downQty = Math.floor(totalBtu / 18000)
+      const upQty = Math.ceil(totalBtu / 18000)
 
       const actualDownBtuPerM2 = (downQty * 18000) / area
       const actualUpBtuPerM2 = (upQty * 18000) / area
 
-      const distDown = Math.abs(actualDownBtuPerM2 - TARGET_BTU_V120)
-      const distUp = Math.abs(actualUpBtuPerM2 - TARGET_BTU_V120)
+      const distDown = Math.abs(actualDownBtuPerM2 - targetBtu)
+      const distUp = Math.abs(actualUpBtuPerM2 - targetBtu)
       let finalUnit = distDown <= distUp ? downQty : upQty
 
       /*
@@ -314,8 +324,8 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
         area,
         maxTemp,
         openMeteoTemp,
-        clusterBtu: TARGET_BTU_V120,
-        totalBtu: Math.round(totalBtuV120),
+        clusterBtu: targetBtu,
+        totalBtu: Math.round(totalBtu),
         acUnits: finalUnit,
       })
       setIsResultOpen(true)

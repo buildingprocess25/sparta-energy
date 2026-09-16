@@ -9,10 +9,10 @@ Dokumen ini mencatat evolusi metode, logika perhitungan, dan roadmap kebutuhan u
 | Parameter | v1.1.0 (Baku Excel 2023) | v1.2.0 (Standar Resmi 2026) | v1.2-adj (Varian Komparasi) | Interpolasi - Soon 2027 |
 | :--- | :--- | :--- | :--- | :--- |
 | **Status Roadmap** | Versi Historis / Produksi Awal | **Standar Utama Operasional 2026** | Varian Arsip Riset | **Roadmap R&D Jangka Panjang** |
-| **Konsep Acuan** | 3 Klaster Suhu (450 / 600 / 751) | **Flat 600 BTU/m²** | 3 Klaster Suhu (450 / 600 / 751) | **Target Linier Universal (+18.625 / °C)** |
-| **Aturan Pembulatan** | Strict Minimum (Wajib naik jika di bawah batas) | **Deviasi Terdekat Murni (Closest Distance)** | Klaster A: Round Up<br>Klaster B: Deviasi Terdekat<br>Klaster C: Round Down | Deviasi Terdekat ke Titik Interpolasi Suhu |
-| **Batas Pengaman** | Kaku per rentang bucket | Kaku per target 600 BTU/m² | Batas bawah & atas terjaga per klaster | Batas Bawah Mutlak 450 & Batas Atas Mutlak 900 |
-| **Kelebihan Utama** | Jaminan dingin 100% | **98.6% sesuai rasio lapangan, objektif & hemat CAPEX** | Transisi mulus di suhu sejuk & hemat di suhu panas | Sangat proporsional terhadap variasi cuaca harian |
+| **Konsep Acuan** | 3 Klaster Suhu (450 / 600 / 751) | **3 Klaster Suhu (450 / 600 / 751)** | 3 Klaster Suhu (450 / 600 / 751) | **Target Linier Universal (+18.625 / °C)** |
+| **Aturan Pembulatan** | Strict Minimum (Wajib naik jika di bawah batas) | **Deviasi Terdekat Murni (Closest Distance ke Target Klaster)** | Klaster A: Round Up<br>Klaster B: Deviasi Terdekat<br>Klaster C: Round Down | Deviasi Terdekat ke Titik Interpolasi Suhu |
+| **Batas Pengaman** | Kaku per rentang bucket | Batas klaster sesuai zona suhu toko | Batas bawah & atas terjaga per klaster | Batas Bawah Mutlak 450 & Batas Atas Mutlak 900 |
+| **Kelebihan Utama** | Jaminan dingin 100% | **98.6% sesuai rasio lapangan, objektif & adaptif 3 zona suhu** | Transisi mulus di suhu sejuk & hemat di suhu panas | Sangat proporsional terhadap variasi cuaca harian |
 | **Kekurangan / Catatan** | Boros CAPEX & listrik pada luas kritis | Menjaga stabilitas tanpa manipulasi buatan | Ada penambahan unit pada toko ekstrem klaster C | Memerlukan kesiapan data telemetri cuaca mikro |
 
 ---
@@ -30,11 +30,14 @@ Mengikuti aturan historis `Kalkulator AC new 2023 ver 2.xlsx`:
 
 ---
 
-### B. Versi 1.2.0 (v1.2.0): Standar Operasional 2026 (Flat Closest Deviation)
+### B. Versi 1.2.0 (v1.2.0): Standar Operasional 2026 (Deviasi Terdekat per Klaster Suhu)
 Standar resmi yang ditetapkan untuk operasional tahun 2026:
-* **Target Beban**: Flat 600 BTU/m² (standar kenyamanan ritel nasional).
+* **3 Zona Klaster Suhu Toko**:
+  * **Suhu Sejuk (< 27°C)**: Target **450 BTU/m²**
+  * **Suhu Normal (27°C – 35°C)**: Target **600 BTU/m²** (standar acuan mayoritas ritel)
+  * **Suhu Panas Ekstrem (> 35°C)**: Target **751 BTU/m²**
 * **Logika Pemilihan Unit**:
-  Membandingkan opsi pembulatan ke bawah (`Math.floor`) dan ke atas (`Math.ceil`), lalu memilih opsi yang selisih densitas aktualnya paling dekat dengan 600 BTU/m².
+  Sistem menghitung $\text{Total Beban} = \text{Luas} \times \text{Target Klaster Suhu}$, membandingkan opsi pembulatan ke bawah (`Math.floor`) dan ke atas (`Math.ceil`), lalu memilih opsi yang selisih densitas aktualnya paling dekat (*closest deviation*) dengan target klaster suhu tersebut.
 * **Hasil Validasi Lapangan**:
   Dari 363 toko peremajaan, **358 toko (98.6%) menghasilkan angka yang sama persis** dengan rasio manual lama yang terbukti stabil di lapangan, dan 5 toko menghemat 1 unit AC tanpa ada pembengkakan anggaran.
 

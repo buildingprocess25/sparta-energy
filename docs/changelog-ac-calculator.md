@@ -11,7 +11,7 @@ Format penomoran versi mengikuti aturan [Semantic Versioning (SemVer)](https://s
 
 ## [v1.2.0] - 2026-09-15
 ### Added
-- Penetapan standar operasional resmi tahun 2026 menggunakan **`v1.2.0`** berbasis **Flat Closest Deviation (Target 600 BTU/m²)**.
+- Penetapan standar operasional resmi tahun 2026 menggunakan **`v1.2.0`** berbasis **Deviasi Terdekat per Klaster Suhu (450 / 600 / 751 BTU/m²)**.
 - Tingkat kesesuaian mencapai 98.6% (358 dari 363 toko peremajaan) identik dengan rasio riil tim operasional di lapangan.
 - Eliminasi aturan pembulatan buatan asimetris untuk menjamin objektivitas audit dan efisiensi anggaran pengadaan (CAPEX).
 - Dokumentasi varian komparasi **`v1.2-adj`** (eksperimen klaster suhu asimetris A/B/C) sebagai arsip riset.
