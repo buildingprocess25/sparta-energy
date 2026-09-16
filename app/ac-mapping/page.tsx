@@ -1,0 +1,90 @@
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
+import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { hasFullBranchAccess } from "@/lib/permissions"
+import { AcMappingClient } from "./ac-mapping-client"
+import type { StoreData } from "@/app/audit/start/start-client"
+
+const excludedBranchNames = [
+  "DEMO",
+  "Demo",
+  "demo",
+  "HEAD OFFICE",
+  "Head Office",
+  "head office",
+]
+
+export default async function AcMappingPage() {
+  const session = await auth.api.getSession({ headers: await headers() })
+  const dbUser = session?.user
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { email: true, branch: true, role: true },
+      })
+    : null
+
+  const isAdmin = dbUser?.role === "ADMIN"
+
+  // Proteksi rute: Hanya role ADMIN yang diizinkan mengakses halaman selama fase DEV
+  if (!isAdmin) {
+    redirect("/dashboard")
+  }
+
+  const canAccessAll = dbUser ? hasFullBranchAccess(dbUser) : false
+  const branches =
+    dbUser?.branch
+      ?.split(",")
+      .map((b) => b.trim())
+      .filter(Boolean) ?? []
+
+  const stores = await prisma.store.findMany({
+    where: dbUser
+      ? canAccessAll
+        ? {
+            branch: {
+              notIn: excludedBranchNames,
+            },
+          }
+        : { branch: { in: branches } }
+      : {
+          branch: {
+            equals: "DEMO",
+            mode: "insensitive",
+          },
+        },
+    orderBy: { code: "asc" },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      branch: true,
+      plnCustomerId: true,
+      type: true,
+      is24Hours: true,
+      openTime: true,
+      closeTime: true,
+      plnPowerVa: true,
+      parkingAreaM2: true,
+      terraceAreaM2: true,
+      salesAreaM2: true,
+      warehouseAreaM2: true,
+      latitude: true,
+      longitude: true,
+    },
+  })
+
+  return (
+    <AcMappingClient
+      stores={stores.map((s) => ({
+        ...s,
+        parkingAreaM2: Number(s.parkingAreaM2 ?? 0),
+        terraceAreaM2: Number(s.terraceAreaM2 ?? 0),
+        salesAreaM2: Number(s.salesAreaM2 ?? 0),
+        warehouseAreaM2: Number(s.warehouseAreaM2 ?? 0),
+        latitude: s.latitude ? Number(s.latitude) : null,
+        longitude: s.longitude ? Number(s.longitude) : null,
+      }))}
+    />
+  )
+}
