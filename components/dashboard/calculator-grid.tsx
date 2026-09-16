@@ -20,20 +20,21 @@ export function CalculatorGrid({ isAdmin }: CalculatorGridProps) {
           Kalkulator & Mapping Mandiri
         </h2>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+
+      <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
         {/* Kalkulator AC */}
         <Link
           href="/ac-estimation"
-          className="flex items-center gap-3 p-3 bg-card rounded-2xl border border-border/50 shadow-[0_4px_20px_rgba(0,0,0,0.02)] group active:scale-98 transition-all hover:bg-accent/40"
+          className="group relative flex flex-col items-center justify-center p-2.5 sm:flex-row sm:items-center sm:justify-start sm:gap-3 sm:p-3 rounded-2xl bg-card border border-border/60 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-md hover:border-primary/30 transition-all duration-200 active:scale-95 text-center sm:text-left"
         >
-          <div className="size-10 rounded-xl bg-linear-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/10 transition-transform group-hover:scale-105 shrink-0">
+          <div className="size-10 rounded-xl bg-linear-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/15 group-hover:scale-105 transition-transform duration-200 shrink-0">
             <IconAirConditioning className="size-5" />
           </div>
-          <div className="flex flex-col text-left min-w-0">
-            <span className="text-[11px] font-bold text-foreground/90 leading-tight">
+          <div className="mt-1.5 sm:mt-0 flex flex-col items-center sm:items-start min-w-0 flex-1 w-full sm:w-auto">
+            <span className="text-[11.5px] sm:text-xs font-bold text-foreground/90 leading-tight tracking-tight">
               Kalkulator AC
             </span>
-            <span className="text-[9px] text-muted-foreground truncate">
+            <span className="text-[9px] sm:text-[10.5px] text-muted-foreground truncate w-full mt-0.5">
               Estimasi unit AC
             </span>
           </div>
@@ -42,16 +43,16 @@ export function CalculatorGrid({ isAdmin }: CalculatorGridProps) {
         {/* Kalkulator Lampu */}
         <Link
           href="/light-estimation"
-          className="flex items-center gap-3 p-3 bg-card rounded-2xl border border-border/50 shadow-[0_4px_20px_rgba(0,0,0,0.02)] relative group active:scale-98 transition-all hover:bg-accent/40"
+          className="group relative flex flex-col items-center justify-center p-2.5 sm:flex-row sm:items-center sm:justify-start sm:gap-3 sm:p-3 rounded-2xl bg-card border border-border/60 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-md hover:border-primary/30 transition-all duration-200 active:scale-95 text-center sm:text-left"
         >
-          <div className="size-10 rounded-xl bg-linear-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-md shadow-orange-500/10 transition-transform group-hover:scale-105 shrink-0">
+          <div className="size-10 rounded-xl bg-linear-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-md shadow-orange-500/15 group-hover:scale-105 transition-transform duration-200 shrink-0">
             <IconBulb className="size-5" />
           </div>
-          <div className="flex flex-col text-left min-w-0">
-            <span className="text-[11px] font-bold text-foreground/90 leading-tight">
+          <div className="mt-1.5 sm:mt-0 flex flex-col items-center sm:items-start min-w-0 flex-1 w-full sm:w-auto">
+            <span className="text-[11.5px] sm:text-xs font-bold text-foreground/90 leading-tight tracking-tight">
               Kalkulator Lampu
             </span>
-            <span className="text-[9px] text-muted-foreground truncate">
+            <span className="text-[9px] sm:text-[10.5px] text-muted-foreground truncate w-full mt-0.5">
               Simulasi lampu
             </span>
           </div>
@@ -61,40 +62,36 @@ export function CalculatorGrid({ isAdmin }: CalculatorGridProps) {
         {isAdmin ? (
           <Link
             href="/ac-mapping"
-            className="flex items-center gap-3 p-3 bg-card rounded-2xl border border-emerald-500/30 bg-emerald-500/5 shadow-[0_4px_20px_rgba(0,0,0,0.02)] relative group active:scale-98 transition-all hover:bg-emerald-500/10"
+            className="group relative flex flex-col items-center justify-center p-2.5 sm:flex-row sm:items-center sm:justify-start sm:gap-3 sm:p-3 rounded-2xl bg-card border border-emerald-500/30 bg-emerald-500/5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-md hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-all duration-200 active:scale-95 text-center sm:text-left"
           >
-            <div className="size-10 rounded-xl bg-linear-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white shadow-md shadow-teal-500/10 transition-transform group-hover:scale-105 shrink-0">
+            <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 px-1.5 py-0.2 rounded-full text-[7.5px] sm:text-[8px] font-extrabold bg-emerald-500 text-white tracking-wider shadow-xs">
+              DEV
+            </span>
+            <div className="size-10 rounded-xl bg-linear-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white shadow-md shadow-teal-500/15 group-hover:scale-105 transition-transform duration-200 shrink-0">
               <IconLayoutGrid className="size-5" />
             </div>
-            <div className="flex flex-col text-left min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-bold text-foreground/90 leading-tight">
-                  Mapping AC
-                </span>
-                <span className="px-1.5 py-0.2 rounded-full text-[8px] font-extrabold bg-emerald-500 text-white tracking-wide">
-                  DEV
-                </span>
-              </div>
-              <span className="text-[9px] text-muted-foreground truncate">
-                Pemetaan layout & sebaran
+            <div className="mt-1.5 sm:mt-0 flex flex-col items-center sm:items-start min-w-0 flex-1 w-full sm:w-auto">
+              <span className="text-[11.5px] sm:text-xs font-bold text-foreground/90 leading-tight tracking-tight">
+                Mapping AC
+              </span>
+              <span className="text-[9px] sm:text-[10.5px] text-muted-foreground truncate w-full mt-0.5">
+                Layout denah
               </span>
             </div>
           </Link>
         ) : (
-          <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-2xl border border-border/40 shadow-xs relative opacity-60 cursor-not-allowed select-none">
+          <div className="relative flex flex-col items-center justify-center p-2.5 sm:flex-row sm:items-center sm:justify-start sm:gap-3 sm:p-3 rounded-2xl bg-muted/20 border border-border/40 shadow-xs opacity-60 cursor-not-allowed select-none text-center sm:text-left">
+            <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 px-1.5 py-0.2 rounded-full text-[7.5px] sm:text-[8px] font-bold bg-muted-foreground/20 text-muted-foreground tracking-wider">
+              SOON
+            </span>
             <div className="size-10 rounded-xl bg-muted-foreground/15 flex items-center justify-center text-muted-foreground shrink-0">
               <IconLayoutGrid className="size-5" />
             </div>
-            <div className="flex flex-col text-left min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-bold text-muted-foreground leading-tight">
-                  Mapping AC
-                </span>
-                <span className="px-1.5 py-0.2 rounded-full text-[8px] font-bold bg-muted-foreground/20 text-muted-foreground tracking-wide">
-                  SOON
-                </span>
-              </div>
-              <span className="text-[9px] text-muted-foreground/80 truncate">
+            <div className="mt-1.5 sm:mt-0 flex flex-col items-center sm:items-start min-w-0 flex-1 w-full sm:w-auto">
+              <span className="text-[11.5px] sm:text-xs font-bold text-muted-foreground leading-tight tracking-tight">
+                Mapping AC
+              </span>
+              <span className="text-[9px] sm:text-[10.5px] text-muted-foreground/80 truncate w-full mt-0.5">
                 Segera hadir
               </span>
             </div>
