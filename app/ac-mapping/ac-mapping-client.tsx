@@ -22,6 +22,7 @@ import {
   IconShoppingCart,
   IconFridge,
   IconX,
+  IconRuler,
 } from "@tabler/icons-react"
 import { useTheme } from "next-themes"
 import { Header } from "@/components/header"
@@ -36,6 +37,7 @@ import { toast } from "sonner"
 import { getTemperature } from "@/app/actions/get-temperature"
 import { getScaleInfo } from "@/lib/lamp-calculator"
 import { calcPolygonArea, type Point } from "@/lib/polygon-utils"
+import { AcMappingResultCard, type AcMappingResultCardData } from "@/components/audit/ac-mapping-result-card"
 import type { StoreData } from "@/app/audit/start/start-client"
 
 interface AcMappingClientProps {
@@ -250,6 +252,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   // ─── 3. State AC Layout & Perhitungan ──────────────────────────────────────
   const [placedUnits, setPlacedUnits] = useState<PlacedAcUnit[]>([])
   const [isCalculated, setIsCalculated] = useState<boolean>(false)
+  const [exportCardData, setExportCardData] = useState<AcMappingResultCardData | null>(null)
+  const [isSaving, setIsSaving] = useState<boolean>(false)
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const exportCardRef = useRef<HTMLDivElement | null>(null)
@@ -1136,16 +1140,44 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       let mx = Number(((cx - FIXED_OX) / FIXED_SCALE).toFixed(2))
       let my = Number(((cy - FIXED_OY) / FIXED_SCALE).toFixed(2))
 
-      // Apply 90° snap to last point if nearby
+      // Snap 90° ke titik terakhir & Alignment snap ke seluruh titik sebelumnya (misal T1 saat membuat T4)
       if (customPts.length >= 1) {
-        const last = customPts[customPts.length - 1]
-        if (Math.abs(my - last.y) < 0.3) my = last.y
-        if (Math.abs(mx - last.x) < 0.3) mx = last.x
+        const snapThresholdM = 12 / FIXED_SCALE // ~0.5m snap range
+        const n = customPts.length
+        const lastPt = customPts[n - 1]
+
+        let snappedX = false
+        let snappedY = false
+
+        // 1. Orthogonal 90° snap ke titik terakhir
+        if (Math.abs(my - lastPt.y) <= snapThresholdM) {
+          my = lastPt.y
+          snappedY = true
+        }
+        if (Math.abs(mx - lastPt.x) <= snapThresholdM) {
+          mx = lastPt.x
+          snappedX = true
+        }
+
+        // 2. Alignment snap ke titik-titik sebelumnya (T1, T2, dst)
+        for (let i = 0; i < n - 1; i++) {
+          const pt = customPts[i]
+          if (!pt) continue
+          if (!snappedY && Math.abs(my - pt.y) <= snapThresholdM) {
+            my = pt.y
+            snappedY = true
+          }
+          if (!snappedX && Math.abs(mx - pt.x) <= snapThresholdM) {
+            mx = pt.x
+            snappedX = true
+          }
+        }
       }
 
       pushCurrentToHistory()
       setCustomPts((prev) => [...prev, { x: Math.max(0, mx), y: Math.max(0, my) }])
       setSelectedNodeIdx(null)
+      setActiveSnapGuides([])
     } else {
       setSelectedNodeIdx(null)
     }
@@ -1278,6 +1310,75 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         return next
       })
       return
+    }
+
+    // 3. DRAWING MODE LIVE SNAP GUIDES (Saat menambah titik poligon baru)
+    if (!customClosed && activeDragIdx === null && activeDragAcId === null && customPts.length >= 1) {
+      const snapThresholdM = 12 / scale
+      const guides: SnapGuide[] = []
+      const n = customPts.length
+      const lastIdx = n - 1
+      const lastPt = customPts[lastIdx]
+
+      let snappedX = false
+      let snappedY = false
+
+      // A. Orthogonal 90° snapping ke titik terakhir (lastPt)
+      if (Math.abs(my - lastPt.y) <= snapThresholdM) {
+        snappedY = true
+        guides.push({
+          type: "h",
+          pos: lastPt.y,
+          fromCanvas: { x: 0, y: offY + lastPt.y * scale },
+          toCanvas: { x: W, y: offY + lastPt.y * scale },
+          snapType: "orthogonal",
+          refNodeIdx: lastIdx,
+        })
+      }
+      if (Math.abs(mx - lastPt.x) <= snapThresholdM) {
+        snappedX = true
+        guides.push({
+          type: "v",
+          pos: lastPt.x,
+          fromCanvas: { x: offX + lastPt.x * scale, y: 0 },
+          toCanvas: { x: offX + lastPt.x * scale, y: CANVAS_H },
+          snapType: "orthogonal",
+          refNodeIdx: lastIdx,
+        })
+      }
+
+      // B. Alignment snapping ke seluruh titik sudut sebelumnya (T1, T2, ..., Tn-2)
+      for (let i = 0; i < n - 1; i++) {
+        const pt = customPts[i]
+        if (!pt) continue
+
+        if (!snappedY && Math.abs(my - pt.y) <= snapThresholdM) {
+          snappedY = true
+          guides.push({
+            type: "h",
+            pos: pt.y,
+            fromCanvas: { x: 0, y: offY + pt.y * scale },
+            toCanvas: { x: W, y: offY + pt.y * scale },
+            snapType: "alignment",
+            refNodeIdx: i,
+          })
+        }
+        if (!snappedX && Math.abs(mx - pt.x) <= snapThresholdM) {
+          snappedX = true
+          guides.push({
+            type: "v",
+            pos: pt.x,
+            fromCanvas: { x: offX + pt.x * scale, y: 0 },
+            toCanvas: { x: offX + pt.x * scale, y: CANVAS_H },
+            snapType: "alignment",
+            refNodeIdx: i,
+          })
+        }
+      }
+
+      setActiveSnapGuides(guides)
+    } else if (activeDragIdx === null) {
+      setActiveSnapGuides([])
     }
 
     // Hover detection untuk Pen Tool & Penanda Zona pada garis / sudut
@@ -1442,6 +1543,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const handleCanvasPointerLeave = () => {
     setCursorPos(null)
     setHoverEdge(null)
+    setActiveSnapGuides([])
   }
 
   // ─── 12. Render Canvas Denah (Auto-Center, Rubberband Pen-Tool & 2-Click Zone Preview) ───
@@ -1584,7 +1686,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.restore()
       }
 
-      // ── LIVE RUBBERBAND PEN-TOOL LINE (Menempel ke Kursor saat Menambah Titik) ──
+      // ── LIVE RUBBERBAND PEN-TOOL LINE & SNAP GUIDES (Menempel ke Kursor saat Menambah Titik) ──
       if (cursorPos && customPts.length >= 1) {
         const lastSp = spts[spts.length - 1]
         const lastPt = customPts[customPts.length - 1]
@@ -1594,16 +1696,42 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         let targetMx = cursorPos.mx
         let targetMy = cursorPos.my
         let isSnappedOrthogonal = false
+        let isSnappedAlignment = false
+        const alignedNodeLabels: string[] = []
 
-        // 90° Orthogonal Snap to last point
-        if (Math.abs(cursorPos.my - lastPt.y) < 0.35) {
+        const snapThresholdM = 12 / FIXED_SCALE
+        const n = customPts.length
+
+        // 1. 90° Orthogonal Snap to last point
+        if (Math.abs(cursorPos.my - lastPt.y) <= snapThresholdM) {
           targetMy = lastPt.y
           targetCy = lastSp.cy
           isSnappedOrthogonal = true
-        } else if (Math.abs(cursorPos.mx - lastPt.x) < 0.35) {
+        }
+        if (Math.abs(cursorPos.mx - lastPt.x) <= snapThresholdM) {
           targetMx = lastPt.x
           targetCx = lastSp.cx
           isSnappedOrthogonal = true
+        }
+
+        // 2. Alignment Snap to previous points (misal T1 saat membuat T4)
+        for (let i = 0; i < n - 1; i++) {
+          const pt = customPts[i]
+          const sp = spts[i]
+          if (!pt || !sp) continue
+
+          if (Math.abs(targetMy - pt.y) > snapThresholdM && Math.abs(cursorPos.my - pt.y) <= snapThresholdM) {
+            targetMy = pt.y
+            targetCy = sp.cy
+            isSnappedAlignment = true
+            alignedNodeLabels.push(`T${i + 1}`)
+          }
+          if (Math.abs(targetMx - pt.x) > snapThresholdM && Math.abs(cursorPos.mx - pt.x) <= snapThresholdM) {
+            targetMx = pt.x
+            targetCx = sp.cx
+            isSnappedAlignment = true
+            alignedNodeLabels.push(`T${i + 1}`)
+          }
         }
 
         // Snap to T1 if close & points >= 3 (Close Polygon Preview)
@@ -1619,12 +1747,44 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           }
         }
 
+        // Render Live Snap Guides di Drawing Mode
+        activeSnapGuides.forEach((g) => {
+          ctx.save()
+          ctx.beginPath()
+          ctx.moveTo(g.fromCanvas.x, g.fromCanvas.y)
+          ctx.lineTo(g.toCanvas.x, g.toCanvas.y)
+          ctx.strokeStyle = g.snapType === "orthogonal" ? "rgba(6, 182, 212, 0.85)" : "rgba(168, 85, 247, 0.85)"
+          ctx.lineWidth = 1.5
+          ctx.setLineDash([4, 3])
+          ctx.stroke()
+
+          // Highlight node referensi
+          if (g.refNodeIdx !== undefined && spts[g.refNodeIdx]) {
+            const refSp = spts[g.refNodeIdx]
+            ctx.beginPath()
+            ctx.arc(refSp.cx, refSp.cy, 8, 0, Math.PI * 2)
+            ctx.strokeStyle = g.snapType === "orthogonal" ? "#06b6d4" : "#a855f7"
+            ctx.lineWidth = 2
+            ctx.stroke()
+
+            ctx.font = "bold 9px sans-serif"
+            ctx.fillStyle = g.snapType === "orthogonal" ? "#0891b2" : "#7e22ce"
+            ctx.textAlign = "left"
+            ctx.fillText(
+              g.snapType === "orthogonal" ? `⦜ 90° (T${g.refNodeIdx + 1})` : `⫿ Sejajar T${g.refNodeIdx + 1}`,
+              refSp.cx + 10,
+              refSp.cy - 6
+            )
+          }
+          ctx.restore()
+        })
+
         // Draw live dashed rubberband
         ctx.save()
         ctx.beginPath()
         ctx.moveTo(lastSp.cx, lastSp.cy)
         ctx.lineTo(targetCx, targetCy)
-        ctx.strokeStyle = isCloseSnap ? "#10b981" : (isSnappedOrthogonal ? "#06b6d4" : "rgba(245, 158, 11, 0.8)")
+        ctx.strokeStyle = isCloseSnap ? "#10b981" : (isSnappedOrthogonal || isSnappedAlignment ? "#06b6d4" : "rgba(245, 158, 11, 0.8)")
         ctx.lineWidth = isCloseSnap ? 2 : 1.5
         ctx.setLineDash([4, 3])
         ctx.stroke()
@@ -1636,19 +1796,23 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           const midX = (lastSp.cx + targetCx) / 2
           const midY = (lastSp.cy + targetCy) / 2
 
+          let snapLabel = ""
+          if (isSnappedOrthogonal) snapLabel += " ⦜ 90°"
+          if (alignedNodeLabels.length > 0) snapLabel += ` ⫿ Sejajar ${alignedNodeLabels.join(", ")}`
+
           ctx.font = "bold 9px sans-serif"
-          ctx.fillStyle = isCloseSnap ? "#10b981" : (isSnappedOrthogonal ? "#06b6d4" : "#f59e0b")
+          ctx.fillStyle = isCloseSnap ? "#10b981" : (isSnappedOrthogonal || isSnappedAlignment ? "#06b6d4" : "#f59e0b")
           ctx.textAlign = "center"
           ctx.textBaseline = "middle"
-          ctx.fillText(`${formatDim(liveDist)}m ${isSnappedOrthogonal ? "(⦜ 90°)" : ""}`, midX, midY - 10)
+          ctx.fillText(`${formatDim(liveDist)}m${snapLabel ? ` (${snapLabel.trim()})` : ""}`, midX, midY - 10)
         }
 
         // Live cursor circle tip
         ctx.beginPath()
         ctx.arc(targetCx, targetCy, isCloseSnap ? 8 : 4.5, 0, Math.PI * 2)
-        ctx.fillStyle = isCloseSnap ? "rgba(16, 185, 129, 0.4)" : "rgba(6, 182, 212, 0.3)"
+        ctx.fillStyle = isCloseSnap ? "rgba(16, 185, 129, 0.4)" : (isSnappedAlignment ? "rgba(168, 85, 247, 0.3)" : "rgba(6, 182, 212, 0.3)")
         ctx.fill()
-        ctx.strokeStyle = isCloseSnap ? "#10b981" : "#06b6d4"
+        ctx.strokeStyle = isCloseSnap ? "#10b981" : (isSnappedAlignment ? "#a855f7" : "#06b6d4")
         ctx.lineWidth = 1.8
         ctx.stroke()
 
@@ -1986,6 +2150,16 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.textAlign = "left"
         ctx.fillText(g.snapType === "orthogonal" ? "⦜ 90°" : "⫿ Sejajar", dragC.cx + 12, dragC.cy - 6)
       }
+
+      // Highlight on reference node
+      if (g.refNodeIdx !== undefined && customPts[g.refNodeIdx]) {
+        const refC = toC(customPts[g.refNodeIdx])
+        ctx.beginPath()
+        ctx.arc(refC.cx, refC.cy, 7, 0, Math.PI * 2)
+        ctx.strokeStyle = g.snapType === "orthogonal" ? "#06b6d4" : "#a855f7"
+        ctx.lineWidth = 1.8
+        ctx.stroke()
+      }
       ctx.restore()
     })
 
@@ -2055,6 +2229,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
     // 9. Render Ikon Unit AC Terpasang di Dinding (Menyesuaikan Orientasi Dinding)
     if (isCalculated && placedUnits.length > 0) {
+      const centroidX = customPts.reduce((acc, p) => acc + p.x, 0) / (customPts.length || 1)
+      const centroidY = customPts.reduce((acc, p) => acc + p.y, 0) / (customPts.length || 1)
+
       placedUnits.forEach((unit, idx) => {
         const wall = wallSegments.find((w) => w.index === unit.wallIndex)
         if (!wall) return
@@ -2138,6 +2315,173 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.fillStyle = isDraggingThisAc ? "#38bdf8" : (isDark ? "#ffffff" : "#0f172a")
         ctx.fillText(`AC${idx + 1}`, 0, 0)
         ctx.restore()
+
+        // ── CAD DIMENSION LINES (Jarak dari Sudut Dinding ke As Tengah AC) ──
+        ctx.save()
+        let normX = -dy / len
+        let normY = dx / len
+        const toCentroidVecX = centroidX - acX
+        const toCentroidVecY = centroidY - acY
+        if (normX * toCentroidVecX + normY * toCentroidVecY < 0) {
+          normX = -normX
+          normY = -normY
+        }
+
+        const uX = dx / len
+        const uY = dy / len
+
+        const dimOffset = 20
+        const p1DimX = p1.cx + normX * dimOffset
+        const p1DimY = p1.cy + normY * dimOffset
+        const p2DimX = p2.cx + normX * dimOffset
+        const p2DimY = p2.cy + normY * dimOffset
+        const acDimX = cAcX + normX * dimOffset
+        const acDimY = cAcY + normY * dimOffset
+
+        const rawWallLen = segmentLengths[wall.index]
+        const wallLengthM =
+          rawWallLen !== undefined && rawWallLen !== ""
+            ? parseFloat(String(rawWallLen)) || Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
+            : Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
+
+        const distStartM = Number((unit.ratio * wallLengthM).toFixed(2))
+        const distEndM = Number(((1 - unit.ratio) * wallLengthM).toFixed(2))
+
+        // 1. Extension witness lines (Garis bantu putus-putus dari dinding ke garis ukur)
+        ctx.strokeStyle = isDark ? "rgba(56, 189, 248, 0.4)" : "rgba(2, 132, 199, 0.4)"
+        ctx.lineWidth = 0.9
+        ctx.setLineDash([2, 2])
+
+        ctx.beginPath()
+        ctx.moveTo(p1.cx, p1.cy)
+        ctx.lineTo(p1DimX, p1DimY)
+        ctx.moveTo(cAcX, cAcY)
+        ctx.lineTo(acDimX, acDimY)
+        ctx.moveTo(p2.cx, p2.cy)
+        ctx.lineTo(p2DimX, p2DimY)
+        ctx.stroke()
+
+        // Titik awal pada dinding (As AC & Sudut)
+        ctx.setLineDash([])
+        ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7"
+        ctx.beginPath(); ctx.arc(cAcX, cAcY, 2.2, 0, Math.PI * 2); ctx.fill()
+
+        // 2. Dimension lines (Garis ukur utama p1 -> AC & AC -> p2)
+        ctx.strokeStyle = isDark ? "#38bdf8" : "#0284c7"
+        ctx.lineWidth = 1.3
+        ctx.beginPath()
+        ctx.moveTo(p1DimX, p1DimY)
+        ctx.lineTo(acDimX, acDimY)
+        ctx.moveTo(acDimX, acDimY)
+        ctx.lineTo(p2DimX, p2DimY)
+        ctx.stroke()
+
+        // 3. CAD Intersection Tick Marks, 45° Slashes, and Junction Dots
+        const tickLen = 4.5
+        const slashLen = 4.5
+        const slashUx = (uX + normX) * 0.7071
+        const slashUy = (uY + normY) * 0.7071
+
+        const drawCadJunction = (x: number, y: number, isCenter: boolean) => {
+          ctx.save()
+          // Perpendicular cross tick
+          ctx.beginPath()
+          ctx.moveTo(x - normX * tickLen, y - normY * tickLen)
+          ctx.lineTo(x + normX * tickLen, y + normY * tickLen)
+          ctx.strokeStyle = isDark ? "#38bdf8" : "#0284c7"
+          ctx.lineWidth = isCenter ? 1.8 : 1.2
+          ctx.stroke()
+
+          // 45° architectural slash tick
+          ctx.beginPath()
+          ctx.moveTo(x - slashUx * slashLen, y - slashUy * slashLen)
+          ctx.lineTo(x + slashUx * slashLen, y + slashUy * slashLen)
+          ctx.strokeStyle = isCenter ? "#10b981" : (isDark ? "#38bdf8" : "#0284c7")
+          ctx.lineWidth = isCenter ? 2 : 1.5
+          ctx.stroke()
+
+          // Crisp center junction dot
+          ctx.beginPath()
+          ctx.arc(x, y, isCenter ? 3.5 : 2.5, 0, Math.PI * 2)
+          ctx.fillStyle = isCenter ? "#10b981" : (isDark ? "#38bdf8" : "#0284c7")
+          ctx.fill()
+          ctx.strokeStyle = bgFill
+          ctx.lineWidth = 1.2
+          ctx.stroke()
+          ctx.restore()
+        }
+
+        drawCadJunction(p1DimX, p1DimY, false)
+        drawCadJunction(acDimX, acDimY, true)
+        drawCadJunction(p2DimX, p2DimY, false)
+
+        // 4. Arrowheads pointing to the junctions
+        const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, size = 4.5) => {
+          const arrowDx = toX - fromX
+          const arrowDy = toY - fromY
+          const dLen = Math.hypot(arrowDx, arrowDy)
+          if (dLen < 16) return
+          const dirX = arrowDx / dLen
+          const dirY = arrowDy / dLen
+          const perpX = -dirY
+          const perpY = dirX
+
+          ctx.save()
+          ctx.beginPath()
+          ctx.moveTo(toX, toY)
+          ctx.lineTo(toX - dirX * size + perpX * (size * 0.4), toY - dirY * size + perpY * (size * 0.4))
+          ctx.lineTo(toX - dirX * size - perpX * (size * 0.4), toY - dirY * size - perpY * (size * 0.4))
+          ctx.closePath()
+          ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7"
+          ctx.fill()
+          ctx.restore()
+        }
+
+        // Arrows on segment 1 (p1 <-> AC)
+        drawArrow(acDimX, acDimY, p1DimX, p1DimY)
+        drawArrow(p1DimX, p1DimY, acDimX, acDimY)
+
+        // Arrows on segment 2 (AC <-> p2)
+        drawArrow(p2DimX, p2DimY, acDimX, acDimY)
+        drawArrow(acDimX, acDimY, p2DimX, p2DimY)
+
+        // 5. Dimension text badges with clean outline
+        const mid1X = (p1DimX + acDimX) / 2
+        const mid1Y = (p1DimY + acDimY) / 2
+        const mid2X = (acDimX + p2DimX) / 2
+        const mid2Y = (acDimY + p2DimY) / 2
+
+        ctx.font = "bold 8.5px sans-serif"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+
+        if (distStartM > 0.3) {
+          ctx.save()
+          ctx.translate(mid1X, mid1Y)
+          ctx.rotate(textAngle)
+          ctx.strokeStyle = bgFill
+          ctx.lineWidth = 2.5
+          ctx.lineJoin = "round"
+          ctx.strokeText(`${formatDim(distStartM)}m`, 0, 0)
+          ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7"
+          ctx.fillText(`${formatDim(distStartM)}m`, 0, 0)
+          ctx.restore()
+        }
+
+        if (distEndM > 0.3) {
+          ctx.save()
+          ctx.translate(mid2X, mid2Y)
+          ctx.rotate(textAngle)
+          ctx.strokeStyle = bgFill
+          ctx.lineWidth = 2.5
+          ctx.lineJoin = "round"
+          ctx.strokeText(`${formatDim(distEndM)}m`, 0, 0)
+          ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7"
+          ctx.fillText(`${formatDim(distEndM)}m`, 0, 0)
+          ctx.restore()
+        }
+
+        ctx.restore()
       })
     }
   }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, activeTool])
@@ -2148,19 +2492,87 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
   // ─── 13. Export Denah Handler ─────────────────────────────────────────────
   const handleExportPng = async () => {
-    if (!exportCardRef.current) return
-    try {
-      toast.info("Menyiapkan ekspor denah layout AC...")
-      const dataUrl = await toPng(exportCardRef.current, { cacheBust: true, pixelRatio: 2 })
-      const link = document.createElement("a")
-      const name = (storeMode === "existing" ? selectedStore?.name : newStoreName) || "Denah_Toko"
-      link.download = `Mapping_AC_${name.replace(/\s+/g, "_")}.png`
-      link.href = dataUrl
-      link.click()
-      toast.success("Denah Layout AC berhasil diunduh!")
-    } catch {
-      toast.error("Gagal mengekspor denah gambar.")
+    if (isSaving || !isCalculated || placedUnits.length === 0) return
+
+    // Ambil snapshot bersih langsung dari canvas
+    const canvas = canvasRef.current
+    const snapshotUrl = canvas ? canvas.toDataURL("image/png") : null
+
+    // Siapkan rincian legenda jarak per unit
+    const unitDetails = placedUnits.map((unit, idx) => {
+      const wall = wallSegments.find((w) => w.index === unit.wallIndex)
+      const rawWallLen = wall ? segmentLengths[wall.index] : undefined
+      const wallLengthM =
+        wall && rawWallLen !== undefined && rawWallLen !== ""
+          ? parseFloat(String(rawWallLen)) || Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
+          : wall
+          ? Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
+          : 0
+
+      const startNode = `T${(wall?.index ?? 0) + 1}`
+      const endNode = `T${(((wall?.index ?? 0) + 1) % (customPts.length || 1)) + 1}`
+      const distStart = Number((unit.ratio * wallLengthM).toFixed(2))
+      const distEnd = Number(((1 - unit.ratio) * wallLengthM).toFixed(2))
+
+      return {
+        name: `AC ${idx + 1}`,
+        wallLabel: `Dinding ${startNode}-${endNode}`,
+        wallLengthM,
+        startNode,
+        endNode,
+        fromStart: formatDim(distStart),
+        toEnd: formatDim(distEnd),
+      }
+    })
+
+    const cardData: AcMappingResultCardData = {
+      storeCode: storeMode === "existing" ? selectedStore?.code || "TOKO" : newStoreCode || "TOKO-BARU",
+      storeName: storeMode === "existing" ? selectedStore?.name || "Toko Retail" : newStoreName || "Toko Baru",
+      storeBranch: storeMode === "existing" ? selectedStore?.branch || "—" : newStoreBranch || "—",
+      area: effectiveArea,
+      temp: calculatedTemp,
+      btuPerM2: targetBtuPerM2,
+      totalBtu: totalBtuRequired,
+      acUnits: placedUnits.length,
+      layoutSnapshot: snapshotUrl,
+      placedUnits: unitDetails,
     }
+
+    setExportCardData(cardData)
+    setIsSaving(true)
+
+    setTimeout(async () => {
+      try {
+        if (exportCardRef.current) {
+          const dataUrl = await toPng(exportCardRef.current, {
+            pixelRatio: 2,
+            cacheBust: true,
+          })
+
+          // Convert Base64 dataURL to Blob for iOS/Safari download compatibility
+          const res = await fetch(dataUrl)
+          const blob = await res.blob()
+          const blobUrl = URL.createObjectURL(blob)
+
+          const link = document.createElement("a")
+          const storeLabel = storeMode === "existing" ? (selectedStore?.code || "toko") : (newStoreCode || "toko-baru")
+          link.download = `mapping-ac-${storeLabel}.png`
+          link.href = blobUrl
+          link.click()
+
+          toast.success("Denah Layout AC berhasil diunduh!")
+
+          setTimeout(() => {
+            URL.revokeObjectURL(blobUrl)
+          }, 100)
+        }
+      } catch (err) {
+        console.error(err)
+        toast.error("Gagal mengekspor denah gambar.")
+      } finally {
+        setIsSaving(false)
+      }
+    }, 150)
   }
 
   const currentStoreDisplayName = (storeMode === "existing" ? selectedStore?.name : newStoreName) || "Toko Retail Sparta"
@@ -2328,7 +2740,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         </div>
 
         {/* ─── CARD 2: CANVAS DENAH TOKO & INTERACTIVE CAD TOOLBAR ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start" ref={exportCardRef}>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Kolom Kiri: Interactive Canvas & Tool Palette (lg:col-span-8) */}
           <div className="lg:col-span-8 space-y-4">
             <Card className="border-border/80 shadow-xs rounded-2xl overflow-hidden">
@@ -2665,30 +3077,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                   </div>
                 )}
 
-                {/* Interactive Node Chips */}
-                {customPts.length > 0 && (
-                  <div className="p-2.5 rounded-xl border bg-card space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-bold text-foreground">Titik Sudut Denah (Klik untuk memilih / menghapus):</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {customPts.map((p, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setSelectedNodeIdx(idx)}
-                          className={`px-2 py-0.5 rounded-md text-[10.5px] font-mono border transition-all cursor-pointer ${
-                            selectedNodeIdx === idx
-                              ? "bg-red-500 text-white font-bold border-red-500 shadow-xs"
-                              : "bg-muted/40 hover:bg-muted text-foreground border-border/60"
-                          }`}
-                        >
-                          T{idx + 1} ({formatDim(p.x)}, {formatDim(p.y)})
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {/* Action Hitung & Petakan AC */}
                 <Button
@@ -2758,15 +3146,80 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                   </div>
                 )}
 
+                {/* Legenda Detail Jarak Posisi AC (Patokan As Tengah AC) */}
+                {isCalculated && placedUnits.length > 0 && (
+                  <div className="p-3 rounded-xl border bg-muted/20 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold flex items-center gap-1.5 text-foreground">
+                        <IconRuler className="size-3.5 text-sky-500" />
+                        Legenda Jarak Posisi AC
+                      </span>
+                      <Badge variant="outline" className="text-[9px] font-mono">
+                        As Tengah AC
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-2 divide-y divide-border/60">
+                      {placedUnits.map((unit, idx) => {
+                        const wall = wallSegments.find((w) => w.index === unit.wallIndex)
+                        if (!wall) return null
+
+                        const rawWallLen = segmentLengths[wall.index]
+                        const wallLengthM =
+                          rawWallLen !== undefined && rawWallLen !== ""
+                            ? parseFloat(String(rawWallLen)) ||
+                              Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
+                            : Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
+
+                        const startNode = `T${wall.index + 1}`
+                        const endNode = `T${((wall.index + 1) % customPts.length) + 1}`
+                        const distStart = Number((unit.ratio * wallLengthM).toFixed(2))
+                        const distEnd = Number(((1 - unit.ratio) * wallLengthM).toFixed(2))
+
+                        return (
+                          <div key={unit.id || idx} className="pt-2 first:pt-0 space-y-1.5 text-[11px]">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sky-600 dark:text-sky-400">
+                                AC {idx + 1} (Daikin 2 PK)
+                              </span>
+                              <span className="text-muted-foreground font-mono text-[10px]">
+                                Dinding {startNode} - {endNode} ({formatDim(wallLengthM)}m)
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-[10.5px]">
+                              <div className="p-1.5 rounded-lg bg-card border border-border/60 flex flex-col">
+                                <span className="text-[9px] text-muted-foreground">
+                                  Dari Sudut {startNode}
+                                </span>
+                                <span className="font-mono font-bold text-foreground">
+                                  {formatDim(distStart)} meter
+                                </span>
+                              </div>
+                              <div className="p-1.5 rounded-lg bg-card border border-border/60 flex flex-col">
+                                <span className="text-[9px] text-muted-foreground">
+                                  Ke Sudut {endNode}
+                                </span>
+                                <span className="font-mono font-bold text-foreground">
+                                  {formatDim(distEnd)} meter
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Tombol Unduh Hasil di Bagian Akhir (Sama Seperti Kalkulator Lampu & AC) */}
                 <Button
                   type="button"
                   onClick={handleExportPng}
-                  disabled={!isCalculated || placedUnits.length === 0}
+                  disabled={!isCalculated || placedUnits.length === 0 || isSaving}
                   className="w-full h-9 text-xs font-semibold"
                 >
                   <IconDownload className="mr-1.5 size-4" />
-                  Unduh Hasil Denah (.png)
+                  {isSaving ? "Menyiapkan Gambar..." : "Unduh Hasil Denah (.png)"}
                 </Button>
               </CardContent>
             </Card>
@@ -2876,6 +3329,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Hidden Standarized Result Card for Image Capture (Sama Persis Kalkulator Lampu & AC) */}
+        {exportCardData && (
+          <AcMappingResultCard cardRef={exportCardRef} data={exportCardData} />
+        )}
       </main>
     </div>
   )

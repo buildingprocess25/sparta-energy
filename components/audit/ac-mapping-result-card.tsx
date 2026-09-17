@@ -1,0 +1,449 @@
+"use client"
+
+import React from "react"
+import { AC_CALCULATOR_VERSION } from "@/lib/calculator-versions"
+
+export type AcMappingUnitDetail = {
+  name: string
+  wallLabel: string
+  wallLengthM: number
+  startNode: string
+  endNode: string
+  fromStart: string
+  toEnd: string
+}
+
+export type AcMappingResultCardData = {
+  storeCode: string
+  storeName: string
+  storeBranch: string
+  area: number
+  temp: number | null
+  btuPerM2: number
+  totalBtu: number
+  acUnits: number
+  layoutSnapshot: string | null
+  placedUnits: AcMappingUnitDetail[]
+}
+
+type Props = {
+  cardRef: React.RefObject<HTMLDivElement | null>
+  data: AcMappingResultCardData
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        padding: "6px 0",
+        borderBottom: "1px solid #e5e7eb",
+        gap: "8px",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "10.5px",
+          color: "#6b7280",
+          fontWeight: 500,
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+          flexShrink: 0,
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: "11.5px",
+          color: "#111827",
+          fontWeight: 600,
+          textAlign: "right",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  )
+}
+
+export function AcMappingResultCard({ cardRef, data }: Props) {
+  const {
+    storeCode,
+    storeName,
+    storeBranch,
+    area,
+    temp,
+    btuPerM2,
+    totalBtu,
+    acUnits,
+    layoutSnapshot,
+    placedUnits,
+  } = data
+
+  return (
+    // Hidden off-screen — only used for html-to-image capture
+    <div
+      style={{
+        position: "fixed",
+        top: "-9999px",
+        left: "-9999px",
+        zIndex: -1,
+        pointerEvents: "none",
+      }}
+      aria-hidden="true"
+    >
+      <div
+        ref={cardRef}
+        style={{
+          width: "390px",
+          backgroundColor: "#ffffff",
+          display: "flex",
+          flexDirection: "column",
+          fontFamily:
+            "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+          overflow: "hidden",
+          borderRadius: "0px",
+        }}
+      >
+        {/* ── Header ── */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #0f4a35 0%, #082e20 100%)",
+            padding: "20px 24px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/assets/Alfamart-Emblem.png"
+              alt="Alfamart"
+              width={80}
+              height={80}
+              style={{ height: "22px", width: "auto", objectFit: "contain" }}
+            />
+            <div
+              style={{
+                width: "1px",
+                height: "18px",
+                backgroundColor: "rgba(255,255,255,0.3)",
+              }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/assets/Building-Logo.png"
+                alt="SPARTA"
+                width={40}
+                height={40}
+                style={{ height: "18px", width: "auto", objectFit: "contain" }}
+              />
+              <div style={{ lineHeight: 1 }}>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    color: "#ffffff",
+                    letterSpacing: "0.1em",
+                  }}
+                >
+                  SPARTA
+                </div>
+                <div
+                  style={{
+                    fontSize: "7px",
+                    fontWeight: 500,
+                    color: "rgba(255,255,255,0.7)",
+                  }}
+                >
+                  Energy
+                </div>
+                <div
+                  style={{
+                    fontSize: "6.5px",
+                    fontWeight: 500,
+                    color: "rgba(255, 255, 255, 0.55)",
+                    letterSpacing: "0.05em",
+                    marginTop: "2px",
+                  }}
+                >
+                  {AC_CALCULATOR_VERSION}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div
+              style={{
+                fontSize: "9px",
+                color: "rgba(255,255,255,0.6)",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+              }}
+            >
+              Mapping & Layout
+            </div>
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "#6ee7b7",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              AC Daikin 2 PK
+            </div>
+          </div>
+        </div>
+
+        {/* ── Denah Snapshot ── */}
+        <div
+          style={{
+            margin: "14px 16px 0",
+            borderRadius: "12px",
+            overflow: "hidden",
+            border: "1.5px solid #e5e7eb",
+            height: "210px",
+            backgroundColor: "#f8fafc",
+            position: "relative",
+          }}
+        >
+          {layoutSnapshot ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={layoutSnapshot}
+              alt="Denah Layout AC"
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            />
+          ) : (
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "12px",
+                color: "#9ca3af",
+              }}
+            >
+              Denah tidak tersedia
+            </div>
+          )}
+        </div>
+
+        {/* ── Info Card ── */}
+        <div
+          style={{
+            margin: "10px 16px 0",
+            borderRadius: "12px",
+            border: "1.5px solid #e5e7eb",
+            overflow: "hidden",
+          }}
+        >
+          {/* Store header */}
+          <div
+            style={{
+              background: "#f8fafc",
+              padding: "9px 14px",
+              borderBottom: "1.5px solid #e5e7eb",
+            }}
+          >
+            <div
+              style={{ fontSize: "13px", fontWeight: 800, color: "#111827" }}
+            >
+              {storeCode || "Toko Baru"} - {storeName || "Tanpa Nama"}
+            </div>
+            <div
+              style={{ fontSize: "10.5px", color: "#6b7280", marginTop: "1px" }}
+            >
+              {storeBranch || "—"}
+            </div>
+          </div>
+
+          {/* Data rows */}
+          <div style={{ padding: "0 14px", marginBottom: "6px" }}>
+            <Row label="Luas Denah Efektif" value={`${area.toFixed(1)} m²`} />
+            {temp !== null && (
+              <Row
+                label="Suhu Lingkungan Desain"
+                value={`${temp}°C (${btuPerM2} BTU/m²)`}
+              />
+            )}
+            <Row
+              label="Target Beban Pendinginan"
+              value={`${totalBtu.toLocaleString("id-ID")} BTU`}
+            />
+            <Row
+              label="Spesifikasi Unit AC"
+              value="Daikin 2 PK (18.000 BTU/h)"
+            />
+          </div>
+
+          {/* Legenda Detail Posisi Jarak AC */}
+          {placedUnits.length > 0 && (
+            <div
+              style={{
+                margin: "4px 14px 10px",
+                borderRadius: "8px",
+                border: "1px solid #e2e8f0",
+                backgroundColor: "#f8fafc",
+                padding: "8px 10px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "6px",
+                  borderBottom: "1px solid #e2e8f0",
+                  paddingBottom: "4px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    color: "#0369a1",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  📐 Legenda Posisi (As Tengah AC)
+                </span>
+                <span
+                  style={{
+                    fontSize: "9px",
+                    color: "#64748b",
+                    fontWeight: 600,
+                  }}
+                >
+                  {placedUnits.length} Posisi Terpasang
+                </span>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                {placedUnits.map((u, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      fontSize: "10px",
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, color: "#0f172a" }}>
+                      {u.name}{" "}
+                      <span style={{ fontWeight: 500, color: "#64748b" }}>
+                        ({u.wallLabel})
+                      </span>
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "monospace",
+                        color: "#0284c7",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {u.startNode}: {u.fromStart}m | {u.endNode}: {u.toEnd}m
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recommendation highlight */}
+          <div
+            style={{
+              margin: "0px 14px 12px",
+              borderRadius: "10px",
+              background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
+              border: "1.5px solid #bbf7d0",
+              padding: "10px 14px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "10px",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 800,
+                  color: "#15803d",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  lineHeight: "1.3",
+                }}
+              >
+                Rekomendasi Jumlah Unit AC
+              </div>
+              <div
+                style={{
+                  fontSize: "9.5px",
+                  color: "#374151",
+                  marginTop: "2px",
+                  lineHeight: 1.2,
+                }}
+              >
+                Kapasitas 1 unit: 18.000 BTU/h (Daikin 2 PK)
+              </div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <div
+                style={{
+                  fontSize: "28px",
+                  fontWeight: 900,
+                  color: "#166534",
+                  lineHeight: 1,
+                  letterSpacing: "-0.02em",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {acUnits}
+              </div>
+              <div
+                style={{
+                  fontSize: "9.5px",
+                  fontWeight: 700,
+                  color: "#16a34a",
+                  whiteSpace: "nowrap",
+                  marginTop: "2px",
+                }}
+              >
+                Unit AC 2 PK
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Footer ── */}
+        <div
+          style={{
+            padding: "8px 16px 12px",
+            textAlign: "center",
+            fontSize: "8.5px",
+            color: "#9ca3af",
+          }}
+        >
+          Generated by SPARTA Energy •{" "}
+          {new Date().toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
