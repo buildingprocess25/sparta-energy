@@ -91,7 +91,7 @@ function ProtomapsLayer({ pixelRatio }: { pixelRatio?: number }) {
 
   useEffect(() => {
     const options = {
-      url: "https://api.protomaps.com/tiles/v4/{z}/{x}/{y}.mvt?key=f6cac8c113d13705",
+      url: "/api/map-tiles/{z}/{x}/{y}.mvt",
       flavor: "light",
       lang: "id",
     }
@@ -104,7 +104,7 @@ function ProtomapsLayer({ pixelRatio }: { pixelRatio?: number }) {
     return () => {
       map.removeLayer(layer)
     }
-  }, [map])
+  }, [map, currentPixelRatio])
 
   return null
 }
