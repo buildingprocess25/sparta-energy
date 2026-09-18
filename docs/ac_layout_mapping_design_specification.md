@@ -68,8 +68,8 @@ Berdasarkan kesepakatan diskusi dan standar peremajaan toko, unit acuan yang dim
 
 ## 3. Konsep Visualisasi Canvas: Thermal Potential Gradient
 
-### **A. Bentuk Sebaran (*Directional Fan Cone*)**
-Setiap unit AC Split Wall digambarkan menempel pada segmen garis dinding (edge poligon) dengan arah semburan (vektor normal) menghadap ke dalam ruangan.
+### **A. Bentuk Sebaran (*Wide-Mouth Directional Plume*)**
+Setiap unit AC Split Wall digambarkan menempel pada dinding dengan pola hembusan udara dingin yang keluar dari **seluruh bentang lebar mulut louver kisi-kisi AC (panjang fisik indoor 1.05m)**, bukan dari satu titik runcing di tengah. Hembusan memancar ke depan menuju ruangan dengan sudut sebar $70^\circ$, dilengkapi garis streamline dari multi-titik louver serta busur gelombang jangkauan (3m, 5m, 6.5m).
 
 ### **B. Logika Superposisi / Akumulasi (*Additive Blending*)**
 - **Prinsip Fisika**: Jika 2 atau lebih unit AC menyemburkan udara ke satu area yang sama, kapasitas pendinginan di area tersebut saling menambah.

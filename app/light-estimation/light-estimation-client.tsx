@@ -3374,28 +3374,28 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
               <div className="space-y-3">
                 {/* Visual Guide Diagram */}
                 <div className="bg-slate-50 dark:bg-[#0c0d12] border border-border/70 rounded-xl p-2 flex flex-col items-center justify-center">
-                  <svg width="200" height="105" viewBox="0 0 200 105" className="block">
-                    <path d="M 40 22 L 150 22 L 150 55 L 95 55 L 95 90 L 40 90 Z" fill="rgba(56,189,248,0.06)" stroke="#0284c7" strokeWidth="1.5" />
-                    <text x="70" y="45" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#0284c7">Denah L</text>
+                  <svg width="220" height="110" viewBox="0 0 220 110" className="block">
+                    <path d="M 40 22 L 145 22 L 145 55 L 95 55 L 95 90 L 40 90 Z" fill="rgba(56,189,248,0.06)" stroke="#0284c7" strokeWidth="1.5" />
+                    <text x="68" y="45" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#0284c7">Denah L</text>
                     
-                    {/* PT */}
+                    {/* PT (Panjang Total Sisi Kiri) */}
                     <line x1="28" y1="22" x2="28" y2="90" stroke="#7c3aed" strokeWidth="1.2" />
                     <text x="22" y="56" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#7c3aed" transform="rotate(-90, 22, 56)">Panjang Total (PT)</text>
 
-                    {/* LT */}
-                    <line x1="40" y1="97" x2="95" y2="97" stroke="#0284c7" strokeWidth="1.2" />
-                    <text x="67" y="95" textAnchor="middle" fontSize="7" fontWeight="bold" fill="#0284c7">Lebar Total (LT)</text>
+                    {/* LT (Lebar Total Sisi Atas Penuh) */}
+                    <line x1="40" y1="14" x2="145" y2="14" stroke="#0284c7" strokeWidth="1.2" />
+                    <text x="92" y="10" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#0284c7">Lebar Total (LT)</text>
 
-                    {/* LS */}
-                    <line x1="40" y1="15" x2="150" y2="15" stroke="#f59e0b" strokeWidth="1.2" />
-                    <text x="95" y="11" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#d97706">Lebar Sayap (LS)</text>
+                    {/* LS (Lebar Sayap / Bawah) */}
+                    <line x1="40" y1="97" x2="95" y2="97" stroke="#d97706" strokeWidth="1.2" />
+                    <text x="67" y="95" textAnchor="middle" fontSize="7" fontWeight="bold" fill="#d97706">Lebar Sayap (LS)</text>
 
-                    {/* PS */}
-                    <line x1="158" y1="22" x2="158" y2="55" stroke="#10b981" strokeWidth="1.2" />
-                    <text x="164" y="40" textAnchor="start" fontSize="7.5" fontWeight="bold" fill="#059669">Panjang Sayap (PS)</text>
+                    {/* PS (Panjang Sayap Kanan-Atas) */}
+                    <line x1="155" y1="22" x2="155" y2="55" stroke="#10b981" strokeWidth="1.2" />
+                    <text x="164" y="38" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#059669" transform="rotate(90, 164, 38)">Panjang Sayap (PS)</text>
                   </svg>
                   <div className="text-[9px] text-muted-foreground text-center mt-1">
-                    💡 <b>LS & PS</b> adalah ukuran tonjolan sayap bagian kanan/atas denah L.
+                    💡 <b>LT & PT</b> adalah ukuran luar total. <b>LS & PS</b> adalah ukuran potongan badan sayap.
                   </div>
                 </div>
 

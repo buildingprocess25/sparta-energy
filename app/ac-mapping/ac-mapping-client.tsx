@@ -21,6 +21,9 @@ import {
   IconFridge,
   IconX,
   IconRuler,
+  IconLock,
+  IconLockOpen,
+  IconEdit,
 } from "@tabler/icons-react"
 import { useTheme } from "next-themes"
 import { Header } from "@/components/header"
@@ -498,16 +501,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     const newPts = customPts.filter((_, i) => i !== idx)
     const newClosed = newPts.length >= 3 ? customClosed : false
 
-    if (placedUnits.length > 0) {
-      const remapped = remapPlacedUnitsToNewGeometry(
-        placedUnits,
-        customPts,
-        customClosed,
-        newPts,
-        newClosed
-      )
-      setPlacedUnits(remapped)
-    }
+    // Auto-Invalidate Hasil AC saat bentuk denah diubah (Opsi 2)
+    setIsCalculated(false)
+    setPlacedUnits([])
 
     setCustomPts(newPts)
     if (!newClosed) setCustomClosed(false)
@@ -524,14 +520,17 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     })
     setSelectedNodeIdx(null)
     setPendingZoneStart(null)
-    toast.info(`Titik T${idx + 1} berhasil dihapus.`)
-  }, [customPts, customClosed, placedUnits, pushCurrentToHistory])
+    toast.info(`Titik T${idx + 1} dihapus. Silakan hitung & petakan AC kembali setelah selesai mengedit.`)
+  }, [customPts, customClosed, pushCurrentToHistory])
 
   // Update Panjang Sisi Dinding (Identik dengan Kalkulator Lampu)
   const handleUpdateSegmentLength = useCallback((idx: number, newLenVal: number, dir: "end" | "start" | "center" = expandDir) => {
     if (isNaN(newLenVal) || newLenVal <= 0) return
 
     pushCurrentToHistory()
+    setIsCalculated(false)
+    setPlacedUnits([])
+
     setCustomPts(prev => {
       if (prev.length < 2) return prev
       const n = prev.length
@@ -590,52 +589,44 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         }))
       }
 
-      if (placedUnits.length > 0) {
-        const remapped = remapPlacedUnitsToNewGeometry(
-          placedUnits,
-          prev,
-          customClosed,
-          finalPts,
-          customClosed
-        )
-        setPlacedUnits(remapped)
-      }
-
       return finalPts
     })
-  }, [expandDir, pushCurrentToHistory, placedUnits, customClosed])
+  }, [expandDir, pushCurrentToHistory])
 
   // ─── 8. Preset Template Handler ───────────────────────────────────────────
   const handleApplyPreset = () => {
     pushCurrentToHistory()
+    setIsCalculated(false)
+    setPlacedUnits([])
+
     if (presetType === "rect") {
-      const p = Math.max(4, parseFloat(presetRect.panjang) || 12)
-      const l = Math.max(3, parseFloat(presetRect.lebar) || 8)
+      const lt = Math.max(3, parseFloat(presetRect.lebar) || 12)
+      const pt = Math.max(3, parseFloat(presetRect.panjang) || 8)
       setCustomPts([
         { x: 0, y: 0 },
-        { x: p, y: 0 },
-        { x: p, y: l },
-        { x: 0, y: l },
+        { x: lt, y: 0 },
+        { x: lt, y: pt },
+        { x: 0, y: pt },
       ])
     } else {
-      const p = Math.max(6, parseFloat(presetL.p) || 14)
-      const l = Math.max(5, parseFloat(presetL.l) || 10)
-      const w = Math.max(2, parseFloat(presetL.w) || 6)
-      const h = Math.max(2, parseFloat(presetL.h) || 4)
+      const pt = Math.max(4, parseFloat(presetL.p) || 14)
+      const lt = Math.max(4, parseFloat(presetL.l) || 10)
+      const ls = Math.min(lt - 1, Math.max(2, parseFloat(presetL.w) || 6))
+      const ps = Math.min(pt - 1, Math.max(2, parseFloat(presetL.h) || 4))
       setCustomPts([
         { x: 0, y: 0 },
-        { x: p - w, y: 0 },
-        { x: p - w, y: h },
-        { x: p, y: h },
-        { x: p, y: l },
-        { x: 0, y: l },
+        { x: lt, y: 0 },
+        { x: lt, y: ps },
+        { x: ls, y: ps },
+        { x: ls, y: pt },
+        { x: 0, y: pt },
       ])
     }
     setCustomClosed(true)
     setSegmentOverrides({})
     setPresetModalOpen(false)
     setPendingZoneStart(null)
-    toast.success("Template denah berhasil dimuat dan dipusatkan di kanvas.")
+    toast.success("Template denah berhasil dimuat. Silakan klik 'Hitung & Petakan AC' untuk memproses.")
   }
 
   // ─── 9. Handler Pilih Toko ────────────────────────────────────────────────
@@ -834,6 +825,19 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           }
         }
       }
+
+      // JIKA HASIL AC AKTIF & KLIK DI LUAR UNIT AC -> DENAH TERKUNCI!
+      const spts = customPts.map((pt) => ({
+        cx: offX + pt.x * scale,
+        cy: offY + pt.y * scale,
+      }))
+      for (let i = 0; i < spts.length; i++) {
+        if (Math.hypot(cx - spts[i].cx, cy - spts[i].cy) <= 18) {
+          toast.info("🔒 Denah terkunci dalam mode Hasil AC. Klik tombol 'Edit Denah' di toolbar jika ingin mengubah ukuran/sudut toko.")
+          return
+        }
+      }
+      return
     }
 
     // 2. JIKA TOOL RESTRICTED ZONE AKTIF (PINTU/KACA, KASIR, CHILLER):
@@ -1057,17 +1061,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             }
           })
 
-          // 3. Kunci posisi fisik seluruh unit AC
-          if (placedUnits.length > 0) {
-            const remapped = remapPlacedUnitsToNewGeometry(
-              placedUnits,
-              customPts,
-              customClosed,
-              newPts,
-              customClosed
-            )
-            setPlacedUnits(remapped)
-          }
+          // Auto-Invalidate Hasil AC saat dinding diberi zona terlarang (Opsi 2)
+          setIsCalculated(false)
+          setPlacedUnits([])
 
           setCustomPts(newPts)
           setSegmentOverrides(newOverrides)
@@ -1171,17 +1167,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           newOverrides[bestSegIdx + 1] = oldOverride
         }
 
-        // Kunci posisi fisik seluruh unit AC
-        if (placedUnits.length > 0) {
-          const remapped = remapPlacedUnitsToNewGeometry(
-            placedUnits,
-            customPts,
-            customClosed,
-            newPts,
-            customClosed
-          )
-          setPlacedUnits(remapped)
-        }
+        // Auto-Invalidate Hasil AC saat titik baru disisipkan (Opsi 2)
+        setIsCalculated(false)
+        setPlacedUnits([])
 
         setCustomPts(newPts)
         setSegmentOverrides(newOverrides)
@@ -1580,16 +1568,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                 }
               }
 
-              // Remap posisi fisik unit AC terhadap pergeseran geometri
-              if (placedUnits.length > 0) {
-                const remapped = remapPlacedUnitsToNewGeometry(
-                  placedUnits,
-                  snap.pts,
-                  customClosed,
-                  finalPts,
-                  customClosed
-                )
-                setPlacedUnits(remapped)
+              // Auto-Invalidate Hasil AC saat titik sudut poligon digeser (Opsi 2)
+              if (snap.isCalculated || placedUnits.length > 0) {
+                setIsCalculated(false)
+                setPlacedUnits([])
+                toast.info("Bentuk denah diubah. Silakan klik 'Hitung & Petakan AC' untuk memperbarui posisi unit & beban termal.")
               }
             }
           }
@@ -1962,14 +1945,48 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         const throwRadius = Math.max(sc.scale * 6.5, 90) // Panjang jangkauan hembusan ~6.5 meter
         const halfSpread = Math.PI / 6 // Sudut sebar hembusan lancip (total 60°)
 
-        // Sektor Kerucut Hembusan AC Lancip (Fan Sector Arc)
+        const uX = dx / len
+        const uY = dy / len
+
+        // Lebar mulut kisi-kisi hembusan AC (hampir selebar unit indoor Daikin 2 PK)
+        const louverHalfW = 12 // pixel half-width on canvas
+        const frontOffset = 5  // pixel offset to front face / discharge slot
+
+        // Titik pusat asal hembusan di muka louver AC
+        const louverMidX = cAcX + nx * frontOffset
+        const louverMidY = cAcY + ny * frontOffset
+
+        // Titik outer arc awal dan akhir
+        const angleStart = flowAngle - halfSpread
+        const angleEnd = flowAngle + halfSpread
+        const pStartX = louverMidX + Math.cos(angleStart) * throwRadius
+        const pStartY = louverMidY + Math.sin(angleStart) * throwRadius
+
+        // 2 titik ujung mulut louver AC
+        const c1 = { x: cAcX - uX * louverHalfW + nx * frontOffset, y: cAcY - uY * louverHalfW + ny * frontOffset }
+        const c2 = { x: cAcX + uX * louverHalfW + nx * frontOffset, y: cAcY + uY * louverHalfW + ny * frontOffset }
+
+        // Cocokkan sudut mulut AC yang sejajar dengan sisi awal dan akhir outer arc (mencegah garis bersilangan)
+        const d1 = Math.hypot(c1.x - pStartX, c1.y - pStartY)
+        const d2 = Math.hypot(c2.x - pStartX, c2.y - pStartY)
+        const lStart = d1 <= d2 ? c1 : c2
+        const lEnd = d1 <= d2 ? c2 : c1
+
+        // Sektor Hembusan Udara Terbuka (Convex Fan Plume dari Mulut AC)
         ctx.beginPath()
-        ctx.moveTo(cAcX, cAcY)
-        ctx.arc(cAcX, cAcY, throwRadius, flowAngle - halfSpread, flowAngle + halfSpread)
+        ctx.moveTo(lStart.x, lStart.y)
+        const arcSteps = 16
+        for (let s = 0; s <= arcSteps; s++) {
+          const a = angleStart + (s / arcSteps) * (angleEnd - angleStart)
+          const px = louverMidX + Math.cos(a) * throwRadius
+          const py = louverMidY + Math.sin(a) * throwRadius
+          ctx.lineTo(px, py)
+        }
+        ctx.lineTo(lEnd.x, lEnd.y)
         ctx.closePath()
 
-        // Gradasi Sejuk Cyan / Sky-Blue Alami Memancar Lembut dari Titik AC
-        const coneGrad = ctx.createRadialGradient(cAcX, cAcY, 2, cAcX, cAcY, throwRadius)
+        // Gradasi Sejuk Cyan / Sky-Blue Alami Memancar Lembut dari Mulut Louver AC
+        const coneGrad = ctx.createRadialGradient(louverMidX, louverMidY, 4, louverMidX, louverMidY, throwRadius)
         if (effectiveIsDark) {
           coneGrad.addColorStop(0, "rgba(56, 189, 248, 0.48)")       // Inti sejuk dekat kisi AC
           coneGrad.addColorStop(0.35, "rgba(14, 165, 233, 0.26)")    // Hembusan tengah ~3m
@@ -1993,7 +2010,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
         // Busur Zona Sejuk Dekat (~3m)
         ctx.beginPath()
-        ctx.arc(cAcX, cAcY, throwRadius * 0.45, flowAngle - halfSpread * 0.85, flowAngle + halfSpread * 0.85)
+        for (let s = 0; s <= arcSteps; s++) {
+          const a = (flowAngle - halfSpread * 0.85) + (s / arcSteps) * (2 * halfSpread * 0.85)
+          const px = louverMidX + Math.cos(a) * (throwRadius * 0.45)
+          const py = louverMidY + Math.sin(a) * (throwRadius * 0.45)
+          if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+        }
         ctx.strokeStyle = arcStroke1
         ctx.lineWidth = 1
         ctx.setLineDash([3, 3])
@@ -2001,7 +2023,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
         // Busur Zona Efektif (~5m)
         ctx.beginPath()
-        ctx.arc(cAcX, cAcY, throwRadius * 0.75, flowAngle - halfSpread * 0.85, flowAngle + halfSpread * 0.85)
+        for (let s = 0; s <= arcSteps; s++) {
+          const a = (flowAngle - halfSpread * 0.85) + (s / arcSteps) * (2 * halfSpread * 0.85)
+          const px = louverMidX + Math.cos(a) * (throwRadius * 0.75)
+          const py = louverMidY + Math.sin(a) * (throwRadius * 0.75)
+          if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+        }
         ctx.strokeStyle = arcStroke2
         ctx.lineWidth = 1
         ctx.setLineDash([4, 4])
@@ -2009,21 +2036,28 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
         // Busur Batas Jangkauan Maksimal (~6.5m)
         ctx.beginPath()
-        ctx.arc(cAcX, cAcY, throwRadius * 0.96, flowAngle - halfSpread * 0.9, flowAngle + halfSpread * 0.9)
+        for (let s = 0; s <= arcSteps; s++) {
+          const a = (flowAngle - halfSpread * 0.9) + (s / arcSteps) * (2 * halfSpread * 0.9)
+          const px = louverMidX + Math.cos(a) * (throwRadius * 0.96)
+          const py = louverMidY + Math.sin(a) * (throwRadius * 0.96)
+          if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+        }
         ctx.strokeStyle = arcStroke3
         ctx.lineWidth = 1.2
         ctx.setLineDash([5, 3])
         ctx.stroke()
 
-        // Garis Streamline Radial Aliran Udara
-        ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.16)" : "rgba(2, 132, 199, 0.18)"
-        ctx.lineWidth = 0.8
+        // Garis Streamline Radial Aliran Udara dari 4 Titik di Sepanjang Mulut Louver AC
+        ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.18)" : "rgba(2, 132, 199, 0.20)"
+        ctx.lineWidth = 0.9
         ctx.setLineDash([3, 4])
-        ;[-halfSpread * 0.45, halfSpread * 0.45].forEach((aOffset) => {
-          const rayAngle = flowAngle + aOffset
+        ;[0.12, 0.38, 0.62, 0.88].forEach((t) => {
+          const startX = lStart.x + t * (lEnd.x - lStart.x)
+          const startY = lStart.y + t * (lEnd.y - lStart.y)
+          const rayAngle = angleStart + t * (angleEnd - angleStart)
           ctx.beginPath()
-          ctx.moveTo(cAcX, cAcY)
-          ctx.lineTo(cAcX + Math.cos(rayAngle) * throwRadius * 0.85, cAcY + Math.sin(rayAngle) * throwRadius * 0.85)
+          ctx.moveTo(startX, startY)
+          ctx.lineTo(startX + Math.cos(rayAngle) * (throwRadius * 0.85), startY + Math.sin(rayAngle) * (throwRadius * 0.85))
           ctx.stroke()
         })
         ctx.setLineDash([])
@@ -2094,7 +2128,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         let tagColor = effectiveIsDark ? "#34d399" : "#047857"
 
         if (wall.type === "GLASS_DOOR") {
-          tag += " 🚪 Pintu/Kaca"
+          tag += " 🚪 Pintu"
           tagColor = "#f97316"
         } else if (wall.type === "CASHIER") {
           tag += " 🛒 Kasir"
@@ -2103,10 +2137,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           tag += " 🧊 Chiller"
           tagColor = "#06b6d4"
         } else if (wall.type === "SOLID" && wall.lengthM < AC_INDOOR_WIDTH_M) {
-          tag += " ⚠️ <1.05m (Tidak Muat AC)"
+          tag += " ⚠️ <1.05m"
           tagColor = effectiveIsDark ? "#f87171" : "#dc2626"
         } else if (wall.type === "SOLID" && wall.lengthM < MIN_WALL_LENGTH_FOR_AC) {
-          tag += " ⚠️ <1.55m (Sempit)"
+          tag += " ⚠️"
           tagColor = effectiveIsDark ? "#fbbf24" : "#d97706"
         }
 
@@ -2537,9 +2571,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.lineTo(chainPoints[chainPoints.length - 1].dimCanvas.cx, chainPoints[chainPoints.length - 1].dimCanvas.cy)
         ctx.stroke()
 
-        // 3. CAD Intersection Tick Marks, 45° Slashes, & Junction Dots
-        const tickLen = 4.5
-        const slashLen = 4.5
+        // 3. CAD Intersection Tick Marks (Standard Architectural 45° Slash Ticks)
+        const slashLen = 5
         const slashUx = (uX + normX) * 0.7071
         const slashUy = (uY + normY) * 0.7071
 
@@ -2548,52 +2581,25 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           const y = cp.dimCanvas.cy
           const isUnitCenter = cp.isUnit
 
-          // Perpendicular cross tick
-          ctx.beginPath()
-          ctx.moveTo(x - normX * tickLen, y - normY * tickLen)
-          ctx.lineTo(x + normX * tickLen, y + normY * tickLen)
-          ctx.strokeStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
-          ctx.lineWidth = isUnitCenter ? 1.8 : 1.2
-          ctx.stroke()
-
-          // 45° architectural slash tick
+          // 45° architectural oblique slash tick
           ctx.beginPath()
           ctx.moveTo(x - slashUx * slashLen, y - slashUy * slashLen)
           ctx.lineTo(x + slashUx * slashLen, y + slashUy * slashLen)
           ctx.strokeStyle = isUnitCenter ? "#10b981" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
-          ctx.lineWidth = isUnitCenter ? 2 : 1.5
+          ctx.lineWidth = isUnitCenter ? 2.2 : 1.5
           ctx.stroke()
 
           // Crisp center junction dot
           ctx.beginPath()
-          ctx.arc(x, y, isUnitCenter ? 3.5 : 2.2, 0, Math.PI * 2)
+          ctx.arc(x, y, isUnitCenter ? 3 : 2, 0, Math.PI * 2)
           ctx.fillStyle = isUnitCenter ? "#10b981" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
           ctx.fill()
           ctx.strokeStyle = bgFill
-          ctx.lineWidth = 1.2
+          ctx.lineWidth = 1
           ctx.stroke()
         })
 
-        // 4. Arrowheads & Teks Dimensi per segmen rantai
-        const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, size = 4.5) => {
-          const arrowDx = toX - fromX
-          const arrowDy = toY - fromY
-          const dLen = Math.hypot(arrowDx, arrowDy)
-          if (dLen < 14) return
-          const dirX = arrowDx / dLen
-          const dirY = arrowDy / dLen
-          const perpX = -dirY
-          const perpY = dirX
-
-          ctx.beginPath()
-          ctx.moveTo(toX, toY)
-          ctx.lineTo(toX - dirX * size + perpX * (size * 0.4), toY - dirY * size + perpY * (size * 0.4))
-          ctx.lineTo(toX - dirX * size - perpX * (size * 0.4), toY - dirY * size - perpY * (size * 0.4))
-          ctx.closePath()
-          ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
-          ctx.fill()
-        }
-
+        // 4. Teks Dimensi per segmen rantai (Arsitektural CAD Bersih Tanpa Tabrakan Panah)
         ctx.font = "bold 8.5px sans-serif"
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
@@ -2601,10 +2607,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         for (let j = 0; j < chainPoints.length - 1; j++) {
           const cpA = chainPoints[j]
           const cpB = chainPoints[j + 1]
-
-          // Arrows on each sub-segment
-          drawArrow(cpA.dimCanvas.cx, cpA.dimCanvas.cy, cpB.dimCanvas.cx, cpB.dimCanvas.cy)
-          drawArrow(cpB.dimCanvas.cx, cpB.dimCanvas.cy, cpA.dimCanvas.cx, cpA.dimCanvas.cy)
 
           const segmentDistM = Number(((cpB.ratio - cpA.ratio) * wallLengthM).toFixed(2))
           if (segmentDistM > 0.2) {
@@ -2614,12 +2616,23 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             ctx.save()
             ctx.translate(midSegX, midSegY)
             ctx.rotate(textAngle)
-            ctx.strokeStyle = bgFill
-            ctx.lineWidth = 2.5
-            ctx.lineJoin = "round"
-            ctx.strokeText(`${formatDim(segmentDistM)}m`, 0, 0)
+
+            const dimText = `${formatDim(segmentDistM)}m`
+            const textMetrics = ctx.measureText(dimText)
+            const padX = 3
+            const padY = 2
+
+            // Pill background to clearly separate dimension text from dimension line
+            ctx.fillStyle = bgFill
+            ctx.fillRect(
+              -textMetrics.width / 2 - padX,
+              -5 - padY,
+              textMetrics.width + padX * 2,
+              10 + padY * 2
+            )
+
             ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
-            ctx.fillText(`${formatDim(segmentDistM)}m`, 0, 0)
+            ctx.fillText(dimText, 0, 0)
             ctx.restore()
           }
         }
@@ -2879,21 +2892,43 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           {/* Kolom Kiri: Interactive Canvas & Tool Palette (lg:col-span-8) */}
           <div className="lg:col-span-8 space-y-4">
             <Card className="border-border/80 shadow-xs rounded-2xl overflow-hidden">
-              <CardHeader className="py-3 px-4 bg-muted/20 border-b flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <IconAirConditioning className="size-4 text-sky-500" />
-                    Kanvas Denah Ruangan (Custom CAD Canvas)
+              <CardHeader className="py-2.5 px-4 bg-muted/20 border-b flex flex-row items-center justify-between gap-3 min-h-[56px]">
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2 truncate">
+                    <IconAirConditioning className="size-4 text-sky-500 shrink-0" />
+                    <span className="truncate">Kanvas Denah Ruangan</span>
                   </CardTitle>
-                  <CardDescription className="text-xs">
-                    {activeTool === "DRAW"
-                      ? "Klik canvas untuk menambah sudut, garis karet menempel ke kursor dengan jarak live, klik T1 untuk menutup."
-                      : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : activeTool === "CHILLER" ? "Chiller 🧊" : "Pintu/Kaca 🚪"}: Klik Titik Awal di dinding, lalu klik Titik Akhir untuk memotong bentang area!`}
+                  <CardDescription
+                    className="text-xs truncate text-muted-foreground"
+                    title={
+                      isCalculated
+                        ? "Denah terkunci dalam mode Hasil AC. Geser posisi unit AC di dinding untuk fine-tune."
+                        : pendingZoneStart
+                        ? `Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : pendingZoneStart.tool === "CASHIER" ? "Kasir" : "Chiller"} aktif! Klik Titik Akhir di dinding.`
+                        : activeTool === "DRAW"
+                        ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
+                        : `Mode ${activeTool === "CASHIER" ? "Kasir" : activeTool === "CHILLER" ? "Chiller" : "Pintu/Kaca"}: Klik Titik Awal & Akhir di dinding.`
+                    }
+                  >
+                    {isCalculated
+                      ? "🔒 Denah terkunci. Geser unit AC di dinding untuk fine-tune jarak."
+                      : pendingZoneStart
+                      ? `⚠️ Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : pendingZoneStart.tool === "CASHIER" ? "Kasir" : "Chiller"} aktif. Klik Titik Akhir di dinding.`
+                      : activeTool === "DRAW"
+                      ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
+                      : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : activeTool === "CHILLER" ? "Chiller 🧊" : "Pintu/Kaca 🚪"}: Klik Titik Awal & Akhir di dinding.`}
                   </CardDescription>
                 </div>
-                <Badge className="bg-sky-600 text-white font-extrabold text-xs">
-                  {effectiveArea} m² ({customPts.length} Titik Sudut)
-                </Badge>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isCalculated && (
+                    <Badge variant="outline" className="border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold text-xs gap-1 shrink-0">
+                      <IconLock className="size-3 text-amber-500" /> Terkunci
+                    </Badge>
+                  )}
+                  <Badge className="bg-sky-600 text-white font-extrabold text-xs whitespace-nowrap shrink-0">
+                    {effectiveArea} m² ({customPts.length} Titik)
+                  </Badge>
+                </div>
               </CardHeader>
 
               <CardContent className="p-4 space-y-3">
@@ -2961,6 +2996,34 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     >
                       <IconFridge className="size-3.5" /> Chiller
                     </Button>
+
+                    {pendingZoneStart && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setPendingZoneStart(null)}
+                        className="h-7 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-500/10 gap-1 px-2 border border-red-500/30"
+                        title="Batalkan penandaan (Esc)"
+                      >
+                        <IconX className="size-3.5" /> Batal (Esc)
+                      </Button>
+                    )}
+
+                    {isCalculated && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setIsCalculated(false)
+                          setPlacedUnits([])
+                          toast.info("Mode Edit Denah aktif. Anda sekarang dapat mengubah sudut & ukuran toko.")
+                        }}
+                        className="h-7 text-xs font-bold gap-1 border-sky-500/50 text-sky-600 dark:text-sky-400 bg-sky-500/10 hover:bg-sky-500/20"
+                        title="Edit bentuk denah dan titik sudut"
+                      >
+                        <IconEdit className="size-3.5 text-sky-500" /> Edit Denah
+                      </Button>
+                    )}
                   </div>
 
                   <Button
@@ -2973,25 +3036,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                   </Button>
                 </div>
 
-                {/* Banner Status 2-Click Zone Marking jika sedang aktif */}
-                {pendingZoneStart && (
-                  <div className="p-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between animate-in fade-in">
-                    <span className="flex items-center gap-1.5 font-semibold">
-                      <span className="size-2 rounded-full bg-amber-500 animate-ping" />
-                      Titik awal {pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : pendingZoneStart.tool === "CASHIER" ? "Kasir" : "Chiller"} aktif. Arahkan ke dinding dan klik Titik Akhir untuk memotong bentang area!
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setPendingZoneStart(null)}
-                      className="h-6 text-[10px] font-bold text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 gap-1 px-1.5"
-                    >
-                      <IconX className="size-3" /> Batal
-                    </Button>
-                  </div>
-                )}
-
-                {/* Canvas Viewport (100% Bersih dari Overlay Mengganggu, Auto-Center) */}
+                {/* Canvas Viewport (100% Bersih Tanpa Overlay Apapun) */}
                 <div className="relative w-full h-[340px] rounded-2xl border border-border/80 bg-slate-900/5 dark:bg-slate-950/40 overflow-hidden flex items-center justify-center">
                   <canvas
                     ref={canvasRef}
@@ -3398,63 +3443,154 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
               </div>
 
               {presetType === "rect" ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Panjang Ruangan (m)</Label>
-                    <Input
-                      type="number"
-                      value={presetRect.panjang}
-                      onChange={(e) => setPresetRect((p) => ({ ...p, panjang: e.target.value }))}
-                      className="h-8 text-xs font-mono"
-                    />
+                <div className="space-y-3">
+                  {/* Visual Guide Diagram */}
+                  <div className="bg-slate-50 dark:bg-[#0c0d12] border border-border/70 rounded-xl p-2.5 flex flex-col items-center justify-center">
+                    <svg width="200" height="90" viewBox="0 0 200 90" className="block">
+                      <rect x="40" y="24" width="120" height="48" fill="rgba(56,189,248,0.06)" stroke="#0284c7" strokeWidth="1.5" rx="3" />
+                      <text x="100" y="52" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#0284c7">Area Toko Efektif</text>
+                      
+                      {/* LT Arrow */}
+                      <line x1="40" y1="14" x2="160" y2="14" stroke="#0284c7" strokeWidth="1.3" />
+                      <polygon points="40,14 45,11 45,17" fill="#0284c7" />
+                      <polygon points="160,14 155,11 155,17" fill="#0284c7" />
+                      <text x="100" y="10" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#0284c7">Lebar Toko (LT)</text>
+
+                      {/* PT Arrow */}
+                      <line x1="26" y1="24" x2="26" y2="72" stroke="#7c3aed" strokeWidth="1.3" />
+                      <polygon points="26,24 23,29 29,29" fill="#7c3aed" />
+                      <polygon points="26,72 23,67 29,67" fill="#7c3aed" />
+                      <text x="20" y="48" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#7c3aed" transform="rotate(-90, 20, 48)">Panjang Toko (PT)</text>
+                    </svg>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Lebar Ruangan (m)</Label>
-                    <Input
-                      type="number"
-                      value={presetRect.lebar}
-                      onChange={(e) => setPresetRect((p) => ({ ...p, lebar: e.target.value }))}
-                      className="h-8 text-xs font-mono"
-                    />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="rect_lebar" className="text-xs font-semibold text-sky-700 dark:text-sky-400">
+                        Lebar Toko (LT)
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="rect_lebar"
+                          type="number"
+                          value={presetRect.lebar}
+                          onChange={(e) => setPresetRect((p) => ({ ...p, lebar: e.target.value }))}
+                          className="h-8 text-xs pr-6 font-semibold font-mono"
+                        />
+                        <span className="absolute right-2 top-2 text-[10px] text-muted-foreground font-semibold">m</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="rect_panjang" className="text-xs font-semibold text-purple-700 dark:text-purple-400">
+                        Panjang Toko (PT)
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="rect_panjang"
+                          type="number"
+                          value={presetRect.panjang}
+                          onChange={(e) => setPresetRect((p) => ({ ...p, panjang: e.target.value }))}
+                          className="h-8 text-xs pr-6 font-semibold font-mono"
+                        />
+                        <span className="absolute right-2 top-2 text-[10px] text-muted-foreground font-semibold">m</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Panjang Utama (m)</Label>
-                    <Input
-                      type="number"
-                      value={presetL.p}
-                      onChange={(e) => setPresetL((p) => ({ ...p, p: e.target.value }))}
-                      className="h-8 text-xs font-mono"
-                    />
+                <div className="space-y-3">
+                  {/* Visual Guide Diagram (Denah L) */}
+                  <div className="bg-slate-50 dark:bg-[#0c0d12] border border-border/70 rounded-xl p-2.5 flex flex-col items-center justify-center">
+                    <svg width="220" height="115" viewBox="0 0 220 115" className="block">
+                      <path d="M 45 22 L 150 22 L 150 58 L 100 58 L 100 94 L 45 94 Z" fill="rgba(56,189,248,0.06)" stroke="#0284c7" strokeWidth="1.5" />
+                      <text x="72" y="48" textAnchor="middle" fontSize="8.5" fontWeight="bold" fill="#0284c7">Denah Toko L</text>
+                      
+                      {/* PT (Panjang Total Sisi Kiri) */}
+                      <line x1="32" y1="22" x2="32" y2="94" stroke="#7c3aed" strokeWidth="1.2" />
+                      <polygon points="32,22 29,27 35,27" fill="#7c3aed" />
+                      <polygon points="32,94 29,89 35,89" fill="#7c3aed" />
+                      <text x="24" y="58" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#7c3aed" transform="rotate(-90, 24, 58)">Panjang Total (PT)</text>
+
+                      {/* LT (Lebar Total Sisi Atas Penuh) */}
+                      <line x1="45" y1="13" x2="150" y2="13" stroke="#0284c7" strokeWidth="1.2" />
+                      <polygon points="45,13 50,10 50,16" fill="#0284c7" />
+                      <polygon points="150,13 145,10 145,16" fill="#0284c7" />
+                      <text x="97" y="9" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#0284c7">Lebar Total (LT)</text>
+
+                      {/* LS (Lebar Badan Bawah / Koridor) */}
+                      <line x1="45" y1="103" x2="100" y2="103" stroke="#d97706" strokeWidth="1.2" />
+                      <polygon points="45,103 50,100 50,106" fill="#d97706" />
+                      <polygon points="100,103 95,100 95,106" fill="#d97706" />
+                      <text x="72" y="101" textAnchor="middle" fontSize="7" fontWeight="bold" fill="#d97706">Lebar Sayap / Bawah (LS)</text>
+
+                      {/* PS (Panjang / Tinggi Sayap Kanan-Atas) */}
+                      <line x1="160" y1="22" x2="160" y2="58" stroke="#059669" strokeWidth="1.2" />
+                      <polygon points="160,22 157,27 163,27" fill="#059669" />
+                      <polygon points="160,58 157,53 163,53" fill="#059669" />
+                      <text x="169" y="40" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#059669" transform="rotate(90, 169, 40)">Panjang Sayap (PS)</text>
+                    </svg>
+                    <div className="text-[9.5px] text-muted-foreground text-center mt-1">
+                      💡 <b>LT & PT</b> adalah dimensi luar total. <b>LS & PS</b> adalah dimensi potongan badan sayap (LS &lt; LT, PS &lt; PT).
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Lebar Utama (m)</Label>
-                    <Input
-                      type="number"
-                      value={presetL.l}
-                      onChange={(e) => setPresetL((p) => ({ ...p, l: e.target.value }))}
-                      className="h-8 text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Lebar Sayap (m)</Label>
-                    <Input
-                      type="number"
-                      value={presetL.w}
-                      onChange={(e) => setPresetL((p) => ({ ...p, w: e.target.value }))}
-                      className="h-8 text-xs font-mono"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Tinggi Sayap (m)</Label>
-                    <Input
-                      type="number"
-                      value={presetL.h}
-                      onChange={(e) => setPresetL((p) => ({ ...p, h: e.target.value }))}
-                      className="h-8 text-xs font-mono"
-                    />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-purple-700 dark:text-purple-400">
+                        Panjang Total (PT)
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          value={presetL.p}
+                          onChange={(e) => setPresetL((p) => ({ ...p, p: e.target.value }))}
+                          className="h-8 text-xs pr-6 font-semibold font-mono"
+                        />
+                        <span className="absolute right-2 top-2 text-[10px] text-muted-foreground font-semibold">m</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-sky-700 dark:text-sky-400">
+                        Lebar Total (LT)
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          value={presetL.l}
+                          onChange={(e) => setPresetL((p) => ({ ...p, l: e.target.value }))}
+                          className="h-8 text-xs pr-6 font-semibold font-mono"
+                        />
+                        <span className="absolute right-2 top-2 text-[10px] text-muted-foreground font-semibold">m</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                        Lebar Sayap / Bawah (LS)
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          value={presetL.w}
+                          onChange={(e) => setPresetL((p) => ({ ...p, w: e.target.value }))}
+                          className="h-8 text-xs pr-6 font-semibold font-mono"
+                        />
+                        <span className="absolute right-2 top-2 text-[10px] text-muted-foreground font-semibold">m</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                        Panjang Sayap (PS)
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          value={presetL.h}
+                          onChange={(e) => setPresetL((p) => ({ ...p, h: e.target.value }))}
+                          className="h-8 text-xs pr-6 font-semibold font-mono"
+                        />
+                        <span className="absolute right-2 top-2 text-[10px] text-muted-foreground font-semibold">m</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
