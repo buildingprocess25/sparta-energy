@@ -2137,10 +2137,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           tag += " 🧊 Chiller"
           tagColor = "#06b6d4"
         } else if (wall.type === "SOLID" && wall.lengthM < AC_INDOOR_WIDTH_M) {
-          tag += " ⚠️ <1.05m"
           tagColor = effectiveIsDark ? "#f87171" : "#dc2626"
         } else if (wall.type === "SOLID" && wall.lengthM < MIN_WALL_LENGTH_FOR_AC) {
-          tag += " ⚠️"
           tagColor = effectiveIsDark ? "#fbbf24" : "#d97706"
         }
 
