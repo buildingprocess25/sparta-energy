@@ -2346,7 +2346,7 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
                   stores={stores}
                   value={selectedStore}
                   onSelect={handleStoreSelectShared}
-                  placeholder="Pilih toko audit..."
+                  placeholder="Pilih toko..."
                 />
                 {selectedStore && (
                   <div className="grid grid-cols-3 gap-2 px-1 pt-1 text-[10px]">

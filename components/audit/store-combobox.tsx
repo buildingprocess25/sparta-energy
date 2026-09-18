@@ -20,9 +20,13 @@ const PAGE_SIZE = 10
 function StoreComboboxTrigger({
   selected,
   open,
+  placeholder,
+  className,
 }: {
   selected: StoreData | null
   open: boolean
+  placeholder?: string
+  className?: string
 }) {
   return (
     <PopoverPrimitive.Trigger asChild>
@@ -36,11 +40,12 @@ function StoreComboboxTrigger({
           "flex h-11 w-full items-center justify-between rounded-xl border border-input bg-background px-3 text-sm shadow-xs transition-[color,box-shadow] outline-none",
           "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
           "data-[state=open]:border-ring data-[state=open]:ring-[3px] data-[state=open]:ring-ring/50",
-          !selected && "text-muted-foreground"
+          !selected && "text-muted-foreground",
+          className
         )}
       >
         <span className="truncate">
-          {selected ? `${selected.code} - ${selected.name}` : "Pilih toko..."}
+          {selected ? `${selected.code} - ${selected.name}` : placeholder || "Pilih toko..."}
         </span>
         <IconChevronDown
           className={cn(
@@ -60,6 +65,7 @@ type StoreComboboxProps = {
   value: StoreData | null
   onSelect: (store: StoreData) => void
   placeholder?: string
+  className?: string
 }
 
 export function StoreCombobox({
@@ -67,6 +73,7 @@ export function StoreCombobox({
   value,
   onSelect,
   placeholder = "Cari kode atau nama toko...",
+  className,
 }: StoreComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
@@ -185,7 +192,12 @@ export function StoreCombobox({
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      <StoreComboboxTrigger selected={value} open={open} />
+      <StoreComboboxTrigger
+        selected={value}
+        open={open}
+        placeholder={placeholder}
+        className={className}
+      />
 
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content

@@ -20,22 +20,39 @@ Menggabungkan output rekomendasi unit dari Kalkulator AC dengan engine geometri 
 
 ## 2. Spesifikasi Teknis Unit AC (Daikin 2 PK)
 
-Berdasarkan kesepakatan diskusi, unit standar yang dimodelkan adalah **AC Split Wall 2 PK Daikin**:
-- **Kapasitas Pendinginan**: $\approx 18.000\text{ BTU/h}$ per unit.
+Berdasarkan kesepakatan diskusi dan standar peremajaan toko, unit acuan yang dimodelkan adalah **AC Split Wall 2 PK Daikin (Standar Ritel)**:
+
+### **A. Spesifikasi Dimensi Fisik & Elektrikal (Indoor Unit)**
+- **Model / Seri Acuan**: Daikin High-Wall Split 2 PK (FTKC50 / FTV50 / FTNE50).
+- **Dimensi Fisik Indoor ($P \times T \times L$)**: **$1.050\text{ mm} \times 290\text{ mm} \times 238\text{ mm}$**
+  - **Panjang / Lebar Bodi ($P$)**: **$1{,}050\text{ meter}$ ($1.050\text{ mm}$)**
+  - **Tinggi Bodi ($T$)**: **$0{,}290\text{ meter}$ ($290\text{ mm}$)**
+  - **Ketebalan / Kedalaman ($L$)**: **$0{,}238\text{ meter}$ ($238\text{ mm}$)**
+- **Berat Bersih Indoor**: $\approx 12 - 14\text{ kg}$.
+- **Kapasitas Pendinginan**: $\approx 18.000\text{ BTU/h}$ ($5{,}27\text{ kW}$).
+- **Konsumsi Daya Listrik**: $\approx 1.500 - 1.800\text{ Watt}$ (arus $\approx 7{,}5 - 8{,}5\text{ A}$).
 - **Airflow Rate**: $\approx 1.000 - 1.200\text{ m}^3/\text{jam}$ ($\approx 600 - 700\text{ CFM}$).
 - **Luas Cakupan Efektif**: $\approx 30 - 36\text{ m}^2$ per unit (pada beban standar toko retail $600\text{ BTU/m}^2$).
 - **Sudut Sebaran Hembusan (*Spread Angle*)**: **$60^\circ - 80^\circ$** (rata-rata pemodelan $70^\circ$).
 
-### **Zonasi Sebaran Panjang Lemparan Angin (*Throw Distance*)**:
+### **B. Batasan Dimensi Ruang & Sisa Dinding (*Wall Space Constraints*)**
+1. **Panjang Dinding Minimum Absolut ($\ge 1{,}05\text{ m}$)**:
+   - Sisa bidang dinding bata padat (*solid wall*) yang berukuran **$< 1{,}05\text{ m}$** (misalnya sisa dinding yang terjepit antara sudut tembok dan kusen pintu/kasir/chiller) **secara fisik TIDAK BISA dipasang unit AC**.
+   - Sistem menandai dinding ini dengan label peringatan visual: `⚠️ <1.05m (Tidak Muat AC)`.
+2. **Panjang Dinding Minimum Rekomendasi ($\ge 1{,}55\text{ m}$)**:
+   - Memperhitungkan *side clearance* kiri dan kanan masing-masing $250\text{ mm}$ ($0{,}25\text{ m}$) dari sudut atau rintangan ($1{,}05\text{ m} + 2 \times 0{,}25\text{ m} = 1{,}55\text{ m}$).
+   - Segmen dinding $1{,}05\text{ m} \le L < 1{,}55\text{ m}$ ditandai dengan label: `⚠️ <1.55m (Sempit)`.
+
+### **C. Zonasi Sebaran Panjang Lemparan Angin (*Throw Distance*)**:
 ```
-               [ UNIT AC 2 PK ] (Dinding)
-                     \ | /         -> Sudut sebaran kipas ~70°
-                      \|/
-      (0 - 2.5 m)  █████████       -> Zona 1: Dingin Maksimal (Biru Pekat / Opacity 90%)
-                  ███████████
-      (2.5 - 5.5 m)░░░░░░░░░░░     -> Zona 2: Sejuk Efektif / Merata (Biru Sedang / Opacity 50%)
-                 ░░░░░░░░░░░░░
-      (5.5 - 7.5 m)···········     -> Zona 3: Batas Lemparan Angin (Biru Pudar / Opacity 15% -> 0%)
+               [ UNIT AC 2 PK (1.050 mm) ] (Dinding)
+                     \       |       /         -> Sudut sebaran kipas ~70°
+                      \     \|/     /
+      (0 - 2.5 m)      █████████████           -> Zona 1: Dingin Maksimal (Biru Pekat / Opacity 90%)
+                      ███████████████
+      (2.5 - 5.5 m)   ░░░░░░░░░░░░░░░          -> Zona 2: Sejuk Efektif / Merata (Biru Sedang / Opacity 50%)
+                     ░░░░░░░░░░░░░░░░░
+      (5.5 - 7.5 m)   ···············          -> Zona 3: Batas Lemparan Angin (Biru Pudar / Opacity 15% -> 0%)
 ```
 
 1. **Zona 1 (0 – 2.5 meter - Biru Pekat / Opacity 90%)**:
@@ -147,13 +164,17 @@ Berikut adalah rangkuman cepat seluruh parameter, batasan jarak, dan aturan pene
 
 | Parameter / Aturan | Nilai / Standar | Keterangan Teknis Lapangan |
 | :--- | :--- | :--- |
-| **Model Unit AC** | AC Split Wall 2 PK Daikin | Standar unit terpasang di toko |
-| **Kapasitas Pendinginan** | 18.000 BTU/h per unit | Kapasitas pendinginan per unit |
+| **Model Unit AC** | AC Split Wall 2 PK Daikin (High-Wall) | Standar unit terpasang di toko retail |
+| **Dimensi Fisik Indoor (P x T x L)** | 1.050 mm x 290 mm x 238 mm | Panjang 1,05 m, tinggi 29 cm, tebal 23,8 cm |
+| **Kapasitas Pendinginan** | 18.000 BTU/h (5,27 kW) per unit | Kapasitas pendinginan per unit |
+| **Konsumsi Daya Listrik** | 1.500 - 1.800 Watt (arus 7,5 - 8,5 A) | Daya beban operasional per unit |
+| **Panjang Sisa Dinding Minimum Absolut** | Minimal >= 1.05 meter (1.050 mm) | Sisa dinding < 1,05 m TIDAK MUAT / dilarang pasang AC |
+| **Panjang Sisa Dinding Rekomendasi** | Minimal >= 1.55 meter (1.550 mm) | Menampung bodi AC 1,05 m + clearance kiri-kanan @25 cm |
 | **Luas Cakupan Efektif** | 30 sampai 36 m2 per unit | Asumsi beban retail standar 600 BTU/m2 |
 | **Sudut Sebaran Angin** | 70 derajat (rentang 60 - 80 derajat) | Pola hembusan kipas melebar ke depan |
 | **Jarak Lemparan Maksimal** | 7.5 meter | Batas terjauh dorongan angin blower |
 | **Jarak Minimal Antar AC** | Minimal 2.5 sampai 3.0 meter | Mencegah short-cycling (saling sedot udara dingin) |
-| **Jarak Minimal dari Sudut Dinding** | Minimal 0.5 sampai 1.0 meter | Menjaga sirkulasi udara samping dari tembok |
+| **Jarak Minimal dari Sudut Dinding** | Minimal 0.25 sampai 0.5 meter | Menjaga sirkulasi udara samping dari tembok |
 | **Zona Pintu / Kusen / Kaca Depan** | Dilarang pasang unit AC fisik | Tidak ada tembok dudukan bracket & beban radiasi luar tinggi |
 | **Zona Open Chiller / Showcase** | Dilarang pasang di atas & semburan langsung | Mencegah kerusakan air curtain, akses servis terhalang, & tetesan air |
 | **Zona Kasir** | Dilarang pasang di atas & semburan kencang | Terhalang TV menu/backwall/rak rokok & menjaga kenyamanan kerja kasir |

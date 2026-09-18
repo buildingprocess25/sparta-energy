@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { AC_CALCULATOR_VERSION } from "@/lib/calculator-versions"
+import { AC_MAPPING_VERSION } from "@/lib/calculator-versions"
 
 export type AcMappingUnitDetail = {
   name: string
@@ -172,7 +172,7 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
                     marginTop: "2px",
                   }}
                 >
-                  {AC_CALCULATOR_VERSION}
+                  {AC_MAPPING_VERSION}
                 </div>
               </div>
             </div>
@@ -209,9 +209,11 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
             borderRadius: "12px",
             overflow: "hidden",
             border: "1.5px solid #e5e7eb",
-            height: "210px",
-            backgroundColor: "#f8fafc",
+            backgroundColor: "#ffffff",
             position: "relative",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           {layoutSnapshot ? (
@@ -219,13 +221,13 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
             <img
               src={layoutSnapshot}
               alt="Denah Layout AC"
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              style={{ width: "100%", height: "auto", display: "block" }}
             />
           ) : (
             <div
               style={{
                 width: "100%",
-                height: "100%",
+                height: "180px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

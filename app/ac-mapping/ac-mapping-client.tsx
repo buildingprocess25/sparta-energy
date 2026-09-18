@@ -1,10 +1,8 @@
 "use client"
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
-import Link from "next/link"
 import { toPng } from "html-to-image"
 import {
-  IconArrowLeft,
   IconAirConditioning,
   IconMapPin,
   IconRefresh,
@@ -26,6 +24,7 @@ import {
 } from "@tabler/icons-react"
 import { useTheme } from "next-themes"
 import { Header } from "@/components/header"
+import { AC_MAPPING_VERSION } from "@/lib/calculator-versions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -44,8 +43,11 @@ interface AcMappingClientProps {
   stores: StoreData[]
 }
 
-// Model & Spec Standar AC
+// Model & Spec Standar AC Daikin 2 PK
 const AC_CAPACITY_BTU = 18000 // Daikin 2 PK = 18.000 BTU/h
+const AC_INDOOR_WIDTH_M = 1.05 // Panjang fisik unit indoor: 1.050 mm (1.05 m)
+const AC_MIN_CLEARANCE_M = 0.25 // Clearance minimal kiri-kanan: 250 mm dari sudut/rintangan
+const MIN_WALL_LENGTH_FOR_AC = AC_INDOOR_WIDTH_M + AC_MIN_CLEARANCE_M * 2 // 1.55 meter minimum bentang dinding aman
 const SPREAD_ANGLE_DEG = 70   // Sudut hembusan kipas 70°
 const THROW_Z1_M = 2.5        // Zona 1: Dingin Maksimal (0 - 2.5m)
 const THROW_Z2_M = 5.5        // Zona 2: Sejuk Efektif (2.5 - 5.5m)
@@ -289,8 +291,18 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
   const recommendedUnitCount = useMemo(() => {
     if (effectiveArea === 0) return 0
-    return Math.max(1, Math.round(totalBtuRequired / AC_CAPACITY_BTU))
-  }, [effectiveArea, totalBtuRequired])
+    const totalBtu = effectiveArea * targetBtuPerM2
+    const downQty = Math.floor(totalBtu / AC_CAPACITY_BTU)
+    const upQty = Math.ceil(totalBtu / AC_CAPACITY_BTU)
+
+    const actualDownBtuPerM2 = (downQty * AC_CAPACITY_BTU) / (effectiveArea || 1)
+    const actualUpBtuPerM2 = (upQty * AC_CAPACITY_BTU) / (effectiveArea || 1)
+
+    const distDown = Math.abs(actualDownBtuPerM2 - targetBtuPerM2)
+    const distUp = Math.abs(actualUpBtuPerM2 - targetBtuPerM2)
+    let n = distDown <= distUp ? downQty : upQty
+    return Math.max(1, n)
+  }, [effectiveArea, targetBtuPerM2])
 
   // ─── 5. Segmen Dinding Poligon ────────────────────────────────────────────
   const wallSegments = useMemo<WallSegment[]>(() => {
@@ -710,29 +722,78 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     setCalculatedTemp(maxTemp)
     setCalculatedBtuPerM2(clusterBtu)
 
-    const totalBtu = Math.round(effectiveArea * clusterBtu)
-    const n = effectiveArea > 0 ? Math.max(1, Math.round(totalBtu / AC_CAPACITY_BTU)) : 0
+    // Rumus Kuantitas Unit AC (Deviasi Terdekat Standar Resmi v1.2.0)
+    const totalBtu = effectiveArea * clusterBtu
+    const downQty = Math.floor(totalBtu / AC_CAPACITY_BTU)
+    const upQty = Math.ceil(totalBtu / AC_CAPACITY_BTU)
+
+    const actualDownBtuPerM2 = (downQty * AC_CAPACITY_BTU) / (effectiveArea || 1)
+    const actualUpBtuPerM2 = (upQty * AC_CAPACITY_BTU) / (effectiveArea || 1)
+
+    const distDown = Math.abs(actualDownBtuPerM2 - clusterBtu)
+    const distUp = Math.abs(actualUpBtuPerM2 - clusterBtu)
+    let n = distDown <= distUp ? downQty : upQty
+    if (n < 1 && effectiveArea > 0) n = 1
+
+    // Filter Dinding: Hanya pilih dinding SOLID yang memiliki panjang cukup untuk unit Daikin 2 PK (panjang 1.05m + clearance)
+    let eligibleWalls = validWalls.filter((w) => w.lengthM >= MIN_WALL_LENGTH_FOR_AC)
+    if (eligibleWalls.length === 0) {
+      // Fallback: minimal selebar fisik bodi AC (1.05m) jika ruangan berukuran kompak
+      eligibleWalls = validWalls.filter((w) => w.lengthM >= AC_INDOOR_WIDTH_M)
+    }
+
+    if (eligibleWalls.length === 0) {
+      toast.error(
+        `Sisa bentang dinding solid terlalu sempit (< ${AC_INDOOR_WIDTH_M}m). Unit AC Daikin 2 PK (panjang 1.050 mm) tidak muat dipasang.`
+      )
+      return
+    }
+
     const newUnits: PlacedAcUnit[] = []
 
-    // Sort dinding valid berdasarkan panjang
-    const sortedWalls = [...validWalls].sort((a, b) => b.lengthM - a.lengthM)
+    // 1. Alokasi kuantitas unit ke dinding-dinding yang memenuhi syarat berdasarkan proporsi panjang dinding
+    const sortedWalls = [...eligibleWalls].sort((a, b) => b.lengthM - a.lengthM)
+    const wallUnitCounts = new Map<number, number>()
+    eligibleWalls.forEach((w) => wallUnitCounts.set(w.index, 0))
 
+    // Bagikan n unit secara adil (prioritaskan dinding dengan kepadatan unit per meter terendah)
     for (let i = 0; i < n; i++) {
-      const targetWall = sortedWalls[i % sortedWalls.length]
-      const countOnThisWall = Math.floor(n / sortedWalls.length) + (i < n % sortedWalls.length ? 1 : 0)
-      const slot = Math.floor(i / sortedWalls.length)
-
-      const step = 1 / (countOnThisWall + 1)
-      const ratio = Number(((slot + 1) * step).toFixed(2))
-
-      newUnits.push({
-        id: `ac-unit-${i + 1}`,
-        wallIndex: targetWall.index,
-        ratio: Math.min(0.85, Math.max(0.15, ratio)),
-        customName: `Daikin 2 PK #${i + 1}`,
-        wallLabel: `Dinding T${targetWall.startIndex + 1} - T${targetWall.endIndex + 1}`,
-      })
+      let bestWall = sortedWalls[0]
+      let minDensity = Infinity
+      for (const w of sortedWalls) {
+        const count = wallUnitCounts.get(w.index) || 0
+        const density = (count + 1) / w.lengthM
+        if (density < minDensity) {
+          minDensity = density
+          bestWall = w
+        }
+      }
+      wallUnitCounts.set(bestWall.index, (wallUnitCounts.get(bestWall.index) || 0) + 1)
     }
+
+    // 2. Tempatkan unit pada setiap dinding dengan jarak as tengah yang simetris & terbagi rata
+    let unitIndex = 1
+    wallSegments.forEach((wall) => {
+      const count = wallUnitCounts.get(wall.index) || 0
+      if (count === 0) return
+
+      const minMarginRatio = Math.min(0.25, (AC_INDOOR_WIDTH_M / 2 + AC_MIN_CLEARANCE_M) / wall.lengthM)
+
+      for (let slot = 0; slot < count; slot++) {
+        // Pembagian rata: 1 unit -> 1/2; 2 unit -> 1/3 & 2/3; 3 unit -> 1/4, 2/4, 3/4
+        const rawRatio = (slot + 1) / (count + 1)
+        const ratio = Number(Math.min(1 - minMarginRatio, Math.max(minMarginRatio, rawRatio)).toFixed(3))
+
+        newUnits.push({
+          id: `ac-unit-${unitIndex}`,
+          wallIndex: wall.index,
+          ratio,
+          customName: `Daikin 2 PK #${unitIndex}`,
+          wallLabel: `Dinding T${wall.startIndex + 1} - T${wall.endIndex + 1}`,
+        })
+        unitIndex++
+      }
+    })
 
     setPlacedUnits(newUnits)
     setIsCalculated(true)
@@ -1547,15 +1608,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   }
 
   // ─── 12. Render Canvas Denah (Auto-Center, Rubberband Pen-Tool & 2-Click Zone Preview) ───
-  const drawCanvas = useCallback(() => {
-    const canvas = canvasRef.current
+  const drawCanvas = useCallback((targetCanvas?: HTMLCanvasElement | null, forceLight = false, customW?: number, customH?: number) => {
+    const canvas = targetCanvas || canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
     const dpr = Math.max(window.devicePixelRatio || 1, 2)
-    const W = canvas.offsetWidth || 340
-    const H = CANVAS_H
+    const W = customW || canvas.offsetWidth || 340
+    const H = customH || canvas.offsetHeight || CANVAS_H
 
     canvas.width = Math.round(W * dpr)
     canvas.height = Math.round(H * dpr)
@@ -1565,15 +1626,17 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, W, H)
 
-    const bgFill = isDark ? "#0c0d12" : "#ffffff"
-    const gridStroke = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)"
-    const meterGridStroke = isDark ? "rgba(245,158,11,0.05)" : "rgba(245,158,11,0.12)"
-    const meterLabelFill = isDark ? "rgba(245,158,11,0.3)" : "rgba(180,83,9,0.6)"
-    const subTextFill = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.4)"
-    const subTextFill2 = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.25)"
-    const ptLabelFill = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.55)"
-    const polyFill = isDark ? "rgba(245,158,11,0.06)" : "rgba(245,158,11,0.04)"
-    const nodeTextFill = isDark ? "#a1a1aa" : "#4b5563"
+    const effectiveIsDark = forceLight ? false : isDark
+
+    const bgFill = effectiveIsDark ? "#0c0d12" : "#ffffff"
+    const gridStroke = effectiveIsDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)"
+    const meterGridStroke = effectiveIsDark ? "rgba(245,158,11,0.05)" : "rgba(245,158,11,0.12)"
+    const meterLabelFill = effectiveIsDark ? "rgba(245,158,11,0.3)" : "rgba(180,83,9,0.6)"
+    const subTextFill = effectiveIsDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.4)"
+    const subTextFill2 = effectiveIsDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.25)"
+    const ptLabelFill = effectiveIsDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.55)"
+    const polyFill = effectiveIsDark ? "rgba(15,23,42,0.65)" : "rgba(248,250,252,0.95)"
+    const nodeTextFill = effectiveIsDark ? "#a1a1aa" : "#4b5563"
 
     // Background Canvas
     ctx.fillStyle = bgFill
@@ -1679,7 +1742,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ctx.strokeText(segText, 0, 0)
 
           // Crisp filled text
-          ctx.fillStyle = isDark ? "#34d399" : "#047857"
+          ctx.fillStyle = effectiveIsDark ? "#34d399" : "#047857"
           ctx.fillText(segText, 0, 0)
           ctx.restore()
         }
@@ -1907,20 +1970,64 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
         // Gradasi Sejuk Cyan / Sky-Blue Alami Memancar Lembut dari Titik AC
         const coneGrad = ctx.createRadialGradient(cAcX, cAcY, 2, cAcX, cAcY, throwRadius)
-        if (isDark) {
-          coneGrad.addColorStop(0, "rgba(56, 189, 248, 0.45)")       // Inti sejuk dekat kisi AC
-          coneGrad.addColorStop(0.35, "rgba(14, 165, 233, 0.25)")    // Hembusan tengah ~3m
-          coneGrad.addColorStop(0.70, "rgba(6, 182, 212, 0.10)")     // Hembusan jauh ~5m
+        if (effectiveIsDark) {
+          coneGrad.addColorStop(0, "rgba(56, 189, 248, 0.48)")       // Inti sejuk dekat kisi AC
+          coneGrad.addColorStop(0.35, "rgba(14, 165, 233, 0.26)")    // Hembusan tengah ~3m
+          coneGrad.addColorStop(0.70, "rgba(6, 182, 212, 0.12)")     // Hembusan jauh ~5m
           coneGrad.addColorStop(1, "rgba(6, 182, 212, 0.0)")         // Disipasi lembut tanpa tepi tajam
         } else {
-          coneGrad.addColorStop(0, "rgba(2, 132, 199, 0.38)")       // Inti sejuk dekat kisi AC
-          coneGrad.addColorStop(0.35, "rgba(14, 165, 233, 0.22)")    // Hembusan tengah ~3m
-          coneGrad.addColorStop(0.70, "rgba(56, 189, 248, 0.08)")    // Hembusan jauh ~5m
+          coneGrad.addColorStop(0, "rgba(2, 132, 199, 0.44)")       // Inti sejuk dekat kisi AC (kontras tajam)
+          coneGrad.addColorStop(0.35, "rgba(14, 165, 233, 0.28)")    // Hembusan tengah ~3m
+          coneGrad.addColorStop(0.70, "rgba(56, 189, 248, 0.14)")    // Hembusan jauh ~5m
           coneGrad.addColorStop(1, "rgba(56, 189, 248, 0.0)")        // Disipasi lembut tanpa tepi tajam
         }
 
         ctx.fillStyle = coneGrad
         ctx.fill()
+
+        // ── Visualisasi Gelombang Aliran Udara & Garis Jangkauan (Wavefront Arcs & Streamlines) ──
+        ctx.save()
+        const arcStroke1 = effectiveIsDark ? "rgba(56, 189, 248, 0.26)" : "rgba(2, 132, 199, 0.28)"
+        const arcStroke2 = effectiveIsDark ? "rgba(56, 189, 248, 0.18)" : "rgba(14, 165, 233, 0.20)"
+        const arcStroke3 = effectiveIsDark ? "rgba(56, 189, 248, 0.35)" : "rgba(2, 132, 199, 0.36)"
+
+        // Busur Zona Sejuk Dekat (~3m)
+        ctx.beginPath()
+        ctx.arc(cAcX, cAcY, throwRadius * 0.45, flowAngle - halfSpread * 0.85, flowAngle + halfSpread * 0.85)
+        ctx.strokeStyle = arcStroke1
+        ctx.lineWidth = 1
+        ctx.setLineDash([3, 3])
+        ctx.stroke()
+
+        // Busur Zona Efektif (~5m)
+        ctx.beginPath()
+        ctx.arc(cAcX, cAcY, throwRadius * 0.75, flowAngle - halfSpread * 0.85, flowAngle + halfSpread * 0.85)
+        ctx.strokeStyle = arcStroke2
+        ctx.lineWidth = 1
+        ctx.setLineDash([4, 4])
+        ctx.stroke()
+
+        // Busur Batas Jangkauan Maksimal (~6.5m)
+        ctx.beginPath()
+        ctx.arc(cAcX, cAcY, throwRadius * 0.96, flowAngle - halfSpread * 0.9, flowAngle + halfSpread * 0.9)
+        ctx.strokeStyle = arcStroke3
+        ctx.lineWidth = 1.2
+        ctx.setLineDash([5, 3])
+        ctx.stroke()
+
+        // Garis Streamline Radial Aliran Udara
+        ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.16)" : "rgba(2, 132, 199, 0.18)"
+        ctx.lineWidth = 0.8
+        ctx.setLineDash([3, 4])
+        ;[-halfSpread * 0.45, halfSpread * 0.45].forEach((aOffset) => {
+          const rayAngle = flowAngle + aOffset
+          ctx.beginPath()
+          ctx.moveTo(cAcX, cAcY)
+          ctx.lineTo(cAcX + Math.cos(rayAngle) * throwRadius * 0.85, cAcY + Math.sin(rayAngle) * throwRadius * 0.85)
+          ctx.stroke()
+        })
+        ctx.setLineDash([])
+        ctx.restore()
       })
     }
     ctx.restore() // End Clip
@@ -1939,7 +2046,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       ctx.lineWidth = 3.5
 
       if (wall.type === "SOLID") {
-        ctx.strokeStyle = isDark ? "#38bdf8" : "#0284c7" // Dinding Solid Aktif
+        ctx.strokeStyle = effectiveIsDark ? "#38bdf8" : "#0284c7" // Dinding Solid Aktif
         ctx.setLineDash([])
       } else if (wall.type === "GLASS_DOOR") {
         ctx.strokeStyle = "#f97316" // Kaca / Pintu
@@ -1984,7 +2091,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         }
 
         let tag = `${formatDim(wall.lengthM)}m`
-        let tagColor = isDark ? "#34d399" : "#047857"
+        let tagColor = effectiveIsDark ? "#34d399" : "#047857"
 
         if (wall.type === "GLASS_DOOR") {
           tag += " 🚪 Pintu/Kaca"
@@ -1995,6 +2102,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         } else if (wall.type === "CHILLER") {
           tag += " 🧊 Chiller"
           tagColor = "#06b6d4"
+        } else if (wall.type === "SOLID" && wall.lengthM < AC_INDOOR_WIDTH_M) {
+          tag += " ⚠️ <1.05m (Tidak Muat AC)"
+          tagColor = effectiveIsDark ? "#f87171" : "#dc2626"
+        } else if (wall.type === "SOLID" && wall.lengthM < MIN_WALL_LENGTH_FOR_AC) {
+          tag += " ⚠️ <1.55m (Sempit)"
+          tagColor = effectiveIsDark ? "#fbbf24" : "#d97706"
         }
 
         ctx.save()
@@ -2120,13 +2233,13 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     ctx.save()
     ctx.font = "bold 8.5px sans-serif"
     ctx.textAlign = "center"
-    ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7"
+    ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
     ctx.fillText(`${formatDim(sc.rW)}m (LT)`, ltX, ltY)
 
     // PT Label
     ctx.translate(ptX, ptY)
     ctx.rotate(-Math.PI / 2)
-    ctx.fillStyle = isDark ? "#c4b5fd" : "#6d28d9"
+    ctx.fillStyle = effectiveIsDark ? "#c4b5fd" : "#6d28d9"
     ctx.fillText(`${formatDim(sc.rH)}m (PT)`, 0, 0)
     ctx.restore()
 
@@ -2173,11 +2286,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       ctx.arc(sp.cx, sp.cy, isSelected ? 8 : (i === 0 ? 5 : 3.5), 0, Math.PI * 2)
       ctx.fillStyle = isSelected
         ? "rgba(239,68,68,0.3)"
-        : (i === 0 ? "rgba(245,158,11,0.5)" : (isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)"))
+        : (i === 0 ? "rgba(245,158,11,0.5)" : (effectiveIsDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)"))
       ctx.fill()
       ctx.strokeStyle = isSelected
         ? "#ef4444"
-        : (i === 0 ? "#f59e0b" : (isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.25)"))
+        : (i === 0 ? "#f59e0b" : (effectiveIsDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.25)"))
       ctx.lineWidth = isSelected ? 2.5 : 1
       ctx.stroke()
 
@@ -2221,7 +2334,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         else if (hoverEdge.t >= 0.97) hoverLabel = "Snap Pojok Ujung Dinding"
 
         ctx.font = "bold 8.5px sans-serif"
-        ctx.fillStyle = isCornerSnap ? "#10b981" : (isDark ? "#f97316" : "#c2410c")
+        ctx.fillStyle = isCornerSnap ? "#10b981" : (effectiveIsDark ? "#f97316" : "#c2410c")
         ctx.fillText(hoverLabel, hoverEdge.cx, hoverEdge.cy - 12)
       }
       ctx.restore()
@@ -2270,8 +2383,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         }
 
         // Body Unit Indoor AC
-        ctx.fillStyle = isDraggingThisAc ? "#0284c7" : (isDark ? "#0f172a" : "#ffffff")
-        ctx.strokeStyle = isDraggingThisAc ? "#38bdf8" : (isDark ? "#38bdf8" : "#0284c7")
+        ctx.fillStyle = isDraggingThisAc ? "#0284c7" : (effectiveIsDark ? "#0f172a" : "#ffffff")
+        ctx.strokeStyle = isDraggingThisAc ? "#38bdf8" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
         ctx.lineWidth = isDraggingThisAc ? 2.5 : 1.8
 
         ctx.beginPath()
@@ -2287,7 +2400,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.beginPath()
         ctx.moveTo(-unitL / 2 + 3, unitD / 2 - 3)
         ctx.lineTo(unitL / 2 - 3, unitD / 2 - 3)
-        ctx.strokeStyle = isDark ? "#38bdf8" : "#0284c7"
+        ctx.strokeStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
         ctx.lineWidth = 1.2
         ctx.stroke()
 
@@ -2312,31 +2425,44 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.lineJoin = "round"
         ctx.strokeText(`AC${idx + 1}`, 0, 0)
 
-        ctx.fillStyle = isDraggingThisAc ? "#38bdf8" : (isDark ? "#ffffff" : "#0f172a")
+        ctx.fillStyle = isDraggingThisAc ? "#38bdf8" : (effectiveIsDark ? "#ffffff" : "#0f172a")
         ctx.fillText(`AC${idx + 1}`, 0, 0)
         ctx.restore()
+      })
 
-        // ── CAD DIMENSION LINES (Jarak dari Sudut Dinding ke As Tengah AC) ──
-        ctx.save()
-        let normX = -dy / len
-        let normY = dx / len
-        const toCentroidVecX = centroidX - acX
-        const toCentroidVecY = centroidY - acY
-        if (normX * toCentroidVecX + normY * toCentroidVecY < 0) {
-          normX = -normX
-          normY = -normY
-        }
+      // 10. Render CAD Dimension Lines Per Segmen Dinding (Rantai Dimensi Arsitektural Tanpa Tumpang Tindih)
+      wallSegments.forEach((wall) => {
+        const unitsOnWall = placedUnits
+          .filter((u) => u.wallIndex === wall.index)
+          .sort((a, b) => a.ratio - b.ratio)
+
+        if (unitsOnWall.length === 0) return
+
+        const p1 = toC(wall.p1)
+        const p2 = toC(wall.p2)
+        const dx = p2.cx - p1.cx
+        const dy = p2.cy - p1.cy
+        const len = Math.hypot(dx, dy)
+        if (len === 0) return
 
         const uX = dx / len
         const uY = dy / len
 
-        const dimOffset = 20
-        const p1DimX = p1.cx + normX * dimOffset
-        const p1DimY = p1.cy + normY * dimOffset
-        const p2DimX = p2.cx + normX * dimOffset
-        const p2DimY = p2.cy + normY * dimOffset
-        const acDimX = cAcX + normX * dimOffset
-        const acDimY = cAcY + normY * dimOffset
+        // Normal vector menghadap ke dalam ruangan toko
+        let normX = -dy / len
+        let normY = dx / len
+        const midWallX = (wall.p1.x + wall.p2.x) / 2
+        const midWallY = (wall.p1.y + wall.p2.y) / 2
+        if (normX * (centroidX - midWallX) + normY * (centroidY - midWallY) < 0) {
+          normX = -normX
+          normY = -normY
+        }
+
+        const wallAngle = Math.atan2(dy, dx)
+        let textAngle = wallAngle
+        if (textAngle > Math.PI / 2 || textAngle < -Math.PI / 2) {
+          textAngle += Math.PI
+        }
 
         const rawWallLen = segmentLengths[wall.index]
         const wallLengthM =
@@ -2344,141 +2470,158 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             ? parseFloat(String(rawWallLen)) || Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
             : Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
 
-        const distStartM = Number((unit.ratio * wallLengthM).toFixed(2))
-        const distEndM = Number(((1 - unit.ratio) * wallLengthM).toFixed(2))
+        const dimOffset = 22
 
-        // 1. Extension witness lines (Garis bantu putus-putus dari dinding ke garis ukur)
-        ctx.strokeStyle = isDark ? "rgba(56, 189, 248, 0.4)" : "rgba(2, 132, 199, 0.4)"
+        // Rantai titik dimensi [T_start, AC_1, AC_2, ..., T_end]
+        const chainPoints: {
+          origCanvas: { cx: number; cy: number }
+          dimCanvas: { cx: number; cy: number }
+          ratio: number
+          isUnit: boolean
+          unitId?: string
+        }[] = []
+
+        chainPoints.push({
+          origCanvas: { cx: p1.cx, cy: p1.cy },
+          dimCanvas: { cx: p1.cx + normX * dimOffset, cy: p1.cy + normY * dimOffset },
+          ratio: 0,
+          isUnit: false,
+        })
+
+        unitsOnWall.forEach((u) => {
+          const acX = wall.p1.x + (wall.p2.x - wall.p1.x) * u.ratio
+          const acY = wall.p1.y + (wall.p2.y - wall.p1.y) * u.ratio
+          const cAcX = sc.offX + acX * sc.scale
+          const cAcY = sc.offY + acY * sc.scale
+
+          chainPoints.push({
+            origCanvas: { cx: cAcX, cy: cAcY },
+            dimCanvas: { cx: cAcX + normX * dimOffset, cy: cAcY + normY * dimOffset },
+            ratio: u.ratio,
+            isUnit: true,
+            unitId: u.id,
+          })
+        })
+
+        chainPoints.push({
+          origCanvas: { cx: p2.cx, cy: p2.cy },
+          dimCanvas: { cx: p2.cx + normX * dimOffset, cy: p2.cy + normY * dimOffset },
+          ratio: 1,
+          isUnit: false,
+        })
+
+        ctx.save()
+
+        // 1. Extension Witness Lines (Garis bantu putus-putus dari tepi dinding/bodi ke garis ukur)
+        ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.4)" : "rgba(2, 132, 199, 0.4)"
         ctx.lineWidth = 0.9
         ctx.setLineDash([2, 2])
 
-        ctx.beginPath()
-        ctx.moveTo(p1.cx, p1.cy)
-        ctx.lineTo(p1DimX, p1DimY)
-        ctx.moveTo(cAcX, cAcY)
-        ctx.lineTo(acDimX, acDimY)
-        ctx.moveTo(p2.cx, p2.cy)
-        ctx.lineTo(p2DimX, p2DimY)
-        ctx.stroke()
+        chainPoints.forEach((cp) => {
+          // Jika titik as AC, mulai garis bantu dari sisi luar bodi AC agar tidak memotong bodi & teks label
+          const startX = cp.isUnit ? cp.origCanvas.cx + normX * 7.5 : cp.origCanvas.cx
+          const startY = cp.isUnit ? cp.origCanvas.cy + normY * 7.5 : cp.origCanvas.cy
 
-        // Titik awal pada dinding (As AC & Sudut)
+          ctx.beginPath()
+          ctx.moveTo(startX, startY)
+          ctx.lineTo(cp.dimCanvas.cx, cp.dimCanvas.cy)
+          ctx.stroke()
+        })
         ctx.setLineDash([])
-        ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7"
-        ctx.beginPath(); ctx.arc(cAcX, cAcY, 2.2, 0, Math.PI * 2); ctx.fill()
 
-        // 2. Dimension lines (Garis ukur utama p1 -> AC & AC -> p2)
-        ctx.strokeStyle = isDark ? "#38bdf8" : "#0284c7"
+        // 2. Garis Ukur Dimensi Rantai (Continuous CAD Dimension Line)
+        ctx.strokeStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
         ctx.lineWidth = 1.3
         ctx.beginPath()
-        ctx.moveTo(p1DimX, p1DimY)
-        ctx.lineTo(acDimX, acDimY)
-        ctx.moveTo(acDimX, acDimY)
-        ctx.lineTo(p2DimX, p2DimY)
+        ctx.moveTo(chainPoints[0].dimCanvas.cx, chainPoints[0].dimCanvas.cy)
+        ctx.lineTo(chainPoints[chainPoints.length - 1].dimCanvas.cx, chainPoints[chainPoints.length - 1].dimCanvas.cy)
         ctx.stroke()
 
-        // 3. CAD Intersection Tick Marks, 45° Slashes, and Junction Dots
+        // 3. CAD Intersection Tick Marks, 45° Slashes, & Junction Dots
         const tickLen = 4.5
         const slashLen = 4.5
         const slashUx = (uX + normX) * 0.7071
         const slashUy = (uY + normY) * 0.7071
 
-        const drawCadJunction = (x: number, y: number, isCenter: boolean) => {
-          ctx.save()
+        chainPoints.forEach((cp) => {
+          const x = cp.dimCanvas.cx
+          const y = cp.dimCanvas.cy
+          const isUnitCenter = cp.isUnit
+
           // Perpendicular cross tick
           ctx.beginPath()
           ctx.moveTo(x - normX * tickLen, y - normY * tickLen)
           ctx.lineTo(x + normX * tickLen, y + normY * tickLen)
-          ctx.strokeStyle = isDark ? "#38bdf8" : "#0284c7"
-          ctx.lineWidth = isCenter ? 1.8 : 1.2
+          ctx.strokeStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+          ctx.lineWidth = isUnitCenter ? 1.8 : 1.2
           ctx.stroke()
 
           // 45° architectural slash tick
           ctx.beginPath()
           ctx.moveTo(x - slashUx * slashLen, y - slashUy * slashLen)
           ctx.lineTo(x + slashUx * slashLen, y + slashUy * slashLen)
-          ctx.strokeStyle = isCenter ? "#10b981" : (isDark ? "#38bdf8" : "#0284c7")
-          ctx.lineWidth = isCenter ? 2 : 1.5
+          ctx.strokeStyle = isUnitCenter ? "#10b981" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
+          ctx.lineWidth = isUnitCenter ? 2 : 1.5
           ctx.stroke()
 
           // Crisp center junction dot
           ctx.beginPath()
-          ctx.arc(x, y, isCenter ? 3.5 : 2.5, 0, Math.PI * 2)
-          ctx.fillStyle = isCenter ? "#10b981" : (isDark ? "#38bdf8" : "#0284c7")
+          ctx.arc(x, y, isUnitCenter ? 3.5 : 2.2, 0, Math.PI * 2)
+          ctx.fillStyle = isUnitCenter ? "#10b981" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
           ctx.fill()
           ctx.strokeStyle = bgFill
           ctx.lineWidth = 1.2
           ctx.stroke()
-          ctx.restore()
-        }
+        })
 
-        drawCadJunction(p1DimX, p1DimY, false)
-        drawCadJunction(acDimX, acDimY, true)
-        drawCadJunction(p2DimX, p2DimY, false)
-
-        // 4. Arrowheads pointing to the junctions
+        // 4. Arrowheads & Teks Dimensi per segmen rantai
         const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, size = 4.5) => {
           const arrowDx = toX - fromX
           const arrowDy = toY - fromY
           const dLen = Math.hypot(arrowDx, arrowDy)
-          if (dLen < 16) return
+          if (dLen < 14) return
           const dirX = arrowDx / dLen
           const dirY = arrowDy / dLen
           const perpX = -dirY
           const perpY = dirX
 
-          ctx.save()
           ctx.beginPath()
           ctx.moveTo(toX, toY)
           ctx.lineTo(toX - dirX * size + perpX * (size * 0.4), toY - dirY * size + perpY * (size * 0.4))
           ctx.lineTo(toX - dirX * size - perpX * (size * 0.4), toY - dirY * size - perpY * (size * 0.4))
           ctx.closePath()
-          ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7"
+          ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
           ctx.fill()
-          ctx.restore()
         }
-
-        // Arrows on segment 1 (p1 <-> AC)
-        drawArrow(acDimX, acDimY, p1DimX, p1DimY)
-        drawArrow(p1DimX, p1DimY, acDimX, acDimY)
-
-        // Arrows on segment 2 (AC <-> p2)
-        drawArrow(p2DimX, p2DimY, acDimX, acDimY)
-        drawArrow(acDimX, acDimY, p2DimX, p2DimY)
-
-        // 5. Dimension text badges with clean outline
-        const mid1X = (p1DimX + acDimX) / 2
-        const mid1Y = (p1DimY + acDimY) / 2
-        const mid2X = (acDimX + p2DimX) / 2
-        const mid2Y = (acDimY + p2DimY) / 2
 
         ctx.font = "bold 8.5px sans-serif"
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
 
-        if (distStartM > 0.3) {
-          ctx.save()
-          ctx.translate(mid1X, mid1Y)
-          ctx.rotate(textAngle)
-          ctx.strokeStyle = bgFill
-          ctx.lineWidth = 2.5
-          ctx.lineJoin = "round"
-          ctx.strokeText(`${formatDim(distStartM)}m`, 0, 0)
-          ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7"
-          ctx.fillText(`${formatDim(distStartM)}m`, 0, 0)
-          ctx.restore()
-        }
+        for (let j = 0; j < chainPoints.length - 1; j++) {
+          const cpA = chainPoints[j]
+          const cpB = chainPoints[j + 1]
 
-        if (distEndM > 0.3) {
-          ctx.save()
-          ctx.translate(mid2X, mid2Y)
-          ctx.rotate(textAngle)
-          ctx.strokeStyle = bgFill
-          ctx.lineWidth = 2.5
-          ctx.lineJoin = "round"
-          ctx.strokeText(`${formatDim(distEndM)}m`, 0, 0)
-          ctx.fillStyle = isDark ? "#38bdf8" : "#0284c7"
-          ctx.fillText(`${formatDim(distEndM)}m`, 0, 0)
-          ctx.restore()
+          // Arrows on each sub-segment
+          drawArrow(cpA.dimCanvas.cx, cpA.dimCanvas.cy, cpB.dimCanvas.cx, cpB.dimCanvas.cy)
+          drawArrow(cpB.dimCanvas.cx, cpB.dimCanvas.cy, cpA.dimCanvas.cx, cpA.dimCanvas.cy)
+
+          const segmentDistM = Number(((cpB.ratio - cpA.ratio) * wallLengthM).toFixed(2))
+          if (segmentDistM > 0.2) {
+            const midSegX = (cpA.dimCanvas.cx + cpB.dimCanvas.cx) / 2
+            const midSegY = (cpA.dimCanvas.cy + cpB.dimCanvas.cy) / 2
+
+            ctx.save()
+            ctx.translate(midSegX, midSegY)
+            ctx.rotate(textAngle)
+            ctx.strokeStyle = bgFill
+            ctx.lineWidth = 2.5
+            ctx.lineJoin = "round"
+            ctx.strokeText(`${formatDim(segmentDistM)}m`, 0, 0)
+            ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+            ctx.fillText(`${formatDim(segmentDistM)}m`, 0, 0)
+            ctx.restore()
+          }
         }
 
         ctx.restore()
@@ -2494,9 +2637,21 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const handleExportPng = async () => {
     if (isSaving || !isCalculated || placedUnits.length === 0) return
 
-    // Ambil snapshot bersih langsung dari canvas
+    // Ambil snapshot bersih langsung dari canvas asli (menjamin bentuk & proporsi 100% identik dengan tampilan di web)
     const canvas = canvasRef.current
-    const snapshotUrl = canvas ? canvas.toDataURL("image/png") : null
+    let snapshotUrl: string | null = null
+    if (canvas) {
+      try {
+        // 1. Render mode light (latar putih bersih) untuk hasil card download
+        drawCanvas(canvas, true)
+        snapshotUrl = canvas.toDataURL("image/png")
+        // 2. Kembalikan ke tema pengguna saat ini
+        drawCanvas(canvas, false)
+      } catch (err) {
+        console.error("Gagal capture snapshot canvas:", err)
+        snapshotUrl = canvas.toDataURL("image/png")
+      }
+    }
 
     // Siapkan rincian legenda jarak per unit
     const unitDetails = placedUnits.map((unit, idx) => {
@@ -2578,38 +2733,17 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const currentStoreDisplayName = (storeMode === "existing" ? selectedStore?.name : newStoreName) || "Toko Retail Sparta"
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
+    <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-5xl lg:max-w-7xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-32">
       <Header
         variant="dashboard-back"
         title="Mapping & Layout AC"
         subtitle="Kalkulator Pemetaan Tata Letak AC Daikin 2 PK"
+        badge={AC_MAPPING_VERSION}
         backHref="/dashboard"
+        className="px-0"
       />
 
-      <main className="container max-w-6xl mx-auto px-4 py-6 space-y-6">
-        {/* Top Bar Navigation */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard">
-              <Button variant="outline" size="icon" className="size-9 rounded-xl shadow-xs">
-                <IconArrowLeft className="size-4" />
-              </Button>
-            </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-black tracking-tight">Mapping & Layout AC</h1>
-                <Badge className="bg-emerald-500 text-white font-extrabold text-[10px] px-2 py-0.5">
-                  DEV / PROTOTYPE
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Kalkulator Pemetaan Tata Letak AC Daikin 2 PK Berbasis Denah Poligon & Suhu Open-Meteo
-              </p>
-            </div>
-          </div>
-        </div>
-
+      <main className="mt-2 space-y-6">
         {/* ─── CARD 1: IDENTITAS TOKO & DATA LOKASI (Identik dengan Kalkulator Lampu & AC) ─── */}
         <div className="flex flex-col gap-3 bg-muted/30 border border-border/50 rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between">
@@ -2654,7 +2788,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     stores={stores}
                     value={selectedStore}
                     onSelect={handleSelectStore}
-                    placeholder="Pilih toko audit..."
+                    placeholder="Pilih toko..."
+                    className="h-8 text-xs rounded-md"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -3070,6 +3205,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                                 <option value="CHILLER">🧊 Chiller</option>
                               </select>
                             </div>
+
+                            {currentType === "SOLID" && (typeof len === "number" || typeof len === "string") && (parseFloat(String(len)) || 0) > 0 && (parseFloat(String(len)) || 0) < AC_INDOOR_WIDTH_M && (
+                              <div className="text-[9.5px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 pt-0.5">
+                                <span>⚠️ Sempit (&lt; 1.05m, tidak muat AC Daikin 2 PK)</span>
+                              </div>
+                            )}
                           </div>
                         )
                       })}
