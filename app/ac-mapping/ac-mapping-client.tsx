@@ -926,8 +926,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             pushCurrentToHistory()
             setActiveDragAcId(u.id)
             try {
-              ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-            } catch {}
+              ; (e.target as HTMLElement).setPointerCapture(e.pointerId)
+            } catch { }
             return
           }
         }
@@ -1340,8 +1340,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           }
           setActiveDragSegmentIdx(clickedSegIdx)
           try {
-            ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-          } catch {}
+            ; (e.target as HTMLElement).setPointerCapture(e.pointerId)
+          } catch { }
           toast.info(`Menggeser posisi ${segWall.type === "DOOR_P1" ? "Pintu P1 (1.0m)" : "Chiller"} sepanjang dinding...`)
           return
         }
@@ -1377,8 +1377,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           }
           setActiveDragIdx(i)
           try {
-            ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-          } catch {}
+            ; (e.target as HTMLElement).setPointerCapture(e.pointerId)
+          } catch { }
           return
         }
       }
@@ -1448,8 +1448,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         setSelectedNodeIdx(insertIdx)
         setActiveDragIdx(insertIdx)
         try {
-          ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-        } catch {}
+          ; (e.target as HTMLElement).setPointerCapture(e.pointerId)
+        } catch { }
 
         toast.info(`Titik T${insertIdx + 1} ditambahkan pada dinding. Geser titik untuk membentuk lekukan!`)
         return
@@ -1880,8 +1880,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     // Selesai drag AC unit
     if (activeDragAcId !== null) {
       try {
-        ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
-      } catch {}
+        ; (e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      } catch { }
       setActiveDragAcId(null)
       toast.info("Posisi AC berhasil disesuaikan!")
     }
@@ -1889,8 +1889,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     // Selesai drag whole fixed segment (P1 / Chiller)
     if (activeDragSegmentIdx !== null) {
       try {
-        ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
-      } catch {}
+        ; (e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      } catch { }
       setActiveDragSegmentIdx(null)
       dragSegmentSnapshotRef.current = null
       setMagneticSnapFeedback(null)
@@ -1900,8 +1900,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     // Selesai drag titik node poligon
     if (activeDragIdx !== null) {
       try {
-        ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
-      } catch {}
+        ; (e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      } catch { }
 
       if (dragStartSnapshotRef.current) {
         const snap = dragStartSnapshotRef.current
@@ -2414,15 +2414,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.18)" : "rgba(2, 132, 199, 0.20)"
         ctx.lineWidth = 0.9
         ctx.setLineDash([3, 4])
-        ;[0.12, 0.38, 0.62, 0.88].forEach((t) => {
-          const startX = lStart.x + t * (lEnd.x - lStart.x)
-          const startY = lStart.y + t * (lEnd.y - lStart.y)
-          const rayAngle = angleStart + t * (angleEnd - angleStart)
-          ctx.beginPath()
-          ctx.moveTo(startX, startY)
-          ctx.lineTo(startX + Math.cos(rayAngle) * (throwRadius * 0.85), startY + Math.sin(rayAngle) * (throwRadius * 0.85))
-          ctx.stroke()
-        })
+          ;[0.12, 0.38, 0.62, 0.88].forEach((t) => {
+            const startX = lStart.x + t * (lEnd.x - lStart.x)
+            const startY = lStart.y + t * (lEnd.y - lStart.y)
+            const rayAngle = angleStart + t * (angleEnd - angleStart)
+            ctx.beginPath()
+            ctx.moveTo(startX, startY)
+            ctx.lineTo(startX + Math.cos(rayAngle) * (throwRadius * 0.85), startY + Math.sin(rayAngle) * (throwRadius * 0.85))
+            ctx.stroke()
+          })
         ctx.setLineDash([])
         ctx.restore()
       })
@@ -2603,16 +2603,16 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ctx.lineWidth = 6
           ctx.stroke()
 
-          // End nodes
-          ;[{ cx: startCx, cy: startCy }, { cx: endCx, cy: endCy }].forEach((pt) => {
-            ctx.beginPath()
-            ctx.arc(pt.cx, pt.cy, 5, 0, Math.PI * 2)
-            ctx.fillStyle = toolColor
-            ctx.fill()
-            ctx.strokeStyle = "#ffffff"
-            ctx.lineWidth = 1.8
-            ctx.stroke()
-          })
+            // End nodes
+            ;[{ cx: startCx, cy: startCy }, { cx: endCx, cy: endCy }].forEach((pt) => {
+              ctx.beginPath()
+              ctx.arc(pt.cx, pt.cy, 5, 0, Math.PI * 2)
+              ctx.fillStyle = toolColor
+              ctx.fill()
+              ctx.strokeStyle = "#ffffff"
+              ctx.lineWidth = 1.8
+              ctx.stroke()
+            })
 
           const badgeMidX = (startCx + endCx) / 2
           const badgeMidY = (startCy + endCy) / 2 - 14
@@ -3171,8 +3171,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         wall && rawWallLen !== undefined && rawWallLen !== ""
           ? parseFloat(String(rawWallLen)) || Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
           : wall
-          ? Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
-          : 0
+            ? Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
+            : 0
 
       const startNode = `T${(wall?.index ?? 0) + 1}`
       const endNode = `T${(((wall?.index ?? 0) + 1) % (customPts.length || 1)) + 1}`
@@ -3268,22 +3268,20 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             <button
               type="button"
               onClick={() => setStoreMode("existing")}
-              className={`flex-1 rounded-md py-1.5 text-xs font-bold transition-all cursor-pointer ${
-                storeMode === "existing"
+              className={`flex-1 rounded-md py-1.5 text-xs font-bold transition-all cursor-pointer ${storeMode === "existing"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               Toko Terdaftar
             </button>
             <button
               type="button"
               onClick={() => setStoreMode("new")}
-              className={`flex-1 rounded-md py-1.5 text-xs font-bold transition-all cursor-pointer ${
-                storeMode === "new"
+              className={`flex-1 rounded-md py-1.5 text-xs font-bold transition-all cursor-pointer ${storeMode === "new"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
             >
               Toko Baru
             </button>
@@ -3401,27 +3399,27 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       isCalculated
                         ? "Denah terkunci dalam mode Hasil AC. Geser posisi unit AC di dinding untuk fine-tune."
                         : activeTool === "DOOR_P1"
-                        ? "Mode Pintu P1 Gudang (1.0m Baku): Klik pada dinding untuk memasang pintu selebar 1 meter."
-                        : activeTool === "CHILLER"
-                        ? `Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m): Klik pada dinding untuk memasang modul chiller.`
-                        : pendingZoneStart
-                        ? `Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : "Kasir"} aktif! Klik Titik Akhir di dinding.`
-                        : activeTool === "DRAW"
-                        ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
-                        : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : "Pintu/Kaca 🚪"}: Klik Titik Awal & Akhir di dinding.`
+                          ? "Mode Pintu P1 Gudang (1.0m Baku): Klik pada dinding untuk memasang pintu selebar 1 meter."
+                          : activeTool === "CHILLER"
+                            ? `Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m): Klik pada dinding untuk memasang modul chiller.`
+                            : pendingZoneStart
+                              ? `Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : "Kasir"} aktif! Klik Titik Akhir di dinding.`
+                              : activeTool === "DRAW"
+                                ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
+                                : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : "Pintu/Kaca 🚪"}: Klik Titik Awal & Akhir di dinding.`
                     }
                   >
                     {isCalculated
                       ? "🔒 Denah terkunci. Geser unit AC di dinding untuk fine-tune jarak."
                       : activeTool === "DOOR_P1"
-                      ? "🚪 Mode Pintu P1 (1.0m Baku): Klik dinding untuk memasang."
-                      : activeTool === "CHILLER"
-                      ? `🧊 Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m): Klik dinding untuk memasang.`
-                      : pendingZoneStart
-                      ? `⚠️ Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : "Kasir"} aktif. Klik Titik Akhir di dinding.`
-                      : activeTool === "DRAW"
-                      ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
-                      : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : "Pintu/Kaca 🚪"}: Klik Titik Awal & Akhir di dinding.`}
+                        ? "🚪 Mode Pintu P1 (1.0m Baku): Klik dinding untuk memasang."
+                        : activeTool === "CHILLER"
+                          ? `🧊 Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m): Klik dinding untuk memasang.`
+                          : pendingZoneStart
+                            ? `⚠️ Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : "Kasir"} aktif. Klik Titik Akhir di dinding.`
+                            : activeTool === "DRAW"
+                              ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
+                              : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : "Pintu/Kaca 🚪"}: Klik Titik Awal & Akhir di dinding.`}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -3461,11 +3459,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                         setActiveTool("DOOR")
                         setPendingZoneStart(null)
                       }}
-                      className={`h-7 text-xs font-bold gap-1 ${
-                        activeTool === "DOOR"
+                      className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR"
                           ? "bg-orange-500 text-white"
                           : "border-orange-500/40 text-orange-600 dark:text-orange-400 bg-orange-500/10"
-                      }`}
+                        }`}
                       title="Pintu / Kaca (Ukuran Bebas)"
                     >
                       <IconDoor className="size-3.5" /> Pintu / Kaca
@@ -3478,11 +3475,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                         setActiveTool("DOOR_P1")
                         setPendingZoneStart(null)
                       }}
-                      className={`h-7 text-xs font-bold gap-1 ${
-                        activeTool === "DOOR_P1"
+                      className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR_P1"
                           ? "bg-rose-600 text-white"
                           : "border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/10"
-                      }`}
+                        }`}
                       title="Pintu P1 Gudang (Ukuran Baku 1.0m)"
                     >
                       <IconDoor className="size-3.5" /> Pintu P1 (1m)
@@ -3495,11 +3491,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                         setActiveTool("CASHIER")
                         setPendingZoneStart(null)
                       }}
-                      className={`h-7 text-xs font-bold gap-1 ${
-                        activeTool === "CASHIER"
+                      className={`h-7 text-xs font-bold gap-1 ${activeTool === "CASHIER"
                           ? "bg-amber-500 text-white"
                           : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
-                      }`}
+                        }`}
                     >
                       <IconShoppingCart className="size-3.5" /> Kasir
                     </Button>
@@ -3512,11 +3507,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                           setActiveTool("CHILLER")
                           setPendingZoneStart(null)
                         }}
-                        className={`h-7 text-xs font-bold gap-1 ${
-                          activeTool === "CHILLER"
+                        className={`h-7 text-xs font-bold gap-1 ${activeTool === "CHILLER"
                             ? "bg-cyan-500 text-white"
                             : "border-cyan-500/40 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
-                        }`}
+                          }`}
                       >
                         <IconFridge className="size-3.5" /> Chiller
                       </Button>
@@ -3595,11 +3589,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     onPointerMove={handleCanvasPointerMove}
                     onPointerUp={handleCanvasPointerUp}
                     onPointerLeave={handleCanvasPointerLeave}
-                    className={`w-full h-full touch-none select-none block ${
-                      activeDragAcId !== null || activeDragIdx !== null
+                    className={`w-full h-full touch-none select-none block ${activeDragAcId !== null || activeDragIdx !== null
                         ? "cursor-grabbing"
                         : "cursor-crosshair"
-                    }`}
+                      }`}
                     style={{ height: `${CANVAS_H}px` }}
                   />
                 </div>
@@ -3631,11 +3624,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     <Button
                       size="sm"
                       variant={selectedNodeIdx !== null ? "destructive" : "outline"}
-                      className={`h-7 text-[11px] font-semibold transition-all ${
-                        selectedNodeIdx !== null
+                      className={`h-7 text-[11px] font-semibold transition-all ${selectedNodeIdx !== null
                           ? "shadow-sm animate-in fade-in"
                           : "opacity-50 cursor-not-allowed text-muted-foreground"
-                      }`}
+                        }`}
                       disabled={selectedNodeIdx === null || customPts.length <= 3}
                       onClick={() => {
                         if (selectedNodeIdx !== null) {
@@ -3906,7 +3898,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                         const wallLengthM =
                           rawWallLen !== undefined && rawWallLen !== ""
                             ? parseFloat(String(rawWallLen)) ||
-                              Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
+                            Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
                             : Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
 
                         const startNode = `T${wall.index + 1}`
@@ -4001,7 +3993,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     <svg width="200" height="90" viewBox="0 0 200 90" className="block">
                       <rect x="40" y="24" width="120" height="48" fill="rgba(56,189,248,0.06)" stroke="#0284c7" strokeWidth="1.5" rx="3" />
                       <text x="100" y="52" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#0284c7">Area Toko Efektif</text>
-                      
+
                       {/* LT Arrow */}
                       <line x1="40" y1="14" x2="160" y2="14" stroke="#0284c7" strokeWidth="1.3" />
                       <polygon points="40,14 45,11 45,17" fill="#0284c7" />
@@ -4056,7 +4048,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     <svg width="220" height="115" viewBox="0 0 220 115" className="block">
                       <path d="M 45 22 L 150 22 L 150 58 L 100 58 L 100 94 L 45 94 Z" fill="rgba(56,189,248,0.06)" stroke="#0284c7" strokeWidth="1.5" />
                       <text x="72" y="48" textAnchor="middle" fontSize="8.5" fontWeight="bold" fill="#0284c7">Denah Toko L</text>
-                      
+
                       {/* PT (Panjang Total Sisi Kiri) */}
                       <line x1="32" y1="22" x2="32" y2="94" stroke="#7c3aed" strokeWidth="1.2" />
                       <polygon points="32,22 29,27 35,27" fill="#7c3aed" />
