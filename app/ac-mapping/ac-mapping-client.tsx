@@ -56,13 +56,17 @@ const THROW_Z1_M = 2.5        // Zona 1: Dingin Maksimal (0 - 2.5m)
 const THROW_Z2_M = 5.5        // Zona 2: Sejuk Efektif (2.5 - 5.5m)
 const THROW_Z3_M = 7.5        // Zona 3: Batas Lemparan (5.5 - 7.5m)
 
+// Standar Ukuran Baku Objek Toko Retail
+const DOOR_P1_WIDTH_M = 1.0       // Pintu P1 Gudang: 1.0 meter (baku)
+const CHILLER_UNIT_WIDTH_M = 1.2   // Open Chiller: 1.2 meter per unit (baku)
+
 const CANVAS_H = 340
 const FIXED_SCALE = 24 // Scale in drawing mode (px/m)
 const FIXED_OX = 30    // Offset X
 const FIXED_OY = 30    // Offset Y
 
-type ActiveTool = "DRAW" | "DOOR" | "CASHIER" | "CHILLER"
-type WallType = "SOLID" | "GLASS_DOOR" | "CASHIER" | "CHILLER"
+type ActiveTool = "DRAW" | "DOOR" | "DOOR_P1" | "CASHIER" | "CHILLER"
+type WallType = "SOLID" | "GLASS_DOOR" | "DOOR_P1" | "CASHIER" | "CHILLER"
 
 interface HistorySnapshot {
   pts: Point[]
@@ -117,6 +121,82 @@ function getClosestPointOnSegment(
   const dist = Math.hypot(px - closestX, py - closestY)
 
   return { x: closestX, y: closestY, dist, t }
+}
+
+function getParentWallLine(pts: Point[], segIdx: number): {
+  pA: Point
+  pB: Point
+  len: number
+  p1Idx: number
+  p2Idx: number
+} {
+  const n = pts.length
+  const p1Idx = segIdx
+  const p2Idx = (segIdx + 1) % n
+  const p1 = pts[p1Idx]
+  const p2 = pts[p2Idx]
+  if (!p1 || !p2) return { pA: { x: 0, y: 0 }, pB: { x: 0, y: 0 }, len: 0, p1Idx, p2Idx }
+
+  const dx = p2.x - p1.x
+  const dy = p2.y - p1.y
+  const len = Math.hypot(dx, dy)
+  if (len === 0) return { pA: p1, pB: p2, len: 0, p1Idx, p2Idx }
+  const ux = dx / len
+  const uy = dy / len
+
+  // Walk backward
+  let startIdx = p1Idx
+  let curr = p1Idx
+  for (let step = 0; step < n; step++) {
+    const prev = (curr - 1 + n) % n
+    const pPrev = pts[prev]
+    const pCurr = pts[curr]
+    if (!pPrev || !pCurr) break
+    const dX = pCurr.x - pPrev.x
+    const dY = pCurr.y - pPrev.y
+    const dL = Math.hypot(dX, dY)
+    if (dL < 0.001) break
+    const uX = dX / dL
+    const uY = dY / dL
+    const cross = Math.abs(ux * uY - uy * uX)
+    const dot = ux * uX + uy * uY
+    if (cross < 0.05 && dot > 0.95) {
+      startIdx = prev
+      curr = prev
+    } else {
+      break
+    }
+  }
+
+  // Walk forward
+  let endIdx = p2Idx
+  curr = p2Idx
+  for (let step = 0; step < n; step++) {
+    const next = (curr + 1) % n
+    const pCurr = pts[curr]
+    const pNext = pts[next]
+    if (!pCurr || !pNext) break
+    const dX = pNext.x - pCurr.x
+    const dY = pNext.y - pCurr.y
+    const dL = Math.hypot(dX, dY)
+    if (dL < 0.001) break
+    const uX = dX / dL
+    const uY = dY / dL
+    const cross = Math.abs(ux * uY - uy * uX)
+    const dot = ux * uX + uy * uY
+    if (cross < 0.05 && dot > 0.95) {
+      endIdx = next
+      curr = next
+    } else {
+      break
+    }
+  }
+
+  const pA = pts[startIdx]
+  const pB = pts[endIdx]
+  const parentLen = Math.hypot(pB.x - pA.x, pB.y - pA.y)
+
+  return { pA, pB, len: parentLen, p1Idx, p2Idx }
 }
 
 function remapPlacedUnitsToNewGeometry(
@@ -242,8 +322,35 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const [editingSegmentIdx, setEditingSegmentIdx] = useState<number | null>(null)
   const [expandDir, setExpandDir] = useState<"end" | "start" | "center">("center")
 
-  // Tools Penanda Zona (Denah Utama, Pintu/Kaca, Kasir, Chiller)
+  // Tools Penanda Zona (Denah Utama, Pintu/Kaca, Pintu P1, Kasir, Chiller)
   const [activeTool, setActiveTool] = useState<ActiveTool>("DRAW")
+
+  // Stepper Unit Chiller (1 - 8 Unit @ 1.2m)
+  const [chillerUnits, setChillerUnits] = useState<number>(1)
+
+  // Dragging Seluruh Blok Segmen Sekaligus (Pintu P1 dan Chiller)
+  const [activeDragSegmentIdx, setActiveDragSegmentIdx] = useState<number | null>(null)
+  const dragSegmentSnapshotRef = useRef<{
+    pts: Point[]
+    segIdx: number
+    fixedLen: number
+    p1Idx: number
+    p2Idx: number
+    origPt1: Point
+    origPt2: Point
+    parentP1: Point
+    parentP2: Point
+    parentLen: number
+    startClickT: number
+  } | null>(null)
+
+  // Indikator Magnetic Snapping Hijau (Rapat Berdampingan)
+  const [magneticSnapFeedback, setMagneticSnapFeedback] = useState<{
+    segIdx: number
+    label: string
+    cx: number
+    cy: number
+  } | null>(null)
 
   // Overrides status segmen dinding
   const [segmentOverrides, setSegmentOverrides] = useState<Record<number, WallType>>({})
@@ -840,9 +947,143 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return
     }
 
-    // 2. JIKA TOOL RESTRICTED ZONE AKTIF (PINTU/KACA, KASIR, CHILLER):
-    // Fokus 100% pada penandaan area (Mendukung klik tepat di sudut titik awal / akhir dengan Snap)
-    if (activeTool !== "DRAW") {
+    // 2. JIKA TOOL BERUKURAN BAKU AKTIF: PINTU P1 (1.0m) ATAU CHILLER (N x 1.2m)
+    // 1-Click Instan dengan Snapping & Pemotongan Dinding Presisi
+    if (activeTool === "DOOR_P1" || activeTool === "CHILLER") {
+      if (!customClosed || customPts.length < 3) {
+        toast.info("Tutup denah poligon terlebih dahulu untuk menempatkan peralatan.")
+        return
+      }
+
+      const spts = customPts.map((pt) => ({
+        cx: offX + pt.x * scale,
+        cy: offY + pt.y * scale,
+      }))
+      const segCount = spts.length
+      let bestSegIdx = -1
+      let bestDist = 24
+      let bestProj: { x: number; y: number; dist: number; t: number } | null = null
+
+      for (let i = 0; i < segCount; i++) {
+        const p1 = spts[i]
+        const p2 = spts[(i + 1) % spts.length]
+        const proj = getClosestPointOnSegment(cx, cy, p1.cx, p1.cy, p2.cx, p2.cy)
+        if (proj.dist < bestDist) {
+          bestDist = proj.dist
+          bestSegIdx = i
+          bestProj = proj
+        }
+      }
+
+      if (bestSegIdx !== -1 && bestProj) {
+        const segWall = wallSegments.find((w) => w.index === bestSegIdx)
+        if (!segWall) return
+
+        const targetLengthM = activeTool === "DOOR_P1" ? DOOR_P1_WIDTH_M : chillerUnits * CHILLER_UNIT_WIDTH_M
+        const targetType: WallType = activeTool === "DOOR_P1" ? "DOOR_P1" : "CHILLER"
+        const toolLabel = activeTool === "DOOR_P1" ? "Pintu P1 (1.0m)" : `Chiller (${chillerUnits} Unit - ${formatDim(targetLengthM)}m)`
+
+        const wallLen = segWall.lengthM
+        if (wallLen < targetLengthM - 0.05) {
+          toast.error(`Panjang dinding (${formatDim(wallLen)}m) tidak cukup untuk ${toolLabel}.`)
+          return
+        }
+
+        const deltaT = Math.min(1.0, targetLengthM / wallLen)
+        let t1 = Math.max(0, Math.min(1 - deltaT, bestProj.t - deltaT / 2))
+        let t2 = t1 + deltaT
+
+        // Snap to start corner (< 15cm)
+        if (t1 * wallLen < 0.15) {
+          t1 = 0
+          t2 = deltaT
+        }
+        // Snap to end corner (< 15cm)
+        if ((1 - t2) * wallLen < 0.15) {
+          t2 = 1.0
+          t1 = Math.max(0, 1.0 - deltaT)
+        }
+
+        // Magnetic Snap to adjacent chiller on the same wall
+        if (activeTool === "CHILLER") {
+          const prevSegIdx = (bestSegIdx - 1 + segCount) % segCount
+          const nextSegIdx = (bestSegIdx + 1) % segCount
+          if (segmentOverrides[prevSegIdx] === "CHILLER" && t1 * wallLen < 0.3) {
+            t1 = 0
+            t2 = deltaT
+          }
+          if (segmentOverrides[nextSegIdx] === "CHILLER" && (1 - t2) * wallLen < 0.3) {
+            t2 = 1.0
+            t1 = Math.max(0, 1.0 - deltaT)
+          }
+        }
+
+        const ptA: Point = {
+          x: Number((segWall.p1.x + t1 * (segWall.p2.x - segWall.p1.x)).toFixed(3)),
+          y: Number((segWall.p1.y + t1 * (segWall.p2.y - segWall.p1.y)).toFixed(3)),
+        }
+        const ptB: Point = {
+          x: Number((segWall.p1.x + t2 * (segWall.p2.x - segWall.p1.x)).toFixed(3)),
+          y: Number((segWall.p1.y + t2 * (segWall.p2.y - segWall.p1.y)).toFixed(3)),
+        }
+
+        pushCurrentToHistory()
+
+        const insertP1 = t1 > 0.03 && t1 < 0.97
+        const insertP2 = t2 > 0.03 && t2 < 0.97 && Math.hypot(ptB.x - ptA.x, ptB.y - ptA.y) > 0.1
+
+        const oldSegmentOverride = segmentOverrides[bestSegIdx] || "SOLID"
+        const newPts = [...customPts]
+        let insertedCount = 0
+        const newOverrides: Record<number, WallType> = {}
+
+        Object.entries(segmentOverrides).forEach(([kStr, val]) => {
+          const k = parseInt(kStr, 10)
+          if (k < bestSegIdx) {
+            newOverrides[k] = val
+          }
+        })
+
+        if (insertP1 && insertP2) {
+          newPts.splice(bestSegIdx + 1, 0, ptA, ptB)
+          insertedCount = 2
+          if (oldSegmentOverride !== "SOLID") newOverrides[bestSegIdx] = oldSegmentOverride
+          newOverrides[bestSegIdx + 1] = targetType
+          if (oldSegmentOverride !== "SOLID") newOverrides[bestSegIdx + 2] = oldSegmentOverride
+        } else if (insertP1 && !insertP2) {
+          newPts.splice(bestSegIdx + 1, 0, ptA)
+          insertedCount = 1
+          if (oldSegmentOverride !== "SOLID") newOverrides[bestSegIdx] = oldSegmentOverride
+          newOverrides[bestSegIdx + 1] = targetType
+        } else if (!insertP1 && insertP2) {
+          newPts.splice(bestSegIdx + 1, 0, ptB)
+          insertedCount = 1
+          newOverrides[bestSegIdx] = targetType
+          if (oldSegmentOverride !== "SOLID") newOverrides[bestSegIdx + 1] = oldSegmentOverride
+        } else {
+          newOverrides[bestSegIdx] = targetType
+        }
+
+        Object.entries(segmentOverrides).forEach(([kStr, val]) => {
+          const k = parseInt(kStr, 10)
+          if (k > bestSegIdx) {
+            newOverrides[k + insertedCount] = val
+          }
+        })
+
+        setIsCalculated(false)
+        setPlacedUnits([])
+        setCustomPts(newPts)
+        setSegmentOverrides(newOverrides)
+        toast.success(`Area ${toolLabel} berhasil dipasang pada dinding!`)
+        return
+      }
+      return
+    }
+
+    // 3. JIKA TOOL RESTRICTED ZONE FLEKSIBEL AKTIF (PINTU/KACA, KASIR):
+    // 2-Click Rentang Bebas dengan Snap
+    if (activeTool === "DOOR" || activeTool === "CASHIER") {
       if (!customClosed || customPts.length < 3) {
         toast.info("Tutup denah poligon terlebih dahulu untuk menandai area terlarang.")
         return
@@ -858,11 +1099,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       let bestProj: { x: number; y: number; dist: number; t: number } | null = null
       let snappedToCorner = false
 
-      // Jika sedang menunggu titik akhir pada segmen yang sama / sudut cabang:
       if (pendingZoneStart && pendingZoneStart.tool === activeTool) {
         let segIdx = pendingZoneStart.segIdx
 
-        // Jika titik awal adalah sudut (pertemuan 2 sisi dinding), dinamis pilih sisi sesuai posisi kursor saat ini
         if (pendingZoneStart.isCorner && pendingZoneStart.cornerNodeIdx !== undefined) {
           const cIdx = pendingZoneStart.cornerNodeIdx
           const segPrevIdx = (cIdx - 1 + segCount) % segCount
@@ -889,7 +1128,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         bestSegIdx = segIdx
         bestProj = proj
 
-        // Snap ke ujung p1 (t=0.0) atau p2 (t=1.0) jika dekat titik sudut
         if (Math.hypot(cx - p1.cx, cy - p1.cy) <= 18) {
           bestProj.t = 0.0
           bestProj.x = p1.cx
@@ -902,7 +1140,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           snappedToCorner = true
         }
       } else {
-        // Langkah 1: Cari segmen terdekat
         for (let i = 0; i < segCount; i++) {
           const p1 = spts[i]
           const p2 = spts[(i + 1) % spts.length]
@@ -915,7 +1152,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           }
         }
 
-        // Cek jika klik dekat sudut titik p1 atau p2 pada bestSegIdx
         if (bestSegIdx !== -1 && bestProj) {
           const p1 = spts[bestSegIdx]
           const p2 = spts[(bestSegIdx + 1) % spts.length]
@@ -953,7 +1189,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           clickPt = { x: mX, y: mY }
         }
 
-        const toolLabel = activeTool === "DOOR" ? "Pintu/Kaca 🚪" : activeTool === "CASHIER" ? "Kasir 🛒" : "Chiller 🧊"
+        const toolLabel = activeTool === "DOOR" ? "Pintu/Kaca 🚪" : "Kasir 🛒"
 
         // LANGKAH 1: Klik Titik Awal
         if (!pendingZoneStart || pendingZoneStart.tool !== activeTool) {
@@ -981,9 +1217,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             ptA = customPts[cIdx]
             const segPrevIdx = (cIdx - 1 + segCount) % segCount
             if (segIdx === segPrevIdx) {
-              tA = 1.0 // Sudut berada di ujung akhir segmen sebelum
+              tA = 1.0
             } else {
-              tA = 0.0 // Sudut berada di awal segmen setelah
+              tA = 0.0
             }
           }
 
@@ -998,7 +1234,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
           pushCurrentToHistory()
 
-          // Urutkan t1 < t2
           const isAscending = tA <= tB
           const t1 = isAscending ? tA : tB
           const t2 = isAscending ? tB : tA
@@ -1009,14 +1244,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           const insertP2 = t2 > 0.03 && t2 < 0.97 && Math.hypot(p2.x - p1.x, p2.y - p1.y) > 0.1
 
           const oldSegmentOverride = segmentOverrides[segIdx] || "SOLID"
-          const targetType: WallType =
-            activeTool === "DOOR" ? "GLASS_DOOR" : activeTool === "CASHIER" ? "CASHIER" : "CHILLER"
+          const targetType: WallType = activeTool === "DOOR" ? "GLASS_DOOR" : "CASHIER"
 
           const newPts = [...customPts]
           let insertedCount = 0
           const newOverrides: Record<number, WallType> = {}
 
-          // 1. Copy over overrides untuk segmen sebelum segIdx
           Object.entries(segmentOverrides).forEach(([kStr, val]) => {
             const k = parseInt(kStr, 10)
             if (k < segIdx) {
@@ -1027,33 +1260,23 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           if (insertP1 && insertP2) {
             newPts.splice(segIdx + 1, 0, p1, p2)
             insertedCount = 2
-
-            // segIdx: dari p0 lama ke p1 (warisi tipe lama)
             if (oldSegmentOverride !== "SOLID") newOverrides[segIdx] = oldSegmentOverride
-            // segIdx + 1: dari p1 ke p2 (zona terlarang baru)
             newOverrides[segIdx + 1] = targetType
-            // segIdx + 2: dari p2 ke p_end lama (warisi tipe lama)
             if (oldSegmentOverride !== "SOLID") newOverrides[segIdx + 2] = oldSegmentOverride
           } else if (insertP1 && !insertP2) {
-            // Dimulai dari p1 (tengah) sampai ujung akhir dinding p2 (sudut)
             newPts.splice(segIdx + 1, 0, p1)
             insertedCount = 1
-
             if (oldSegmentOverride !== "SOLID") newOverrides[segIdx] = oldSegmentOverride
             newOverrides[segIdx + 1] = targetType
           } else if (!insertP1 && insertP2) {
-            // Dimulai dari pojok awal p1 (sudut) sampai p2 (tengah)
             newPts.splice(segIdx + 1, 0, p2)
             insertedCount = 1
-
             newOverrides[segIdx] = targetType
             if (oldSegmentOverride !== "SOLID") newOverrides[segIdx + 1] = oldSegmentOverride
           } else {
-            // Dinding penuh dari sudut ke sudut
             newOverrides[segIdx] = targetType
           }
 
-          // 2. Shift semua overrides setelah segIdx sebesar insertedCount
           Object.entries(segmentOverrides).forEach(([kStr, val]) => {
             const k = parseInt(kStr, 10)
             if (k > segIdx) {
@@ -1061,10 +1284,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             }
           })
 
-          // Auto-Invalidate Hasil AC saat dinding diberi zona terlarang (Opsi 2)
           setIsCalculated(false)
           setPlacedUnits([])
-
           setCustomPts(newPts)
           setSegmentOverrides(newOverrides)
           setPendingZoneStart(null)
@@ -1075,7 +1296,59 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return
     }
 
-    // 3. JIKA TOOL DRAW (DENAH UTAMA / EDIT):
+    // 4. JIKA TOOL DRAW: CEK KLIK PADA BADAN SEGMEN BAKU (PINTU P1 / CHILLER) -> GESER SELURUH BLOK UTUH
+    if (activeTool === "DRAW" && customClosed && customPts.length >= 3) {
+      const spts = customPts.map((pt) => ({
+        cx: offX + pt.x * scale,
+        cy: offY + pt.y * scale,
+      }))
+      const segCount = spts.length
+      let clickedSegIdx = -1
+      let minSegDist = 14
+
+      for (let i = 0; i < segCount; i++) {
+        const segType = segmentOverrides[i] || "SOLID"
+        if (segType === "DOOR_P1" || segType === "CHILLER") {
+          const p1 = spts[i]
+          const p2 = spts[(i + 1) % spts.length]
+          const proj = getClosestPointOnSegment(cx, cy, p1.cx, p1.cy, p2.cx, p2.cy)
+          if (proj.dist < minSegDist && proj.t > 0.08 && proj.t < 0.92) {
+            minSegDist = proj.dist
+            clickedSegIdx = i
+          }
+        }
+      }
+
+      if (clickedSegIdx !== -1) {
+        const segWall = wallSegments.find((w) => w.index === clickedSegIdx)
+        if (segWall) {
+          const parent = getParentWallLine(customPts, clickedSegIdx)
+          pushCurrentToHistory()
+
+          dragSegmentSnapshotRef.current = {
+            pts: [...customPts],
+            segIdx: clickedSegIdx,
+            fixedLen: segWall.lengthM,
+            p1Idx: parent.p1Idx,
+            p2Idx: parent.p2Idx,
+            origPt1: { ...customPts[parent.p1Idx] },
+            origPt2: { ...customPts[parent.p2Idx] },
+            parentP1: { ...parent.pA },
+            parentP2: { ...parent.pB },
+            parentLen: parent.len,
+            startClickT: 0.5,
+          }
+          setActiveDragSegmentIdx(clickedSegIdx)
+          try {
+            ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+          } catch {}
+          toast.info(`Menggeser posisi ${segWall.type === "DOOR_P1" ? "Pintu P1 (1.0m)" : "Chiller"} sepanjang dinding...`)
+          return
+        }
+      }
+    }
+
+    // 5. JIKA TOOL DRAW (DENAH UTAMA / EDIT):
     // Cek klik pada node sudut untuk drag atau pilih titik
     if (customPts.length > 0) {
       const spts = customPts.map((pt) => ({
@@ -1111,7 +1384,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       }
     }
 
-    // 4. JIKA TOOL DRAW (DENAH UTAMA) & KLIK PADA GARIS DINDING (PEN TOOL: SISIPKAN TITIK BARU):
+    // 6. JIKA TOOL DRAW (DENAH UTAMA) & KLIK PADA GARIS DINDING (PEN TOOL: SISIPKAN TITIK BARU):
     if (customPts.length >= 2) {
       const spts = customPts.map((pt) => ({
         cx: offX + pt.x * scale,
@@ -1167,7 +1440,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           newOverrides[bestSegIdx + 1] = oldOverride
         }
 
-        // Auto-Invalidate Hasil AC saat titik baru disisipkan (Opsi 2)
         setIsCalculated(false)
         setPlacedUnits([])
 
@@ -1184,21 +1456,19 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       }
     }
 
-    // 5. Tambah titik baru jika belum ditutup (Drawing Mode Awal)
+    // 7. Tambah titik baru jika belum ditutup (Drawing Mode Awal)
     if (!customClosed) {
       let mx = Number(((cx - FIXED_OX) / FIXED_SCALE).toFixed(2))
       let my = Number(((cy - FIXED_OY) / FIXED_SCALE).toFixed(2))
 
-      // Snap 90° ke titik terakhir & Alignment snap ke seluruh titik sebelumnya (misal T1 saat membuat T4)
       if (customPts.length >= 1) {
-        const snapThresholdM = 12 / FIXED_SCALE // ~0.5m snap range
+        const snapThresholdM = 12 / FIXED_SCALE
         const n = customPts.length
         const lastPt = customPts[n - 1]
 
         let snappedX = false
         let snappedY = false
 
-        // 1. Orthogonal 90° snap ke titik terakhir
         if (Math.abs(my - lastPt.y) <= snapThresholdM) {
           my = lastPt.y
           snappedY = true
@@ -1208,7 +1478,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           snappedX = true
         }
 
-        // 2. Alignment snap ke titik-titik sebelumnya (T1, T2, dst)
         for (let i = 0; i < n - 1; i++) {
           const pt = customPts[i]
           if (!pt) continue
@@ -1270,7 +1539,94 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return
     }
 
-    // 2. DRAGGING POINT HANDLER (Menggeser titik sudut / batas zona dinding)
+    // 2. DRAGGING WHOLE FIXED SEGMENT (Pintu P1 atau Chiller - Geser Kedua Titik Bersamaan)
+    if (activeDragSegmentIdx !== null && dragSegmentSnapshotRef.current) {
+      const snap = dragSegmentSnapshotRef.current
+      const pA = snap.parentP1
+      const pB = snap.parentP2
+      const parentLen = snap.parentLen
+      if (parentLen <= 0) return
+
+      const pA_canvas = { cx: offX + pA.x * scale, cy: offY + pA.y * scale }
+      const pB_canvas = { cx: offX + pB.x * scale, cy: offY + pB.y * scale }
+      const proj = getClosestPointOnSegment(cx, cy, pA_canvas.cx, pA_canvas.cy, pB_canvas.cx, pB_canvas.cy)
+
+      const fixedLen = snap.fixedLen
+      const deltaT = Math.min(1.0, fixedLen / parentLen)
+
+      let t1 = Math.max(0, Math.min(1 - deltaT, proj.t - deltaT / 2))
+      let t2 = t1 + deltaT
+
+      // Magnetic snap to parent corners (< 15cm)
+      if (t1 * parentLen < 0.15) {
+        t1 = 0
+        t2 = deltaT
+      } else if ((1 - t2) * parentLen < 0.15) {
+        t2 = 1.0
+        t1 = Math.max(0, 1.0 - deltaT)
+      }
+
+      // Magnetic snap to adjacent chillers on same straight wall
+      let isAdjacentSnap = false
+      if (segmentOverrides[snap.segIdx] === "CHILLER") {
+        wallSegments.forEach((w) => {
+          if (w.index !== snap.segIdx && w.type === "CHILLER") {
+            const wMid = { x: (w.p1.x + w.p2.x) / 2, y: (w.p1.y + w.p2.y) / 2 }
+            const wProj = getClosestPointOnSegment(
+              offX + wMid.x * scale,
+              offY + wMid.y * scale,
+              pA_canvas.cx, pA_canvas.cy, pB_canvas.cx, pB_canvas.cy
+            )
+            if (wProj.dist < 8) {
+              const p1Proj = getClosestPointOnSegment(offX + w.p1.x * scale, offY + w.p1.y * scale, pA_canvas.cx, pA_canvas.cy, pB_canvas.cx, pB_canvas.cy)
+              const p2Proj = getClosestPointOnSegment(offX + w.p2.x * scale, offY + w.p2.y * scale, pA_canvas.cx, pA_canvas.cy, pB_canvas.cx, pB_canvas.cy)
+              const wMinT = Math.min(p1Proj.t, p2Proj.t)
+              const wMaxT = Math.max(p1Proj.t, p2Proj.t)
+
+              if (Math.abs(t1 - wMaxT) * parentLen < 0.25) {
+                t1 = wMaxT
+                t2 = t1 + deltaT
+                isAdjacentSnap = true
+              } else if (Math.abs(t2 - wMinT) * parentLen < 0.25) {
+                t2 = wMinT
+                t1 = Math.max(0, t2 - deltaT)
+                isAdjacentSnap = true
+              }
+            }
+          }
+        })
+      }
+
+      if (isAdjacentSnap) {
+        setMagneticSnapFeedback({
+          segIdx: snap.segIdx,
+          label: "✓ Chiller Rapat Berdampingan",
+          cx: pA_canvas.cx + ((t1 + t2) / 2) * (pB_canvas.cx - pA_canvas.cx),
+          cy: pA_canvas.cy + ((t1 + t2) / 2) * (pB_canvas.cy - pA_canvas.cy),
+        })
+      } else {
+        setMagneticSnapFeedback(null)
+      }
+
+      const newPt1: Point = {
+        x: Number((pA.x + t1 * (pB.x - pA.x)).toFixed(3)),
+        y: Number((pA.y + t1 * (pB.y - pA.y)).toFixed(3)),
+      }
+      const newPt2: Point = {
+        x: Number((pA.x + t2 * (pB.x - pA.x)).toFixed(3)),
+        y: Number((pA.y + t2 * (pB.y - pA.y)).toFixed(3)),
+      }
+
+      setCustomPts((prev) => {
+        const next = [...prev]
+        next[snap.p1Idx] = newPt1
+        next[snap.p2Idx] = newPt2
+        return next
+      })
+      return
+    }
+
+    // 3. DRAGGING POINT HANDLER (Menggeser titik sudut / batas zona dinding)
     if (activeDragIdx !== null) {
       const rawMx = (cx - offX) / scale
       const rawMy = (cy - offY) / scale
@@ -1286,7 +1642,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       let snappedX = false
       let snappedY = false
 
-      // A. Orthogonal 90° snapping dengan titik tetangga
       const neighbors = [
         { idx: prevIdx, pt: customPts[prevIdx] },
         { idx: nextIdx, pt: customPts[nextIdx] },
@@ -1319,7 +1674,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         }
       }
 
-      // B. Alignment Snapping dengan node lainnya
       for (let i = 0; i < n; i++) {
         if (i === activeDragIdx || i === prevIdx || i === nextIdx) continue
         const pt = customPts[i]
@@ -1361,7 +1715,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return
     }
 
-    // 3. DRAWING MODE LIVE SNAP GUIDES (Saat menambah titik poligon baru)
+    // 4. DRAWING MODE LIVE SNAP GUIDES (Saat menambah titik poligon baru)
     if (!customClosed && activeDragIdx === null && activeDragAcId === null && customPts.length >= 1) {
       const snapThresholdM = 12 / scale
       const guides: SnapGuide[] = []
@@ -1372,7 +1726,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       let snappedX = false
       let snappedY = false
 
-      // A. Orthogonal 90° snapping ke titik terakhir (lastPt)
       if (Math.abs(my - lastPt.y) <= snapThresholdM) {
         snappedY = true
         guides.push({
@@ -1396,7 +1749,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         })
       }
 
-      // B. Alignment snapping ke seluruh titik sudut sebelumnya (T1, T2, ..., Tn-2)
       for (let i = 0; i < n - 1; i++) {
         const pt = customPts[i]
         if (!pt) continue
@@ -1426,7 +1778,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       }
 
       setActiveSnapGuides(guides)
-    } else if (activeDragIdx === null) {
+    } else if (activeDragIdx === null && activeDragSegmentIdx === null) {
       setActiveSnapGuides([])
     }
 
@@ -1532,6 +1884,17 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       } catch {}
       setActiveDragAcId(null)
       toast.info("Posisi AC berhasil disesuaikan!")
+    }
+
+    // Selesai drag whole fixed segment (P1 / Chiller)
+    if (activeDragSegmentIdx !== null) {
+      try {
+        ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      } catch {}
+      setActiveDragSegmentIdx(null)
+      dragSegmentSnapshotRef.current = null
+      setMagneticSnapFeedback(null)
+      toast.info("Posisi blok berhasil disesuaikan!")
     }
 
     // Selesai drag titik node poligon
@@ -2083,7 +2446,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.strokeStyle = effectiveIsDark ? "#38bdf8" : "#0284c7" // Dinding Solid Aktif
         ctx.setLineDash([])
       } else if (wall.type === "GLASS_DOOR") {
-        ctx.strokeStyle = "#f97316" // Kaca / Pintu
+        ctx.strokeStyle = "#f97316" // Kaca / Pintu Depan
+        ctx.setLineDash([6, 3])
+      } else if (wall.type === "DOOR_P1") {
+        ctx.strokeStyle = "#ea580c" // Pintu P1 Gudang
         ctx.setLineDash([6, 3])
       } else if (wall.type === "CASHIER") {
         ctx.strokeStyle = "#eab308" // Kasir
@@ -2097,6 +2463,41 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       ctx.moveTo(p1.cx, p1.cy)
       ctx.lineTo(p2.cx, p2.cy)
       ctx.stroke()
+
+      // Render sekat modul internal chiller tiap 1.2m jika panjang > 1.3m
+      if (wall.type === "CHILLER" && wall.lengthM >= 2.3) {
+        const unitsInWall = Math.round(wall.lengthM / 1.2)
+        ctx.save()
+        ctx.strokeStyle = effectiveIsDark ? "#ffffff" : "#083344"
+        ctx.lineWidth = 2.5
+        ctx.setLineDash([])
+        for (let u = 1; u < unitsInWall; u++) {
+          const ratio = (u * 1.2) / wall.lengthM
+          const midCx = p1.cx + ratio * (p2.cx - p1.cx)
+          const midCy = p1.cy + ratio * (p2.cy - p1.cy)
+          const dxW = p2.cx - p1.cx
+          const dyW = p2.cy - p1.cy
+          const lenW = Math.hypot(dxW, dyW) || 1
+          const normX = -dyW / lenW
+          const normY = dxW / lenW
+
+          // Garis sekat pembatas modul tegak lurus
+          ctx.beginPath()
+          ctx.moveTo(midCx - normX * 5.5, midCy - normY * 5.5)
+          ctx.lineTo(midCx + normX * 5.5, midCy + normY * 5.5)
+          ctx.stroke()
+
+          // Titik simpul modul penanda sekat
+          ctx.beginPath()
+          ctx.arc(midCx, midCy, 2.5, 0, Math.PI * 2)
+          ctx.fillStyle = effectiveIsDark ? "#06b6d4" : "#0891b2"
+          ctx.fill()
+          ctx.strokeStyle = effectiveIsDark ? "#ffffff" : "#083344"
+          ctx.lineWidth = 1.2
+          ctx.stroke()
+        }
+        ctx.restore()
+      }
 
       // Label Dimensi & Tag Zona di Sepanjang Sisi Dinding (Outward Normal Offset persis Kalkulator Lampu)
       const mx = (p1.cx + p2.cx) / 2
@@ -2116,8 +2517,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ny = -ny
         }
 
-        const labelX = mx + nx * 9
-        const labelY = my + ny * 9
+        const labelOffset = 11
+        const labelX = mx + nx * labelOffset
+        const labelY = my + ny * labelOffset
 
         let angle = Math.atan2(dy, dx)
         if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
@@ -2128,13 +2530,17 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         let tagColor = effectiveIsDark ? "#34d399" : "#047857"
 
         if (wall.type === "GLASS_DOOR") {
-          tag += " 🚪 Pintu"
+          tag = `${formatDim(wall.lengthM)}m Pintu/Kaca`
           tagColor = "#f97316"
+        } else if (wall.type === "DOOR_P1") {
+          tag = "1m P1"
+          tagColor = "#ea580c"
         } else if (wall.type === "CASHIER") {
-          tag += " 🛒 Kasir"
+          tag = `${formatDim(wall.lengthM)}m Kasir`
           tagColor = "#eab308"
         } else if (wall.type === "CHILLER") {
-          tag += " 🧊 Chiller"
+          const uCount = Math.max(1, Math.round(wall.lengthM / 1.2))
+          tag = uCount > 1 ? `${formatDim(wall.lengthM)}m Chiller (${uCount}U)` : `${formatDim(wall.lengthM)}m Chiller`
           tagColor = "#06b6d4"
         } else if (wall.type === "SOLID" && wall.lengthM < AC_INDOOR_WIDTH_M) {
           tagColor = effectiveIsDark ? "#f87171" : "#dc2626"
@@ -2149,9 +2555,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.textBaseline = "middle"
         ctx.font = "bold 8.5px sans-serif"
 
-        // Subtle, perfectly-aligned text outline (persis kalkulator lampu tanpa border kotak)
+        // Background mask to prevent line and tag overlap
         ctx.strokeStyle = bgFill
-        ctx.lineWidth = 1.5
+        ctx.lineWidth = 3
         ctx.lineJoin = "round"
         ctx.strokeText(tag, 0, 0)
 
@@ -2164,8 +2570,82 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       ctx.restore()
     })
 
-    // ── 4. RENDER LIVE RUBBERBAND UNTUK TOOLS AREA TERLARANG (PINTU, KASIR, CHILLER) ──
-    if (pendingZoneStart && activeTool !== "DRAW" && cursorPos) {
+    // ── 4. RENDER LIVE RUBBERBAND & 1-CLICK PREVIEW UNTUK TOOLS AREA TERLARANG ──
+    // A. 1-Click Live Preview untuk Objek Baku (DOOR_P1 dan CHILLER)
+    if ((activeTool === "DOOR_P1" || activeTool === "CHILLER") && hoverEdge && !pendingZoneStart) {
+      const seg = wallSegments.find((w) => w.index === hoverEdge.segmentIdx)
+      if (seg) {
+        const targetLen = activeTool === "DOOR_P1" ? DOOR_P1_WIDTH_M : chillerUnits * CHILLER_UNIT_WIDTH_M
+        const toolColor = activeTool === "DOOR_P1" ? "#ea580c" : "#06b6d4"
+        const toolLabel = activeTool === "DOOR_P1" ? "🚪 Pintu P1 (1.0m)" : `🧊 Chiller (${chillerUnits} Unit - ${formatDim(targetLen)}m)`
+
+        const wallLen = seg.lengthM
+        if (wallLen >= targetLen - 0.05) {
+          const deltaT = Math.min(1.0, targetLen / wallLen)
+          let t1 = Math.max(0, Math.min(1 - deltaT, hoverEdge.t - deltaT / 2))
+          let t2 = t1 + deltaT
+
+          if (t1 * wallLen < 0.15) { t1 = 0; t2 = deltaT }
+          if ((1 - t2) * wallLen < 0.15) { t2 = 1.0; t1 = Math.max(0, 1.0 - deltaT) }
+
+          const p1 = toC(seg.p1)
+          const p2 = toC(seg.p2)
+          const startCx = p1.cx + t1 * (p2.cx - p1.cx)
+          const startCy = p1.cy + t1 * (p2.cy - p1.cy)
+          const endCx = p1.cx + t2 * (p2.cx - p1.cx)
+          const endCy = p1.cy + t2 * (p2.cy - p1.cy)
+
+          ctx.save()
+          ctx.beginPath()
+          ctx.moveTo(startCx, startCy)
+          ctx.lineTo(endCx, endCy)
+          ctx.strokeStyle = toolColor
+          ctx.lineWidth = 6
+          ctx.stroke()
+
+          // End nodes
+          ;[{ cx: startCx, cy: startCy }, { cx: endCx, cy: endCy }].forEach((pt) => {
+            ctx.beginPath()
+            ctx.arc(pt.cx, pt.cy, 5, 0, Math.PI * 2)
+            ctx.fillStyle = toolColor
+            ctx.fill()
+            ctx.strokeStyle = "#ffffff"
+            ctx.lineWidth = 1.8
+            ctx.stroke()
+          })
+
+          const badgeMidX = (startCx + endCx) / 2
+          const badgeMidY = (startCy + endCy) / 2 - 14
+
+          ctx.font = "bold 9.5px sans-serif"
+          ctx.textAlign = "center"
+          ctx.fillStyle = toolColor
+          ctx.fillText(`${toolLabel} (Klik pasang)`, badgeMidX, badgeMidY)
+          ctx.restore()
+        }
+      }
+    }
+
+    // B. Live Feedback Magnetic Snap Hijau
+    if (magneticSnapFeedback) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(magneticSnapFeedback.cx, magneticSnapFeedback.cy, 9, 0, Math.PI * 2)
+      ctx.fillStyle = "rgba(16, 185, 129, 0.35)"
+      ctx.fill()
+      ctx.strokeStyle = "#10b981"
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      ctx.font = "bold 9.5px sans-serif"
+      ctx.textAlign = "center"
+      ctx.fillStyle = "#10b981"
+      ctx.fillText(magneticSnapFeedback.label, magneticSnapFeedback.cx, magneticSnapFeedback.cy - 16)
+      ctx.restore()
+    }
+
+    // C. 2-Click Live Rubberband untuk DOOR (Kaca Depan) dan CASHIER
+    if (pendingZoneStart && (activeTool === "DOOR" || activeTool === "CASHIER") && cursorPos) {
       let targetSegIdx = pendingZoneStart.segIdx
 
       if (pendingZoneStart.isCorner && pendingZoneStart.cornerNodeIdx !== undefined && wallSegments.length > 0) {
@@ -2202,8 +2682,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         const startCanvas = pendingZoneStart.canvasA
         const endCanvas = { cx: proj.x, cy: proj.y }
 
-        const toolColor = activeTool === "DOOR" ? "#f97316" : activeTool === "CASHIER" ? "#eab308" : "#06b6d4"
-        const toolLabel = activeTool === "DOOR" ? "🚪 Pintu/Kaca" : activeTool === "CASHIER" ? "🛒 Kasir" : "🧊 Chiller"
+        const toolColor = activeTool === "DOOR" ? "#f97316" : "#eab308"
+        const toolLabel = activeTool === "DOOR" ? "🚪 Pintu/Kaca" : "🛒 Kasir"
 
         const distM = Math.hypot(
           (endCanvas.cx - startCanvas.cx) / sc.scale,
@@ -2211,7 +2691,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         )
 
         ctx.save()
-        // Highlight preview segment on wall
         ctx.beginPath()
         ctx.moveTo(startCanvas.cx, startCanvas.cy)
         ctx.lineTo(endCanvas.cx, endCanvas.cy)
@@ -2336,9 +2815,29 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.setLineDash([])
       }
 
-      ctx.fillStyle = isSelected ? "#ef4444" : nodeTextFill
+      // Outward vector from centroid for corner node label (T1, T2, etc.)
+      let outVx = sp.cx - cxPoly
+      let outVy = sp.cy - cyPoly
+      const outLen = Math.hypot(outVx, outVy) || 1
+      outVx /= outLen
+      outVy /= outLen
+
+      const nodeOffset = isSelected ? 14 : 10
+      const labelCx = sp.cx + outVx * nodeOffset
+      const labelCy = sp.cy + outVy * nodeOffset
+
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
       ctx.font = isSelected ? "bold 10px sans-serif" : "bold 8px sans-serif"
-      ctx.fillText(`T${i + 1}`, sp.cx + (isSelected ? 9 : 6), sp.cy - (isSelected ? 9 : 6))
+
+      // Halo behind node label so it never collides with wall lines or tags
+      ctx.strokeStyle = bgFill
+      ctx.lineWidth = 2.5
+      ctx.lineJoin = "round"
+      ctx.strokeText(`T${i + 1}`, labelCx, labelCy)
+
+      ctx.fillStyle = isSelected ? "#ef4444" : nodeTextFill
+      ctx.fillText(`T${i + 1}`, labelCx, labelCy)
       ctx.restore()
     })
 
@@ -2901,20 +3400,28 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     title={
                       isCalculated
                         ? "Denah terkunci dalam mode Hasil AC. Geser posisi unit AC di dinding untuk fine-tune."
+                        : activeTool === "DOOR_P1"
+                        ? "Mode Pintu P1 Gudang (1.0m Baku): Klik pada dinding untuk memasang pintu selebar 1 meter."
+                        : activeTool === "CHILLER"
+                        ? `Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m): Klik pada dinding untuk memasang modul chiller.`
                         : pendingZoneStart
-                        ? `Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : pendingZoneStart.tool === "CASHIER" ? "Kasir" : "Chiller"} aktif! Klik Titik Akhir di dinding.`
+                        ? `Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : "Kasir"} aktif! Klik Titik Akhir di dinding.`
                         : activeTool === "DRAW"
                         ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
-                        : `Mode ${activeTool === "CASHIER" ? "Kasir" : activeTool === "CHILLER" ? "Chiller" : "Pintu/Kaca"}: Klik Titik Awal & Akhir di dinding.`
+                        : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : "Pintu/Kaca 🚪"}: Klik Titik Awal & Akhir di dinding.`
                     }
                   >
                     {isCalculated
                       ? "🔒 Denah terkunci. Geser unit AC di dinding untuk fine-tune jarak."
+                      : activeTool === "DOOR_P1"
+                      ? "🚪 Mode Pintu P1 (1.0m Baku): Klik dinding untuk memasang."
+                      : activeTool === "CHILLER"
+                      ? `🧊 Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m): Klik dinding untuk memasang.`
                       : pendingZoneStart
-                      ? `⚠️ Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : pendingZoneStart.tool === "CASHIER" ? "Kasir" : "Chiller"} aktif. Klik Titik Akhir di dinding.`
+                      ? `⚠️ Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : "Kasir"} aktif. Klik Titik Akhir di dinding.`
                       : activeTool === "DRAW"
                       ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
-                      : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : activeTool === "CHILLER" ? "Chiller 🧊" : "Pintu/Kaca 🚪"}: Klik Titik Awal & Akhir di dinding.`}
+                      : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : "Pintu/Kaca 🚪"}: Klik Titik Awal & Akhir di dinding.`}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -2959,8 +3466,26 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                           ? "bg-orange-500 text-white"
                           : "border-orange-500/40 text-orange-600 dark:text-orange-400 bg-orange-500/10"
                       }`}
+                      title="Pintu / Kaca (Ukuran Bebas)"
                     >
-                      <IconDoor className="size-3.5" /> Pintu/Kaca
+                      <IconDoor className="size-3.5" /> Pintu / Kaca
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant={activeTool === "DOOR_P1" ? "default" : "outline"}
+                      onClick={() => {
+                        setActiveTool("DOOR_P1")
+                        setPendingZoneStart(null)
+                      }}
+                      className={`h-7 text-xs font-bold gap-1 ${
+                        activeTool === "DOOR_P1"
+                          ? "bg-rose-600 text-white"
+                          : "border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/10"
+                      }`}
+                      title="Pintu P1 Gudang (Ukuran Baku 1.0m)"
+                    >
+                      <IconDoor className="size-3.5" /> Pintu P1 (1m)
                     </Button>
 
                     <Button
@@ -2979,21 +3504,49 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       <IconShoppingCart className="size-3.5" /> Kasir
                     </Button>
 
-                    <Button
-                      size="sm"
-                      variant={activeTool === "CHILLER" ? "default" : "outline"}
-                      onClick={() => {
-                        setActiveTool("CHILLER")
-                        setPendingZoneStart(null)
-                      }}
-                      className={`h-7 text-xs font-bold gap-1 ${
-                        activeTool === "CHILLER"
-                          ? "bg-cyan-500 text-white"
-                          : "border-cyan-500/40 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
-                      }`}
-                    >
-                      <IconFridge className="size-3.5" /> Chiller
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant={activeTool === "CHILLER" ? "default" : "outline"}
+                        onClick={() => {
+                          setActiveTool("CHILLER")
+                          setPendingZoneStart(null)
+                        }}
+                        className={`h-7 text-xs font-bold gap-1 ${
+                          activeTool === "CHILLER"
+                            ? "bg-cyan-500 text-white"
+                            : "border-cyan-500/40 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
+                        }`}
+                      >
+                        <IconFridge className="size-3.5" /> Chiller
+                      </Button>
+
+                      {activeTool === "CHILLER" && (
+                        <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-lg p-0.5 animate-in fade-in zoom-in-95">
+                          <button
+                            type="button"
+                            disabled={chillerUnits <= 1}
+                            onClick={() => setChillerUnits((prev) => Math.max(1, prev - 1))}
+                            className="size-6 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs cursor-pointer"
+                            title="Kurangi unit chiller (-1.2m)"
+                          >
+                            -
+                          </button>
+                          <span className="text-[11px] font-bold text-cyan-900 dark:text-cyan-100 px-1.5 font-mono whitespace-nowrap">
+                            {chillerUnits} Unit ({formatDim(chillerUnits * 1.2)}m)
+                          </span>
+                          <button
+                            type="button"
+                            disabled={chillerUnits >= 8}
+                            onClick={() => setChillerUnits((prev) => Math.min(8, prev + 1))}
+                            className="size-6 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs cursor-pointer"
+                            title="Tambah unit chiller (+1.2m)"
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                     {pendingZoneStart && (
                       <Button
@@ -3243,7 +3796,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                                 className="h-7 text-[10px] font-semibold rounded-md border border-input bg-background px-2 py-0.5"
                               >
                                 <option value="SOLID">🧱 Dinding Solid</option>
-                                <option value="GLASS_DOOR">🚪 Pintu/Kaca</option>
+                                <option value="GLASS_DOOR">🚪 Pintu / Kaca</option>
+                                <option value="DOOR_P1">🚪 Pintu P1 (1.0m)</option>
                                 <option value="CASHIER">🛒 Kasir</option>
                                 <option value="CHILLER">🧊 Chiller</option>
                               </select>

@@ -175,6 +175,11 @@ Berikut adalah rangkuman cepat seluruh parameter, batasan jarak, dan aturan pene
 | **Jarak Lemparan Maksimal** | 7.5 meter | Batas terjauh dorongan angin blower |
 | **Jarak Minimal Antar AC** | Minimal 2.5 sampai 3.0 meter | Mencegah short-cycling (saling sedot udara dingin) |
 | **Jarak Minimal dari Sudut Dinding** | Minimal 0.25 sampai 0.5 meter | Menjaga sirkulasi udara samping dari tembok |
+| **Pintu / Kusen Depan (Kaca)** | Fleksibel (bebas 2-klik) | Pintu entrance toko atau kaca fasad depan |
+| **Pintu P1 (Gudang)** | Standar Baku 1.0 meter (1-klik pasang) | Pintu penghubung area sales ke area gudang/backroom |
+| **Open Chiller / Showcase** | Standar Modul 1.2 meter per unit | Disediakan stepper [ - ] N Unit [ + ] (1 unit = 1.2m, 2 unit = 2.4m, dst.) |
+| **Pergeseran Blok Baku (P1 & Chiller)** | Geser kedua titik serentak (Whole Block Drag) | Panjang fisik objek terkunci saat digeser di sepanjang dinding |
+| **Magnetic Snap Chiller** | Snap otomatis jika jarak < 0.15 meter | Indikator visual hijau (Rapat Berdampingan) untuk deretan chiller |
 | **Zona Pintu / Kusen / Kaca Depan** | Dilarang pasang unit AC fisik | Tidak ada tembok dudukan bracket & beban radiasi luar tinggi |
 | **Zona Open Chiller / Showcase** | Dilarang pasang di atas & semburan langsung | Mencegah kerusakan air curtain, akses servis terhalang, & tetesan air |
 | **Zona Kasir** | Dilarang pasang di atas & semburan kencang | Terhalang TV menu/backwall/rak rokok & menjaga kenyamanan kerja kasir |
