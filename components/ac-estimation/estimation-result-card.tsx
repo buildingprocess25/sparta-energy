@@ -161,10 +161,10 @@ export function EstimationResultCard({ cardRef, data }: Props) {
                 </div>
                 <div
                   style={{
-                    fontSize: "6.5px",
-                    fontWeight: 500,
-                    color: "rgba(255, 255, 255, 0.55)",
-                    letterSpacing: "0.05em",
+                    fontSize: "9px",
+                    fontWeight: 600,
+                    color: "rgba(255, 255, 255, 0.8)",
+                    letterSpacing: "0.04em",
                     marginTop: "2px",
                   }}
                 >

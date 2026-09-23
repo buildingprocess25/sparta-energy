@@ -56,3 +56,8 @@ temp_docx_build/
 *.xlsx
 *.xls
 *.csv
+
+# cad drawing examples
+example_dwg_dxf/
+*.dwg
+*.dxf

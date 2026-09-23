@@ -82,7 +82,7 @@ function Header(props: DashboardHeaderProps) {
                 {props.title}
               </h1>
               {props.badge && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/70">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-muted text-foreground border border-border/80 shadow-2xs">
                   {props.badge}
                 </span>
               )}
@@ -128,7 +128,7 @@ function Header(props: DashboardHeaderProps) {
             <div className="flex items-center gap-2">
               <h1 className="truncate text-base font-semibold">{props.title}</h1>
               {props.badge && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/70">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-muted text-foreground border border-border/80 shadow-2xs">
                   {props.badge}
                 </span>
               )}
@@ -145,7 +145,7 @@ function Header(props: DashboardHeaderProps) {
           <div className="flex items-center gap-2">
             <h1 className="truncate text-base font-semibold">{props.title}</h1>
             {props.badge && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/70">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-muted text-foreground border border-border/80 shadow-2xs">
                 {props.badge}
               </span>
             )}

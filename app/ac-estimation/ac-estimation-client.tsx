@@ -17,6 +17,7 @@ import {
   IconCheck,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
+import { generateCalculationFilename } from "@/lib/utils"
 import { getTemperature } from "@/app/actions/get-temperature"
 import { getRabData } from "@/app/actions/get-rab-data"
 import { saveAcEstimationLog } from "@/app/actions/save-ac-estimation-log"
@@ -336,10 +337,12 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
     if (isSaving || !resultCardRef.current || !result) return
     setIsSaving(true)
     try {
-      const storeLabel =
-        storeMode === "existing"
-          ? (selectedStore?.code ?? "toko")
-          : newStoreCode || "toko"
+      const storeCode =
+        storeMode === "existing" ? (selectedStore?.code ?? "") : newStoreCode
+      const storeName =
+        storeMode === "existing" ? (selectedStore?.name ?? "") : newStoreName
+      const branch =
+        storeMode === "existing" ? (selectedStore?.branch ?? "") : newStoreBranch
 
       // 1. Unduh Gambar Bukti Hasil Estimasi
       const dataUrl = await toPng(resultCardRef.current, {
@@ -353,7 +356,10 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       const blobUrl = URL.createObjectURL(blob)
 
       const link = document.createElement("a")
-      link.download = `estimasi-ac-${storeLabel}.png`
+      link.download = generateCalculationFilename({
+        prefix: "estimasi-ac",
+        store: { code: storeCode, name: storeName, branch },
+      })
       link.href = blobUrl
       link.click()
 
@@ -364,13 +370,6 @@ export function AcEstimationClient({ stores }: AcEstimationClientProps) {
       }, 100)
 
       // 2. Kirim Log Validasi ke Google Sheets di Background (Silent Logging)
-      const storeCode =
-        storeMode === "existing" ? (selectedStore?.code ?? "") : newStoreCode
-      const storeName =
-        storeMode === "existing" ? (selectedStore?.name ?? "") : newStoreName
-      const branch =
-        storeMode === "existing" ? (selectedStore?.branch ?? "") : newStoreBranch
-
       saveAcEstimationLog({
         storeCode,
         storeName,

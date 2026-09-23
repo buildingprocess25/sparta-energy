@@ -36,6 +36,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { StoreCombobox } from "@/components/audit/store-combobox"
 import { toast } from "sonner"
+import { generateCalculationFilename } from "@/lib/utils"
 import { getTemperature } from "@/app/actions/get-temperature"
 import { getScaleInfo } from "@/lib/lamp-calculator"
 import { calcPolygonArea, type Point } from "@/lib/polygon-utils"
@@ -3220,8 +3221,14 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           const blobUrl = URL.createObjectURL(blob)
 
           const link = document.createElement("a")
-          const storeLabel = storeMode === "existing" ? (selectedStore?.code || "toko") : (newStoreCode || "toko-baru")
-          link.download = `mapping-ac-${storeLabel}.png`
+          link.download = generateCalculationFilename({
+            prefix: "mapping-ac",
+            store: {
+              code: cardData?.storeCode,
+              name: cardData?.storeName,
+              branch: cardData?.storeBranch,
+            },
+          })
           link.href = blobUrl
           link.click()
 

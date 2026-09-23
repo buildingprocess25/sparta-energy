@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { toPng } from "html-to-image"
 import { toast } from "sonner"
 import { useTheme } from "next-themes"
+import { generateCalculationFilename } from "@/lib/utils"
 import { getRabData } from "@/app/actions/get-rab-data"
 import { saveLightEstimationLog } from "@/app/actions/save-light-estimation-log"
 import { LightEstimationResultCard, type LightEstimationResultCardData } from "@/components/audit/light-estimation-result-card"
@@ -874,8 +875,14 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
           const blobUrl = URL.createObjectURL(blob)
 
           const link = document.createElement("a")
-          const storeLabel = storeMode === "existing" ? (selectedStore?.code || "toko") : (newStoreCode || "toko-baru")
-          link.download = `estimasi-lampu-${storeLabel}.png`
+          link.download = generateCalculationFilename({
+            prefix: "estimasi-lampu",
+            store: {
+              code: cardData?.storeCode,
+              name: cardData?.storeName,
+              branch: cardData?.storeBranch,
+            },
+          })
           link.href = blobUrl
           link.click()
 
