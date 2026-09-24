@@ -101,7 +101,99 @@ $$\mathbf{\text{Luas Sales Efektif}} = \mathbf{\text{Luas Total Toko}} - \mathbf
 
 ---
 
-## 5. Keamanan Berkas & Git
+## 6. Rencana Masa Depan: Kanvas Terpadu (*Unified Energy Layout Studio*)
+
+Rencana strategis jangka panjang sistem Sparta Energy adalah menggabungkan kanvas manual dan import CAD ke dalam satu halaman kerja terpadu (*Unified Store Workspace*). Pengguna dapat menginput denah sekali saja, lalu menghitung kebutuhan AC, Lampu, atau keduanya sekaligus secara komprehensif.
+
+### A. Arsitektur *Single Source of Truth* (`StoreLayoutModel`)
+Untuk memastikan input gambar manual dan import CAD dapat saling dipertukarkan tanpa merombak logika perhitungan, keduanya menghasilkan skema data standar yang seragam:
+
+```typescript
+export interface StoreLayoutModel {
+  source: 'cad_dxf' | 'manual_canvas';
+  dimensions: {
+    length: number;      // meter
+    width: number;       // meter
+    height: number;      // meter (plafon)
+  };
+  metrics: {
+    grossArea: number;   // m² (total luas kotor)
+    chillerArea: number; // m² (pengurang 1: chiller)
+    cashierArea: number; // m² (pengurang 2: kasir)
+    netSalesArea: number;// m² (luas efektif sales = gross - chiller - cashier)
+  };
+  walls: Array<{
+    id: string;
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+    type: 'solid' | 'glass' | 'opening';
+    isAcAllowed: boolean;
+  }>;
+  fixtures: Array<{
+    id: string;
+    name: string;
+    type: 'chiller' | 'cashier' | 'door_main' | 'door_warehouse';
+    bounds: { x: number; y: number; width: number; height: number };
+    polygon?: Array<{ x: number; y: number }>;
+  }>;
+}
+```
+
+### B. Konsep Tampilan Kanvas Multi-Layer (*Layer-Based Studio*)
+Kanvas utama di masa depan dirancang dengan sistem layer yang dapat di-toggle atau dilihat bersamaan:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        UNIFIED ENERGY STUDIO                           │
+├────────────────────────────────────────────────────────────────────────┤
+│ [Denah Toko: Standard A (CAD)]  |  [Toggle Layer: ☑ Denah ☑ AC ☑ Lampu] │
+├──────────────────────────────────────┬─────────────────────────────────┤
+│                                      │ TAB METRIK & HASIL:             │
+│   ┌──────────────────────────────┐   │ ┌─────────────────────────────┐ │
+│   │ [AC 1]            [Chiller]  │   │ │ 📊 Ringkasan Denah:         │ │
+│   │   │                     │    │   │ │ - Luas Kotor: 120 m²        │ │
+│   │   ▼ Hembusan            ▼    │   │ │ - Luas Efektif: 107.8 m²    │ │
+│   │                              │   │ ├─────────────────────────────┤ │
+│   │  💡 ── 💡 ── 💡  (Grid Lampu)│   │ │ ❄️ Rekomendasi AC:          │ │
+│   │                              │   │ │ - Total: 6.5 PK (3 Unit)    │ │
+│   │  💡 ── 💡 ── 💡              │   │ │ - Konsumsi: ~4.8 kW         │ │
+│   │                              │   │ ├─────────────────────────────┤ │
+│   │ [Pintu]           [Kasir 💡] │   │ │ 💡 Rekomendasi Lampu:       │ │
+│   │ [Kaca Depan / No AC Allowed] │   │ │ - Total: 18 Titik (500 Lux) │ │
+│   └──────────────────────────────┘   │ │ - Konsumsi: ~0.72 kW        │ │
+│                                      │ ├─────────────────────────────┤ │
+│                                      │ │ ⚡ TOTAL BEBAN LISTRIK TOKO: │ │
+│                                      │ │   5.52 kW (~6.9 kVA)        │ │
+│                                      │ └─────────────────────────────┘ │
+└──────────────────────────────────────┴─────────────────────────────────┘
+```
+
+1. **Layer 1 - Denah Dasar (*Base Architectural Layer*):**
+   - Menampilkan dinding toko, kaca depan, pintu keluar/masuk, meja kasir, dan chiller.
+   - Pilihan input: Import file `.dxf` atau Gambar manual dengan tool rectangle/wall di kanvas.
+2. **Layer 2 - Tata Letak AC (*AC Mapping Layer*):**
+   - Menampilkan unit indoor AC pada dinding yang valid.
+   - Simulasi vektor hembusan udara dingin (*airflow coverage*).
+   - Estimasi kapasitas PK & beban pendinginan.
+3. **Layer 3 - Tata Letak Pencahayaan (*Lighting Grid Layer*):**
+   - Menampilkan grid baris $\times$ kolom titik lampu pada area efektif belanja ($107{,}8\text{ m}^2$).
+   - Heatmap distribusi lux (target: 500 lux kasir, 300 lux lorong).
+4. **Laporan Terpadu Beban Energi Toko (*Total Store Energy Load*):**
+   - Menggabungkan perhitungan daya listrik (Watt) AC + Lampu dalam satu ringkasan audit/rekomendasi.
+
+---
+
+### C. Rencana Tahapan Eksekusi (Roadmap)
+
+| Fase | Fokus Pekerjaan | Target Hasil |
+| :--- | :--- | :--- |
+| **Fase 1 (Sekarang)** | Implementasi DXF Parser & Integrasi ke `ac-mapping` | Parsing entitas CAD berjalan mulus, validasi zona dinding terlarang AC teruji di kanvas AC. |
+| **Fase 2** | Penerapan Parser ke `light-estimation` | Menghitung otomatis grid titik lampu & watt berdasarkan *Net Sales Area* dari CAD. |
+| **Fase 3 (Final)** | Penggabungan ke *Unified Energy Studio* (`/layout-studio` atau halaman terpadu) | Satu kanvas terintegrasi dengan opsi layer AC, layer Lampu, serta total ringkasan beban listrik toko. |
+
+---
+
+## 7. Keamanan Berkas & Git
 
 Berkas contoh gambar CAD telah dimasukkan ke dalam `.gitignore` di root proyek `sparta-energy` agar tidak ter-commit ke repositori Git publik/production:
 ```gitignore
@@ -113,4 +205,4 @@ example_dwg_dxf/
 
 ---
 
-*Catatan dibuat: 23 September 2026 - Sparta Energy Architecture Docs*
+*Catatan diperbarui: 24 September 2026 - Sparta Energy Architecture Docs*

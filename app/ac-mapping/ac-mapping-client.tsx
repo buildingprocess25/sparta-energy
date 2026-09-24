@@ -24,6 +24,7 @@ import {
   IconLock,
   IconLockOpen,
   IconEdit,
+  IconFileCode,
 } from "@tabler/icons-react"
 import { useTheme } from "next-themes"
 import { Header } from "@/components/header"
@@ -41,6 +42,8 @@ import { getTemperature } from "@/app/actions/get-temperature"
 import { getScaleInfo } from "@/lib/lamp-calculator"
 import { calcPolygonArea, type Point } from "@/lib/polygon-utils"
 import { AcMappingResultCard, type AcMappingResultCardData } from "@/components/audit/ac-mapping-result-card"
+import { CadImportDialog } from "@/components/cad/cad-import-dialog"
+import type { ParsedCadStoreData } from "@/lib/cad/dxf-parser"
 import type { StoreData } from "@/app/audit/start/start-client"
 
 interface AcMappingClientProps {
@@ -198,6 +201,225 @@ function getParentWallLine(pts: Point[], segIdx: number): {
   const parentLen = Math.hypot(pB.x - pA.x, pB.y - pA.y)
 
   return { pA, pB, len: parentLen, p1Idx, p2Idx }
+}
+
+// ─── CAD & Retail SOP Rules: Deteksi Zona Terlarang Pasang AC ─────────────────
+export interface ForbiddenInterval {
+  minT: number
+  maxT: number
+  reason: string
+}
+
+export function getWallForbiddenIntervals(
+  wall: WallSegment,
+  cadData?: ParsedCadStoreData | null
+): ForbiddenInterval[] {
+  const intervals: ForbiddenInterval[] = []
+
+  // Non-CAD wall type overrides
+  if (wall.type === "GLASS_DOOR") {
+    intervals.push({ minT: 0, maxT: 1, reason: "Dinding Kaca & Pintu Depan" })
+    return intervals
+  }
+  if (wall.type === "CHILLER") {
+    intervals.push({ minT: 0, maxT: 1, reason: "Area Chiller" })
+    return intervals
+  }
+  if (wall.type === "CASHIER") {
+    intervals.push({ minT: 0, maxT: 1, reason: "Area Kasir" })
+    return intervals
+  }
+  if (wall.type === "DOOR_P1") {
+    intervals.push({ minT: 0, maxT: 1, reason: "Pintu P1 Gudang" })
+    return intervals
+  }
+
+  // When CAD metadata is present, check specific volume blocks against this wall
+  if (cadData) {
+    const p1 = wall.p1
+    const p2 = wall.p2
+    const wallLen = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+    if (wallLen <= 0.001) return intervals
+
+    const dx = p2.x - p1.x
+    const dy = p2.y - p1.y
+
+    const projectToWallT = (px: number, py: number) => {
+      const dot = (px - p1.x) * dx + (py - p1.y) * dy
+      return dot / (wallLen * wallLen)
+    }
+
+    const distToWall = (px: number, py: number) => {
+      const num = Math.abs(dy * px - dx * py + p2.x * p1.y - p2.y * p1.x)
+      return num / wallLen
+    }
+
+    // 1. Chiller Block Check (Dilarang pasang AC di atas chiller)
+    if (cadData.zones?.chiller) {
+      const ch = cadData.zones.chiller.bounds
+      const corners = [
+        { x: ch.x, y: ch.y },
+        { x: ch.x + ch.width, y: ch.y },
+        { x: ch.x + ch.width, y: ch.y + ch.height },
+        { x: ch.x, y: ch.y + ch.height },
+      ]
+      const minDist = Math.min(...corners.map(c => distToWall(c.x, c.y)))
+      if (minDist < 0.35) {
+        const ts = corners.map(c => projectToWallT(c.x, c.y))
+        const rawMinT = Math.min(...ts)
+        const rawMaxT = Math.max(...ts)
+        const clearanceT = 0.55 / wallLen
+        const minT = Math.max(0, rawMinT - clearanceT)
+        const maxT = Math.min(1, rawMaxT + clearanceT)
+        if (maxT > minT && maxT > 0 && minT < 1) {
+          intervals.push({
+            minT: Number(minT.toFixed(3)),
+            maxT: Number(maxT.toFixed(3)),
+            reason: "Dilarang pasang AC di atas Blok Chiller (SOP Retail)",
+          })
+        }
+      }
+    }
+
+    // 2. Cashier Block Check (Dilarang pasang AC di atas meja kasir)
+    if (cadData.zones?.cashier) {
+      const cz = cadData.zones.cashier.bounds
+      const corners = [
+        { x: cz.x, y: cz.y },
+        { x: cz.x + cz.width, y: cz.y },
+        { x: cz.x + cz.width, y: cz.y + cz.height },
+        { x: cz.x, y: cz.y + cz.height },
+      ]
+      const minDist = Math.min(...corners.map(c => distToWall(c.x, c.y)))
+      if (minDist < 0.35) {
+        const ts = corners.map(c => projectToWallT(c.x, c.y))
+        const rawMinT = Math.min(...ts)
+        const rawMaxT = Math.max(...ts)
+        const clearanceT = 0.55 / wallLen
+        const minT = Math.max(0, rawMinT - clearanceT)
+        const maxT = Math.min(1, rawMaxT + clearanceT)
+        if (maxT > minT && maxT > 0 && minT < 1) {
+          intervals.push({
+            minT: Number(minT.toFixed(3)),
+            maxT: Number(maxT.toFixed(3)),
+            reason: "Dilarang pasang AC di atas Area Meja Kasir (SOP Retail)",
+          })
+        }
+      }
+    }
+
+    // 3. Doors Check (P1 & pv180)
+    if (cadData.doors && cadData.doors.length > 0) {
+      cadData.doors.forEach(door => {
+        const dPos = door.positionM
+        const dDist = distToWall(dPos.x, dPos.y)
+        if (dDist < 0.4) {
+          const tDoor = projectToWallT(dPos.x, dPos.y)
+          const doorWidth = door.type === "warehouse_p1" ? 1.0 : 1.8
+          const halfT = (doorWidth / 2 + 0.55) / wallLen
+          const minT = Math.max(0, tDoor - halfT)
+          const maxT = Math.min(1, tDoor + halfT)
+          if (maxT > minT && maxT > 0 && minT < 1) {
+            intervals.push({
+              minT: Number(minT.toFixed(3)),
+              maxT: Number(maxT.toFixed(3)),
+              reason: `Dilarang pasang AC di atas Bukaan Pintu ${door.name}`,
+            })
+          }
+        }
+      })
+    }
+  }
+
+  // Merge overlapping forbidden intervals
+  intervals.sort((a, b) => a.minT - b.minT)
+  const merged: ForbiddenInterval[] = []
+  for (const it of intervals) {
+    if (merged.length === 0) {
+      merged.push({ ...it })
+    } else {
+      const last = merged[merged.length - 1]
+      if (it.minT <= last.maxT) {
+        last.maxT = Math.max(last.maxT, it.maxT)
+        if (!last.reason.includes(it.reason)) {
+          last.reason += ` & ${it.reason}`
+        }
+      } else {
+        merged.push({ ...it })
+      }
+    }
+  }
+
+  return merged
+}
+
+export function checkAcPlacementValidation(
+  wallIndex: number,
+  ratio: number,
+  wallSegments: WallSegment[],
+  cadData?: ParsedCadStoreData | null
+): { isValid: boolean; reason?: string } {
+  const wall = wallSegments.find(w => w.index === wallIndex)
+  if (!wall) return { isValid: false, reason: "Dinding tidak ditemukan" }
+  const forbidden = getWallForbiddenIntervals(wall, cadData)
+  for (const f of forbidden) {
+    if (ratio >= f.minT && ratio <= f.maxT) {
+      return { isValid: false, reason: f.reason }
+    }
+  }
+  return { isValid: true }
+}
+
+export interface ValidWallSpan {
+  wallIndex: number
+  wall: WallSegment
+  startT: number
+  endT: number
+  lengthM: number
+}
+
+export function getValidWallSpans(
+  wallSegments: WallSegment[],
+  cadData?: ParsedCadStoreData | null
+): ValidWallSpan[] {
+  const spans: ValidWallSpan[] = []
+
+  wallSegments.forEach(wall => {
+    if (wall.lengthM <= 0.1) return
+    const forbidden = getWallForbiddenIntervals(wall, cadData)
+
+    let currentT = 0
+    for (const f of forbidden) {
+      if (f.minT > currentT) {
+        const freeLenM = (f.minT - currentT) * wall.lengthM
+        if (freeLenM >= 1.05) {
+          spans.push({
+            wallIndex: wall.index,
+            wall,
+            startT: currentT,
+            endT: f.minT,
+            lengthM: freeLenM,
+          })
+        }
+      }
+      currentT = Math.max(currentT, f.maxT)
+    }
+
+    if (currentT < 1.0) {
+      const freeLenM = (1.0 - currentT) * wall.lengthM
+      if (freeLenM >= 1.05) {
+        spans.push({
+          wallIndex: wall.index,
+          wall,
+          startT: currentT,
+          endT: 1.0,
+          lengthM: freeLenM,
+        })
+      }
+    }
+  })
+
+  return spans
 }
 
 function remapPlacedUnitsToNewGeometry(
@@ -362,6 +584,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const [presetRect, setPresetRect] = useState({ panjang: "12", lebar: "8" })
   const [presetL, setPresetL] = useState({ p: "14", l: "10", w: "6", h: "4" })
 
+  // CAD DXF Import Dialog
+  const [cadModalOpen, setCadModalOpen] = useState(false)
+  const [activeCadMetadata, setActiveCadMetadata] = useState<ParsedCadStoreData | null>(null)
+
   // ─── 3. State AC Layout & Perhitungan ──────────────────────────────────────
   const [placedUnits, setPlacedUnits] = useState<PlacedAcUnit[]>([])
   const [isCalculated, setIsCalculated] = useState<boolean>(false)
@@ -384,6 +610,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
   // Total Luas Efektif
   const effectiveArea = useMemo(() => {
+    if (activeCadMetadata) {
+      return activeCadMetadata.metrics.netSalesArea
+    }
     if (customPts.length >= 3 && customClosed) {
       return Number(polygonAreaM2.toFixed(1))
     }
@@ -394,7 +623,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return parseFloat(newStoreArea)
     }
     return 0
-  }, [customPts, customClosed, polygonAreaM2, storeMode, selectedStore, newStoreArea])
+  }, [activeCadMetadata, customPts, customClosed, polygonAreaM2, storeMode, selectedStore, newStoreArea])
 
   const totalBtuRequired = useMemo(() => {
     return Math.round(effectiveArea * targetBtuPerM2)
@@ -595,6 +824,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     setPlacedUnits([])
     setIsCalculated(false)
     setPendingZoneStart(null)
+    setActiveCadMetadata(null)
     toast.info("Kanvas denah telah dikosongkan.")
   }
 
@@ -732,6 +962,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     }
     setCustomClosed(true)
     setSegmentOverrides({})
+    setActiveCadMetadata(null)
     setPresetModalOpen(false)
     setPendingZoneStart(null)
     toast.success("Template denah berhasil dimuat. Silakan klik 'Hitung & Petakan AC' untuk memproses.")
@@ -834,59 +1065,56 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     let n = distDown <= distUp ? downQty : upQty
     if (n < 1 && effectiveArea > 0) n = 1
 
-    // Filter Dinding: Hanya pilih dinding SOLID yang memiliki panjang cukup untuk unit Daikin 2 PK (panjang 1.05m + clearance)
-    let eligibleWalls = validWalls.filter((w) => w.lengthM >= MIN_WALL_LENGTH_FOR_AC)
-    if (eligibleWalls.length === 0) {
-      // Fallback: minimal selebar fisik bodi AC (1.05m) jika ruangan berukuran kompak
-      eligibleWalls = validWalls.filter((w) => w.lengthM >= AC_INDOOR_WIDTH_M)
-    }
+    // Filter Bentang Dinding Aman: Menggunakan valid spans yang bersih dari blok chiller, kasir, pintu & kaca
+    const validSpans = getValidWallSpans(wallSegments, activeCadMetadata)
 
-    if (eligibleWalls.length === 0) {
+    if (validSpans.length === 0) {
       toast.error(
-        `Sisa bentang dinding solid terlalu sempit (< ${AC_INDOOR_WIDTH_M}m). Unit AC Daikin 2 PK (panjang 1.050 mm) tidak muat dipasang.`
+        `Semua sisi dinding terhalang rintangan (chiller, kasir, pintu, kaca). Tidak ada bentang dinding solid aman yang tersisa (minimal 1.05 m).`
       )
       return
     }
 
     const newUnits: PlacedAcUnit[] = []
 
-    // 1. Alokasi kuantitas unit ke dinding-dinding yang memenuhi syarat berdasarkan proporsi panjang dinding
-    const sortedWalls = [...eligibleWalls].sort((a, b) => b.lengthM - a.lengthM)
-    const wallUnitCounts = new Map<number, number>()
-    eligibleWalls.forEach((w) => wallUnitCounts.set(w.index, 0))
+    // 1. Alokasi kuantitas unit ke bentang-bentang dinding yang valid berdasarkan proporsi panjangnya
+    const sortedSpans = [...validSpans].sort((a, b) => b.lengthM - a.lengthM)
+    const spanUnitCounts = new Map<number, number>()
+    validSpans.forEach((_, idx) => spanUnitCounts.set(idx, 0))
 
-    // Bagikan n unit secara adil (prioritaskan dinding dengan kepadatan unit per meter terendah)
     for (let i = 0; i < n; i++) {
-      let bestWall = sortedWalls[0]
+      let bestSpanIdx = 0
       let minDensity = Infinity
-      for (const w of sortedWalls) {
-        const count = wallUnitCounts.get(w.index) || 0
-        const density = (count + 1) / w.lengthM
+      sortedSpans.forEach((span) => {
+        const spanIdx = validSpans.indexOf(span)
+        const count = spanUnitCounts.get(spanIdx) || 0
+        const density = (count + 1) / span.lengthM
         if (density < minDensity) {
           minDensity = density
-          bestWall = w
+          bestSpanIdx = spanIdx
         }
-      }
-      wallUnitCounts.set(bestWall.index, (wallUnitCounts.get(bestWall.index) || 0) + 1)
+      })
+      spanUnitCounts.set(bestSpanIdx, (spanUnitCounts.get(bestSpanIdx) || 0) + 1)
     }
 
-    // 2. Tempatkan unit pada setiap dinding dengan jarak as tengah yang simetris & terbagi rata
+    // 2. Tempatkan unit pada setiap bentang bebas rintangan dengan posisi simetris
     let unitIndex = 1
-    wallSegments.forEach((wall) => {
-      const count = wallUnitCounts.get(wall.index) || 0
+    validSpans.forEach((span, spanIdx) => {
+      const count = spanUnitCounts.get(spanIdx) || 0
       if (count === 0) return
 
-      const minMarginRatio = Math.min(0.25, (AC_INDOOR_WIDTH_M / 2 + AC_MIN_CLEARANCE_M) / wall.lengthM)
+      const spanTRange = span.endT - span.startT
+      const wall = span.wall
 
       for (let slot = 0; slot < count; slot++) {
-        // Pembagian rata: 1 unit -> 1/2; 2 unit -> 1/3 & 2/3; 3 unit -> 1/4, 2/4, 3/4
-        const rawRatio = (slot + 1) / (count + 1)
-        const ratio = Number(Math.min(1 - minMarginRatio, Math.max(minMarginRatio, rawRatio)).toFixed(3))
+        // Pembagian rata di dalam span
+        const rawLocalRatio = (slot + 1) / (count + 1)
+        const globalRatio = Number((span.startT + rawLocalRatio * spanTRange).toFixed(3))
 
         newUnits.push({
           id: `ac-unit-${unitIndex}`,
-          wallIndex: wall.index,
-          ratio,
+          wallIndex: span.wallIndex,
+          ratio: globalRatio,
           customName: `Daikin 2 PK #${unitIndex}`,
           wallLabel: `Dinding T${wall.startIndex + 1} - T${wall.endIndex + 1}`,
         })
@@ -896,7 +1124,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
     setPlacedUnits(newUnits)
     setIsCalculated(true)
-    toast.success(`Berhasil menghitung (${maxTemp}°C / ${clusterBtu} BTU/m²) & memetakan ${n} Unit AC Daikin 2 PK!`)
+    toast.success(`Berhasil menghitung (${maxTemp}°C / ${clusterBtu} BTU/m²) & memetakan ${n} Unit AC Daikin 2 PK di zona aman SOP!`)
   }
 
   // ─── 11. Canvas Pointer Interactions (Drag, Snap & 2-Click Zone Marking) ───
@@ -1883,8 +2111,16 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       try {
         ; (e.target as HTMLElement).releasePointerCapture(e.pointerId)
       } catch { }
+      const draggedUnit = placedUnits.find((u) => u.id === activeDragAcId)
+      if (draggedUnit) {
+        const val = checkAcPlacementValidation(draggedUnit.wallIndex, draggedUnit.ratio, wallSegments, activeCadMetadata)
+        if (!val.isValid) {
+          toast.warning(`⚠️ Peringatan SOP Retail: ${val.reason}.`)
+        } else {
+          toast.info("Posisi AC berhasil disesuaikan!")
+        }
+      }
       setActiveDragAcId(null)
-      toast.info("Posisi AC berhasil disesuaikan!")
     }
 
     // Selesai drag whole fixed segment (P1 / Chiller)
@@ -2266,23 +2502,277 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     const toC = (pt: Point) => ({ cx: sc.offX + pt.x * sc.scale, cy: sc.offY + pt.y * sc.scale })
     const sPts = customPts.map(toC)
 
-    // 1. Lantai Poligon Denah Toko & Clip
+    // 1. Lantai Poligon Denah Toko
     ctx.save()
     ctx.beginPath()
     sPts.forEach((sp, idx) => idx === 0 ? ctx.moveTo(sp.cx, sp.cy) : ctx.lineTo(sp.cx, sp.cy))
     ctx.closePath()
     ctx.fillStyle = polyFill
     ctx.fill()
-    ctx.clip() // Semburan AC terkunci rapi di dalam batas lantai denah toko
+    ctx.restore()
+
+    // ── 1B. RENDER 2D VOLUMETRIC FIXTURES & CAD HATCHES (Kasir, Chiller, Pintu Riil) ──
+    // A. Area Meja Kasir (HATCH ANSI32)
+    if (activeCadMetadata?.zones?.cashier) {
+      const cz = activeCadMetadata.zones.cashier
+      const b = cz.bounds
+      const pTopLeft = toC({ x: b.x, y: b.y })
+      const pBottomRight = toC({ x: b.x + b.width, y: b.y + b.height })
+
+      const minX = Math.min(pTopLeft.cx, pBottomRight.cx)
+      const maxX = Math.max(pTopLeft.cx, pBottomRight.cx)
+      const minY = Math.min(pTopLeft.cy, pBottomRight.cy)
+      const maxY = Math.max(pTopLeft.cy, pBottomRight.cy)
+      const boxW = Math.max(10, maxX - minX)
+      const boxH = Math.max(10, maxY - minY)
+
+      ctx.save()
+      // Background fill warm amber
+      ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.22)" : "rgba(245, 158, 11, 0.16)"
+      ctx.fillRect(minX, minY, boxW, boxH)
+
+      // ANSI32 Hatching (45° Diagonal Lines)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(minX, minY, boxW, boxH)
+      ctx.clip()
+      ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.40)" : "rgba(217, 119, 6, 0.35)"
+      ctx.lineWidth = 1
+      const spacing = 9
+      for (let off = -boxH; off < boxW + boxH; off += spacing) {
+        ctx.beginPath()
+        ctx.moveTo(minX + off, minY)
+        ctx.lineTo(minX + off + boxH, minY + boxH)
+        ctx.stroke()
+      }
+      ctx.restore()
+
+      // Border Kasir (Dashed Amber)
+      ctx.strokeStyle = "#f59e0b"
+      ctx.lineWidth = 1.8
+      ctx.setLineDash([5, 3])
+      ctx.strokeRect(minX, minY, boxW, boxH)
+      ctx.setLineDash([])
+
+      // Clean 2-Line Architectural Label: Nama & Ukuran
+      const midX = (minX + maxX) / 2
+      const midY = (minY + maxY) / 2
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.strokeStyle = bgFill
+      ctx.lineWidth = 3
+      ctx.lineJoin = "round"
+
+      // Baris 1: Nama Objek
+      ctx.font = "bold 8px sans-serif"
+      ctx.strokeText("KASIR", midX, midY - 5)
+      ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
+      ctx.fillText("KASIR", midX, midY - 5)
+
+      // Baris 2: Dimensi (Lebar x Panjang)
+      const cashierDim = `${b.width}m × ${b.height}m`
+      ctx.font = "bold 7px sans-serif"
+      ctx.strokeText(cashierDim, midX, midY + 5)
+      ctx.fillStyle = effectiveIsDark ? "rgba(251, 191, 36, 0.85)" : "rgba(180, 83, 9, 0.85)"
+      ctx.fillText(cashierDim, midX, midY + 5)
+
+      ctx.restore()
+    }
+
+    // B. Barisan Chiller (HATCH ANSI37)
+    if (activeCadMetadata?.zones?.chiller) {
+      const ch = activeCadMetadata.zones.chiller
+      const b = ch.bounds
+      const pTopLeft = toC({ x: b.x, y: b.y })
+      const pBottomRight = toC({ x: b.x + b.width, y: b.y + b.height })
+
+      const minX = Math.min(pTopLeft.cx, pBottomRight.cx)
+      const maxX = Math.max(pTopLeft.cx, pBottomRight.cx)
+      const minY = Math.min(pTopLeft.cy, pBottomRight.cy)
+      const maxY = Math.max(pTopLeft.cy, pBottomRight.cy)
+      const boxW = Math.max(10, maxX - minX)
+      const boxH = Math.max(10, maxY - minY)
+
+      ctx.save()
+      // Background fill cool cyan
+      ctx.fillStyle = effectiveIsDark ? "rgba(6, 182, 212, 0.25)" : "rgba(6, 182, 212, 0.18)"
+      ctx.fillRect(minX, minY, boxW, boxH)
+
+      // ANSI37 Hatching (45° Crosshatch)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(minX, minY, boxW, boxH)
+      ctx.clip()
+      ctx.strokeStyle = effectiveIsDark ? "rgba(6, 182, 212, 0.40)" : "rgba(8, 145, 178, 0.35)"
+      ctx.lineWidth = 1
+      const spacing = 7
+      for (let off = -boxH; off < boxW + boxH; off += spacing) {
+        ctx.beginPath()
+        ctx.moveTo(minX + off, minY)
+        ctx.lineTo(minX + off + boxH, minY + boxH)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(minX + off, minY + boxH)
+        ctx.lineTo(minX + off + boxH, minY)
+        ctx.stroke()
+      }
+      ctx.restore()
+
+      // Module dividers every 1.2m
+      const uCount = ch.unitCount || Math.max(1, Math.round(b.width / 1.2))
+      ctx.strokeStyle = effectiveIsDark ? "rgba(255, 255, 255, 0.8)" : "rgba(8, 51, 68, 0.8)"
+      ctx.lineWidth = 1.5
+      for (let u = 1; u < uCount; u++) {
+        const divX = minX + (u / uCount) * boxW
+        ctx.beginPath()
+        ctx.moveTo(divX, minY)
+        ctx.lineTo(divX, maxY)
+        ctx.stroke()
+      }
+
+      // Border Chiller
+      ctx.strokeStyle = "#06b6d4"
+      ctx.lineWidth = 1.8
+      ctx.strokeRect(minX, minY, boxW, boxH)
+
+      // Clean 2-Line Architectural Label: Nama & Ukuran
+      const midX = (minX + maxX) / 2
+      ctx.textAlign = "center"
+      ctx.textBaseline = "top"
+      ctx.strokeStyle = bgFill
+      ctx.lineWidth = 3
+      ctx.lineJoin = "round"
+
+      // Baris 1: Judul
+      const chillerTitle = `CHILLER (${uCount} UNIT)`
+      ctx.font = "bold 8px sans-serif"
+      ctx.strokeText(chillerTitle, midX, maxY + 6)
+      ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0891b2"
+      ctx.fillText(chillerTitle, midX, maxY + 6)
+
+      // Baris 2: Dimensi (Panjang x Lebar)
+      const chillerDim = `${b.width}m × ${b.height}m`
+      ctx.font = "bold 7px sans-serif"
+      ctx.strokeText(chillerDim, midX, maxY + 16)
+      ctx.fillStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(8, 145, 178, 0.85)"
+      ctx.fillText(chillerDim, midX, maxY + 16)
+
+      ctx.restore()
+    }
+
+    // C. Pintu Masuk CAD (pv180 dan P1)
+    if (activeCadMetadata?.doors && activeCadMetadata.doors.length > 0) {
+      activeCadMetadata.doors.forEach((door) => {
+        const pDoor = toC(door.positionM)
+        ctx.save()
+
+        if (door.type === "main_pv180" || door.name.toLowerCase().includes("pv180")) {
+          // Double swing door arc on bottom wall (2 daun pintu @ 0.9m)
+          const leafR = Math.max(16, 0.9 * sc.scale)
+          ctx.strokeStyle = "#f97316"
+          ctx.lineWidth = 1.5
+
+          // Swing arcs swinging into room (towards smaller Y)
+          ctx.setLineDash([3, 2])
+          ctx.beginPath()
+          ctx.arc(pDoor.cx - leafR, pDoor.cy, leafR, 0, -Math.PI / 2, true)
+          ctx.stroke()
+          ctx.beginPath()
+          ctx.arc(pDoor.cx + leafR, pDoor.cy, leafR, Math.PI, -Math.PI / 2, false)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          // Open Door leaves (90 degrees inside)
+          ctx.lineWidth = 2.4
+          ctx.beginPath()
+          ctx.moveTo(pDoor.cx - leafR, pDoor.cy)
+          ctx.lineTo(pDoor.cx - leafR, pDoor.cy - leafR)
+          ctx.moveTo(pDoor.cx + leafR, pDoor.cy)
+          ctx.lineTo(pDoor.cx + leafR, pDoor.cy - leafR)
+          ctx.stroke()
+
+          // Clean 2-Line Architectural Door Label: Nama & Ukuran
+          const midX = pDoor.cx
+          const midY = pDoor.cy - leafR - 5
+          ctx.textAlign = "center"
+          ctx.textBaseline = "bottom"
+          ctx.strokeStyle = bgFill
+          ctx.lineWidth = 2.5
+          ctx.lineJoin = "round"
+
+          // Baris 2 (Bawah): Ukuran 1.8m
+          ctx.font = "bold 7px sans-serif"
+          ctx.strokeText("LEBAR 1.8m", midX, midY)
+          ctx.fillStyle = "rgba(249, 115, 22, 0.85)"
+          ctx.fillText("LEBAR 1.8m", midX, midY)
+
+          // Baris 1 (Atas): Judul
+          ctx.font = "bold 8px sans-serif"
+          ctx.strokeText("PINTU UTAMA PV180", midX, midY - 9)
+          ctx.fillStyle = "#f97316"
+          ctx.fillText("PINTU UTAMA PV180", midX, midY - 9)
+        } else if (door.type === "warehouse_p1" || door.name.toLowerCase().includes("p1")) {
+          // Single swing door on top wall (1 daun pintu @ 1.0m)
+          const leafR = Math.max(18, 1.0 * sc.scale)
+          ctx.strokeStyle = "#ea580c"
+          ctx.lineWidth = 1.5
+
+          // Swing arc swinging into room downwards
+          ctx.setLineDash([3, 2])
+          ctx.beginPath()
+          ctx.arc(pDoor.cx, pDoor.cy, leafR, 0, Math.PI / 2, false)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          // Open Door leaf
+          ctx.lineWidth = 2.4
+          ctx.beginPath()
+          ctx.moveTo(pDoor.cx, pDoor.cy)
+          ctx.lineTo(pDoor.cx, pDoor.cy + leafR)
+          ctx.stroke()
+
+          // Clean 2-Line Architectural Door Label: Nama & Ukuran
+          const midX = pDoor.cx + leafR / 2 + 6
+          const midY = pDoor.cy + leafR + 4
+          ctx.textAlign = "center"
+          ctx.textBaseline = "top"
+          ctx.strokeStyle = bgFill
+          ctx.lineWidth = 2.5
+          ctx.lineJoin = "round"
+
+          // Baris 1: Judul
+          ctx.font = "bold 8px sans-serif"
+          ctx.strokeText("PINTU P1 GUDANG", midX, midY)
+          ctx.fillStyle = "#ea580c"
+          ctx.fillText("PINTU P1 GUDANG", midX, midY)
+
+          // Baris 2: Ukuran 1.0m
+          ctx.font = "bold 7px sans-serif"
+          ctx.strokeText("LEBAR 1.0m", midX, midY + 9)
+          ctx.fillStyle = "rgba(234, 88, 12, 0.85)"
+          ctx.fillText("LEBAR 1.0m", midX, midY + 9)
+        }
+
+        ctx.restore()
+      })
+    }
 
     // 2. Render Sebaran Hembusan Udara Dingin AC (Gradasi Sejuk Cyan / Sky-Blue Halus)
     if (isCalculated && placedUnits.length > 0) {
+      ctx.save()
+      ctx.beginPath()
+      sPts.forEach((sp, idx) => idx === 0 ? ctx.moveTo(sp.cx, sp.cy) : ctx.lineTo(sp.cx, sp.cy))
+      ctx.closePath()
+      ctx.clip() // Semburan AC terkunci rapi di dalam batas denah toko
       const centroidX = customPts.reduce((acc, p) => acc + p.x, 0) / (customPts.length || 1)
       const centroidY = customPts.reduce((acc, p) => acc + p.y, 0) / (customPts.length || 1)
 
       placedUnits.forEach((unit) => {
         const wall = wallSegments.find((w) => w.index === unit.wallIndex)
         if (!wall) return
+
+        const validation = checkAcPlacementValidation(unit.wallIndex, unit.ratio, wallSegments, activeCadMetadata)
+        const isForbidden = !validation.isValid
 
         const acX = wall.p1.x + (wall.p2.x - wall.p1.x) * unit.ratio
         const acY = wall.p1.y + (wall.p2.y - wall.p1.y) * unit.ratio
@@ -2349,9 +2839,13 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.lineTo(lEnd.x, lEnd.y)
         ctx.closePath()
 
-        // Gradasi Sejuk Cyan / Sky-Blue Alami Memancar Lembut dari Mulut Louver AC
+        // Gradasi Sejuk Cyan (atau Merah jika berada di zona terlarang)
         const coneGrad = ctx.createRadialGradient(louverMidX, louverMidY, 4, louverMidX, louverMidY, throwRadius)
-        if (effectiveIsDark) {
+        if (isForbidden) {
+          coneGrad.addColorStop(0, "rgba(239, 68, 68, 0.45)")
+          coneGrad.addColorStop(0.5, "rgba(239, 68, 68, 0.18)")
+          coneGrad.addColorStop(1, "rgba(239, 68, 68, 0.0)")
+        } else if (effectiveIsDark) {
           coneGrad.addColorStop(0, "rgba(56, 189, 248, 0.48)")       // Inti sejuk dekat kisi AC
           coneGrad.addColorStop(0.35, "rgba(14, 165, 233, 0.26)")    // Hembusan tengah ~3m
           coneGrad.addColorStop(0.70, "rgba(6, 182, 212, 0.12)")     // Hembusan jauh ~5m
@@ -2578,7 +3072,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       if (seg) {
         const targetLen = activeTool === "DOOR_P1" ? DOOR_P1_WIDTH_M : chillerUnits * CHILLER_UNIT_WIDTH_M
         const toolColor = activeTool === "DOOR_P1" ? "#ea580c" : "#06b6d4"
-        const toolLabel = activeTool === "DOOR_P1" ? "🚪 Pintu P1 (1.0m)" : `🧊 Chiller (${chillerUnits} Unit - ${formatDim(targetLen)}m)`
+        const toolLabel = activeTool === "DOOR_P1" ? "PINTU P1 (1.0m)" : `CHILLER (${chillerUnits} UNIT - ${formatDim(targetLen)}m)`
 
         const wallLen = seg.lengthM
         if (wallLen >= targetLen - 0.05) {
@@ -2618,7 +3112,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           const badgeMidX = (startCx + endCx) / 2
           const badgeMidY = (startCy + endCy) / 2 - 14
 
-          ctx.font = "bold 9.5px sans-serif"
+          ctx.font = "bold 9px sans-serif"
           ctx.textAlign = "center"
           ctx.fillStyle = toolColor
           ctx.fillText(`${toolLabel} (Klik pasang)`, badgeMidX, badgeMidY)
@@ -2638,7 +3132,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       ctx.lineWidth = 2
       ctx.stroke()
 
-      ctx.font = "bold 9.5px sans-serif"
+      ctx.font = "bold 9px sans-serif"
       ctx.textAlign = "center"
       ctx.fillStyle = "#10b981"
       ctx.fillText(magneticSnapFeedback.label, magneticSnapFeedback.cx, magneticSnapFeedback.cy - 16)
@@ -2684,7 +3178,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         const endCanvas = { cx: proj.x, cy: proj.y }
 
         const toolColor = activeTool === "DOOR" ? "#f97316" : "#eab308"
-        const toolLabel = activeTool === "DOOR" ? "🚪 Pintu/Kaca" : "🛒 Kasir"
+        const toolLabel = activeTool === "DOOR" ? "PINTU/KACA" : "AREA KASIR"
 
         const distM = Math.hypot(
           (endCanvas.cx - startCanvas.cx) / sc.scale,
@@ -2721,7 +3215,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         const badgeMidX = (startCanvas.cx + endCanvas.cx) / 2
         const badgeMidY = (startCanvas.cy + endCanvas.cy) / 2 - 14
 
-        ctx.font = "bold 9.5px sans-serif"
+        ctx.font = "bold 9px sans-serif"
         ctx.textAlign = "center"
         ctx.fillStyle = toolColor
         ctx.fillText(`${toolLabel}: ${formatDim(distM)}m (Klik titik akhir)`, badgeMidX, badgeMidY)
@@ -2729,31 +3223,33 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       }
     }
 
-    // 5. Render Dimensi Bounding Box (LT & PT)
-    const minX = sc.minX ?? 0
-    const minY = sc.minY ?? 0
-    const leftEdge = sc.offX + minX * sc.scale
-    const topEdge = sc.offY + minY * sc.scale
-    const bottomEdge = topEdge + sc.rH * sc.scale
+    // 5. Render Dimensi Bounding Box (LT & PT) - hanya jika bukan mode CAD
+    if (!activeCadMetadata) {
+      const minX = sc.minX ?? 0
+      const minY = sc.minY ?? 0
+      const leftEdge = sc.offX + minX * sc.scale
+      const topEdge = sc.offY + minY * sc.scale
+      const bottomEdge = topEdge + sc.rH * sc.scale
 
-    const ltX = leftEdge + (sc.rW * sc.scale) / 2
-    const ltY = bottomEdge + 14
-    const ptX = leftEdge - 14
-    const ptY = topEdge + (sc.rH * sc.scale) / 2
+      const ltX = leftEdge + (sc.rW * sc.scale) / 2
+      const ltY = bottomEdge + 14
+      const ptX = leftEdge - 14
+      const ptY = topEdge + (sc.rH * sc.scale) / 2
 
-    // LT Label
-    ctx.save()
-    ctx.font = "bold 8.5px sans-serif"
-    ctx.textAlign = "center"
-    ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
-    ctx.fillText(`${formatDim(sc.rW)}m (LT)`, ltX, ltY)
+      // LT Label
+      ctx.save()
+      ctx.font = "bold 8.5px sans-serif"
+      ctx.textAlign = "center"
+      ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+      ctx.fillText(`${formatDim(sc.rW)}m (LT)`, ltX, ltY)
 
-    // PT Label
-    ctx.translate(ptX, ptY)
-    ctx.rotate(-Math.PI / 2)
-    ctx.fillStyle = effectiveIsDark ? "#c4b5fd" : "#6d28d9"
-    ctx.fillText(`${formatDim(sc.rH)}m (PT)`, 0, 0)
-    ctx.restore()
+      // PT Label
+      ctx.translate(ptX, ptY)
+      ctx.rotate(-Math.PI / 2)
+      ctx.fillStyle = effectiveIsDark ? "#c4b5fd" : "#6d28d9"
+      ctx.fillText(`${formatDim(sc.rH)}m (PT)`, 0, 0)
+      ctx.restore()
+    }
 
     // 6. Render Snap Guides saat Dragging
     activeSnapGuides.forEach((g) => {
@@ -2894,6 +3390,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         const cAcY = sc.offY + acY * sc.scale
 
         const isDraggingThisAc = activeDragAcId === unit.id
+        const validation = checkAcPlacementValidation(unit.wallIndex, unit.ratio, wallSegments, activeCadMetadata)
+        const isForbidden = !validation.isValid
 
         // Orientasi sudut dinding
         const wallAngle = Math.atan2(dy, dx)
@@ -2910,14 +3408,20 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         const unitD = 13 // Ketebalan body AC tegak lurus dinding
 
         if (isDraggingThisAc) {
-          ctx.shadowColor = "#38bdf8"
+          ctx.shadowColor = isForbidden ? "#ef4444" : "#38bdf8"
           ctx.shadowBlur = 12
         }
 
-        // Body Unit Indoor AC
-        ctx.fillStyle = isDraggingThisAc ? "#0284c7" : (effectiveIsDark ? "#0f172a" : "#ffffff")
-        ctx.strokeStyle = isDraggingThisAc ? "#38bdf8" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
-        ctx.lineWidth = isDraggingThisAc ? 2.5 : 1.8
+        // Body Unit Indoor AC (Warna Merah jika melanggar SOP)
+        if (isForbidden) {
+          ctx.fillStyle = effectiveIsDark ? "rgba(239, 68, 68, 0.45)" : "rgba(239, 68, 68, 0.25)"
+          ctx.strokeStyle = "#ef4444"
+          ctx.lineWidth = 2.2
+        } else {
+          ctx.fillStyle = isDraggingThisAc ? "#0284c7" : (effectiveIsDark ? "#0f172a" : "#ffffff")
+          ctx.strokeStyle = isDraggingThisAc ? "#38bdf8" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
+          ctx.lineWidth = isDraggingThisAc ? 2.5 : 1.8
+        }
 
         ctx.beginPath()
         if (ctx.roundRect) {
@@ -2932,14 +3436,14 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.beginPath()
         ctx.moveTo(-unitL / 2 + 3, unitD / 2 - 3)
         ctx.lineTo(unitL / 2 - 3, unitD / 2 - 3)
-        ctx.strokeStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+        ctx.strokeStyle = isForbidden ? "#ef4444" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
         ctx.lineWidth = 1.2
         ctx.stroke()
 
-        // LED Indicator Hijau
+        // LED Indicator (Hijau jika valid, Merah jika melanggar SOP)
         ctx.beginPath()
         ctx.arc(unitL / 2 - 4.5, -unitD / 2 + 4, 1.6, 0, Math.PI * 2)
-        ctx.fillStyle = "#10b981"
+        ctx.fillStyle = isForbidden ? "#ef4444" : "#10b981"
         ctx.fill()
 
         ctx.restore()
@@ -2957,8 +3461,27 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.lineJoin = "round"
         ctx.strokeText(`AC${idx + 1}`, 0, 0)
 
-        ctx.fillStyle = isDraggingThisAc ? "#38bdf8" : (effectiveIsDark ? "#ffffff" : "#0f172a")
+        ctx.fillStyle = isForbidden ? "#ef4444" : (isDraggingThisAc ? "#38bdf8" : (effectiveIsDark ? "#ffffff" : "#0f172a"))
         ctx.fillText(`AC${idx + 1}`, 0, 0)
+
+        // Warning text jika melanggar SOP retail (Tanpa box tebal & tanpa emoji)
+        if (isForbidden && validation.reason) {
+          ctx.restore()
+          ctx.save()
+          const warnText = validation.reason.toUpperCase()
+          ctx.font = "bold 7.5px sans-serif"
+          const badgeX = cAcX
+          const badgeY = cAcY - 14
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.strokeStyle = bgFill
+          ctx.lineWidth = 2.5
+          ctx.lineJoin = "round"
+          ctx.strokeText(warnText, badgeX, badgeY)
+          ctx.fillStyle = "#ef4444"
+          ctx.fillText(warnText, badgeX, badgeY)
+        }
+
         ctx.restore()
       })
 
@@ -3138,7 +3661,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.restore()
       })
     }
-  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, activeTool])
+  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, activeTool, activeCadMetadata])
 
   useEffect(() => {
     drawCanvas()
@@ -3429,7 +3952,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                               : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : "Pintu/Kaca 🚪"}: Klik Titik Awal & Akhir di dinding.`}
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                  {activeCadMetadata && (
+                    <Badge variant="outline" className="border-sky-500/50 bg-sky-500/10 text-sky-700 dark:text-sky-300 font-bold text-xs gap-1 shrink-0">
+                      <IconFileCode className="size-3 text-sky-500" /> CAD DXF ({activeCadMetadata.metrics.netSalesArea} m² Net)
+                    </Badge>
+                  )}
                   {isCalculated && (
                     <Badge variant="outline" className="border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold text-xs gap-1 shrink-0">
                       <IconLock className="size-3 text-amber-500" /> Terkunci
@@ -3578,17 +4106,29 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     )}
                   </div>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setPresetModalOpen(true)}
-                    className="h-7 text-xs font-bold gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20"
-                  >
-                    <IconSquare className="size-3.5 text-amber-500" /> Template Bentuk
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCadModalOpen(true)}
+                      className="h-7 text-xs font-bold gap-1 border-sky-500/40 text-sky-700 dark:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20"
+                      title="Import denah dari AutoCAD (.DXF)"
+                    >
+                      <IconFileCode className="size-3.5 text-sky-500" /> Import CAD (.dxf)
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPresetModalOpen(true)}
+                      className="h-7 text-xs font-bold gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20"
+                    >
+                      <IconSquare className="size-3.5 text-amber-500" /> Template Bentuk
+                    </Button>
+                  </div>
                 </div>
 
-                {/* Canvas Viewport (100% Bersih Tanpa Overlay Apapun) */}
+                {/* Canvas Viewport (100% Bersih Tanpa Overlay) */}
                 <div className="relative w-full h-[340px] rounded-2xl border border-border/80 bg-slate-900/5 dark:bg-slate-950/40 overflow-hidden flex items-center justify-center">
                   <canvas
                     ref={canvasRef}
@@ -4157,6 +4697,23 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* CAD DXF Import Modal */}
+        <CadImportDialog
+          open={cadModalOpen}
+          onOpenChange={setCadModalOpen}
+          onApplyCadLayout={(cadData) => {
+            pushCurrentToHistory()
+            setIsCalculated(false)
+            setPlacedUnits([])
+            setCustomPts(cadData.polygon)
+            setCustomClosed(true)
+            setSegmentOverrides(cadData.segmentOverrides)
+            setSelectedNodeIdx(null)
+            setPendingZoneStart(null)
+            setActiveCadMetadata(cadData)
+          }}
+        />
 
         {/* Hidden Standarized Result Card for Image Capture (Sama Persis Kalkulator Lampu & AC) */}
         {exportCardData && (
