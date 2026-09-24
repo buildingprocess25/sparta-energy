@@ -27,200 +27,6 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { parseDxfStoreLayout, type ParsedCadStoreData } from "@/lib/cad/dxf-parser"
 
-// Sample DXF text for fast instant demo / standard retail testing
-// (Matches Layout Kalkulator Standar A.Sales.dxf structure)
-const STANDARD_DXF_SAMPLE = `0
-SECTION
-2
-HEADER
-9
-$EXTMIN
-10
-3304.621824645447
-20
-2526.096728473302
-9
-$EXTMAX
-10
-15304.62182464544
-20
-12526.0967284733
-0
-ENDSEC
-0
-SECTION
-2
-ENTITIES
-0
-LINE
-8
-0
-10
-3304.621824645447
-20
-2526.096728473302
-11
-15304.62182464544
-21
-2526.096728473302
-0
-LINE
-8
-0
-10
-15304.62182464544
-20
-2526.096728473302
-11
-15304.62182464544
-21
-12526.0967284733
-0
-LINE
-8
-0
-10
-15304.62182464544
-20
-12526.0967284733
-11
-3304.621824645448
-21
-12526.0967284733
-0
-LINE
-8
-0
-10
-3304.621824645448
-20
-12526.0967284733
-11
-3304.621824645447
-21
-2526.096728473302
-0
-INSERT
-2
-pv180
-8
-0
-10
-8366.621824645472
-20
-2488.596728473244
-0
-INSERT
-2
-P1
-8
-0
-10
-11919.21606537605
-20
-12526.0967284733
-50
-270.0
-0
-HATCH
-2
-ANSI32
-8
-0
-92
-7
-10
-15304.62182464544
-20
-6426.096728473301
-10
-13004.62182464544
-20
-6426.096728473301
-10
-13004.62182464544
-20
-2526.096728473302
-10
-15304.62182464544
-20
-2526.096728473302
-0
-HATCH
-2
-ANSI37
-8
-0
-92
-7
-10
-11847.37426016062
-20
-12526.0967284733
-10
-4647.374260160621
-20
-12526.0967284733
-10
-4647.374260160621
-20
-12076.0967284733
-10
-11847.37426016062
-20
-12076.0967284733
-0
-HATCH
-2
-AR-SAND
-8
-0
-92
-7
-10
-15304.62182464544
-20
-12526.0967284733
-10
-11847.37426016062
-20
-12526.0967284733
-10
-11847.37426016062
-20
-12076.0967284733
-10
-4647.374260160621
-20
-12076.0967284733
-10
-4647.374260160621
-20
-12526.0967284733
-10
-3304.621824645448
-20
-12526.0967284733
-10
-3304.621824645447
-20
-2526.096728473302
-10
-13004.62182464544
-20
-2526.096728473302
-10
-13004.62182464544
-20
-6426.096728473301
-10
-15304.62182464544
-20
-6426.096728473301
-0
-ENDSEC
-`
-
 interface CadImportDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -283,18 +89,6 @@ export function CadImportDialog({
     if (file) handleFileProcess(file)
   }
 
-  const handleUseStandardDemo = () => {
-    setErrorMessage("")
-    try {
-      const result = parseDxfStoreLayout(STANDARD_DXF_SAMPLE, "Layout Kalkulator Standar A.Sales.dxf")
-      setParsedData(result)
-      setFileName("Layout Kalkulator Standar A.Sales.dxf (Baku Retail)")
-      toast.success("Denah Baku Standar Retail (12m x 10m) siap diterapkan.")
-    } catch (err: any) {
-      setErrorMessage(err.message || "Gagal memuat denah contoh.")
-    }
-  }
-
   const handleApply = () => {
     if (!parsedData) return
     onApplyCadLayout(parsedData)
@@ -327,57 +121,39 @@ export function CadImportDialog({
         <div className="space-y-4 py-2">
           {/* File Upload Zone */}
           {!parsedData && (
-            <>
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2.5 ${
-                  isDragging
-                    ? "border-sky-500 bg-sky-500/10 scale-[0.99]"
-                    : "border-border/80 hover:border-sky-500/60 hover:bg-muted/40"
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".dxf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) handleFileProcess(file)
-                  }}
-                />
-                <div className="size-12 rounded-full bg-sky-500/10 flex items-center justify-center text-sky-600 dark:text-sky-400">
-                  <IconUpload className="size-6 animate-bounce" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-foreground">
-                    Klik atau Seret Berkas .DXF ke Sini
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Mendukung AutoCAD R12, 2000, 2013, 2018, hingga versi terbaru
-                  </p>
-                </div>
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2.5 ${
+                isDragging
+                  ? "border-sky-500 bg-sky-500/10 scale-[0.99]"
+                  : "border-border/80 hover:border-sky-500/60 hover:bg-muted/40"
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".dxf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleFileProcess(file)
+                }}
+              />
+              <div className="size-12 rounded-full bg-sky-500/10 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                <IconUpload className="size-6 animate-bounce" />
               </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-xs text-muted-foreground">
-                  Belum punya file .dxf sendiri?
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={handleUseStandardDemo}
-                  className="h-8 text-xs font-bold gap-1.5 border-sky-500/40 text-sky-700 dark:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20"
-                >
-                  <IconSparkles className="size-3.5 text-sky-500" />
-                  Gunakan Denah Standar Toko A (12m × 10m)
-                </Button>
+              <div>
+                <p className="text-sm font-bold text-foreground">
+                  Klik atau Seret Berkas .DXF ke Sini
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Mendukung AutoCAD R12, 2000, 2013, 2018, hingga versi terbaru
+                </p>
               </div>
-            </>
+            </div>
           )}
 
           {/* Error Banner */}
@@ -502,7 +278,7 @@ export function CadImportDialog({
                     <IconShoppingCart className="size-4 shrink-0 text-amber-500" />
                     <div className="truncate">
                       <span className="font-bold">Zona Kasir:</span>
-                      <p className="text-[10px] text-muted-foreground truncate">Prioritas penerangan lux tinggi</p>
+                      <p className="text-[10px] text-muted-foreground truncate">Dilarang pasang AC di atas area kasir</p>
                     </div>
                   </div>
                 </div>

@@ -61,3 +61,11 @@ temp_docx_build/
 example_dwg_dxf/
 *.dwg
 *.dxf
+
+# CCTV POC & Local streaming credentials
+go2rtc.yaml
+go2rtc*.yaml
+*.exe
+app/cctv-test/
+components/cctv/
+

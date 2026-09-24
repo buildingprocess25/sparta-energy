@@ -61,21 +61,26 @@ const THROW_Z2_M = 5.5        // Zona 2: Sejuk Efektif (2.5 - 5.5m)
 const THROW_Z3_M = 7.5        // Zona 3: Batas Lemparan (5.5 - 7.5m)
 
 // Standar Ukuran Baku Objek Toko Retail
-const DOOR_P1_WIDTH_M = 1.0       // Pintu P1 Gudang: 1.0 meter (baku)
-const CHILLER_UNIT_WIDTH_M = 1.2   // Open Chiller: 1.2 meter per unit (baku)
+const DOOR_MAIN_WIDTH_M = 1.8     // Pintu Utama (2 Daun): 1.8 meter (baku)
+const DOOR_P1_WIDTH_M = 1.0       // Pintu P1 Gudang (1 Daun): 1.0 meter (baku)
+const CASHIER_WIDTH_M = 2.4       // Meja Kasir: 2.4 meter (baku)
+const CASHIER_DEPTH_M = 2.0       // Kedalaman Kasir: 2.0 meter (baku)
+const CHILLER_UNIT_WIDTH_M = 1.2  // Open Chiller: 1.2 meter per unit (baku)
+const CHILLER_DEPTH_M = 0.8       // Kedalaman Chiller: 0.8 meter (baku)
 
 const CANVAS_H = 340
 const FIXED_SCALE = 24 // Scale in drawing mode (px/m)
 const FIXED_OX = 30    // Offset X
 const FIXED_OY = 30    // Offset Y
 
-type ActiveTool = "DRAW" | "DOOR" | "DOOR_P1" | "CASHIER" | "CHILLER"
-type WallType = "SOLID" | "GLASS_DOOR" | "DOOR_P1" | "CASHIER" | "CHILLER"
+type ActiveTool = "DRAW" | "DOOR" | "DOOR_MAIN" | "DOOR_P1" | "CASHIER" | "CHILLER"
+type WallType = "SOLID" | "GLASS_DOOR" | "DOOR_MAIN" | "DOOR_P1" | "CASHIER" | "CHILLER"
 
 interface HistorySnapshot {
   pts: Point[]
   closed: boolean
   overrides: Record<number, WallType>
+  cashierDepths?: Record<number, number>
   placedUnits: PlacedAcUnit[]
   isCalculated: boolean
 }
@@ -203,6 +208,47 @@ function getParentWallLine(pts: Point[], segIdx: number): {
   return { pA, pB, len: parentLen, p1Idx, p2Idx }
 }
 
+/**
+ * Point in polygon test (Ray-casting algorithm)
+ */
+export function isPointInsidePolygon(pt: Point, poly: Point[]): boolean {
+  if (poly.length < 3) return false
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y
+    const xj = poly[j].x, yj = poly[j].y
+    const intersect = yi > pt.y !== yj > pt.y && pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi) + xi
+    if (intersect) inside = !inside
+  }
+  return inside
+}
+
+/**
+ * Returns unit inward normal vector for a wall segment (pointing into the polygon room)
+ */
+export function getWallInwardNormal(p1: Point, p2: Point, polygon: Point[]): { nx: number; ny: number } {
+  const dx = p2.x - p1.x
+  const dy = p2.y - p1.y
+  const len = Math.hypot(dx, dy)
+  if (len < 0.001) return { nx: 0, ny: -1 }
+
+  const ux = dx / len
+  const uy = dy / len
+
+  const n1 = { nx: -uy, ny: ux }
+  const n2 = { nx: uy, ny: -ux }
+
+  const midX = (p1.x + p2.x) / 2
+  const midY = (p1.y + p2.y) / 2
+  const eps = 0.05
+
+  const test1: Point = { x: midX + eps * n1.nx, y: midY + eps * n1.ny }
+  if (isPointInsidePolygon(test1, polygon)) {
+    return n1
+  }
+  return n2
+}
+
 // ─── CAD & Retail SOP Rules: Deteksi Zona Terlarang Pasang AC ─────────────────
 export interface ForbiddenInterval {
   minT: number
@@ -217,7 +263,7 @@ export function getWallForbiddenIntervals(
   const intervals: ForbiddenInterval[] = []
 
   // Non-CAD wall type overrides
-  if (wall.type === "GLASS_DOOR") {
+  if (wall.type === "GLASS_DOOR" || wall.type === "DOOR_MAIN") {
     intervals.push({ minT: 0, maxT: 1, reason: "Dinding Kaca & Pintu Depan" })
     return intervals
   }
@@ -540,6 +586,21 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     cornerNodeIdx?: number
   } | null>(null)
 
+  // 3-Click Cashier Depth Marking State (Titik 1 & 2 di dinding, titik 3 tarik kedalaman ke dalam ruangan)
+  const [pendingCashierDepth, setPendingCashierDepth] = useState<{
+    segIdx: number
+    p1: Point
+    p2: Point
+    t1: number
+    t2: number
+    lengthM: number
+    inNorm: { nx: number; ny: number }
+    depthM: number
+  } | null>(null)
+
+  // Kedalaman kustom untuk setiap segmen kasir (default 2.0m)
+  const [cashierDepths, setCashierDepths] = useState<Record<number, number>>({})
+
   // State Ukuran Sisi Dinding & Arah Pergeseran (Identik dengan Kalkulator Lampu)
   const [segmentLengths, setSegmentLengths] = useState<(number | string)[]>([])
   const [editingSegmentIdx, setEditingSegmentIdx] = useState<number | null>(null)
@@ -598,53 +659,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const exportCardRef = useRef<HTMLDivElement | null>(null)
   const dragStartSnapshotRef = useRef<HistorySnapshot | null>(null)
 
-  // ─── 4. Hitung Luas Denah Poligon (Gauss Formula) ─────────────────────────
+  // ─── 4. Hitung Luas Denah Poligon & Segmen Dinding ───────────────────────
   const polygonAreaM2 = useMemo(() => {
     return calcPolygonArea(customPts)
   }, [customPts])
 
-  // Target BTU/m² dari Suhu Open-Meteo
-  const targetBtuPerM2 = useMemo(() => {
-    return calculatedBtuPerM2
-  }, [calculatedBtuPerM2])
-
-  // Total Luas Efektif
-  const effectiveArea = useMemo(() => {
-    if (activeCadMetadata) {
-      return activeCadMetadata.metrics.netSalesArea
-    }
-    if (customPts.length >= 3 && customClosed) {
-      return Number(polygonAreaM2.toFixed(1))
-    }
-    if (storeMode === "existing" && selectedStore?.salesAreaM2) {
-      return selectedStore.salesAreaM2
-    }
-    if (storeMode === "new" && parseFloat(newStoreArea) > 0) {
-      return parseFloat(newStoreArea)
-    }
-    return 0
-  }, [activeCadMetadata, customPts, customClosed, polygonAreaM2, storeMode, selectedStore, newStoreArea])
-
-  const totalBtuRequired = useMemo(() => {
-    return Math.round(effectiveArea * targetBtuPerM2)
-  }, [effectiveArea, targetBtuPerM2])
-
-  const recommendedUnitCount = useMemo(() => {
-    if (effectiveArea === 0) return 0
-    const totalBtu = effectiveArea * targetBtuPerM2
-    const downQty = Math.floor(totalBtu / AC_CAPACITY_BTU)
-    const upQty = Math.ceil(totalBtu / AC_CAPACITY_BTU)
-
-    const actualDownBtuPerM2 = (downQty * AC_CAPACITY_BTU) / (effectiveArea || 1)
-    const actualUpBtuPerM2 = (upQty * AC_CAPACITY_BTU) / (effectiveArea || 1)
-
-    const distDown = Math.abs(actualDownBtuPerM2 - targetBtuPerM2)
-    const distUp = Math.abs(actualUpBtuPerM2 - targetBtuPerM2)
-    let n = distDown <= distUp ? downQty : upQty
-    return Math.max(1, n)
-  }, [effectiveArea, targetBtuPerM2])
-
-  // ─── 5. Segmen Dinding Poligon ────────────────────────────────────────────
   const wallSegments = useMemo<WallSegment[]>(() => {
     const pts = customPts
     if (pts.length < 2) return []
@@ -673,7 +692,58 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     return segs
   }, [customPts, customClosed, segmentOverrides])
 
-  // ─── 6. Sync Input Panjang Sisi Dinding ──────────────────────────────────
+  // Target BTU/m² dari Suhu Open-Meteo
+  const targetBtuPerM2 = useMemo(() => {
+    return calculatedBtuPerM2
+  }, [calculatedBtuPerM2])
+
+  // Total Luas Efektif
+  const effectiveArea = useMemo(() => {
+    if (activeCadMetadata) {
+      return activeCadMetadata.metrics.netSalesArea
+    }
+    if (customPts.length >= 3 && customClosed) {
+      let fixtureArea = 0
+      wallSegments.forEach((w) => {
+        if (w.type === "CHILLER") {
+          fixtureArea += w.lengthM * CHILLER_DEPTH_M
+        } else if (w.type === "CASHIER") {
+          const depth = cashierDepths[w.index] !== undefined ? cashierDepths[w.index] : CASHIER_DEPTH_M
+          fixtureArea += w.lengthM * depth
+        }
+      })
+      const net = Math.max(1, polygonAreaM2 - fixtureArea)
+      return Number(net.toFixed(1))
+    }
+    if (storeMode === "existing" && selectedStore?.salesAreaM2) {
+      return selectedStore.salesAreaM2
+    }
+    if (storeMode === "new" && parseFloat(newStoreArea) > 0) {
+      return parseFloat(newStoreArea)
+    }
+    return 0
+  }, [activeCadMetadata, customPts, customClosed, polygonAreaM2, wallSegments, cashierDepths, storeMode, selectedStore, newStoreArea])
+
+  const totalBtuRequired = useMemo(() => {
+    return Math.round(effectiveArea * targetBtuPerM2)
+  }, [effectiveArea, targetBtuPerM2])
+
+  const recommendedUnitCount = useMemo(() => {
+    if (effectiveArea === 0) return 0
+    const totalBtu = effectiveArea * targetBtuPerM2
+    const downQty = Math.floor(totalBtu / AC_CAPACITY_BTU)
+    const upQty = Math.ceil(totalBtu / AC_CAPACITY_BTU)
+
+    const actualDownBtuPerM2 = (downQty * AC_CAPACITY_BTU) / (effectiveArea || 1)
+    const actualUpBtuPerM2 = (upQty * AC_CAPACITY_BTU) / (effectiveArea || 1)
+
+    const distDown = Math.abs(actualDownBtuPerM2 - targetBtuPerM2)
+    const distUp = Math.abs(actualUpBtuPerM2 - targetBtuPerM2)
+    let n = distDown <= distUp ? downQty : upQty
+    return Math.max(1, n)
+  }, [effectiveArea, targetBtuPerM2])
+
+  // ─── 5. Sync Input Panjang Sisi Dinding ──────────────────────────────────
   useEffect(() => {
     if (customPts.length < 2) {
       setSegmentLengths([])
@@ -706,12 +776,13 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         pts: [...customPts],
         closed: customClosed,
         overrides: { ...segmentOverrides },
+        cashierDepths: { ...cashierDepths },
         placedUnits: [...placedUnits],
         isCalculated,
       },
     ])
     setHistoryFuture([])
-  }, [customPts, customClosed, segmentOverrides, placedUnits, isCalculated])
+  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated])
 
   const handleUndo = useCallback(() => {
     setHistoryPast((prevPast) => {
@@ -727,6 +798,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           pts: [...customPts],
           closed: customClosed,
           overrides: { ...segmentOverrides },
+          cashierDepths: { ...cashierDepths },
           placedUnits: [...placedUnits],
           isCalculated,
         },
@@ -735,13 +807,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       setCustomPts(last.pts)
       setCustomClosed(last.closed)
       setSegmentOverrides(last.overrides || {})
+      if (last.cashierDepths) setCashierDepths(last.cashierDepths)
       if (last.placedUnits) setPlacedUnits(last.placedUnits)
       if (last.isCalculated !== undefined) setIsCalculated(last.isCalculated)
       return newPast
     })
     setPendingZoneStart(null)
+    setPendingCashierDepth(null)
     toast.info("Perubahan denah dibatalkan (Undo)")
-  }, [customPts, customClosed, segmentOverrides, placedUnits, isCalculated])
+  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated])
 
   const handleRedo = useCallback(() => {
     setHistoryFuture((prevFuture) => {
@@ -758,6 +832,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           pts: [...customPts],
           closed: customClosed,
           overrides: { ...segmentOverrides },
+          cashierDepths: { ...cashierDepths },
           placedUnits: [...placedUnits],
           isCalculated,
         },
@@ -765,13 +840,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       setCustomPts(next.pts)
       setCustomClosed(next.closed)
       setSegmentOverrides(next.overrides || {})
+      if (next.cashierDepths) setCashierDepths(next.cashierDepths)
       if (next.placedUnits) setPlacedUnits(next.placedUnits)
       if (next.isCalculated !== undefined) setIsCalculated(next.isCalculated)
       return newFuture
     })
     setPendingZoneStart(null)
+    setPendingCashierDepth(null)
     toast.info("Perubahan denah dipulihkan (Redo)")
-  }, [customPts, customClosed, segmentOverrides, placedUnits, isCalculated])
+  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated])
 
   // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Escape)
   useEffect(() => {
@@ -784,6 +861,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       if (e.key === "Escape") {
         setSelectedNodeIdx(null)
         setPendingZoneStart(null)
+        setPendingCashierDepth(null)
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         if (e.shiftKey) {
           e.preventDefault()
@@ -821,9 +899,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     setCustomClosed(false)
     setSelectedNodeIdx(null)
     setSegmentOverrides({})
+    setCashierDepths({})
     setPlacedUnits([])
     setIsCalculated(false)
     setPendingZoneStart(null)
+    setPendingCashierDepth(null)
     setActiveCadMetadata(null)
     toast.info("Kanvas denah telah dikosongkan.")
   }
@@ -856,8 +936,18 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       })
       return newOverrides
     })
+    setCashierDepths((prev) => {
+      const newDepths: Record<number, number> = {}
+      Object.entries(prev).forEach(([kStr, val]) => {
+        const k = parseInt(kStr, 10)
+        if (k < idx) newDepths[k] = val
+        else if (k > idx) newDepths[k - 1] = val
+      })
+      return newDepths
+    })
     setSelectedNodeIdx(null)
     setPendingZoneStart(null)
+    setPendingCashierDepth(null)
     toast.info(`Titik T${idx + 1} dihapus. Silakan hitung & petakan AC kembali setelah selesai mengedit.`)
   }, [customPts, customClosed, pushCurrentToHistory])
 
@@ -1176,9 +1266,75 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return
     }
 
-    // 2. JIKA TOOL BERUKURAN BAKU AKTIF: PINTU P1 (1.0m) ATAU CHILLER (N x 1.2m)
-    // 1-Click Instan dengan Snapping & Pemotongan Dinding Presisi
-    if (activeTool === "DOOR_P1" || activeTool === "CHILLER") {
+    // 2. PRIORITAS 2: JIKA TAHAP 3 KASIR SEDANG AKTIF (KLIK KE-3 UNTUK KUNCI KEDALAMAN KASIR)
+    if (pendingCashierDepth) {
+      const { segIdx, p1, p2, t1, t2, depthM, lengthM } = pendingCashierDepth
+      pushCurrentToHistory()
+
+      const insertP1 = t1 > 0.03 && t1 < 0.97
+      const insertP2 = t2 > 0.03 && t2 < 0.97 && Math.hypot(p2.x - p1.x, p2.y - p1.y) > 0.1
+
+      const oldSegmentOverride = segmentOverrides[segIdx] || "SOLID"
+      const newPts = [...customPts]
+      let insertedCount = 0
+      const newOverrides: Record<number, WallType> = {}
+      const newDepths: Record<number, number> = {}
+
+      Object.entries(segmentOverrides).forEach(([kStr, val]) => {
+        const k = parseInt(kStr, 10)
+        if (k < segIdx) {
+          newOverrides[k] = val
+          if (cashierDepths[k] !== undefined) newDepths[k] = cashierDepths[k]
+        }
+      })
+
+      let targetCashierIdx = segIdx
+      if (insertP1 && insertP2) {
+        newPts.splice(segIdx + 1, 0, p1, p2)
+        insertedCount = 2
+        if (oldSegmentOverride !== "SOLID") newOverrides[segIdx] = oldSegmentOverride
+        newOverrides[segIdx + 1] = "CASHIER"
+        targetCashierIdx = segIdx + 1
+        if (oldSegmentOverride !== "SOLID") newOverrides[segIdx + 2] = oldSegmentOverride
+      } else if (insertP1 && !insertP2) {
+        newPts.splice(segIdx + 1, 0, p1)
+        insertedCount = 1
+        if (oldSegmentOverride !== "SOLID") newOverrides[segIdx] = oldSegmentOverride
+        newOverrides[segIdx + 1] = "CASHIER"
+        targetCashierIdx = segIdx + 1
+      } else if (!insertP1 && insertP2) {
+        newPts.splice(segIdx + 1, 0, p2)
+        insertedCount = 1
+        newOverrides[segIdx] = "CASHIER"
+        targetCashierIdx = segIdx
+        if (oldSegmentOverride !== "SOLID") newOverrides[segIdx + 1] = oldSegmentOverride
+      } else {
+        newOverrides[segIdx] = "CASHIER"
+        targetCashierIdx = segIdx
+      }
+      newDepths[targetCashierIdx] = depthM
+
+      Object.entries(segmentOverrides).forEach(([kStr, val]) => {
+        const k = parseInt(kStr, 10)
+        if (k > segIdx) {
+          newOverrides[k + insertedCount] = val
+          if (cashierDepths[k] !== undefined) newDepths[k + insertedCount] = cashierDepths[k]
+        }
+      })
+
+      setIsCalculated(false)
+      setPlacedUnits([])
+      setCustomPts(newPts)
+      setSegmentOverrides(newOverrides)
+      setCashierDepths(newDepths)
+      setPendingCashierDepth(null)
+      setPendingZoneStart(null)
+      toast.success(`Area Kasir (${formatDim(lengthM)}m × ${formatDim(depthM)}m) berhasil dipasang!`)
+      return
+    }
+
+    // 3. JIKA TOOL BAKU 1-KLIK AKTIF: PINTU UTAMA (1.8m), PINTU P1 (1.0m), ATAU CHILLER (N x 1.2m)
+    if (activeTool === "DOOR_MAIN" || activeTool === "DOOR_P1" || activeTool === "CHILLER") {
       if (!customClosed || customPts.length < 3) {
         toast.info("Tutup denah poligon terlebih dahulu untuk menempatkan peralatan.")
         return
@@ -1208,9 +1364,23 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         const segWall = wallSegments.find((w) => w.index === bestSegIdx)
         if (!segWall) return
 
-        const targetLengthM = activeTool === "DOOR_P1" ? DOOR_P1_WIDTH_M : chillerUnits * CHILLER_UNIT_WIDTH_M
-        const targetType: WallType = activeTool === "DOOR_P1" ? "DOOR_P1" : "CHILLER"
-        const toolLabel = activeTool === "DOOR_P1" ? "Pintu P1 (1.0m)" : `Chiller (${chillerUnits} Unit - ${formatDim(targetLengthM)}m)`
+        let targetLengthM = 1.0
+        let targetType: WallType = "SOLID"
+        let toolLabel = ""
+
+        if (activeTool === "DOOR_MAIN") {
+          targetLengthM = DOOR_MAIN_WIDTH_M
+          targetType = "DOOR_MAIN"
+          toolLabel = `Pintu Utama (2 Daun - ${formatDim(targetLengthM)}m)`
+        } else if (activeTool === "DOOR_P1") {
+          targetLengthM = DOOR_P1_WIDTH_M
+          targetType = "DOOR_P1"
+          toolLabel = `Pintu P1 Gudang (${formatDim(targetLengthM)}m)`
+        } else if (activeTool === "CHILLER") {
+          targetLengthM = chillerUnits * CHILLER_UNIT_WIDTH_M
+          targetType = "CHILLER"
+          toolLabel = `Chiller (${chillerUnits} Unit - ${formatDim(targetLengthM)}m × ${CHILLER_DEPTH_M}m)`
+        }
 
         const wallLen = segWall.lengthM
         if (wallLen < targetLengthM - 0.05) {
@@ -1265,11 +1435,13 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         const newPts = [...customPts]
         let insertedCount = 0
         const newOverrides: Record<number, WallType> = {}
+        const newDepths: Record<number, number> = {}
 
         Object.entries(segmentOverrides).forEach(([kStr, val]) => {
           const k = parseInt(kStr, 10)
           if (k < bestSegIdx) {
             newOverrides[k] = val
+            if (cashierDepths[k] !== undefined) newDepths[k] = cashierDepths[k]
           }
         })
 
@@ -1297,6 +1469,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           const k = parseInt(kStr, 10)
           if (k > bestSegIdx) {
             newOverrides[k + insertedCount] = val
+            if (cashierDepths[k] !== undefined) newDepths[k + insertedCount] = cashierDepths[k]
           }
         })
 
@@ -1304,17 +1477,17 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         setPlacedUnits([])
         setCustomPts(newPts)
         setSegmentOverrides(newOverrides)
-        toast.success(`Area ${toolLabel} berhasil dipasang pada dinding!`)
+        setCashierDepths(newDepths)
+        toast.success(`${toolLabel} berhasil dipasang pada dinding!`)
         return
       }
       return
     }
 
-    // 3. JIKA TOOL RESTRICTED ZONE FLEKSIBEL AKTIF (PINTU/KACA, KASIR):
-    // 2-Click Rentang Bebas dengan Snap
+    // 4. JIKA TOOL RESTRICTED ZONE FLEKSIBEL AKTIF (PINTU/KACA BEBAS ATAU KASIR 3-KLIK):
     if (activeTool === "DOOR" || activeTool === "CASHIER") {
       if (!customClosed || customPts.length < 3) {
-        toast.info("Tutup denah poligon terlebih dahulu untuk menandai area terlarang.")
+        toast.info("Tutup denah poligon terlebih dahulu untuk menandai area.")
         return
       }
 
@@ -1431,11 +1604,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             isCorner,
             cornerNodeIdx: isCorner ? cornerNodeIdx : undefined,
           })
-          toast.info(`Titik awal ${toolLabel} ${snappedToCorner ? "(Snap Sudut)" : ""} ditandai! Gerakkan kursor ke titik akhir pada dinding lalu klik.`)
+          if (activeTool === "CASHIER") {
+            toast.info("Titik awal Kasir ditandai. Klik titik kedua pada dinding untuk menentukan panjang meja kasir.")
+          } else {
+            toast.info(`Titik awal ${toolLabel} ${snappedToCorner ? "(Snap Sudut)" : ""} ditandai! Klik titik akhir pada dinding.`)
+          }
           return
         }
 
-        // LANGKAH 2: Klik Titik Akhir pada Segmen Dinding
+        // LANGKAH 2: Klik Titik Kedua pada Segmen Dinding
         if (pendingZoneStart && pendingZoneStart.tool === activeTool) {
           const segIdx = bestSegIdx
           let tA = pendingZoneStart.tA
@@ -1461,28 +1638,49 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             return
           }
 
-          pushCurrentToHistory()
-
           const isAscending = tA <= tB
           const t1 = isAscending ? tA : tB
           const t2 = isAscending ? tB : tA
           const p1 = isAscending ? ptA : ptB
           const p2 = isAscending ? ptB : ptA
 
+          // KHUSUS KASIR (3-KLIK): Setelah klik 2 (panjang terkunci), beralih ke tahap 3 (tarik kedalaman ke dalam ruangan)
+          if (activeTool === "CASHIER") {
+            const inNorm = getWallInwardNormal(p1, p2, customPts)
+            setPendingCashierDepth({
+              segIdx,
+              p1,
+              p2,
+              t1,
+              t2,
+              lengthM: distZone,
+              inNorm,
+              depthM: 2.0,
+            })
+            setPendingZoneStart(null)
+            toast.info(`Panjang kasir (${formatDim(distZone)}m) terkunci! Gerakkan kursor ke dalam ruangan untuk menentukan kedalaman, lalu klik titik ke-3 untuk mengunci.`)
+            return
+          }
+
+          // KHUSUS PINTU / KACA (2-KLIK SELESAI):
+          pushCurrentToHistory()
+
           const insertP1 = t1 > 0.03 && t1 < 0.97
           const insertP2 = t2 > 0.03 && t2 < 0.97 && Math.hypot(p2.x - p1.x, p2.y - p1.y) > 0.1
 
           const oldSegmentOverride = segmentOverrides[segIdx] || "SOLID"
-          const targetType: WallType = activeTool === "DOOR" ? "GLASS_DOOR" : "CASHIER"
+          const targetType: WallType = "GLASS_DOOR"
 
           const newPts = [...customPts]
           let insertedCount = 0
           const newOverrides: Record<number, WallType> = {}
+          const newDepths: Record<number, number> = {}
 
           Object.entries(segmentOverrides).forEach(([kStr, val]) => {
             const k = parseInt(kStr, 10)
             if (k < segIdx) {
               newOverrides[k] = val
+              if (cashierDepths[k] !== undefined) newDepths[k] = cashierDepths[k]
             }
           })
 
@@ -1510,6 +1708,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             const k = parseInt(kStr, 10)
             if (k > segIdx) {
               newOverrides[k + insertedCount] = val
+              if (cashierDepths[k] !== undefined) newDepths[k + insertedCount] = cashierDepths[k]
             }
           })
 
@@ -1517,6 +1716,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           setPlacedUnits([])
           setCustomPts(newPts)
           setSegmentOverrides(newOverrides)
+          setCashierDepths(newDepths)
           setPendingZoneStart(null)
           toast.success(`Area ${toolLabel} (${formatDim(distZone)}m) berhasil ditandai pada dinding!`)
           return
@@ -1653,20 +1853,28 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         const newPts = [...customPts]
         newPts.splice(insertIdx, 0, { x: mX, y: mY })
 
-        // Update segmentOverrides:
+        // Update segmentOverrides & cashierDepths:
         const oldOverride = segmentOverrides[bestSegIdx]
+        const oldDepth = cashierDepths[bestSegIdx]
         const newOverrides: Record<number, WallType> = {}
+        const newDepths: Record<number, number> = {}
         Object.entries(segmentOverrides).forEach(([kStr, val]) => {
           const k = parseInt(kStr, 10)
           if (k < bestSegIdx) {
             newOverrides[k] = val
+            if (cashierDepths[k] !== undefined) newDepths[k] = cashierDepths[k]
           } else if (k > bestSegIdx) {
             newOverrides[k + 1] = val
+            if (cashierDepths[k] !== undefined) newDepths[k + 1] = cashierDepths[k]
           }
         })
         if (oldOverride && oldOverride !== "SOLID") {
           newOverrides[bestSegIdx] = oldOverride
           newOverrides[bestSegIdx + 1] = oldOverride
+        }
+        if (oldDepth !== undefined) {
+          newDepths[bestSegIdx] = oldDepth
+          newDepths[bestSegIdx + 1] = oldDepth
         }
 
         setIsCalculated(false)
@@ -1674,6 +1882,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
         setCustomPts(newPts)
         setSegmentOverrides(newOverrides)
+        setCashierDepths(newDepths)
         setSelectedNodeIdx(insertIdx)
         setActiveDragIdx(insertIdx)
         try {
@@ -1746,6 +1955,17 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     const mx = Number(((cx - offX) / scale).toFixed(2))
     const my = Number(((cy - offY) / scale).toFixed(2))
     setCursorPos({ cx, cy, mx, my })
+
+    // 0. UPDATE KEDALAMAN SAAT TAHAP 3 KASIR AKTIF (Tarik kedalaman ke dalam ruangan)
+    if (pendingCashierDepth) {
+      const p1 = pendingCashierDepth.p1
+      const inNorm = pendingCashierDepth.inNorm
+      const vX = mx - p1.x
+      const vY = my - p1.y
+      const distIn = vX * inNorm.nx + vY * inNorm.ny
+      const calculatedDepth = Math.max(0.6, Math.min(5.0, Math.round(Math.max(0.6, distIn) * 10) / 10))
+      setPendingCashierDepth((prev) => (prev ? { ...prev, depthM: calculatedDepth } : null))
+    }
 
     // 1. DRAGGING PLACED AC HANDLER (Menggeser AC di sepanjang dinding)
     if (activeDragAcId !== null) {
@@ -2512,7 +2732,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     ctx.restore()
 
     // ── 1B. RENDER 2D VOLUMETRIC FIXTURES & CAD HATCHES (Kasir, Chiller, Pintu Riil) ──
-    // A. Area Meja Kasir (HATCH ANSI32)
+    // A. Area Meja Kasir (HATCH ANSI32 + Volume Inward)
+    const cashierWalls = wallSegments.filter(w => w.type === "CASHIER")
     if (activeCadMetadata?.zones?.cashier) {
       const cz = activeCadMetadata.zones.cashier
       const b = cz.bounds
@@ -2527,11 +2748,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       const boxH = Math.max(10, maxY - minY)
 
       ctx.save()
-      // Background fill warm amber
       ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.22)" : "rgba(245, 158, 11, 0.16)"
       ctx.fillRect(minX, minY, boxW, boxH)
 
-      // ANSI32 Hatching (45° Diagonal Lines)
       ctx.save()
       ctx.beginPath()
       ctx.rect(minX, minY, boxW, boxH)
@@ -2547,14 +2766,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       }
       ctx.restore()
 
-      // Border Kasir (Dashed Amber)
       ctx.strokeStyle = "#f59e0b"
       ctx.lineWidth = 1.8
       ctx.setLineDash([5, 3])
       ctx.strokeRect(minX, minY, boxW, boxH)
       ctx.setLineDash([])
 
-      // Clean 2-Line Architectural Label: Nama & Ukuran
       const midX = (minX + maxX) / 2
       const midY = (minY + maxY) / 2
       ctx.textAlign = "center"
@@ -2563,23 +2780,94 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       ctx.lineWidth = 3
       ctx.lineJoin = "round"
 
-      // Baris 1: Nama Objek
       ctx.font = "bold 8px sans-serif"
       ctx.strokeText("KASIR", midX, midY - 5)
       ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
       ctx.fillText("KASIR", midX, midY - 5)
 
-      // Baris 2: Dimensi (Lebar x Panjang)
       const cashierDim = `${b.width}m × ${b.height}m`
       ctx.font = "bold 7px sans-serif"
       ctx.strokeText(cashierDim, midX, midY + 5)
       ctx.fillStyle = effectiveIsDark ? "rgba(251, 191, 36, 0.85)" : "rgba(180, 83, 9, 0.85)"
       ctx.fillText(cashierDim, midX, midY + 5)
-
       ctx.restore()
+    } else if (cashierWalls.length > 0) {
+      cashierWalls.forEach((wall) => {
+        const inNorm = getWallInwardNormal(wall.p1, wall.p2, customPts)
+        const depthM = cashierDepths[wall.index] !== undefined ? cashierDepths[wall.index] : CASHIER_DEPTH_M
+        const p1 = wall.p1
+        const p2 = wall.p2
+        const p3 = { x: p2.x + depthM * inNorm.nx, y: p2.y + depthM * inNorm.ny }
+        const p4 = { x: p1.x + depthM * inNorm.nx, y: p1.y + depthM * inNorm.ny }
+
+        const cp1 = toC(p1)
+        const cp2 = toC(p2)
+        const cp3 = toC(p3)
+        const cp4 = toC(p4)
+
+        ctx.save()
+        ctx.beginPath()
+        ctx.moveTo(cp1.cx, cp1.cy)
+        ctx.lineTo(cp2.cx, cp2.cy)
+        ctx.lineTo(cp3.cx, cp3.cy)
+        ctx.lineTo(cp4.cx, cp4.cy)
+        ctx.closePath()
+        ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.22)" : "rgba(245, 158, 11, 0.16)"
+        ctx.fill()
+
+        ctx.save()
+        ctx.clip()
+        ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.40)" : "rgba(217, 119, 6, 0.35)"
+        ctx.lineWidth = 1
+        const minCanvasX = Math.min(cp1.cx, cp2.cx, cp3.cx, cp4.cx) - 50
+        const maxCanvasX = Math.max(cp1.cx, cp2.cx, cp3.cx, cp4.cx) + 50
+        const minCanvasY = Math.min(cp1.cy, cp2.cy, cp3.cy, cp4.cy) - 50
+        const maxCanvasY = Math.max(cp1.cy, cp2.cy, cp3.cy, cp4.cy) + 50
+        const span = maxCanvasY - minCanvasY + maxCanvasX - minCanvasX
+        for (let off = -span; off < span; off += 9) {
+          ctx.beginPath()
+          ctx.moveTo(minCanvasX + off, minCanvasY)
+          ctx.lineTo(minCanvasX + off + (maxCanvasY - minCanvasY), maxCanvasY)
+          ctx.stroke()
+        }
+        ctx.restore()
+
+        ctx.beginPath()
+        ctx.moveTo(cp1.cx, cp1.cy)
+        ctx.lineTo(cp2.cx, cp2.cy)
+        ctx.lineTo(cp3.cx, cp3.cy)
+        ctx.lineTo(cp4.cx, cp4.cy)
+        ctx.closePath()
+        ctx.strokeStyle = "#f59e0b"
+        ctx.lineWidth = 1.8
+        ctx.setLineDash([5, 3])
+        ctx.stroke()
+        ctx.setLineDash([])
+
+        const midX = (cp1.cx + cp2.cx + cp3.cx + cp4.cx) / 4
+        const midY = (cp1.cy + cp2.cy + cp3.cy + cp4.cy) / 4
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.strokeStyle = bgFill
+        ctx.lineWidth = 3
+        ctx.lineJoin = "round"
+
+        ctx.font = "bold 8px sans-serif"
+        ctx.strokeText("KASIR", midX, midY - 5)
+        ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
+        ctx.fillText("KASIR", midX, midY - 5)
+
+        const cashierDim = `${formatDim(wall.lengthM)}m × ${formatDim(depthM)}m`
+        ctx.font = "bold 7px sans-serif"
+        ctx.strokeText(cashierDim, midX, midY + 5)
+        ctx.fillStyle = effectiveIsDark ? "rgba(251, 191, 36, 0.85)" : "rgba(180, 83, 9, 0.85)"
+        ctx.fillText(cashierDim, midX, midY + 5)
+        ctx.restore()
+      })
     }
 
-    // B. Barisan Chiller (HATCH ANSI37)
+    // B. Barisan Chiller (HATCH ANSI37 + Inward Volume with Modular Dividers)
+    const chillerWalls = wallSegments.filter(w => w.type === "CHILLER")
     if (activeCadMetadata?.zones?.chiller) {
       const ch = activeCadMetadata.zones.chiller
       const b = ch.bounds
@@ -2594,11 +2882,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       const boxH = Math.max(10, maxY - minY)
 
       ctx.save()
-      // Background fill cool cyan
       ctx.fillStyle = effectiveIsDark ? "rgba(6, 182, 212, 0.25)" : "rgba(6, 182, 212, 0.18)"
       ctx.fillRect(minX, minY, boxW, boxH)
 
-      // ANSI37 Hatching (45° Crosshatch)
       ctx.save()
       ctx.beginPath()
       ctx.rect(minX, minY, boxW, boxH)
@@ -2618,7 +2904,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       }
       ctx.restore()
 
-      // Module dividers every 1.2m
       const uCount = ch.unitCount || Math.max(1, Math.round(b.width / 1.2))
       ctx.strokeStyle = effectiveIsDark ? "rgba(255, 255, 255, 0.8)" : "rgba(8, 51, 68, 0.8)"
       ctx.lineWidth = 1.5
@@ -2630,12 +2915,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.stroke()
       }
 
-      // Border Chiller
       ctx.strokeStyle = "#06b6d4"
       ctx.lineWidth = 1.8
       ctx.strokeRect(minX, minY, boxW, boxH)
 
-      // Clean 2-Line Architectural Label: Nama & Ukuran
       const midX = (minX + maxX) / 2
       ctx.textAlign = "center"
       ctx.textBaseline = "top"
@@ -2643,116 +2926,270 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       ctx.lineWidth = 3
       ctx.lineJoin = "round"
 
-      // Baris 1: Judul
       const chillerTitle = `CHILLER (${uCount} UNIT)`
       ctx.font = "bold 8px sans-serif"
       ctx.strokeText(chillerTitle, midX, maxY + 6)
       ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0891b2"
       ctx.fillText(chillerTitle, midX, maxY + 6)
 
-      // Baris 2: Dimensi (Panjang x Lebar)
       const chillerDim = `${b.width}m × ${b.height}m`
       ctx.font = "bold 7px sans-serif"
       ctx.strokeText(chillerDim, midX, maxY + 16)
       ctx.fillStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(8, 145, 178, 0.85)"
       ctx.fillText(chillerDim, midX, maxY + 16)
-
       ctx.restore()
-    }
+    } else if (chillerWalls.length > 0) {
+      chillerWalls.forEach((wall) => {
+        const inNorm = getWallInwardNormal(wall.p1, wall.p2, customPts)
+        const depthM = CHILLER_DEPTH_M
+        const p1 = wall.p1
+        const p2 = wall.p2
+        const p3 = { x: p2.x + depthM * inNorm.nx, y: p2.y + depthM * inNorm.ny }
+        const p4 = { x: p1.x + depthM * inNorm.nx, y: p1.y + depthM * inNorm.ny }
 
-    // C. Pintu Masuk CAD (pv180 dan P1)
-    if (activeCadMetadata?.doors && activeCadMetadata.doors.length > 0) {
-      activeCadMetadata.doors.forEach((door) => {
-        const pDoor = toC(door.positionM)
+        const cp1 = toC(p1)
+        const cp2 = toC(p2)
+        const cp3 = toC(p3)
+        const cp4 = toC(p4)
+
         ctx.save()
+        ctx.beginPath()
+        ctx.moveTo(cp1.cx, cp1.cy)
+        ctx.lineTo(cp2.cx, cp2.cy)
+        ctx.lineTo(cp3.cx, cp3.cy)
+        ctx.lineTo(cp4.cx, cp4.cy)
+        ctx.closePath()
+        ctx.fillStyle = effectiveIsDark ? "rgba(6, 182, 212, 0.25)" : "rgba(6, 182, 212, 0.18)"
+        ctx.fill()
 
-        if (door.type === "main_pv180" || door.name.toLowerCase().includes("pv180")) {
-          // Double swing door arc on bottom wall (2 daun pintu @ 0.9m)
-          const leafR = Math.max(16, 0.9 * sc.scale)
-          ctx.strokeStyle = "#f97316"
-          ctx.lineWidth = 1.5
-
-          // Swing arcs swinging into room (towards smaller Y)
-          ctx.setLineDash([3, 2])
+        ctx.save()
+        ctx.clip()
+        ctx.strokeStyle = effectiveIsDark ? "rgba(6, 182, 212, 0.40)" : "rgba(8, 145, 178, 0.35)"
+        ctx.lineWidth = 1
+        const minCanvasX = Math.min(cp1.cx, cp2.cx, cp3.cx, cp4.cx) - 50
+        const maxCanvasX = Math.max(cp1.cx, cp2.cx, cp3.cx, cp4.cx) + 50
+        const minCanvasY = Math.min(cp1.cy, cp2.cy, cp3.cy, cp4.cy) - 50
+        const maxCanvasY = Math.max(cp1.cy, cp2.cy, cp3.cy, cp4.cy) + 50
+        const span = maxCanvasY - minCanvasY + maxCanvasX - minCanvasX
+        for (let off = -span; off < span; off += 7) {
           ctx.beginPath()
-          ctx.arc(pDoor.cx - leafR, pDoor.cy, leafR, 0, -Math.PI / 2, true)
+          ctx.moveTo(minCanvasX + off, minCanvasY)
+          ctx.lineTo(minCanvasX + off + (maxCanvasY - minCanvasY), maxCanvasY)
           ctx.stroke()
           ctx.beginPath()
-          ctx.arc(pDoor.cx + leafR, pDoor.cy, leafR, Math.PI, -Math.PI / 2, false)
+          ctx.moveTo(minCanvasX + off, maxCanvasY)
+          ctx.lineTo(minCanvasX + off + (maxCanvasY - minCanvasY), minCanvasY)
           ctx.stroke()
-          ctx.setLineDash([])
+        }
+        ctx.restore()
 
-          // Open Door leaves (90 degrees inside)
-          ctx.lineWidth = 2.4
-          ctx.beginPath()
-          ctx.moveTo(pDoor.cx - leafR, pDoor.cy)
-          ctx.lineTo(pDoor.cx - leafR, pDoor.cy - leafR)
-          ctx.moveTo(pDoor.cx + leafR, pDoor.cy)
-          ctx.lineTo(pDoor.cx + leafR, pDoor.cy - leafR)
-          ctx.stroke()
+        const uCount = Math.max(1, Math.round(wall.lengthM / 1.2))
+        const dx = p2.x - p1.x
+        const dy = p2.y - p1.y
+        const len = Math.hypot(dx, dy) || 1
+        const ux = dx / len
+        const uy = dy / len
 
-          // Clean 2-Line Architectural Door Label: Nama & Ukuran
-          const midX = pDoor.cx
-          const midY = pDoor.cy - leafR - 5
-          ctx.textAlign = "center"
-          ctx.textBaseline = "bottom"
-          ctx.strokeStyle = bgFill
-          ctx.lineWidth = 2.5
-          ctx.lineJoin = "round"
-
-          // Baris 2 (Bawah): Ukuran 1.8m
-          ctx.font = "bold 7px sans-serif"
-          ctx.strokeText("LEBAR 1.8m", midX, midY)
-          ctx.fillStyle = "rgba(249, 115, 22, 0.85)"
-          ctx.fillText("LEBAR 1.8m", midX, midY)
-
-          // Baris 1 (Atas): Judul
-          ctx.font = "bold 8px sans-serif"
-          ctx.strokeText("PINTU UTAMA PV180", midX, midY - 9)
-          ctx.fillStyle = "#f97316"
-          ctx.fillText("PINTU UTAMA PV180", midX, midY - 9)
-        } else if (door.type === "warehouse_p1" || door.name.toLowerCase().includes("p1")) {
-          // Single swing door on top wall (1 daun pintu @ 1.0m)
-          const leafR = Math.max(18, 1.0 * sc.scale)
-          ctx.strokeStyle = "#ea580c"
-          ctx.lineWidth = 1.5
-
-          // Swing arc swinging into room downwards
-          ctx.setLineDash([3, 2])
-          ctx.beginPath()
-          ctx.arc(pDoor.cx, pDoor.cy, leafR, 0, Math.PI / 2, false)
-          ctx.stroke()
-          ctx.setLineDash([])
-
-          // Open Door leaf
-          ctx.lineWidth = 2.4
-          ctx.beginPath()
-          ctx.moveTo(pDoor.cx, pDoor.cy)
-          ctx.lineTo(pDoor.cx, pDoor.cy + leafR)
-          ctx.stroke()
-
-          // Clean 2-Line Architectural Door Label: Nama & Ukuran
-          const midX = pDoor.cx + leafR / 2 + 6
-          const midY = pDoor.cy + leafR + 4
-          ctx.textAlign = "center"
-          ctx.textBaseline = "top"
-          ctx.strokeStyle = bgFill
-          ctx.lineWidth = 2.5
-          ctx.lineJoin = "round"
-
-          // Baris 1: Judul
-          ctx.font = "bold 8px sans-serif"
-          ctx.strokeText("PINTU P1 GUDANG", midX, midY)
-          ctx.fillStyle = "#ea580c"
-          ctx.fillText("PINTU P1 GUDANG", midX, midY)
-
-          // Baris 2: Ukuran 1.0m
-          ctx.font = "bold 7px sans-serif"
-          ctx.strokeText("LEBAR 1.0m", midX, midY + 9)
-          ctx.fillStyle = "rgba(234, 88, 12, 0.85)"
-          ctx.fillText("LEBAR 1.0m", midX, midY + 9)
+        ctx.strokeStyle = effectiveIsDark ? "rgba(255, 255, 255, 0.8)" : "rgba(8, 51, 68, 0.8)"
+        ctx.lineWidth = 1.5
+        for (let u = 1; u < uCount; u++) {
+          const divDist = u * 1.2
+          if (divDist < len) {
+            const divP1 = { x: p1.x + divDist * ux, y: p1.y + divDist * uy }
+            const divP2 = { x: divP1.x + depthM * inNorm.nx, y: divP1.y + depthM * inNorm.ny }
+            const cDiv1 = toC(divP1)
+            const cDiv2 = toC(divP2)
+            ctx.beginPath()
+            ctx.moveTo(cDiv1.cx, cDiv1.cy)
+            ctx.lineTo(cDiv2.cx, cDiv2.cy)
+            ctx.stroke()
+          }
         }
 
+        ctx.beginPath()
+        ctx.moveTo(cp1.cx, cp1.cy)
+        ctx.lineTo(cp2.cx, cp2.cy)
+        ctx.lineTo(cp3.cx, cp3.cy)
+        ctx.lineTo(cp4.cx, cp4.cy)
+        ctx.closePath()
+        ctx.strokeStyle = "#06b6d4"
+        ctx.lineWidth = 1.8
+        ctx.stroke()
+
+        const midX = (cp3.cx + cp4.cx) / 2
+        const midY = (cp3.cy + cp4.cy) / 2
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.strokeStyle = bgFill
+        ctx.lineWidth = 3
+        ctx.lineJoin = "round"
+
+        const chillerTitle = `CHILLER (${uCount} UNIT)`
+        ctx.font = "bold 8px sans-serif"
+        ctx.strokeText(chillerTitle, midX, midY - 5)
+        ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0891b2"
+        ctx.fillText(chillerTitle, midX, midY - 5)
+
+        const chillerDim = `${formatDim(wall.lengthM)}m × ${depthM}m`
+        ctx.font = "bold 7px sans-serif"
+        ctx.strokeText(chillerDim, midX, midY + 5)
+        ctx.fillStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(8, 145, 178, 0.85)"
+        ctx.fillText(chillerDim, midX, midY + 5)
+        ctx.restore()
+      })
+    }
+
+    // C. Pintu Masuk CAD & Manual (DOOR_MAIN, DOOR_P1, GLASS_DOOR)
+    const doorWalls = wallSegments.filter(w => w.type === "GLASS_DOOR" || w.type === "DOOR_MAIN" || w.type === "DOOR_P1")
+    if (doorWalls.length > 0) {
+      doorWalls.forEach((wall) => {
+        const inNorm = getWallInwardNormal(wall.p1, wall.p2, customPts)
+        const dx = wall.p2.x - wall.p1.x
+        const dy = wall.p2.y - wall.p1.y
+        const len = Math.hypot(dx, dy) || 1
+        const ux = dx / len
+        const uy = dy / len
+
+        const p1C = toC(wall.p1)
+        const p2C = toC(wall.p2)
+
+        ctx.save()
+        if (wall.type === "DOOR_MAIN") {
+          // 1. Garis bukaan dinding putus-putus oranye
+          ctx.strokeStyle = "#f97316"
+          ctx.lineWidth = 3.5
+          ctx.setLineDash([6, 3])
+          ctx.beginPath()
+          ctx.moveTo(p1C.cx, p1C.cy)
+          ctx.lineTo(p2C.cx, p2C.cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          // 2. Daun pintu ganda dan 2 busur swing arc
+          const midM = { x: (wall.p1.x + wall.p2.x) / 2, y: (wall.p1.y + wall.p2.y) / 2 }
+          const leafR = Math.min(0.9, wall.lengthM / 2)
+          const h1M = wall.p1
+          const h2M = wall.p2
+          const t1M = { x: h1M.x + leafR * inNorm.nx, y: h1M.y + leafR * inNorm.ny }
+          const t2M = { x: h2M.x + leafR * inNorm.nx, y: h2M.y + leafR * inNorm.ny }
+
+          const cMid = toC(midM)
+          const cH1 = toC(h1M)
+          const cH2 = toC(h2M)
+          const cT1 = toC(t1M)
+          const cT2 = toC(t2M)
+
+          const rPx = Math.max(14, leafR * sc.scale)
+          ctx.strokeStyle = "#f97316"
+          ctx.lineWidth = 1.5
+          ctx.setLineDash([3, 2])
+          ctx.beginPath()
+          ctx.moveTo(cMid.cx, cMid.cy)
+          ctx.quadraticCurveTo(
+            (cMid.cx + cT1.cx) / 2 + inNorm.nx * (rPx * 0.25),
+            (cMid.cy + cT1.cy) / 2 + inNorm.ny * (rPx * 0.25),
+            cT1.cx, cT1.cy
+          )
+          ctx.stroke()
+          ctx.beginPath()
+          ctx.moveTo(cMid.cx, cMid.cy)
+          ctx.quadraticCurveTo(
+            (cMid.cx + cT2.cx) / 2 + inNorm.nx * (rPx * 0.25),
+            (cMid.cy + cT2.cy) / 2 + inNorm.ny * (rPx * 0.25),
+            cT2.cx, cT2.cy
+          )
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          ctx.lineWidth = 2.4
+          ctx.beginPath()
+          ctx.moveTo(cH1.cx, cH1.cy)
+          ctx.lineTo(cT1.cx, cT1.cy)
+          ctx.moveTo(cH2.cx, cH2.cy)
+          ctx.lineTo(cT2.cx, cT2.cy)
+          ctx.stroke()
+
+          const labelPt = toC({ x: midM.x + (leafR + 0.35) * inNorm.nx, y: midM.y + (leafR + 0.35) * inNorm.ny })
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.strokeStyle = bgFill
+          ctx.lineWidth = 2.5
+          ctx.lineJoin = "round"
+          ctx.font = "bold 8px sans-serif"
+          ctx.strokeText("PINTU UTAMA", labelPt.cx, labelPt.cy - 5)
+          ctx.fillStyle = "#f97316"
+          ctx.fillText("PINTU UTAMA", labelPt.cx, labelPt.cy - 5)
+          const doorDim = `LEBAR ${formatDim(wall.lengthM)}m`
+          ctx.font = "bold 7px sans-serif"
+          ctx.strokeText(doorDim, labelPt.cx, labelPt.cy + 5)
+          ctx.fillStyle = "rgba(249, 115, 22, 0.85)"
+          ctx.fillText(doorDim, labelPt.cx, labelPt.cy + 5)
+        } else if (wall.type === "DOOR_P1") {
+          // 1. Garis bukaan dinding putus-putus oranye/rose
+          ctx.strokeStyle = "#ea580c"
+          ctx.lineWidth = 3.5
+          ctx.setLineDash([6, 3])
+          ctx.beginPath()
+          ctx.moveTo(p1C.cx, p1C.cy)
+          ctx.lineTo(p2C.cx, p2C.cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          // 2. Daun pintu tunggal dan 1 busur swing arc
+          const leafR = Math.min(1.0, wall.lengthM)
+          const hM = wall.p1
+          const tM = { x: hM.x + leafR * inNorm.nx, y: hM.y + leafR * inNorm.ny }
+          const arcStartM = wall.p2
+
+          const cH = toC(hM)
+          const cT = toC(tM)
+          const cArcStart = toC(arcStartM)
+
+          const rPx = Math.max(16, leafR * sc.scale)
+          ctx.strokeStyle = "#ea580c"
+          ctx.lineWidth = 1.5
+          ctx.setLineDash([3, 2])
+          ctx.beginPath()
+          ctx.moveTo(cArcStart.cx, cArcStart.cy)
+          ctx.quadraticCurveTo(
+            (cArcStart.cx + cT.cx) / 2 + inNorm.nx * (rPx * 0.25),
+            (cArcStart.cy + cT.cy) / 2 + inNorm.ny * (rPx * 0.25),
+            cT.cx, cT.cy
+          )
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          ctx.lineWidth = 2.4
+          ctx.beginPath()
+          ctx.moveTo(cH.cx, cH.cy)
+          ctx.lineTo(cT.cx, cT.cy)
+          ctx.stroke()
+
+          const labelPt = toC({ x: hM.x + (leafR * 0.5) * ux + (leafR + 0.35) * inNorm.nx, y: hM.y + (leafR * 0.5) * uy + (leafR + 0.35) * inNorm.ny })
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.strokeStyle = bgFill
+          ctx.lineWidth = 2.5
+          ctx.lineJoin = "round"
+          ctx.font = "bold 8px sans-serif"
+          ctx.strokeText("PINTU P1 GUDANG", labelPt.cx, labelPt.cy - 5)
+          ctx.fillStyle = "#ea580c"
+          ctx.fillText("PINTU P1 GUDANG", labelPt.cx, labelPt.cy - 5)
+          const doorDim = `LEBAR ${formatDim(leafR)}m`
+          ctx.font = "bold 7px sans-serif"
+          ctx.strokeText(doorDim, labelPt.cx, labelPt.cy + 5)
+          ctx.fillStyle = "rgba(234, 88, 12, 0.85)"
+          ctx.fillText(doorDim, labelPt.cx, labelPt.cy + 5)
+        } else if (wall.type === "GLASS_DOOR") {
+          ctx.strokeStyle = "#f97316"
+          ctx.lineWidth = 3.5
+          ctx.setLineDash([8, 4])
+          ctx.beginPath()
+          ctx.moveTo(p1C.cx, p1C.cy)
+          ctx.lineTo(p2C.cx, p2C.cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+        }
         ctx.restore()
       })
     }
@@ -2941,7 +3378,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.strokeStyle = effectiveIsDark ? "#38bdf8" : "#0284c7" // Dinding Solid Aktif
         ctx.setLineDash([])
       } else if (wall.type === "GLASS_DOOR") {
-        ctx.strokeStyle = "#f97316" // Kaca / Pintu Depan
+        ctx.strokeStyle = "#f97316" // Kaca / Pintu Bebas
+        ctx.setLineDash([8, 4])
+      } else if (wall.type === "DOOR_MAIN") {
+        ctx.strokeStyle = "#f97316" // Pintu Utama 1.8m
         ctx.setLineDash([6, 3])
       } else if (wall.type === "DOOR_P1") {
         ctx.strokeStyle = "#ea580c" // Pintu P1 Gudang
@@ -3025,17 +3465,19 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         let tagColor = effectiveIsDark ? "#34d399" : "#047857"
 
         if (wall.type === "GLASS_DOOR") {
-          tag = `${formatDim(wall.lengthM)}m Pintu/Kaca`
+          tag = `${formatDim(wall.lengthM)}m`
+          tagColor = "#f97316"
+        } else if (wall.type === "DOOR_MAIN") {
+          tag = `${formatDim(wall.lengthM)}m`
           tagColor = "#f97316"
         } else if (wall.type === "DOOR_P1") {
-          tag = "1m P1"
+          tag = `${formatDim(wall.lengthM)}m`
           tagColor = "#ea580c"
         } else if (wall.type === "CASHIER") {
-          tag = `${formatDim(wall.lengthM)}m Kasir`
+          tag = `${formatDim(wall.lengthM)}m`
           tagColor = "#eab308"
         } else if (wall.type === "CHILLER") {
-          const uCount = Math.max(1, Math.round(wall.lengthM / 1.2))
-          tag = uCount > 1 ? `${formatDim(wall.lengthM)}m Chiller (${uCount}U)` : `${formatDim(wall.lengthM)}m Chiller`
+          tag = `${formatDim(wall.lengthM)}m`
           tagColor = "#06b6d4"
         } else if (wall.type === "SOLID" && wall.lengthM < AC_INDOOR_WIDTH_M) {
           tagColor = effectiveIsDark ? "#f87171" : "#dc2626"
@@ -3066,13 +3508,27 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     })
 
     // ── 4. RENDER LIVE RUBBERBAND & 1-CLICK PREVIEW UNTUK TOOLS AREA TERLARANG ──
-    // A. 1-Click Live Preview untuk Objek Baku (DOOR_P1 dan CHILLER)
-    if ((activeTool === "DOOR_P1" || activeTool === "CHILLER") && hoverEdge && !pendingZoneStart) {
+    // A. 1-Click Live Preview untuk Objek Baku: PINTU UTAMA (1.8m), PINTU P1 (1.0m), dan CHILLER (N x 1.2m x 0.8m)
+    if ((activeTool === "DOOR_MAIN" || activeTool === "DOOR_P1" || activeTool === "CHILLER") && hoverEdge && !pendingZoneStart && !pendingCashierDepth) {
       const seg = wallSegments.find((w) => w.index === hoverEdge.segmentIdx)
       if (seg) {
-        const targetLen = activeTool === "DOOR_P1" ? DOOR_P1_WIDTH_M : chillerUnits * CHILLER_UNIT_WIDTH_M
-        const toolColor = activeTool === "DOOR_P1" ? "#ea580c" : "#06b6d4"
-        const toolLabel = activeTool === "DOOR_P1" ? "PINTU P1 (1.0m)" : `CHILLER (${chillerUnits} UNIT - ${formatDim(targetLen)}m)`
+        let targetLen = 1.0
+        let toolColor = "#06b6d4"
+        let toolLabel = ""
+
+        if (activeTool === "DOOR_MAIN") {
+          targetLen = DOOR_MAIN_WIDTH_M
+          toolColor = "#f97316"
+          toolLabel = `PINTU UTAMA (2 DAUN - ${formatDim(targetLen)}m)`
+        } else if (activeTool === "DOOR_P1") {
+          targetLen = DOOR_P1_WIDTH_M
+          toolColor = "#ea580c"
+          toolLabel = `PINTU P1 GUDANG (1 DAUN - ${formatDim(targetLen)}m)`
+        } else if (activeTool === "CHILLER") {
+          targetLen = chillerUnits * CHILLER_UNIT_WIDTH_M
+          toolColor = "#06b6d4"
+          toolLabel = `CHILLER (${chillerUnits} UNIT - ${formatDim(targetLen)}m × ${CHILLER_DEPTH_M}m)`
+        }
 
         const wallLen = seg.lengthM
         if (wallLen >= targetLen - 0.05) {
@@ -3083,39 +3539,252 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           if (t1 * wallLen < 0.15) { t1 = 0; t2 = deltaT }
           if ((1 - t2) * wallLen < 0.15) { t2 = 1.0; t1 = Math.max(0, 1.0 - deltaT) }
 
-          const p1 = toC(seg.p1)
-          const p2 = toC(seg.p2)
-          const startCx = p1.cx + t1 * (p2.cx - p1.cx)
-          const startCy = p1.cy + t1 * (p2.cy - p1.cy)
-          const endCx = p1.cx + t2 * (p2.cx - p1.cx)
-          const endCy = p1.cy + t2 * (p2.cy - p1.cy)
+          // Magnetic Snap to adjacent chiller on the same wall
+          if (activeTool === "CHILLER") {
+            const segCount = wallSegments.length
+            const prevSegIdx = (hoverEdge.segmentIdx - 1 + segCount) % segCount
+            const nextSegIdx = (hoverEdge.segmentIdx + 1) % segCount
+            if (segmentOverrides[prevSegIdx] === "CHILLER" && t1 * wallLen < 0.3) {
+              t1 = 0
+              t2 = deltaT
+            }
+            if (segmentOverrides[nextSegIdx] === "CHILLER" && (1 - t2) * wallLen < 0.3) {
+              t2 = 1.0
+              t1 = Math.max(0, 1.0 - deltaT)
+            }
+          }
+
+          const ptA: Point = {
+            x: Number((seg.p1.x + t1 * (seg.p2.x - seg.p1.x)).toFixed(3)),
+            y: Number((seg.p1.y + t1 * (seg.p2.y - seg.p1.y)).toFixed(3)),
+          }
+          const ptB: Point = {
+            x: Number((seg.p1.x + t2 * (seg.p2.x - seg.p1.x)).toFixed(3)),
+            y: Number((seg.p1.y + t2 * (seg.p2.y - seg.p1.y)).toFixed(3)),
+          }
+
+          const inNorm = getWallInwardNormal(ptA, ptB, customPts)
+          const cpA = toC(ptA)
+          const cpB = toC(ptB)
 
           ctx.save()
-          ctx.beginPath()
-          ctx.moveTo(startCx, startCy)
-          ctx.lineTo(endCx, endCy)
-          ctx.strokeStyle = toolColor
-          ctx.lineWidth = 6
-          ctx.stroke()
 
-            // End nodes
-            ;[{ cx: startCx, cy: startCy }, { cx: endCx, cy: endCy }].forEach((pt) => {
+          // 1. JIKA CHILLER: TAMPILKAN LANGSUNG KOTAK 2D BERVOLUME 0.8M KE DALAM RUANGAN + ANSI37 HATCH + DIVIDER
+          if (activeTool === "CHILLER") {
+            const depthM = CHILLER_DEPTH_M
+            const pt3: Point = { x: ptB.x + depthM * inNorm.nx, y: ptB.y + depthM * inNorm.ny }
+            const pt4: Point = { x: ptA.x + depthM * inNorm.nx, y: ptA.y + depthM * inNorm.ny }
+            const cp3 = toC(pt3)
+            const cp4 = toC(pt4)
+
+            // Fill Box
+            ctx.beginPath()
+            ctx.moveTo(cpA.cx, cpA.cy)
+            ctx.lineTo(cpB.cx, cpB.cy)
+            ctx.lineTo(cp3.cx, cp3.cy)
+            ctx.lineTo(cp4.cx, cp4.cy)
+            ctx.closePath()
+            ctx.fillStyle = effectiveIsDark ? "rgba(6, 182, 212, 0.30)" : "rgba(6, 182, 212, 0.22)"
+            ctx.fill()
+
+            // Crosshatch ANSI37
+            ctx.save()
+            ctx.clip()
+            ctx.strokeStyle = effectiveIsDark ? "rgba(6, 182, 212, 0.50)" : "rgba(8, 145, 178, 0.45)"
+            ctx.lineWidth = 1
+            const minX = Math.min(cpA.cx, cpB.cx, cp3.cx, cp4.cx) - 40
+            const maxX = Math.max(cpA.cx, cpB.cx, cp3.cx, cp4.cx) + 40
+            const minY = Math.min(cpA.cy, cpB.cy, cp3.cy, cp4.cy) - 40
+            const maxY = Math.max(cpA.cy, cpB.cy, cp3.cy, cp4.cy) + 40
+            const span = maxX - minX + maxY - minY
+            for (let off = -span; off < span; off += 7) {
               ctx.beginPath()
-              ctx.arc(pt.cx, pt.cy, 5, 0, Math.PI * 2)
-              ctx.fillStyle = toolColor
-              ctx.fill()
-              ctx.strokeStyle = "#ffffff"
-              ctx.lineWidth = 1.8
+              ctx.moveTo(minX + off, minY)
+              ctx.lineTo(minX + off + (maxY - minY), maxY)
               ctx.stroke()
-            })
+              ctx.beginPath()
+              ctx.moveTo(minX + off, maxY)
+              ctx.lineTo(minX + off + (maxY - minY), minY)
+              ctx.stroke()
+            }
+            ctx.restore()
 
-          const badgeMidX = (startCx + endCx) / 2
-          const badgeMidY = (startCy + endCy) / 2 - 14
+            // Unit dividers per 1.2m
+            const dxW = ptB.x - ptA.x
+            const dyW = ptB.y - ptA.y
+            const lenW = Math.hypot(dxW, dyW) || 1
+            const ux = dxW / lenW
+            const uy = dyW / lenW
+            ctx.strokeStyle = effectiveIsDark ? "rgba(255, 255, 255, 0.85)" : "rgba(8, 51, 68, 0.85)"
+            ctx.lineWidth = 1.5
+            for (let u = 1; u < chillerUnits; u++) {
+              const divDist = u * 1.2
+              if (divDist < lenW) {
+                const divP1 = { x: ptA.x + divDist * ux, y: ptA.y + divDist * uy }
+                const divP2 = { x: divP1.x + depthM * inNorm.nx, y: divP1.y + depthM * inNorm.ny }
+                const cDiv1 = toC(divP1)
+                const cDiv2 = toC(divP2)
+                ctx.beginPath()
+                ctx.moveTo(cDiv1.cx, cDiv1.cy)
+                ctx.lineTo(cDiv2.cx, cDiv2.cy)
+                ctx.stroke()
+              }
+            }
 
-          ctx.font = "bold 9px sans-serif"
-          ctx.textAlign = "center"
-          ctx.fillStyle = toolColor
-          ctx.fillText(`${toolLabel} (Klik pasang)`, badgeMidX, badgeMidY)
+            // Crisp Cyan Border
+            ctx.beginPath()
+            ctx.moveTo(cpA.cx, cpA.cy)
+            ctx.lineTo(cpB.cx, cpB.cy)
+            ctx.lineTo(cp3.cx, cp3.cy)
+            ctx.lineTo(cp4.cx, cp4.cy)
+            ctx.closePath()
+            ctx.strokeStyle = "#06b6d4"
+            ctx.lineWidth = 2
+            ctx.stroke()
+
+            // Badge
+            const badgeMidX = (cpA.cx + cpB.cx + cp3.cx + cp4.cx) / 4
+            const badgeMidY = (cpA.cy + cpB.cy + cp3.cy + cp4.cy) / 4
+            ctx.font = "bold 9px sans-serif"
+            ctx.textAlign = "center"
+            ctx.textBaseline = "middle"
+            ctx.strokeStyle = bgFill
+            ctx.lineWidth = 3
+            ctx.strokeText(toolLabel, badgeMidX, badgeMidY - 5)
+            ctx.fillStyle = "#06b6d4"
+            ctx.fillText(toolLabel, badgeMidX, badgeMidY - 5)
+            ctx.strokeText("(Klik untuk pasang)", badgeMidX, badgeMidY + 6)
+            ctx.fillStyle = effectiveIsDark ? "#e0f2fe" : "#083344"
+            ctx.fillText("(Klik untuk pasang)", badgeMidX, badgeMidY + 6)
+          } else if (activeTool === "DOOR_MAIN") {
+            // 2. JIKA PINTU UTAMA (1.8m): TAMPILKAN 2 DAUN PINTU + 2 SWING ARCS 90 DERAJAT KE DALAM
+            const leafR = Math.min(0.9, targetLen / 2)
+            const midM = { x: (ptA.x + ptB.x) / 2, y: (ptA.y + ptB.y) / 2 }
+            const h1M = ptA
+            const h2M = ptB
+            const t1M = { x: h1M.x + leafR * inNorm.nx, y: h1M.y + leafR * inNorm.ny }
+            const t2M = { x: h2M.x + leafR * inNorm.nx, y: h2M.y + leafR * inNorm.ny }
+
+            const cMid = toC(midM)
+            const cH1 = cpA
+            const cH2 = cpB
+            const cT1 = toC(t1M)
+            const cT2 = toC(t2M)
+
+            const rPx = Math.max(14, leafR * sc.scale)
+            ctx.strokeStyle = "#f97316"
+            ctx.lineWidth = 1.5
+            ctx.setLineDash([3, 2])
+            ctx.beginPath()
+            ctx.moveTo(cMid.cx, cMid.cy)
+            ctx.quadraticCurveTo(
+              (cMid.cx + cT1.cx) / 2 + inNorm.nx * (rPx * 0.25),
+              (cMid.cy + cT1.cy) / 2 + inNorm.ny * (rPx * 0.25),
+              cT1.cx, cT1.cy
+            )
+            ctx.stroke()
+            ctx.beginPath()
+            ctx.moveTo(cMid.cx, cMid.cy)
+            ctx.quadraticCurveTo(
+              (cMid.cx + cT2.cx) / 2 + inNorm.nx * (rPx * 0.25),
+              (cMid.cy + cT2.cy) / 2 + inNorm.ny * (rPx * 0.25),
+              cT2.cx, cT2.cy
+            )
+            ctx.stroke()
+            ctx.setLineDash([])
+
+            ctx.lineWidth = 2.5
+            ctx.beginPath()
+            ctx.moveTo(cH1.cx, cH1.cy)
+            ctx.lineTo(cT1.cx, cT1.cy)
+            ctx.moveTo(cH2.cx, cH2.cy)
+            ctx.lineTo(cT2.cx, cT2.cy)
+            ctx.stroke()
+
+            // Wall span line
+            ctx.lineWidth = 4
+            ctx.beginPath()
+            ctx.moveTo(cpA.cx, cpA.cy)
+            ctx.lineTo(cpB.cx, cpB.cy)
+            ctx.stroke()
+
+            const badgeMidX = cMid.cx + inNorm.nx * (rPx + 16)
+            const badgeMidY = cMid.cy + inNorm.ny * (rPx + 16)
+            ctx.font = "bold 9px sans-serif"
+            ctx.textAlign = "center"
+            ctx.textBaseline = "middle"
+            ctx.strokeStyle = bgFill
+            ctx.lineWidth = 3
+            ctx.strokeText(toolLabel, badgeMidX, badgeMidY - 5)
+            ctx.fillStyle = "#f97316"
+            ctx.fillText(toolLabel, badgeMidX, badgeMidY - 5)
+            ctx.strokeText("(Klik untuk pasang)", badgeMidX, badgeMidY + 6)
+            ctx.fillStyle = effectiveIsDark ? "#fed7aa" : "#7c2d12"
+            ctx.fillText("(Klik untuk pasang)", badgeMidX, badgeMidY + 6)
+          } else if (activeTool === "DOOR_P1") {
+            // 3. JIKA PINTU P1 GUDANG (1.0m): TAMPILKAN 1 DAUN PINTU + SWING ARC KE DALAM
+            const leafR = Math.min(1.0, targetLen)
+            const hM = ptA
+            const tM = { x: hM.x + leafR * inNorm.nx, y: hM.y + leafR * inNorm.ny }
+            const arcStartM = ptB
+
+            const cH = cpA
+            const cT = toC(tM)
+            const cArcStart = cpB
+
+            const rPx = Math.max(16, leafR * sc.scale)
+            ctx.strokeStyle = "#ea580c"
+            ctx.lineWidth = 1.5
+            ctx.setLineDash([3, 2])
+            ctx.beginPath()
+            ctx.moveTo(cArcStart.cx, cArcStart.cy)
+            ctx.quadraticCurveTo(
+              (cArcStart.cx + cT.cx) / 2 + inNorm.nx * (rPx * 0.25),
+              (cArcStart.cy + cT.cy) / 2 + inNorm.ny * (rPx * 0.25),
+              cT.cx, cT.cy
+            )
+            ctx.stroke()
+            ctx.setLineDash([])
+
+            ctx.lineWidth = 2.5
+            ctx.beginPath()
+            ctx.moveTo(cH.cx, cH.cy)
+            ctx.lineTo(cT.cx, cT.cy)
+            ctx.stroke()
+
+            // Wall span line
+            ctx.lineWidth = 4
+            ctx.beginPath()
+            ctx.moveTo(cpA.cx, cpA.cy)
+            ctx.lineTo(cpB.cx, cpB.cy)
+            ctx.stroke()
+
+            const badgeMidX = (cpA.cx + cpB.cx) / 2 + inNorm.nx * (rPx + 16)
+            const badgeMidY = (cpA.cy + cpB.cy) / 2 + inNorm.ny * (rPx + 16)
+            ctx.font = "bold 9px sans-serif"
+            ctx.textAlign = "center"
+            ctx.textBaseline = "middle"
+            ctx.strokeStyle = bgFill
+            ctx.lineWidth = 3
+            ctx.strokeText(toolLabel, badgeMidX, badgeMidY - 5)
+            ctx.fillStyle = "#ea580c"
+            ctx.fillText(toolLabel, badgeMidX, badgeMidY - 5)
+            ctx.strokeText("(Klik untuk pasang)", badgeMidX, badgeMidY + 6)
+            ctx.fillStyle = effectiveIsDark ? "#ffedd5" : "#7c2d12"
+            ctx.fillText("(Klik untuk pasang)", badgeMidX, badgeMidY + 6)
+          }
+
+          // End node dots
+          ;[cpA, cpB].forEach((pt) => {
+            ctx.beginPath()
+            ctx.arc(pt.cx, pt.cy, 5, 0, Math.PI * 2)
+            ctx.fillStyle = toolColor
+            ctx.fill()
+            ctx.strokeStyle = "#ffffff"
+            ctx.lineWidth = 1.8
+            ctx.stroke()
+          })
+
           ctx.restore()
         }
       }
@@ -3139,8 +3808,96 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       ctx.restore()
     }
 
-    // C. 2-Click Live Rubberband untuk DOOR (Kaca Depan) dan CASHIER
-    if (pendingZoneStart && (activeTool === "DOOR" || activeTool === "CASHIER") && cursorPos) {
+    // C. LIVE PREVIEW TAHAP 3 KASIR: TARIK KEDALAMAN KE DALAM RUANGAN (3-KLIK KASIR)
+    if (pendingCashierDepth) {
+      const { p1, p2, depthM, lengthM, inNorm } = pendingCashierDepth
+      const p3: Point = { x: p2.x + depthM * inNorm.nx, y: p2.y + depthM * inNorm.ny }
+      const p4: Point = { x: p1.x + depthM * inNorm.nx, y: p1.y + depthM * inNorm.ny }
+
+      const cp1 = toC(p1)
+      const cp2 = toC(p2)
+      const cp3 = toC(p3)
+      const cp4 = toC(p4)
+
+      ctx.save()
+
+      // Fill Box
+      ctx.beginPath()
+      ctx.moveTo(cp1.cx, cp1.cy)
+      ctx.lineTo(cp2.cx, cp2.cy)
+      ctx.lineTo(cp3.cx, cp3.cy)
+      ctx.lineTo(cp4.cx, cp4.cy)
+      ctx.closePath()
+      ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.28)" : "rgba(245, 158, 11, 0.20)"
+      ctx.fill()
+
+      // Hatch
+      ctx.save()
+      ctx.clip()
+      ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.50)" : "rgba(217, 119, 6, 0.40)"
+      ctx.lineWidth = 1
+      const minX = Math.min(cp1.cx, cp2.cx, cp3.cx, cp4.cx) - 40
+      const maxX = Math.max(cp1.cx, cp2.cx, cp3.cx, cp4.cx) + 40
+      const minY = Math.min(cp1.cy, cp2.cy, cp3.cy, cp4.cy) - 40
+      const maxY = Math.max(cp1.cy, cp2.cy, cp3.cy, cp4.cy) + 40
+      const span = maxX - minX + maxY - minY
+      for (let off = -span; off < span; off += 9) {
+        ctx.beginPath()
+        ctx.moveTo(minX + off, minY)
+        ctx.lineTo(minX + off + (maxY - minY), maxY)
+        ctx.stroke()
+      }
+      ctx.restore()
+
+      // Dashed Amber Border
+      ctx.beginPath()
+      ctx.moveTo(cp1.cx, cp1.cy)
+      ctx.lineTo(cp2.cx, cp2.cy)
+      ctx.lineTo(cp3.cx, cp3.cy)
+      ctx.lineTo(cp4.cx, cp4.cy)
+      ctx.closePath()
+      ctx.strokeStyle = "#f59e0b"
+      ctx.lineWidth = 2
+      ctx.setLineDash([5, 3])
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      // End nodes
+      ;[cp1, cp2, cp3, cp4].forEach((pt) => {
+        ctx.beginPath()
+        ctx.arc(pt.cx, pt.cy, 5, 0, Math.PI * 2)
+        ctx.fillStyle = "#f59e0b"
+        ctx.fill()
+        ctx.strokeStyle = "#ffffff"
+        ctx.lineWidth = 1.8
+        ctx.stroke()
+      })
+
+      // Badge in center
+      const midX = (cp1.cx + cp2.cx + cp3.cx + cp4.cx) / 4
+      const midY = (cp1.cy + cp2.cy + cp3.cy + cp4.cy) / 4
+      ctx.font = "bold 9.5px sans-serif"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.strokeStyle = bgFill
+      ctx.lineWidth = 3
+      ctx.lineJoin = "round"
+      const label1 = `🛒 AREA KASIR: ${formatDim(lengthM)}m × ${formatDim(depthM)}m`
+      ctx.strokeText(label1, midX, midY - 6)
+      ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
+      ctx.fillText(label1, midX, midY - 6)
+
+      ctx.font = "bold 8.5px sans-serif"
+      const label2 = "(Klik titik ke-3 untuk kunci kedalaman)"
+      ctx.strokeText(label2, midX, midY + 7)
+      ctx.fillStyle = effectiveIsDark ? "#fef3c7" : "#78350f"
+      ctx.fillText(label2, midX, midY + 7)
+
+      ctx.restore()
+    }
+
+    // D. 2-Click Live Rubberband untuk DOOR (Kaca Depan) dan CASHIER (Tahap 1 -> 2)
+    if (pendingZoneStart && (activeTool === "DOOR" || activeTool === "CASHIER") && cursorPos && !pendingCashierDepth) {
       let targetSegIdx = pendingZoneStart.segIdx
 
       if (pendingZoneStart.isCorner && pendingZoneStart.cornerNodeIdx !== undefined && wallSegments.length > 0) {
@@ -3178,7 +3935,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         const endCanvas = { cx: proj.x, cy: proj.y }
 
         const toolColor = activeTool === "DOOR" ? "#f97316" : "#eab308"
-        const toolLabel = activeTool === "DOOR" ? "PINTU/KACA" : "AREA KASIR"
+        const toolLabel = activeTool === "DOOR" ? "PINTU/KACA" : "PANJANG KASIR"
 
         const distM = Math.hypot(
           (endCanvas.cx - startCanvas.cx) / sc.scale,
@@ -3218,7 +3975,13 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.font = "bold 9px sans-serif"
         ctx.textAlign = "center"
         ctx.fillStyle = toolColor
-        ctx.fillText(`${toolLabel}: ${formatDim(distM)}m (Klik titik akhir)`, badgeMidX, badgeMidY)
+        ctx.fillText(
+          activeTool === "CASHIER"
+            ? `Panjang Kasir: ${formatDim(distM)}m (Klik titik ke-2)`
+            : `${toolLabel}: ${formatDim(distM)}m (Klik titik akhir)`,
+          badgeMidX,
+          badgeMidY
+        )
         ctx.restore()
       }
     }
@@ -3661,7 +4424,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.restore()
       })
     }
-  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, activeTool, activeCadMetadata])
+  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, activeTool, activeCadMetadata])
 
   useEffect(() => {
     drawCanvas()
@@ -3928,31 +4691,58 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     title={
                       isCalculated
                         ? "Denah terkunci dalam mode Hasil AC. Geser posisi unit AC di dinding untuk fine-tune."
-                        : activeTool === "DOOR_P1"
-                          ? "Mode Pintu P1 Gudang (1.0m Baku): Klik pada dinding untuk memasang pintu selebar 1 meter."
-                          : activeTool === "CHILLER"
-                            ? `Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m): Klik pada dinding untuk memasang modul chiller.`
-                            : pendingZoneStart
-                              ? `Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : "Kasir"} aktif! Klik Titik Akhir di dinding.`
-                              : activeTool === "DRAW"
-                                ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
-                                : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : "Pintu/Kaca 🚪"}: Klik Titik Awal & Akhir di dinding.`
+                        : activeTool === "DOOR"
+                          ? "Mode Pintu / Kaca Bebas (2-Klik): Klik titik awal lalu klik titik akhir pada dinding."
+                          : activeTool === "DOOR_MAIN"
+                            ? "Mode Pintu Utama (2 Daun - 1.8m): Klik pada dinding untuk memasang pintu utama."
+                            : activeTool === "DOOR_P1"
+                              ? "Mode Pintu P1 Gudang (1.0m Baku): Klik pada dinding untuk memasang pintu selebar 1 meter."
+                              : activeTool === "CASHIER"
+                                ? pendingCashierDepth
+                                  ? "Mode Kasir (Tahap 3): Gerakkan kursor ke dalam ruangan untuk menentukan kedalaman, lalu klik titik ke-3."
+                                  : pendingZoneStart
+                                    ? "Mode Kasir (Tahap 2): Klik titik kedua pada dinding untuk menentukan panjang kasir."
+                                    : "Mode Meja Kasir (3-Klik): Klik titik awal pada dinding."
+                                : activeTool === "CHILLER"
+                                  ? `Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m × 0.8m): Klik pada dinding untuk memasang modul chiller.`
+                                  : activeTool === "DRAW"
+                                    ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
+                                    : "Pilih alat gambar atau pasang fixture interior."
                     }
                   >
                     {isCalculated
                       ? "🔒 Denah terkunci. Geser unit AC di dinding untuk fine-tune jarak."
-                      : activeTool === "DOOR_P1"
-                        ? "🚪 Mode Pintu P1 (1.0m Baku): Klik dinding untuk memasang."
-                        : activeTool === "CHILLER"
-                          ? `🧊 Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m): Klik dinding untuk memasang.`
-                          : pendingZoneStart
-                            ? `⚠️ Titik awal ${pendingZoneStart.tool === "DOOR" ? "Pintu/Kaca" : "Kasir"} aktif. Klik Titik Akhir di dinding.`
-                            : activeTool === "DRAW"
-                              ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
-                              : `Mode ${activeTool === "CASHIER" ? "Kasir 🛒" : "Pintu/Kaca 🚪"}: Klik Titik Awal & Akhir di dinding.`}
+                      : activeTool === "DOOR"
+                        ? "🚪 Mode Pintu / Kaca Bebas (2-Klik): Klik titik awal & akhir."
+                        : activeTool === "DOOR_MAIN"
+                          ? "🚪 Mode Pintu Utama (1.8m): Klik dinding untuk memasang."
+                          : activeTool === "DOOR_P1"
+                            ? "🚪 Mode Pintu P1 (1.0m): Klik dinding untuk memasang."
+                            : activeTool === "CASHIER"
+                              ? pendingCashierDepth
+                                ? "🛒 Tarik kedalaman kasir, lalu klik titik ke-3 untuk kunci."
+                                : pendingZoneStart
+                                  ? "🛒 Klik titik ke-2 di dinding untuk tentukan panjang."
+                                  : "🛒 Mode Kasir (3-Klik): Klik titik awal pada dinding."
+                              : activeTool === "CHILLER"
+                                ? `🧊 Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m × 0.8m): Klik dinding untuk pasang.`
+                                : activeTool === "DRAW"
+                                  ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
+                                  : "Pilih alat gambar atau pasang fixture interior."}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCadModalOpen(true)}
+                    className="h-8 text-xs font-bold gap-1.5 border-sky-500/50 text-sky-700 dark:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 shadow-xs cursor-pointer"
+                    title="Import denah dari AutoCAD (.DXF)"
+                  >
+                    <IconFileCode className="size-4 text-sky-500" />
+                    <span>Import CAD (.dxf)</span>
+                  </Button>
                   {activeCadMetadata && (
                     <Badge variant="outline" className="border-sky-500/50 bg-sky-500/10 text-sky-700 dark:text-sky-300 font-bold text-xs gap-1 shrink-0">
                       <IconFileCode className="size-3 text-sky-500" /> CAD DXF ({activeCadMetadata.metrics.netSalesArea} m² Net)
@@ -3981,6 +4771,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       onClick={() => {
                         setActiveTool("DRAW")
                         setPendingZoneStart(null)
+                        setPendingCashierDepth(null)
                       }}
                       className="h-7 text-xs font-bold gap-1"
                     >
@@ -3993,14 +4784,32 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       onClick={() => {
                         setActiveTool("DOOR")
                         setPendingZoneStart(null)
+                        setPendingCashierDepth(null)
                       }}
                       className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR"
                           ? "bg-orange-500 text-white"
                           : "border-orange-500/40 text-orange-600 dark:text-orange-400 bg-orange-500/10"
                         }`}
-                      title="Pintu / Kaca (Ukuran Bebas)"
+                      title="Dinding Pintu / Kaca (2-Klik Rentang Bebas)"
                     >
                       <IconDoor className="size-3.5" /> Pintu / Kaca
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant={activeTool === "DOOR_MAIN" ? "default" : "outline"}
+                      onClick={() => {
+                        setActiveTool("DOOR_MAIN")
+                        setPendingZoneStart(null)
+                        setPendingCashierDepth(null)
+                      }}
+                      className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR_MAIN"
+                          ? "bg-amber-600 text-white"
+                          : "border-amber-600/40 text-amber-600 dark:text-amber-400 bg-amber-600/10"
+                        }`}
+                      title="Pintu Utama (2 Daun - Lebar 1.8m Baku)"
+                    >
+                      <IconDoor className="size-3.5" /> Pintu Utama (1.8m)
                     </Button>
 
                     <Button
@@ -4009,14 +4818,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       onClick={() => {
                         setActiveTool("DOOR_P1")
                         setPendingZoneStart(null)
+                        setPendingCashierDepth(null)
                       }}
                       className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR_P1"
                           ? "bg-rose-600 text-white"
                           : "border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/10"
                         }`}
-                      title="Pintu P1 Gudang (Ukuran Baku 1.0m)"
+                      title="Pintu P1 Gudang (1 Daun - Lebar 1.0m Baku)"
                     >
-                      <IconDoor className="size-3.5" /> Pintu P1 (1m)
+                      <IconDoor className="size-3.5" /> Pintu P1 (1.0m)
                     </Button>
 
                     <Button
@@ -4025,13 +4835,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       onClick={() => {
                         setActiveTool("CASHIER")
                         setPendingZoneStart(null)
+                        setPendingCashierDepth(null)
                       }}
                       className={`h-7 text-xs font-bold gap-1 ${activeTool === "CASHIER"
                           ? "bg-amber-500 text-white"
                           : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
                         }`}
+                      title="Area Meja Kasir (3-Klik: Tentukan Panjang di Dinding lalu Tarik Kedalaman)"
                     >
-                      <IconShoppingCart className="size-3.5" /> Kasir
+                      <IconShoppingCart className="size-3.5" /> Kasir (3-Klik)
                     </Button>
 
                     <div className="flex items-center gap-1">
@@ -4041,11 +4853,13 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                         onClick={() => {
                           setActiveTool("CHILLER")
                           setPendingZoneStart(null)
+                          setPendingCashierDepth(null)
                         }}
                         className={`h-7 text-xs font-bold gap-1 ${activeTool === "CHILLER"
                             ? "bg-cyan-500 text-white"
                             : "border-cyan-500/40 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
                           }`}
+                        title="Chiller Open Multi-Deck (1 - 8 Unit @ 1.2m, Kedalaman 0.8m)"
                       >
                         <IconFridge className="size-3.5" /> Chiller
                       </Button>
@@ -4077,11 +4891,14 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       )}
                     </div>
 
-                    {pendingZoneStart && (
+                    {(pendingZoneStart || pendingCashierDepth) && (
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setPendingZoneStart(null)}
+                        onClick={() => {
+                          setPendingZoneStart(null)
+                          setPendingCashierDepth(null)
+                        }}
                         className="h-7 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-500/10 gap-1 px-2 border border-red-500/30"
                         title="Batalkan penandaan (Esc)"
                       >
@@ -4107,16 +4924,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setCadModalOpen(true)}
-                      className="h-7 text-xs font-bold gap-1 border-sky-500/40 text-sky-700 dark:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20"
-                      title="Import denah dari AutoCAD (.DXF)"
-                    >
-                      <IconFileCode className="size-3.5 text-sky-500" /> Import CAD (.dxf)
-                    </Button>
-
                     <Button
                       size="sm"
                       variant="outline"
@@ -4335,7 +5142,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                                 className="h-7 text-[10px] font-semibold rounded-md border border-input bg-background px-2 py-0.5"
                               >
                                 <option value="SOLID">🧱 Dinding Solid</option>
-                                <option value="GLASS_DOOR">🚪 Pintu / Kaca</option>
+                                <option value="GLASS_DOOR">🚪 Pintu / Kaca (Bebas)</option>
+                                <option value="DOOR_MAIN">🚪 Pintu Utama (1.8m)</option>
                                 <option value="DOOR_P1">🚪 Pintu P1 (1.0m)</option>
                                 <option value="CASHIER">🛒 Kasir</option>
                                 <option value="CHILLER">🧊 Chiller</option>
@@ -4709,6 +5517,16 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             setCustomPts(cadData.polygon)
             setCustomClosed(true)
             setSegmentOverrides(cadData.segmentOverrides)
+            const depths: Record<number, number> = {}
+            if (cadData.zones?.cashier) {
+              const czHeight = cadData.zones.cashier.bounds.height
+              cadData.wallSegments.forEach((w) => {
+                if (w.type === "CASHIER") {
+                  depths[w.index] = czHeight
+                }
+              })
+            }
+            setCashierDepths(depths)
             setSelectedNodeIdx(null)
             setPendingZoneStart(null)
             setActiveCadMetadata(cadData)

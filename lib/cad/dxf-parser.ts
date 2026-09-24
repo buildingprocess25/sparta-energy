@@ -5,7 +5,7 @@
 
 import type { Point } from "@/lib/polygon-utils"
 
-export type CadWallType = "SOLID" | "GLASS_DOOR" | "DOOR_P1" | "CASHIER" | "CHILLER"
+export type CadWallType = "SOLID" | "GLASS_DOOR" | "DOOR_MAIN" | "DOOR_P1" | "CASHIER" | "CHILLER"
 
 export interface DxfLineEntity {
   type: "LINE"
@@ -523,64 +523,120 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
     )
   }
 
-  // 6. Build Standard Outer Store Polygon (Ordered: Top-Left -> Top-Right -> Bottom-Right -> Bottom-Left)
-  // Wall 0: (0,0) -> (lengthM, 0) => Dinding Belakang (Solid)
-  // Wall 1: (lengthM, 0) -> (lengthM, widthM) => Dinding Kanan (Solid)
-  // Wall 2: (lengthM, widthM) -> (0, widthM) => Dinding Depan (Kaca / Main Entrance pv180)
-  // Wall 3: (0, widthM) -> (0, 0) => Dinding Kiri (Solid)
-  const storePolygon: Point[] = [
-    { x: 0, y: 0 },
-    { x: lengthM, y: 0 },
-    { x: lengthM, y: widthM },
-    { x: 0, y: widthM },
-  ]
+  // 6. Build Standard Outer Store Polygon with Segmented Fixtures (Chiller, Cashier, Doors, Glass)
+  const pts: Point[] = [{ x: 0, y: 0 }]
+  const segOverrides: Record<number, CadWallType> = {}
+  const segLabels: string[] = []
+
+  // Top Wall (y = 0, from x = 0 to lengthM)
+  const chX1 = chillerBoundsM ? Number(Math.max(0, Math.min(lengthM, chillerBoundsM.x)).toFixed(2)) : 1.34
+  const chX2 = chillerBoundsM ? Number(Math.max(chX1 + 0.5, Math.min(lengthM, chillerBoundsM.x + chillerBoundsM.width)).toFixed(2)) : 8.54
+
+  if (chX1 > 0.1) {
+    pts.push({ x: chX1, y: 0 })
+    segOverrides[pts.length - 2] = "SOLID"
+    segLabels.push(`Dinding Belakang (${chX1}m)`)
+  }
+  pts.push({ x: chX2, y: 0 })
+  segOverrides[pts.length - 2] = "CHILLER"
+  segLabels.push(`Chiller (${Number((chX2 - chX1).toFixed(2))}m)`)
+
+  // P1 Door on Top Wall:
+  const p1Door = doors.find(d => d.type === "warehouse_p1" || d.name.toLowerCase().includes("p1"))
+  const p1X1 = p1Door ? Number(Math.max(chX2, Math.min(lengthM - 1.0, p1Door.positionM.x)).toFixed(2)) : 8.61
+  const p1X2 = Number(Math.min(lengthM, p1X1 + 1.0).toFixed(2))
+
+  if (p1X1 - chX2 > 0.05) {
+    pts.push({ x: p1X1, y: 0 })
+    segOverrides[pts.length - 2] = "SOLID"
+    segLabels.push(`Dinding Belakang (${Number((p1X1 - chX2).toFixed(2))}m)`)
+  }
+
+  pts.push({ x: p1X2, y: 0 })
+  segOverrides[pts.length - 2] = "DOOR_P1"
+  segLabels.push(`Pintu P1 (${Number((p1X2 - p1X1).toFixed(2))}m)`)
+
+  if (lengthM - p1X2 > 0.05) {
+    pts.push({ x: lengthM, y: 0 })
+    segOverrides[pts.length - 2] = "SOLID"
+    segLabels.push(`Dinding Belakang (${Number((lengthM - p1X2).toFixed(2))}m)`)
+  }
+
+  // Right Wall (x = lengthM, from y = 0 down to widthM)
+  const czY1 = cashierBoundsM ? Number(Math.max(0, Math.min(widthM, cashierBoundsM.y)).toFixed(2)) : Number((widthM - 3.9).toFixed(2))
+
+  if (czY1 > 0.1) {
+    pts.push({ x: lengthM, y: czY1 })
+    segOverrides[pts.length - 2] = "SOLID"
+    segLabels.push(`Dinding Kanan (${czY1}m)`)
+  }
+
+  pts.push({ x: lengthM, y: widthM })
+  segOverrides[pts.length - 2] = "CASHIER"
+  segLabels.push(`Kasir Samping (${Number((widthM - czY1).toFixed(2))}m)`)
+
+  // Bottom Wall (y = widthM, from x = lengthM down to 0)
+  const czX1 = cashierBoundsM ? Number(Math.max(0, Math.min(lengthM, cashierBoundsM.x)).toFixed(2)) : Number((lengthM - 2.3).toFixed(2))
+  const czX2 = cashierBoundsM ? Number(Math.max(czX1 + 0.5, Math.min(lengthM, cashierBoundsM.x + cashierBoundsM.width)).toFixed(2)) : lengthM
+
+  const mainDoor = doors.find(d => d.type === "main_pv180" || d.name.toLowerCase().includes("pv180"))
+  const doorMid = mainDoor ? mainDoor.positionM.x : 5.06
+  const doorX1 = Number(Math.max(0, doorMid - 0.9).toFixed(2))
+  const doorX2 = Number(Math.min(lengthM, doorMid + 0.9).toFixed(2))
+
+  // 1. from lengthM down to czX2 -> GLASS_DOOR (if gap)
+  if (lengthM - czX2 > 0.1) {
+    pts.push({ x: czX2, y: widthM })
+    segOverrides[pts.length - 2] = "GLASS_DOOR"
+    segLabels.push(`Dinding Kaca (${Number((lengthM - czX2).toFixed(2))}m)`)
+  }
+  // 2. from czX2 down to czX1 -> CASHIER
+  pts.push({ x: czX1, y: widthM })
+  segOverrides[pts.length - 2] = "CASHIER"
+  segLabels.push(`Kasir Depan (${Number((czX2 - czX1).toFixed(2))}m)`)
+
+  // 3. between cashier and door: from czX1 down to doorX2 -> GLASS_DOOR
+  if (czX1 - doorX2 > 0.1) {
+    pts.push({ x: doorX2, y: widthM })
+    segOverrides[pts.length - 2] = "GLASS_DOOR"
+    segLabels.push(`Dinding Kaca (${Number((czX1 - doorX2).toFixed(2))}m)`)
+  }
+
+  // 4. Door span: from doorX2 down to doorX1 -> DOOR_MAIN
+  pts.push({ x: doorX1, y: widthM })
+  segOverrides[pts.length - 2] = "DOOR_MAIN"
+  segLabels.push(`Pintu Utama (${Number((doorX2 - doorX1).toFixed(2))}m)`)
+
+  // 5. from doorX1 down to 0 -> GLASS_DOOR
+  if (doorX1 > 0.1) {
+    pts.push({ x: 0, y: widthM })
+    segOverrides[pts.length - 2] = "GLASS_DOOR"
+    segLabels.push(`Dinding Kaca (${doorX1}m)`)
+  }
+
+  // Left Wall (x = 0, from y = widthM up to 0): connects closing back to pts[0]
+  segOverrides[pts.length - 1] = "SOLID"
+  segLabels.push(`Dinding Kiri (${widthM}m)`)
+
+  const storePolygon = pts
+  const wallSegments: CadWallSegment[] = []
+  for (let i = 0; i < pts.length; i++) {
+    const p1 = pts[i]
+    const p2 = pts[(i + 1) % pts.length]
+    const len = Number(Math.hypot(p2.x - p1.x, p2.y - p1.y).toFixed(2))
+    wallSegments.push({
+      index: i,
+      p1,
+      p2,
+      lengthM: len,
+      type: segOverrides[i] || "SOLID",
+      label: segLabels[i] || `Segmen ${i + 1} (${len}m)`,
+    })
+  }
 
   const grossArea = Number((lengthM * widthM).toFixed(2))
   const netSalesArea = Number(Math.max(1, grossArea - chillerAreaM2 - cashierAreaM2).toFixed(2))
-
-  // 7. Wall Classification based on Retail SOP:
-  // Only Front Wall is GLASS_DOOR. Back wall is SOLID (chiller is rendered as a distinct 2D furniture block).
-  const segmentOverrides: Record<number, CadWallType> = {
-    0: "SOLID",      // Dinding Belakang / Atas (Solid)
-    1: "SOLID",      // Dinding Kanan (Solid)
-    2: "GLASS_DOOR", // Dinding Depan / Bawah (Kaca & Pintu Utama)
-    3: "SOLID",      // Dinding Kiri (Solid)
-  }
-
-  const wallSegments: CadWallSegment[] = [
-    {
-      index: 0,
-      p1: storePolygon[0],
-      p2: storePolygon[1],
-      lengthM,
-      type: segmentOverrides[0],
-      label: `Dinding Belakang (${lengthM} m)`,
-    },
-    {
-      index: 1,
-      p1: storePolygon[1],
-      p2: storePolygon[2],
-      lengthM: widthM,
-      type: segmentOverrides[1],
-      label: `Dinding Kanan (${widthM} m)`,
-    },
-    {
-      index: 2,
-      p1: storePolygon[2],
-      p2: storePolygon[3],
-      lengthM,
-      type: segmentOverrides[2],
-      label: `Dinding Depan / Kaca (${lengthM} m)`,
-    },
-    {
-      index: 3,
-      p1: storePolygon[3],
-      p2: storePolygon[0],
-      lengthM: widthM,
-      type: segmentOverrides[3],
-      label: `Dinding Kiri (${widthM} m)`,
-    },
-  ]
+  const segmentOverrides = segOverrides
 
   return {
     success: true,
