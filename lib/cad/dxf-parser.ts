@@ -1,6 +1,7 @@
 /**
- * Pure TypeScript DXF Parser for Sparta Energy CAD Integration
+ * Pure TypeScript Dynamic DXF Parser for Sparta Energy CAD Integration
  * Zero external dependencies. Fast client-side parsing.
+ * Supports arbitrary store geometries: rectangular, trapezoidal, slanted walls, and custom layouts.
  */
 
 import type { Point } from "@/lib/polygon-utils"
@@ -160,7 +161,6 @@ export function parseDxfEntities(dxfContent: string): {
     if (inSection && currentSection === "HEADER") {
       if (token.code === 9) {
         const varName = token.value
-        // Grab next value
         if (i + 1 < tokens.length) {
           headerVars[varName] = tokens[i + 1].value
         }
@@ -305,7 +305,7 @@ export function parseDxfEntities(dxfContent: string): {
 }
 
 /**
- * Calculates bounding box and area of a polygon loop
+ * Calculates area of a polygon loop via Shoelace formula
  */
 function getLoopArea(loop: Point[]): number {
   if (loop.length < 3) return 0
@@ -318,7 +318,13 @@ function getLoopArea(loop: Point[]): number {
   return Math.abs(area) / 2
 }
 
+/**
+ * Calculates bounding box of points
+ */
 function getLoopBounds(loop: Point[]): { minX: number; minY: number; maxX: number; maxY: number; width: number; height: number } {
+  if (loop.length === 0) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 }
+  }
   const xs = loop.map(p => p.x)
   const ys = loop.map(p => p.y)
   const minX = Math.min(...xs)
@@ -329,7 +335,93 @@ function getLoopBounds(loop: Point[]): { minX: number; minY: number; maxX: numbe
 }
 
 /**
- * Main parser: transforms DXF string into rich store layout data ready for canvas & calculators
+ * Distance between two 2D points
+ */
+function dist(p1: Point, p2: Point): number {
+  return Math.hypot(p2.x - p1.x, p2.y - p1.y)
+}
+
+/**
+ * Chains line segments into a closed polygon loop
+ */
+function chainLinesIntoPolygon(lines: Array<{ p1: Point; p2: Point }>, thresholdM: number = 0.6): Point[] | null {
+  if (lines.length < 3) return null
+  const remaining = [...lines]
+  const polygon: Point[] = []
+
+  const first = remaining.shift()!
+  polygon.push(first.p1)
+  let cur = first.p2
+
+  while (remaining.length > 0) {
+    let bestIdx = -1
+    let bestDist = Infinity
+    let flip = false
+
+    for (let k = 0; k < remaining.length; k++) {
+      const seg = remaining[k]
+      const d1 = dist(seg.p1, cur)
+      const d2 = dist(seg.p2, cur)
+      if (d1 < bestDist) {
+        bestDist = d1
+        bestIdx = k
+        flip = false
+      }
+      if (d2 < bestDist) {
+        bestDist = d2
+        bestIdx = k
+        flip = true
+      }
+    }
+
+    if (bestDist > thresholdM || bestIdx === -1) {
+      break
+    }
+
+    const nextSeg = remaining.splice(bestIdx, 1)[0]
+    polygon.push(cur)
+    cur = flip ? nextSeg.p1 : nextSeg.p2
+  }
+
+  // Check if closed
+  if (polygon.length >= 3 && dist(cur, polygon[0]) <= thresholdM + 0.5) {
+    return polygon
+  }
+  if (polygon.length >= 3) {
+    return polygon
+  }
+  return null
+}
+
+/**
+ * Point projection onto segment AB: returns scalar t (0 <= t <= 1) and perpendicular distance
+ */
+function projectPointToSegment(p: Point, a: Point, b: Point): { t: number; proj: Point; distance: number } {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const lenSq = dx * dx + dy * dy
+  if (lenSq === 0) {
+    return { t: 0, proj: a, distance: dist(p, a) }
+  }
+  const rawT = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq
+  const t = Math.max(0, Math.min(1, rawT))
+  const proj: Point = {
+    x: Number((a.x + t * dx).toFixed(3)),
+    y: Number((a.y + t * dy).toFixed(3)),
+  }
+  return { t, proj, distance: dist(p, proj) }
+}
+
+interface WallInterval {
+  t1: number
+  t2: number
+  type: CadWallType
+  label: string
+}
+
+/**
+ * Main parser: transforms DXF string into rich store layout data ready for canvas & calculators.
+ * Fully dynamic: handles arbitrary store shapes (rectangles, trapezoids, slanted walls, L-shapes).
  */
 export function parseDxfStoreLayout(dxfContent: string, filename?: string): ParsedCadStoreData {
   const { entities } = parseDxfEntities(dxfContent)
@@ -340,7 +432,7 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
   const hatches = entities.filter(e => e.type === "HATCH") as DxfHatchEntity[]
 
   // 1. Determine overall bounding box across entities to establish origin & units
-  let allPoints: Point[] = []
+  const allPoints: Point[] = []
   lines.forEach(l => allPoints.push(l.start, l.end))
   polylines.forEach(p => allPoints.push(...p.vertices))
   inserts.forEach(ins => allPoints.push(ins.position))
@@ -352,153 +444,85 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
 
   const xs = allPoints.map(p => p.x)
   const ys = allPoints.map(p => p.y)
-  let rawMinX = Math.min(...xs)
-  let rawMaxX = Math.max(...xs)
-  let rawMinY = Math.min(...ys)
-  let rawMaxY = Math.max(...ys)
+  const rawMinX = Math.min(...xs)
+  const rawMaxX = Math.max(...xs)
+  const rawMinY = Math.min(...ys)
+  const rawMaxY = Math.max(...ys)
 
-  let spanX = rawMaxX - rawMinX
-  let spanY = rawMaxY - rawMinY
+  const spanX = rawMaxX - rawMinX
+  const spanY = rawMaxY - rawMinY
 
-  // 2. Detect unit scale (if span > 100, CAD is in millimeters -> convert to meters)
-  const scaleToM = (spanX > 80 || spanY > 80) ? 0.001 : 1.0
+  // Detect unit scale (if CAD span > 50, coords are in millimeters -> convert to meters)
+  const scaleToM = (spanX > 50 || spanY > 50) ? 0.001 : 1.0
 
-  // 3. Find primary store boundary
-  // Look for Hatch AR-SAND loop, or outer wall bounding box (e.g. 12m x 10m)
-  const sandHatch = hatches.find(h => h.pattern.toUpperCase().includes("SAND"))
-  let boundaryLoop: Point[] = []
-
-  if (sandHatch && sandHatch.boundaryLoops.length > 0) {
-    const largest = sandHatch.boundaryLoops.reduce((prev, curr) =>
-      getLoopArea(curr) > getLoopArea(prev) ? curr : prev
-    )
-    boundaryLoop = largest
-  }
-
-  // If no AR-SAND hatch, find outer polygon from store walls (lines with layer 0 / walls)
-  let minStoreX = rawMinX
-  let minStoreY = rawMinY
-  let maxStoreX = rawMaxX
-  let maxStoreY = rawMaxY
-
-  if (boundaryLoop.length >= 4) {
-    const b = getLoopBounds(boundaryLoop)
-    minStoreX = b.minX
-    minStoreY = b.minY
-    maxStoreX = b.maxX
-    maxStoreY = b.maxY
-  } else {
-    // Use line bounds
-    const linePts: Point[] = []
-    lines.forEach(l => linePts.push(l.start, l.end))
-    if (linePts.length > 0) {
-      const b = getLoopBounds(linePts)
-      minStoreX = b.minX
-      minStoreY = b.minY
-      maxStoreX = b.maxX
-      maxStoreY = b.maxY
-    }
-  }
-
-  const lengthM = Number(((maxStoreX - minStoreX) * scaleToM).toFixed(2))
-  const widthM = Number(((maxStoreY - minStoreY) * scaleToM).toFixed(2))
-
-  // Normalized helper function: CAD coords -> Store coords in meters (origin 0,0 at Top-Left matching screen coordinates & CAD plan view)
+  // Standard coordinate transformation: CAD -> Meters Top-Down (0,0 is Top-Left of bounding box)
   const toM = (pt: Point): Point => ({
-    x: Number(((pt.x - minStoreX) * scaleToM).toFixed(3)),
-    y: Number(((maxStoreY - pt.y) * scaleToM).toFixed(3)),
+    x: Number(((pt.x - rawMinX) * scaleToM).toFixed(3)),
+    y: Number(((rawMaxY - pt.y) * scaleToM).toFixed(3)),
   })
 
-  // 4. Identify Zones (Cashier ANSI32, Chiller ANSI37)
+  // 2. Identify Zones dynamically from Hatches / Polylines
+  // Cashier (ANSI32)
   let cashierAreaM2 = 0
   let cashierBoundsM: { x: number; y: number; width: number; height: number } | undefined
   let cashierPolygonM: Point[] | undefined
 
-  const cashierHatch = hatches.find(h => h.pattern.toUpperCase().includes("ANSI32"))
+  const cashierHatch = hatches.find(h => h.pattern.toUpperCase().includes("ANSI32") || h.layer.toLowerCase().includes("kasir") || h.layer.toLowerCase().includes("cashier"))
   if (cashierHatch && cashierHatch.boundaryLoops.length > 0) {
     const loop = cashierHatch.boundaryLoops[0]
-    const b = getLoopBounds(loop)
-    const wM = Number((b.width * scaleToM).toFixed(2))
-    const hM = Number((b.height * scaleToM).toFixed(2))
-    const xM = Number(((b.minX - minStoreX) * scaleToM).toFixed(2))
-    const yM = Number(((maxStoreY - b.maxY) * scaleToM).toFixed(2))
-    cashierBoundsM = { x: xM, y: yM, width: wM, height: hM }
-    cashierAreaM2 = Number((wM * hM).toFixed(2))
     cashierPolygonM = loop.map(toM)
+    const b = getLoopBounds(cashierPolygonM)
+    cashierBoundsM = { x: b.minX, y: b.minY, width: b.width, height: b.height }
+    cashierAreaM2 = Number(getLoopArea(cashierPolygonM).toFixed(2)) || Number((b.width * b.height).toFixed(2))
   } else {
-    // Check polylines around cashier size (~2.3m x 3.9m)
     const polyKasir = polylines.find(p => {
       if (p.vertices.length < 4) return false
-      const b = getLoopBounds(p.vertices)
-      const wM = b.width * scaleToM
-      const hM = b.height * scaleToM
-      return (Math.abs(wM - 2.3) < 0.5 && Math.abs(hM - 3.9) < 0.5) || (Math.abs(wM - 3.9) < 0.5 && Math.abs(hM - 2.3) < 0.5)
+      const ptsM = p.vertices.map(toM)
+      const b = getLoopBounds(ptsM)
+      return (Math.abs(b.width - 2.3) < 0.8 && Math.abs(b.height - 3.9) < 0.8) || (Math.abs(b.width - 3.9) < 0.8 && Math.abs(b.height - 2.3) < 0.8)
     })
     if (polyKasir) {
-      const b = getLoopBounds(polyKasir.vertices)
-      const wM = Number((b.width * scaleToM).toFixed(2))
-      const hM = Number((b.height * scaleToM).toFixed(2))
-      const xM = Number(((b.minX - minStoreX) * scaleToM).toFixed(2))
-      const yM = Number(((maxStoreY - b.maxY) * scaleToM).toFixed(2))
-      cashierBoundsM = { x: xM, y: yM, width: wM, height: hM }
-      cashierAreaM2 = Number((wM * hM).toFixed(2))
       cashierPolygonM = polyKasir.vertices.map(toM)
+      const b = getLoopBounds(cashierPolygonM)
+      cashierBoundsM = { x: b.minX, y: b.minY, width: b.width, height: b.height }
+      cashierAreaM2 = Number(getLoopArea(cashierPolygonM).toFixed(2)) || Number((b.width * b.height).toFixed(2))
     }
   }
 
-  // Fallback if not detected
-  if (!cashierBoundsM) {
-    cashierBoundsM = { x: Number((lengthM - 2.3).toFixed(2)), y: Number((widthM - 3.9).toFixed(2)), width: 2.3, height: 3.9 }
-    cashierAreaM2 = 8.97
-  }
-
+  // Chiller (ANSI37)
   let chillerAreaM2 = 0
   let chillerBoundsM: { x: number; y: number; width: number; height: number } | undefined
   let chillerPolygonM: Point[] | undefined
   let chillerUnits = 6
 
-  const chillerHatch = hatches.find(h => h.pattern.toUpperCase().includes("ANSI37"))
+  const chillerHatch = hatches.find(h => h.pattern.toUpperCase().includes("ANSI37") || h.layer.toLowerCase().includes("chiller"))
   if (chillerHatch && chillerHatch.boundaryLoops.length > 0) {
     const loop = chillerHatch.boundaryLoops[0]
-    const b = getLoopBounds(loop)
-    const wM = Number((b.width * scaleToM).toFixed(2))
-    const hM = Number((b.height * scaleToM).toFixed(2))
-    const xM = Number(((b.minX - minStoreX) * scaleToM).toFixed(2))
-    const yM = Number(((maxStoreY - b.maxY) * scaleToM).toFixed(2))
-    chillerBoundsM = { x: xM, y: yM, width: wM, height: hM }
-    chillerAreaM2 = Number((wM * hM).toFixed(2))
     chillerPolygonM = loop.map(toM)
-    chillerUnits = Math.max(1, Math.round(wM / 1.2))
+    const b = getLoopBounds(chillerPolygonM)
+    cashierBoundsM = cashierBoundsM || undefined
+    chillerBoundsM = { x: b.minX, y: b.minY, width: b.width, height: b.height }
+    chillerAreaM2 = Number(getLoopArea(chillerPolygonM).toFixed(2)) || Number((b.width * b.height).toFixed(2))
+    const majorDimension = Math.max(b.width, b.height, ...chillerPolygonM.map((p, idx) => dist(p, chillerPolygonM![(idx + 1) % chillerPolygonM!.length])))
+    chillerUnits = Math.max(1, Math.round(majorDimension / 1.2))
   } else {
-    // Check polylines around chiller size (~7.2m x 0.45m)
     const polyChiller = polylines.find(p => {
       if (p.vertices.length < 4) return false
-      const b = getLoopBounds(p.vertices)
-      const wM = b.width * scaleToM
-      const hM = b.height * scaleToM
-      return (Math.abs(wM - 7.2) < 0.8 && Math.abs(hM - 0.45) < 0.3) || (Math.abs(hM - 7.2) < 0.8 && Math.abs(wM - 0.45) < 0.3)
+      const ptsM = p.vertices.map(toM)
+      const b = getLoopBounds(ptsM)
+      return (Math.abs(b.width - 7.2) < 1.0 && Math.abs(b.height - 0.45) < 0.4) || (Math.abs(b.height - 7.2) < 1.0 && Math.abs(b.width - 0.45) < 0.4)
     })
     if (polyChiller) {
-      const b = getLoopBounds(polyChiller.vertices)
-      const wM = Number((b.width * scaleToM).toFixed(2))
-      const hM = Number((b.height * scaleToM).toFixed(2))
-      const xM = Number(((b.minX - minStoreX) * scaleToM).toFixed(2))
-      const yM = Number(((maxStoreY - b.maxY) * scaleToM).toFixed(2))
-      chillerBoundsM = { x: xM, y: yM, width: wM, height: hM }
-      chillerAreaM2 = Number((wM * hM).toFixed(2))
       chillerPolygonM = polyChiller.vertices.map(toM)
-      chillerUnits = Math.max(1, Math.round(wM / 1.2))
+      const b = getLoopBounds(chillerPolygonM)
+      chillerBoundsM = { x: b.minX, y: b.minY, width: b.width, height: b.height }
+      chillerAreaM2 = Number(getLoopArea(chillerPolygonM).toFixed(2)) || Number((b.width * b.height).toFixed(2))
+      const majorDimension = Math.max(b.width, b.height)
+      chillerUnits = Math.max(1, Math.round(majorDimension / 1.2))
     }
   }
 
-  // Fallback if not detected
-  if (!chillerBoundsM) {
-    chillerBoundsM = { x: 1.34, y: 0.0, width: 7.2, height: 0.45 }
-    chillerAreaM2 = 3.24
-    chillerUnits = 6
-  }
-
-  // 5. Identify Doors (pv180, P1)
+  // Doors (pv180, P1)
   const doors: ParsedCadStoreData["doors"] = []
   inserts.forEach(ins => {
     const lowerName = ins.name.toLowerCase()
@@ -515,128 +539,237 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
     })
   })
 
-  // Ensure standard doors exist if inserts were empty
-  if (doors.length === 0) {
-    doors.push(
-      { name: "pv180", type: "main_pv180", positionM: { x: 5.06, y: widthM } },
-      { name: "P1", type: "warehouse_p1", positionM: { x: 8.61, y: 0.0 } }
-    )
+  // 3. Extract Store Outer Perimeter Polygon Dynamically
+  // Option A: Chain perimeter lines (filter out small fixture lines)
+  const candidateLines = lines
+    .map(l => ({ p1: toM(l.start), p2: toM(l.end) }))
+    .filter(l => dist(l.p1, l.p2) >= 1.5)
+
+  let basePolygon: Point[] | null = chainLinesIntoPolygon(candidateLines, 0.6)
+
+  // Option B: Check closed polyline with area >= 20m²
+  if (!basePolygon) {
+    const bigPoly = polylines.find(p => {
+      const ptsM = p.vertices.map(toM)
+      return ptsM.length >= 3 && getLoopArea(ptsM) >= 20
+    })
+    if (bigPoly) {
+      basePolygon = bigPoly.vertices.map(toM)
+    }
   }
 
-  // 6. Build Standard Outer Store Polygon with Segmented Fixtures (Chiller, Cashier, Doors, Glass)
-  const pts: Point[] = [{ x: 0, y: 0 }]
-  const segOverrides: Record<number, CadWallType> = {}
-  const segLabels: string[] = []
-
-  // Top Wall (y = 0, from x = 0 to lengthM)
-  const chX1 = chillerBoundsM ? Number(Math.max(0, Math.min(lengthM, chillerBoundsM.x)).toFixed(2)) : 1.34
-  const chX2 = chillerBoundsM ? Number(Math.max(chX1 + 0.5, Math.min(lengthM, chillerBoundsM.x + chillerBoundsM.width)).toFixed(2)) : 8.54
-
-  if (chX1 > 0.1) {
-    pts.push({ x: chX1, y: 0 })
-    segOverrides[pts.length - 2] = "SOLID"
-    segLabels.push(`Dinding Belakang (${chX1}m)`)
-  }
-  pts.push({ x: chX2, y: 0 })
-  segOverrides[pts.length - 2] = "CHILLER"
-  segLabels.push(`Chiller (${Number((chX2 - chX1).toFixed(2))}m)`)
-
-  // P1 Door on Top Wall:
-  const p1Door = doors.find(d => d.type === "warehouse_p1" || d.name.toLowerCase().includes("p1"))
-  const p1X1 = p1Door ? Number(Math.max(chX2, Math.min(lengthM - 1.0, p1Door.positionM.x)).toFixed(2)) : 8.61
-  const p1X2 = Number(Math.min(lengthM, p1X1 + 1.0).toFixed(2))
-
-  if (p1X1 - chX2 > 0.05) {
-    pts.push({ x: p1X1, y: 0 })
-    segOverrides[pts.length - 2] = "SOLID"
-    segLabels.push(`Dinding Belakang (${Number((p1X1 - chX2).toFixed(2))}m)`)
+  // Option C: Bounding box fallback
+  if (!basePolygon || basePolygon.length < 3) {
+    const allM = allPoints.map(toM)
+    const b = getLoopBounds(allM)
+    basePolygon = [
+      { x: b.minX, y: b.minY },
+      { x: b.maxX, y: b.minY },
+      { x: b.maxX, y: b.maxY },
+      { x: b.minX, y: b.maxY },
+    ]
   }
 
-  pts.push({ x: p1X2, y: 0 })
-  segOverrides[pts.length - 2] = "DOOR_P1"
-  segLabels.push(`Pintu P1 (${Number((p1X2 - p1X1).toFixed(2))}m)`)
-
-  if (lengthM - p1X2 > 0.05) {
-    pts.push({ x: lengthM, y: 0 })
-    segOverrides[pts.length - 2] = "SOLID"
-    segLabels.push(`Dinding Belakang (${Number((lengthM - p1X2).toFixed(2))}m)`)
+  // 4. Normalize Base Polygon Orientation & Starting Point (Top-Left Clockwise)
+  // Ensure Clockwise order (Area positive with Shoelace)
+  let areaSigned = 0
+  for (let k = 0; k < basePolygon.length; k++) {
+    const nextK = (k + 1) % basePolygon.length
+    areaSigned += (basePolygon[k].x * basePolygon[nextK].y - basePolygon[nextK].x * basePolygon[k].y)
+  }
+  if (areaSigned < 0) {
+    basePolygon.reverse()
   }
 
-  // Right Wall (x = lengthM, from y = 0 down to widthM)
-  const czY1 = cashierBoundsM ? Number(Math.max(0, Math.min(widthM, cashierBoundsM.y)).toFixed(2)) : Number((widthM - 3.9).toFixed(2))
-
-  if (czY1 > 0.1) {
-    pts.push({ x: lengthM, y: czY1 })
-    segOverrides[pts.length - 2] = "SOLID"
-    segLabels.push(`Dinding Kanan (${czY1}m)`)
+  // Rotate starting point to the top-left-most vertex (min x + min y)
+  let bestStartIdx = 0
+  let minScore = Infinity
+  for (let k = 0; k < basePolygon.length; k++) {
+    const score = basePolygon[k].x * 1.0 + basePolygon[k].y * 1.5
+    if (score < minScore) {
+      minScore = score
+      bestStartIdx = k
+    }
+  }
+  if (bestStartIdx > 0) {
+    basePolygon = [...basePolygon.slice(bestStartIdx), ...basePolygon.slice(0, bestStartIdx)]
   }
 
-  pts.push({ x: lengthM, y: widthM })
-  segOverrides[pts.length - 2] = "CASHIER"
-  segLabels.push(`Kasir Samping (${Number((widthM - czY1).toFixed(2))}m)`)
+  const polyBounds = getLoopBounds(basePolygon)
+  const lengthM = Number(polyBounds.width.toFixed(2))
+  const widthM = Number(polyBounds.height.toFixed(2))
+  const grossArea = Number(getLoopArea(basePolygon).toFixed(2))
 
-  // Bottom Wall (y = widthM, from x = lengthM down to 0)
-  const czX1 = cashierBoundsM ? Number(Math.max(0, Math.min(lengthM, cashierBoundsM.x)).toFixed(2)) : Number((lengthM - 2.3).toFixed(2))
-  const czX2 = cashierBoundsM ? Number(Math.max(czX1 + 0.5, Math.min(lengthM, cashierBoundsM.x + cashierBoundsM.width)).toFixed(2)) : lengthM
+  // 5. Dynamic Fixture Projection & Perimeter Subdivision
+  const finalPolygon: Point[] = []
+  const segmentOverrides: Record<number, CadWallType> = {}
+  const segmentLabels: string[] = []
 
-  const mainDoor = doors.find(d => d.type === "main_pv180" || d.name.toLowerCase().includes("pv180"))
-  const doorMid = mainDoor ? mainDoor.positionM.x : 5.06
-  const doorX1 = Number(Math.max(0, doorMid - 0.9).toFixed(2))
-  const doorX2 = Number(Math.min(lengthM, doorMid + 0.9).toFixed(2))
+  // Helper to test if a wall is the front wall (max Y region where main door or glass facade is located)
+  const mainDoor = doors.find(d => d.type === "main_pv180")
+  const p1Door = doors.find(d => d.type === "warehouse_p1")
 
-  // 1. from lengthM down to czX2 -> GLASS_DOOR (if gap)
-  if (lengthM - czX2 > 0.1) {
-    pts.push({ x: czX2, y: widthM })
-    segOverrides[pts.length - 2] = "GLASS_DOOR"
-    segLabels.push(`Dinding Kaca (${Number((lengthM - czX2).toFixed(2))}m)`)
+  for (let i = 0; i < basePolygon.length; i++) {
+    const pA = basePolygon[i]
+    const pB = basePolygon[(i + 1) % basePolygon.length]
+    const wallLen = dist(pA, pB)
+
+    if (wallLen < 0.1) continue
+
+    const intervals: WallInterval[] = []
+
+    // Check Chiller attachment
+    if (chillerPolygonM && chillerPolygonM.length >= 3) {
+      const projections = chillerPolygonM.map(pt => projectPointToSegment(pt, pA, pB))
+      const closeProjections = projections.filter(p => p.distance <= 1.2)
+      if (closeProjections.length >= 2) {
+        const ts = closeProjections.map(p => p.t)
+        const t1 = Math.max(0, Math.min(...ts))
+        const t2 = Math.min(1, Math.max(...ts))
+        if (t2 - t1 > 0.05) {
+          intervals.push({
+            t1,
+            t2,
+            type: "CHILLER",
+            label: `Chiller (${Number(((t2 - t1) * wallLen).toFixed(2))}m)`,
+          })
+        }
+      }
+    }
+
+    // Check Warehouse Door P1 attachment
+    if (p1Door) {
+      const proj = projectPointToSegment(p1Door.positionM, pA, pB)
+      if (proj.distance <= 1.2) {
+        const doorSpanT = Math.min(0.2, 1.0 / wallLen)
+        const t1 = Math.max(0, proj.t - 0.02)
+        const t2 = Math.min(1, t1 + doorSpanT)
+        intervals.push({
+          t1,
+          t2,
+          type: "DOOR_P1",
+          label: `Pintu P1 (${Number(((t2 - t1) * wallLen).toFixed(2))}m)`,
+        })
+      }
+    }
+
+    // Check Cashier Zone attachment
+    if (cashierPolygonM && cashierPolygonM.length >= 3) {
+      const projections = cashierPolygonM.map(pt => projectPointToSegment(pt, pA, pB))
+      const closeProjections = projections.filter(p => p.distance <= 0.6)
+      if (closeProjections.length >= 2) {
+        const ts = closeProjections.map(p => p.t)
+        const t1 = Math.max(0, Math.min(...ts))
+        const t2 = Math.min(1, Math.max(...ts))
+        if (t2 - t1 > 0.05) {
+          intervals.push({
+            t1,
+            t2,
+            type: "CASHIER",
+            label: `Kasir (${Number(((t2 - t1) * wallLen).toFixed(2))}m)`,
+          })
+        }
+      }
+    }
+
+    // Check Main Door pv180 attachment
+    if (mainDoor) {
+      const proj = projectPointToSegment(mainDoor.positionM, pA, pB)
+      if (proj.distance <= 1.2) {
+        const doorSpanT = Math.min(0.3, 1.8 / wallLen)
+        const t1 = Math.max(0, proj.t - doorSpanT / 2)
+        const t2 = Math.min(1, t1 + doorSpanT)
+        intervals.push({
+          t1,
+          t2,
+          type: "DOOR_MAIN",
+          label: `Pintu Utama (${Number(((t2 - t1) * wallLen).toFixed(2))}m)`,
+        })
+      }
+    }
+
+    // Determine default wall type for unassigned intervals
+    const midY = (pA.y + pB.y) / 2
+    const isFrontWall = midY >= polyBounds.maxY - 1.5 || (mainDoor && dist(projectPointToSegment(mainDoor.positionM, pA, pB).proj, mainDoor.positionM) <= 1.5)
+    const defaultWallType: CadWallType = isFrontWall ? "GLASS_DOOR" : "SOLID"
+
+    // Sort intervals by t1
+    intervals.sort((a, b) => a.t1 - b.t1)
+
+    // Build non-overlapping subsegments
+    const subsegments: WallInterval[] = []
+    let currentT = 0
+
+    for (const inter of intervals) {
+      if (inter.t1 - currentT > 0.03) {
+        subsegments.push({
+          t1: currentT,
+          t2: inter.t1,
+          type: defaultWallType,
+          label: isFrontWall ? `Dinding Kaca (${Number(((inter.t1 - currentT) * wallLen).toFixed(2))}m)` : `Dinding (${Number(((inter.t1 - currentT) * wallLen).toFixed(2))}m)`,
+        })
+      }
+      const actualT1 = Math.max(currentT, inter.t1)
+      const actualT2 = Math.max(actualT1 + 0.02, inter.t2)
+      subsegments.push({
+        t1: actualT1,
+        t2: actualT2,
+        type: inter.type,
+        label: inter.label,
+      })
+      currentT = actualT2
+    }
+
+    if (1.0 - currentT > 0.03) {
+      subsegments.push({
+        t1: currentT,
+        t2: 1.0,
+        type: defaultWallType,
+        label: isFrontWall ? `Dinding Kaca (${Number(((1.0 - currentT) * wallLen).toFixed(2))}m)` : `Dinding (${Number(((1.0 - currentT) * wallLen).toFixed(2))}m)`,
+      })
+    }
+
+    if (subsegments.length === 0) {
+      subsegments.push({
+        t1: 0,
+        t2: 1.0,
+        type: defaultWallType,
+        label: `Dinding (${Number(wallLen.toFixed(2))}m)`,
+      })
+    }
+
+    // Emit vertices for each subsegment
+    for (let s = 0; s < subsegments.length; s++) {
+      const sub = subsegments[s]
+      const ptStart: Point = {
+        x: Number((pA.x + sub.t1 * (pB.x - pA.x)).toFixed(2)),
+        y: Number((pA.y + sub.t1 * (pB.y - pA.y)).toFixed(2)),
+      }
+      finalPolygon.push(ptStart)
+      const segIndex = finalPolygon.length - 1
+      segmentOverrides[segIndex] = sub.type
+      segmentLabels.push(sub.label)
+    }
   }
-  // 2. from czX2 down to czX1 -> CASHIER
-  pts.push({ x: czX1, y: widthM })
-  segOverrides[pts.length - 2] = "CASHIER"
-  segLabels.push(`Kasir Depan (${Number((czX2 - czX1).toFixed(2))}m)`)
 
-  // 3. between cashier and door: from czX1 down to doorX2 -> GLASS_DOOR
-  if (czX1 - doorX2 > 0.1) {
-    pts.push({ x: doorX2, y: widthM })
-    segOverrides[pts.length - 2] = "GLASS_DOOR"
-    segLabels.push(`Dinding Kaca (${Number((czX1 - doorX2).toFixed(2))}m)`)
-  }
-
-  // 4. Door span: from doorX2 down to doorX1 -> DOOR_MAIN
-  pts.push({ x: doorX1, y: widthM })
-  segOverrides[pts.length - 2] = "DOOR_MAIN"
-  segLabels.push(`Pintu Utama (${Number((doorX2 - doorX1).toFixed(2))}m)`)
-
-  // 5. from doorX1 down to 0 -> GLASS_DOOR
-  if (doorX1 > 0.1) {
-    pts.push({ x: 0, y: widthM })
-    segOverrides[pts.length - 2] = "GLASS_DOOR"
-    segLabels.push(`Dinding Kaca (${doorX1}m)`)
-  }
-
-  // Left Wall (x = 0, from y = widthM up to 0): connects closing back to pts[0]
-  segOverrides[pts.length - 1] = "SOLID"
-  segLabels.push(`Dinding Kiri (${widthM}m)`)
-
-  const storePolygon = pts
+  // 6. Build Rich Wall Segments
   const wallSegments: CadWallSegment[] = []
-  for (let i = 0; i < pts.length; i++) {
-    const p1 = pts[i]
-    const p2 = pts[(i + 1) % pts.length]
-    const len = Number(Math.hypot(p2.x - p1.x, p2.y - p1.y).toFixed(2))
+  for (let i = 0; i < finalPolygon.length; i++) {
+    const p1 = finalPolygon[i]
+    const p2 = finalPolygon[(i + 1) % finalPolygon.length]
+    const len = Number(dist(p1, p2).toFixed(2))
     wallSegments.push({
       index: i,
       p1,
       p2,
       lengthM: len,
-      type: segOverrides[i] || "SOLID",
-      label: segLabels[i] || `Segmen ${i + 1} (${len}m)`,
+      type: segmentOverrides[i] || "SOLID",
+      label: segmentLabels[i] || `Segmen ${i + 1} (${len}m)`,
     })
   }
 
-  const grossArea = Number((lengthM * widthM).toFixed(2))
-  const netSalesArea = Number(Math.max(1, grossArea - chillerAreaM2 - cashierAreaM2).toFixed(2))
-  const segmentOverrides = segOverrides
+  // Net sales area calculation
+  const netSalesArea = Number(Math.max(1, grossArea - (chillerAreaM2 || 0) - (cashierAreaM2 || 0)).toFixed(2))
 
   return {
     success: true,
@@ -657,7 +790,7 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
       lengthM,
       widthM,
     },
-    polygon: storePolygon,
+    polygon: finalPolygon,
     wallSegments,
     segmentOverrides,
     doors,

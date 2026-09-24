@@ -215,7 +215,7 @@ export function CadImportDialog({
                     {parsedData.metrics.chillerArea > 0 ? `${parsedData.metrics.chillerArea} m²` : "0 m²"}
                   </span>
                   <span className="text-[10px] text-muted-foreground">
-                    {parsedData.zones.chiller ? "7.2m × 0.45m" : "Tidak ada"}
+                    {parsedData.zones.chiller ? `${parsedData.zones.chiller.bounds.width.toFixed(1)}m × ${parsedData.zones.chiller.bounds.height.toFixed(1)}m` : "Tidak ada"}
                   </span>
                 </div>
 
@@ -227,7 +227,7 @@ export function CadImportDialog({
                     {parsedData.metrics.cashierArea > 0 ? `${parsedData.metrics.cashierArea} m²` : "0 m²"}
                   </span>
                   <span className="text-[10px] text-muted-foreground">
-                    {parsedData.zones.cashier ? "2.3m × 3.9m" : "Tidak ada"}
+                    {parsedData.zones.cashier ? `${parsedData.zones.cashier.bounds.width.toFixed(1)}m × ${parsedData.zones.cashier.bounds.height.toFixed(1)}m` : "Tidak ada"}
                   </span>
                 </div>
 

@@ -302,12 +302,12 @@ export function getWallForbiddenIntervals(
 
     // 1. Chiller Block Check (Dilarang pasang AC di atas chiller)
     if (cadData.zones?.chiller) {
-      const ch = cadData.zones.chiller.bounds
-      const corners = [
-        { x: ch.x, y: ch.y },
-        { x: ch.x + ch.width, y: ch.y },
-        { x: ch.x + ch.width, y: ch.y + ch.height },
-        { x: ch.x, y: ch.y + ch.height },
+      const ch = cadData.zones.chiller
+      const corners = ch.polygon || [
+        { x: ch.bounds.x, y: ch.bounds.y },
+        { x: ch.bounds.x + ch.bounds.width, y: ch.bounds.y },
+        { x: ch.bounds.x + ch.bounds.width, y: ch.bounds.y + ch.bounds.height },
+        { x: ch.bounds.x, y: ch.bounds.y + ch.bounds.height },
       ]
       const minDist = Math.min(...corners.map(c => distToWall(c.x, c.y)))
       if (minDist < 0.35) {
@@ -329,12 +329,12 @@ export function getWallForbiddenIntervals(
 
     // 2. Cashier Block Check (Dilarang pasang AC di atas meja kasir)
     if (cadData.zones?.cashier) {
-      const cz = cadData.zones.cashier.bounds
-      const corners = [
-        { x: cz.x, y: cz.y },
-        { x: cz.x + cz.width, y: cz.y },
-        { x: cz.x + cz.width, y: cz.y + cz.height },
-        { x: cz.x, y: cz.y + cz.height },
+      const cz = cadData.zones.cashier
+      const corners = cz.polygon || [
+        { x: cz.bounds.x, y: cz.bounds.y },
+        { x: cz.bounds.x + cz.bounds.width, y: cz.bounds.y },
+        { x: cz.bounds.x + cz.bounds.width, y: cz.bounds.y + cz.bounds.height },
+        { x: cz.bounds.x, y: cz.bounds.y + cz.bounds.height },
       ]
       const minDist = Math.min(...corners.map(c => distToWall(c.x, c.y)))
       if (minDist < 0.35) {
@@ -1963,7 +1963,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       const vX = mx - p1.x
       const vY = my - p1.y
       const distIn = vX * inNorm.nx + vY * inNorm.ny
-      const calculatedDepth = Math.max(0.6, Math.min(5.0, Math.round(Math.max(0.6, distIn) * 10) / 10))
+      const calculatedDepth = Math.max(0.6, Math.min(25.0, Math.round(Math.max(0.6, distIn) * 10) / 10))
       setPendingCashierDepth((prev) => (prev ? { ...prev, depthM: calculatedDepth } : null))
     }
 
@@ -2732,213 +2732,178 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     ctx.restore()
 
     // ── 1B. RENDER 2D VOLUMETRIC FIXTURES & CAD HATCHES (Kasir, Chiller, Pintu Riil) ──
-    // A. Area Meja Kasir (HATCH ANSI32 + Volume Inward)
-    const cashierWalls = wallSegments.filter(w => w.type === "CASHIER")
-    if (activeCadMetadata?.zones?.cashier) {
+    // A. Area Meja Kasir (HATCH ANSI32 / Poligon Tunggal)
+    if (activeCadMetadata?.zones?.cashier?.polygon && activeCadMetadata.zones.cashier.polygon.length >= 3) {
       const cz = activeCadMetadata.zones.cashier
-      const b = cz.bounds
-      const pTopLeft = toC({ x: b.x, y: b.y })
-      const pBottomRight = toC({ x: b.x + b.width, y: b.y + b.height })
-
-      const minX = Math.min(pTopLeft.cx, pBottomRight.cx)
-      const maxX = Math.max(pTopLeft.cx, pBottomRight.cx)
-      const minY = Math.min(pTopLeft.cy, pBottomRight.cy)
-      const maxY = Math.max(pTopLeft.cy, pBottomRight.cy)
-      const boxW = Math.max(10, maxX - minX)
-      const boxH = Math.max(10, maxY - minY)
-
-      ctx.save()
-      ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.22)" : "rgba(245, 158, 11, 0.16)"
-      ctx.fillRect(minX, minY, boxW, boxH)
+      const polyPts = cz.polygon.map(toC)
 
       ctx.save()
       ctx.beginPath()
-      ctx.rect(minX, minY, boxW, boxH)
+      ctx.moveTo(polyPts[0].cx, polyPts[0].cy)
+      for (let k = 1; k < polyPts.length; k++) {
+        ctx.lineTo(polyPts[k].cx, polyPts[k].cy)
+      }
+      ctx.closePath()
+      ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.22)" : "rgba(245, 158, 11, 0.16)"
+      ctx.fill()
+
+      ctx.save()
       ctx.clip()
       ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.40)" : "rgba(217, 119, 6, 0.35)"
       ctx.lineWidth = 1
-      const spacing = 9
-      for (let off = -boxH; off < boxW + boxH; off += spacing) {
+      const minCanvasX = Math.min(...polyPts.map(p => p.cx)) - 50
+      const maxCanvasX = Math.max(...polyPts.map(p => p.cx)) + 50
+      const minCanvasY = Math.min(...polyPts.map(p => p.cy)) - 50
+      const maxCanvasY = Math.max(...polyPts.map(p => p.cy)) + 50
+      const span = maxCanvasY - minCanvasY + maxCanvasX - minCanvasX
+      for (let off = -span; off < span; off += 9) {
         ctx.beginPath()
-        ctx.moveTo(minX + off, minY)
-        ctx.lineTo(minX + off + boxH, minY + boxH)
+        ctx.moveTo(minCanvasX + off, minCanvasY)
+        ctx.lineTo(minCanvasX + off + (maxCanvasY - minCanvasY), maxCanvasY)
         ctx.stroke()
       }
       ctx.restore()
 
+      ctx.beginPath()
+      ctx.moveTo(polyPts[0].cx, polyPts[0].cy)
+      for (let k = 1; k < polyPts.length; k++) {
+        ctx.lineTo(polyPts[k].cx, polyPts[k].cy)
+      }
+      ctx.closePath()
       ctx.strokeStyle = "#f59e0b"
       ctx.lineWidth = 1.8
       ctx.setLineDash([5, 3])
-      ctx.strokeRect(minX, minY, boxW, boxH)
+      ctx.stroke()
       ctx.setLineDash([])
 
-      const midX = (minX + maxX) / 2
-      const midY = (minY + maxY) / 2
+      const midX = polyPts.reduce((sum, p) => sum + p.cx, 0) / polyPts.length
+      const midY = polyPts.reduce((sum, p) => sum + p.cy, 0) / polyPts.length
+
+      const cashierTitle = "KASIR"
+      const cashierDim = `${formatDim(cz.bounds.width)}m × ${formatDim(cz.bounds.height)}m`
+
+      ctx.font = "bold 8.5px sans-serif"
+      const t1Metrics = ctx.measureText(cashierTitle)
+      ctx.font = "bold 7.5px sans-serif"
+      const t2Metrics = ctx.measureText(cashierDim)
+      const pillW = Math.max(t1Metrics.width, t2Metrics.width) + 10
+      const pillH = 22
+
+      // Pill Background
+      ctx.fillStyle = bgFill
+      if (ctx.roundRect) {
+        ctx.beginPath()
+        ctx.roundRect(midX - pillW / 2, midY - pillH / 2, pillW, pillH, 4)
+        ctx.fill()
+      } else {
+        ctx.fillRect(midX - pillW / 2, midY - pillH / 2, pillW, pillH)
+      }
+
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
-      ctx.strokeStyle = bgFill
-      ctx.lineWidth = 3
-      ctx.lineJoin = "round"
-
-      ctx.font = "bold 8px sans-serif"
-      ctx.strokeText("KASIR", midX, midY - 5)
+      ctx.font = "bold 8.5px sans-serif"
       ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
-      ctx.fillText("KASIR", midX, midY - 5)
+      ctx.fillText(cashierTitle, midX, midY - 5)
 
-      const cashierDim = `${b.width}m × ${b.height}m`
-      ctx.font = "bold 7px sans-serif"
-      ctx.strokeText(cashierDim, midX, midY + 5)
+      ctx.font = "bold 7.5px sans-serif"
       ctx.fillStyle = effectiveIsDark ? "rgba(251, 191, 36, 0.85)" : "rgba(180, 83, 9, 0.85)"
       ctx.fillText(cashierDim, midX, midY + 5)
       ctx.restore()
-    } else if (cashierWalls.length > 0) {
-      cashierWalls.forEach((wall) => {
-        const inNorm = getWallInwardNormal(wall.p1, wall.p2, customPts)
-        const depthM = cashierDepths[wall.index] !== undefined ? cashierDepths[wall.index] : CASHIER_DEPTH_M
-        const p1 = wall.p1
-        const p2 = wall.p2
-        const p3 = { x: p2.x + depthM * inNorm.nx, y: p2.y + depthM * inNorm.ny }
-        const p4 = { x: p1.x + depthM * inNorm.nx, y: p1.y + depthM * inNorm.ny }
+    } else {
+      const cashierWalls = wallSegments.filter(w => w.type === "CASHIER")
+      if (cashierWalls.length > 0) {
+        cashierWalls.forEach((wall) => {
+          const inNorm = getWallInwardNormal(wall.p1, wall.p2, customPts)
+          const depthM = cashierDepths[wall.index] !== undefined ? cashierDepths[wall.index] : CASHIER_DEPTH_M
+          const p1 = wall.p1
+          const p2 = wall.p2
+          const p3 = { x: p2.x + depthM * inNorm.nx, y: p2.y + depthM * inNorm.ny }
+          const p4 = { x: p1.x + depthM * inNorm.nx, y: p1.y + depthM * inNorm.ny }
 
-        const cp1 = toC(p1)
-        const cp2 = toC(p2)
-        const cp3 = toC(p3)
-        const cp4 = toC(p4)
+          const cp1 = toC(p1)
+          const cp2 = toC(p2)
+          const cp3 = toC(p3)
+          const cp4 = toC(p4)
 
-        ctx.save()
-        ctx.beginPath()
-        ctx.moveTo(cp1.cx, cp1.cy)
-        ctx.lineTo(cp2.cx, cp2.cy)
-        ctx.lineTo(cp3.cx, cp3.cy)
-        ctx.lineTo(cp4.cx, cp4.cy)
-        ctx.closePath()
-        ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.22)" : "rgba(245, 158, 11, 0.16)"
-        ctx.fill()
-
-        ctx.save()
-        ctx.clip()
-        ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.40)" : "rgba(217, 119, 6, 0.35)"
-        ctx.lineWidth = 1
-        const minCanvasX = Math.min(cp1.cx, cp2.cx, cp3.cx, cp4.cx) - 50
-        const maxCanvasX = Math.max(cp1.cx, cp2.cx, cp3.cx, cp4.cx) + 50
-        const minCanvasY = Math.min(cp1.cy, cp2.cy, cp3.cy, cp4.cy) - 50
-        const maxCanvasY = Math.max(cp1.cy, cp2.cy, cp3.cy, cp4.cy) + 50
-        const span = maxCanvasY - minCanvasY + maxCanvasX - minCanvasX
-        for (let off = -span; off < span; off += 9) {
+          ctx.save()
           ctx.beginPath()
-          ctx.moveTo(minCanvasX + off, minCanvasY)
-          ctx.lineTo(minCanvasX + off + (maxCanvasY - minCanvasY), maxCanvasY)
+          ctx.moveTo(cp1.cx, cp1.cy)
+          ctx.lineTo(cp2.cx, cp2.cy)
+          ctx.lineTo(cp3.cx, cp3.cy)
+          ctx.lineTo(cp4.cx, cp4.cy)
+          ctx.closePath()
+          ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.22)" : "rgba(245, 158, 11, 0.16)"
+          ctx.fill()
+
+          ctx.save()
+          ctx.clip()
+          ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.40)" : "rgba(217, 119, 6, 0.35)"
+          ctx.lineWidth = 1
+          const minCanvasX = Math.min(cp1.cx, cp2.cx, cp3.cx, cp4.cx) - 50
+          const maxCanvasX = Math.max(cp1.cx, cp2.cx, cp3.cx, cp4.cx) + 50
+          const minCanvasY = Math.min(cp1.cy, cp2.cy, cp3.cy, cp4.cy) - 50
+          const maxCanvasY = Math.max(cp1.cy, cp2.cy, cp3.cy, cp4.cy) + 50
+          const span = maxCanvasY - minCanvasY + maxCanvasX - minCanvasX
+          for (let off = -span; off < span; off += 9) {
+            ctx.beginPath()
+            ctx.moveTo(minCanvasX + off, minCanvasY)
+            ctx.lineTo(minCanvasX + off + (maxCanvasY - minCanvasY), maxCanvasY)
+            ctx.stroke()
+          }
+          ctx.restore()
+
+          ctx.beginPath()
+          ctx.moveTo(cp1.cx, cp1.cy)
+          ctx.lineTo(cp2.cx, cp2.cy)
+          ctx.lineTo(cp3.cx, cp3.cy)
+          ctx.lineTo(cp4.cx, cp4.cy)
+          ctx.closePath()
+          ctx.strokeStyle = "#f59e0b"
+          ctx.lineWidth = 1.8
+          ctx.setLineDash([5, 3])
           ctx.stroke()
-        }
-        ctx.restore()
+          ctx.setLineDash([])
 
-        ctx.beginPath()
-        ctx.moveTo(cp1.cx, cp1.cy)
-        ctx.lineTo(cp2.cx, cp2.cy)
-        ctx.lineTo(cp3.cx, cp3.cy)
-        ctx.lineTo(cp4.cx, cp4.cy)
-        ctx.closePath()
-        ctx.strokeStyle = "#f59e0b"
-        ctx.lineWidth = 1.8
-        ctx.setLineDash([5, 3])
-        ctx.stroke()
-        ctx.setLineDash([])
+          const midX = (cp1.cx + cp2.cx + cp3.cx + cp4.cx) / 4
+          const midY = (cp1.cy + cp2.cy + cp3.cy + cp4.cy) / 4
 
-        const midX = (cp1.cx + cp2.cx + cp3.cx + cp4.cx) / 4
-        const midY = (cp1.cy + cp2.cy + cp3.cy + cp4.cy) / 4
-        ctx.textAlign = "center"
-        ctx.textBaseline = "middle"
-        ctx.strokeStyle = bgFill
-        ctx.lineWidth = 3
-        ctx.lineJoin = "round"
+          const cashierTitle = "KASIR"
+          const cashierDim = `${formatDim(wall.lengthM)}m × ${formatDim(depthM)}m`
 
-        ctx.font = "bold 8px sans-serif"
-        ctx.strokeText("KASIR", midX, midY - 5)
-        ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
-        ctx.fillText("KASIR", midX, midY - 5)
+          ctx.font = "bold 8.5px sans-serif"
+          const t1Metrics = ctx.measureText(cashierTitle)
+          ctx.font = "bold 7.5px sans-serif"
+          const t2Metrics = ctx.measureText(cashierDim)
+          const pillW = Math.max(t1Metrics.width, t2Metrics.width) + 10
+          const pillH = 22
 
-        const cashierDim = `${formatDim(wall.lengthM)}m × ${formatDim(depthM)}m`
-        ctx.font = "bold 7px sans-serif"
-        ctx.strokeText(cashierDim, midX, midY + 5)
-        ctx.fillStyle = effectiveIsDark ? "rgba(251, 191, 36, 0.85)" : "rgba(180, 83, 9, 0.85)"
-        ctx.fillText(cashierDim, midX, midY + 5)
-        ctx.restore()
-      })
+          // Pill Background
+          ctx.fillStyle = bgFill
+          if (ctx.roundRect) {
+            ctx.beginPath()
+            ctx.roundRect(midX - pillW / 2, midY - pillH / 2, pillW, pillH, 4)
+            ctx.fill()
+          } else {
+            ctx.fillRect(midX - pillW / 2, midY - pillH / 2, pillW, pillH)
+          }
+
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.font = "bold 8.5px sans-serif"
+          ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
+          ctx.fillText(cashierTitle, midX, midY - 5)
+
+          ctx.font = "bold 7.5px sans-serif"
+          ctx.fillStyle = effectiveIsDark ? "rgba(251, 191, 36, 0.85)" : "rgba(180, 83, 9, 0.85)"
+          ctx.fillText(cashierDim, midX, midY + 5)
+          ctx.restore()
+        })
+      }
     }
 
-    // B. Barisan Chiller (HATCH ANSI37 + Inward Volume with Modular Dividers)
+    // B. Barisan Chiller (HATCH ANSI37 + Inward Volume with Modular Dividers mengikuti kemiringan dinding)
     const chillerWalls = wallSegments.filter(w => w.type === "CHILLER")
-    if (activeCadMetadata?.zones?.chiller) {
-      const ch = activeCadMetadata.zones.chiller
-      const b = ch.bounds
-      const pTopLeft = toC({ x: b.x, y: b.y })
-      const pBottomRight = toC({ x: b.x + b.width, y: b.y + b.height })
-
-      const minX = Math.min(pTopLeft.cx, pBottomRight.cx)
-      const maxX = Math.max(pTopLeft.cx, pBottomRight.cx)
-      const minY = Math.min(pTopLeft.cy, pBottomRight.cy)
-      const maxY = Math.max(pTopLeft.cy, pBottomRight.cy)
-      const boxW = Math.max(10, maxX - minX)
-      const boxH = Math.max(10, maxY - minY)
-
-      ctx.save()
-      ctx.fillStyle = effectiveIsDark ? "rgba(6, 182, 212, 0.25)" : "rgba(6, 182, 212, 0.18)"
-      ctx.fillRect(minX, minY, boxW, boxH)
-
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(minX, minY, boxW, boxH)
-      ctx.clip()
-      ctx.strokeStyle = effectiveIsDark ? "rgba(6, 182, 212, 0.40)" : "rgba(8, 145, 178, 0.35)"
-      ctx.lineWidth = 1
-      const spacing = 7
-      for (let off = -boxH; off < boxW + boxH; off += spacing) {
-        ctx.beginPath()
-        ctx.moveTo(minX + off, minY)
-        ctx.lineTo(minX + off + boxH, minY + boxH)
-        ctx.stroke()
-        ctx.beginPath()
-        ctx.moveTo(minX + off, minY + boxH)
-        ctx.lineTo(minX + off + boxH, minY)
-        ctx.stroke()
-      }
-      ctx.restore()
-
-      const uCount = ch.unitCount || Math.max(1, Math.round(b.width / 1.2))
-      ctx.strokeStyle = effectiveIsDark ? "rgba(255, 255, 255, 0.8)" : "rgba(8, 51, 68, 0.8)"
-      ctx.lineWidth = 1.5
-      for (let u = 1; u < uCount; u++) {
-        const divX = minX + (u / uCount) * boxW
-        ctx.beginPath()
-        ctx.moveTo(divX, minY)
-        ctx.lineTo(divX, maxY)
-        ctx.stroke()
-      }
-
-      ctx.strokeStyle = "#06b6d4"
-      ctx.lineWidth = 1.8
-      ctx.strokeRect(minX, minY, boxW, boxH)
-
-      const midX = (minX + maxX) / 2
-      ctx.textAlign = "center"
-      ctx.textBaseline = "top"
-      ctx.strokeStyle = bgFill
-      ctx.lineWidth = 3
-      ctx.lineJoin = "round"
-
-      const chillerTitle = `CHILLER (${uCount} UNIT)`
-      ctx.font = "bold 8px sans-serif"
-      ctx.strokeText(chillerTitle, midX, maxY + 6)
-      ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0891b2"
-      ctx.fillText(chillerTitle, midX, maxY + 6)
-
-      const chillerDim = `${b.width}m × ${b.height}m`
-      ctx.font = "bold 7px sans-serif"
-      ctx.strokeText(chillerDim, midX, maxY + 16)
-      ctx.fillStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(8, 145, 178, 0.85)"
-      ctx.fillText(chillerDim, midX, maxY + 16)
-      ctx.restore()
-    } else if (chillerWalls.length > 0) {
+    if (chillerWalls.length > 0) {
       chillerWalls.forEach((wall) => {
         const inNorm = getWallInwardNormal(wall.p1, wall.p2, customPts)
         const depthM = CHILLER_DEPTH_M
@@ -3016,23 +2981,36 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.lineWidth = 1.8
         ctx.stroke()
 
-        const midX = (cp3.cx + cp4.cx) / 2
-        const midY = (cp3.cy + cp4.cy) / 2
-        ctx.textAlign = "center"
-        ctx.textBaseline = "middle"
-        ctx.strokeStyle = bgFill
-        ctx.lineWidth = 3
-        ctx.lineJoin = "round"
+        const midX = (cp1.cx + cp2.cx + cp3.cx + cp4.cx) / 4
+        const midY = (cp1.cy + cp2.cy + cp3.cy + cp4.cy) / 4
 
         const chillerTitle = `CHILLER (${uCount} UNIT)`
+        const chillerDim = `${formatDim(wall.lengthM)}m × ${depthM}m`
+
         ctx.font = "bold 8px sans-serif"
-        ctx.strokeText(chillerTitle, midX, midY - 5)
+        const ch1Metrics = ctx.measureText(chillerTitle)
+        ctx.font = "bold 7px sans-serif"
+        const ch2Metrics = ctx.measureText(chillerDim)
+        const chPillW = Math.max(ch1Metrics.width, ch2Metrics.width) + 10
+        const chPillH = 22
+
+        // Pill Background
+        ctx.fillStyle = bgFill
+        if (ctx.roundRect) {
+          ctx.beginPath()
+          ctx.roundRect(midX - chPillW / 2, midY - chPillH / 2, chPillW, chPillH, 4)
+          ctx.fill()
+        } else {
+          ctx.fillRect(midX - chPillW / 2, midY - chPillH / 2, chPillW, chPillH)
+        }
+
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.font = "bold 8px sans-serif"
         ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0891b2"
         ctx.fillText(chillerTitle, midX, midY - 5)
 
-        const chillerDim = `${formatDim(wall.lengthM)}m × ${depthM}m`
         ctx.font = "bold 7px sans-serif"
-        ctx.strokeText(chillerDim, midX, midY + 5)
         ctx.fillStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(8, 145, 178, 0.85)"
         ctx.fillText(chillerDim, midX, midY + 5)
         ctx.restore()
@@ -3109,19 +3087,34 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ctx.lineTo(cT2.cx, cT2.cy)
           ctx.stroke()
 
-          const labelPt = toC({ x: midM.x + (leafR + 0.35) * inNorm.nx, y: midM.y + (leafR + 0.35) * inNorm.ny })
+          const labelPt = toC({ x: midM.x + (leafR + 0.4) * inNorm.nx, y: midM.y + (leafR + 0.4) * inNorm.ny })
+          const doorTitle = "PINTU UTAMA"
+          const doorDim = `LEBAR ${formatDim(wall.lengthM)}m`
+
+          ctx.font = "bold 8px sans-serif"
+          const d1Metrics = ctx.measureText(doorTitle)
+          ctx.font = "bold 7px sans-serif"
+          const d2Metrics = ctx.measureText(doorDim)
+          const dPillW = Math.max(d1Metrics.width, d2Metrics.width) + 8
+          const dPillH = 20
+
+          // Pill background
+          ctx.fillStyle = bgFill
+          if (ctx.roundRect) {
+            ctx.beginPath()
+            ctx.roundRect(labelPt.cx - dPillW / 2, labelPt.cy - dPillH / 2, dPillW, dPillH, 3)
+            ctx.fill()
+          } else {
+            ctx.fillRect(labelPt.cx - dPillW / 2, labelPt.cy - dPillH / 2, dPillW, dPillH)
+          }
+
           ctx.textAlign = "center"
           ctx.textBaseline = "middle"
-          ctx.strokeStyle = bgFill
-          ctx.lineWidth = 2.5
-          ctx.lineJoin = "round"
           ctx.font = "bold 8px sans-serif"
-          ctx.strokeText("PINTU UTAMA", labelPt.cx, labelPt.cy - 5)
           ctx.fillStyle = "#f97316"
-          ctx.fillText("PINTU UTAMA", labelPt.cx, labelPt.cy - 5)
-          const doorDim = `LEBAR ${formatDim(wall.lengthM)}m`
+          ctx.fillText(doorTitle, labelPt.cx, labelPt.cy - 5)
+
           ctx.font = "bold 7px sans-serif"
-          ctx.strokeText(doorDim, labelPt.cx, labelPt.cy + 5)
           ctx.fillStyle = "rgba(249, 115, 22, 0.85)"
           ctx.fillText(doorDim, labelPt.cx, labelPt.cy + 5)
         } else if (wall.type === "DOOR_P1") {
@@ -3165,21 +3158,36 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ctx.lineTo(cT.cx, cT.cy)
           ctx.stroke()
 
-          const labelPt = toC({ x: hM.x + (leafR * 0.5) * ux + (leafR + 0.35) * inNorm.nx, y: hM.y + (leafR * 0.5) * uy + (leafR + 0.35) * inNorm.ny })
+          const labelPt = toC({ x: hM.x + (leafR * 0.5) * ux + (leafR + 0.4) * inNorm.nx, y: hM.y + (leafR * 0.5) * uy + (leafR + 0.4) * inNorm.ny })
+          const p1Title = "PINTU P1 GUDANG"
+          const p1Dim = `LEBAR ${formatDim(leafR)}m`
+
+          ctx.font = "bold 8px sans-serif"
+          const p1Metrics = ctx.measureText(p1Title)
+          ctx.font = "bold 7px sans-serif"
+          const p2Metrics = ctx.measureText(p1Dim)
+          const p1PillW = Math.max(p1Metrics.width, p2Metrics.width) + 8
+          const p1PillH = 20
+
+          // Pill background
+          ctx.fillStyle = bgFill
+          if (ctx.roundRect) {
+            ctx.beginPath()
+            ctx.roundRect(labelPt.cx - p1PillW / 2, labelPt.cy - p1PillH / 2, p1PillW, p1PillH, 3)
+            ctx.fill()
+          } else {
+            ctx.fillRect(labelPt.cx - p1PillW / 2, labelPt.cy - p1PillH / 2, p1PillW, p1PillH)
+          }
+
           ctx.textAlign = "center"
           ctx.textBaseline = "middle"
-          ctx.strokeStyle = bgFill
-          ctx.lineWidth = 2.5
-          ctx.lineJoin = "round"
           ctx.font = "bold 8px sans-serif"
-          ctx.strokeText("PINTU P1 GUDANG", labelPt.cx, labelPt.cy - 5)
           ctx.fillStyle = "#ea580c"
-          ctx.fillText("PINTU P1 GUDANG", labelPt.cx, labelPt.cy - 5)
-          const doorDim = `LEBAR ${formatDim(leafR)}m`
+          ctx.fillText(p1Title, labelPt.cx, labelPt.cy - 5)
+
           ctx.font = "bold 7px sans-serif"
-          ctx.strokeText(doorDim, labelPt.cx, labelPt.cy + 5)
           ctx.fillStyle = "rgba(234, 88, 12, 0.85)"
-          ctx.fillText(doorDim, labelPt.cx, labelPt.cy + 5)
+          ctx.fillText(p1Dim, labelPt.cx, labelPt.cy + 5)
         } else if (wall.type === "GLASS_DOOR") {
           ctx.strokeStyle = "#f97316"
           ctx.lineWidth = 3.5
@@ -3366,6 +3374,31 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     const cxPoly = sptsPoly.reduce((acc, p) => acc + p.cx, 0) / (sptsPoly.length || 1)
     const cyPoly = sptsPoly.reduce((acc, p) => acc + p.cy, 0) / (sptsPoly.length || 1)
 
+    // Deteksi titik sudut struktural poligon utama (belokan nyata >= 15°) vs sub-titik bagi fixture/pintu
+    const isStructuralCorner: boolean[] = customPts.map((pt, i) => {
+      if (customPts.length <= 4) return true
+      const prev = customPts[(i - 1 + customPts.length) % customPts.length]
+      const next = customPts[(i + 1) % customPts.length]
+      const v1x = pt.x - prev.x
+      const v1y = pt.y - prev.y
+      const v2x = next.x - pt.x
+      const v2y = next.y - pt.y
+      const len1 = Math.hypot(v1x, v1y) || 1
+      const len2 = Math.hypot(v2x, v2y) || 1
+      const dotVal = (v1x * v2x + v1y * v2y) / (len1 * len2)
+      // Jika dotVal < 0.97 (belokan > ~14°), ini adalah sudut struktural asli denah gedung
+      return dotVal < 0.97
+    })
+
+    // Map nomor label sudut struktural (T1, T2, T3, T4...)
+    let structCounter = 1
+    const structuralLabels: (string | null)[] = isStructuralCorner.map((isCorner) => {
+      if (isCorner) {
+        return `T${structCounter++}`
+      }
+      return null
+    })
+
     // 3. Render Garis Dinding Poligon & Status Terlarang
     wallSegments.forEach((wall) => {
       const p1 = toC(wall.p1)
@@ -3434,25 +3467,28 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.restore()
       }
 
-      // Label Dimensi & Tag Zona di Sepanjang Sisi Dinding (Outward Normal Offset persis Kalkulator Lampu)
+      // Label Dimensi Dinding Luar (Hanya untuk dinding SOLID agar tidak menabrak label fixture/pintu)
       const mx = (p1.cx + p2.cx) / 2
       const my = (p1.cy + p2.cy) / 2
       const dx = p2.cx - p1.cx
       const dy = p2.cy - p1.cy
       const len = Math.hypot(dx, dy)
 
-      if (len > 0) {
+      // Hanya tampilkan tag dimensi jika dinding SOLID atau manual non-CAD dan panjang >= 0.8m
+      const shouldShowOuterTag = wall.type === "SOLID" && len > 22 && wall.lengthM >= 0.8
+
+      if (shouldShowOuterTag) {
         let nx = -dy / len
         let ny = dx / len
 
-        // Pastikan normal vector selalu mengarah keluar poligon
-        const dot = (mx + nx * 10 - cxPoly) * (mx - cxPoly) + (my + ny * 10 - cyPoly) * (my - cyPoly)
+        // Pastikan normal vector selalu 100% mengarah ke LUAR denah poligon
+        const dot = nx * (mx - cxPoly) + ny * (my - cyPoly)
         if (dot < 0) {
           nx = -nx
           ny = -ny
         }
 
-        const labelOffset = 11
+        const labelOffset = 18
         const labelX = mx + nx * labelOffset
         const labelY = my + ny * labelOffset
 
@@ -3461,27 +3497,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           angle += Math.PI
         }
 
-        let tag = `${formatDim(wall.lengthM)}m`
-        let tagColor = effectiveIsDark ? "#34d399" : "#047857"
+        const tag = `${formatDim(wall.lengthM)}m`
+        let tagColor = effectiveIsDark ? "#38bdf8" : "#0284c7"
 
-        if (wall.type === "GLASS_DOOR") {
-          tag = `${formatDim(wall.lengthM)}m`
-          tagColor = "#f97316"
-        } else if (wall.type === "DOOR_MAIN") {
-          tag = `${formatDim(wall.lengthM)}m`
-          tagColor = "#f97316"
-        } else if (wall.type === "DOOR_P1") {
-          tag = `${formatDim(wall.lengthM)}m`
-          tagColor = "#ea580c"
-        } else if (wall.type === "CASHIER") {
-          tag = `${formatDim(wall.lengthM)}m`
-          tagColor = "#eab308"
-        } else if (wall.type === "CHILLER") {
-          tag = `${formatDim(wall.lengthM)}m`
-          tagColor = "#06b6d4"
-        } else if (wall.type === "SOLID" && wall.lengthM < AC_INDOOR_WIDTH_M) {
+        if (wall.lengthM < AC_INDOOR_WIDTH_M) {
           tagColor = effectiveIsDark ? "#f87171" : "#dc2626"
-        } else if (wall.type === "SOLID" && wall.lengthM < MIN_WALL_LENGTH_FOR_AC) {
+        } else if (wall.lengthM < MIN_WALL_LENGTH_FOR_AC) {
           tagColor = effectiveIsDark ? "#fbbf24" : "#d97706"
         }
 
@@ -3493,10 +3514,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.font = "bold 8.5px sans-serif"
 
         // Background mask to prevent line and tag overlap
-        ctx.strokeStyle = bgFill
-        ctx.lineWidth = 3
-        ctx.lineJoin = "round"
-        ctx.strokeText(tag, 0, 0)
+        const textMetrics = ctx.measureText(tag)
+        ctx.fillStyle = bgFill
+        if (ctx.roundRect) {
+          ctx.beginPath()
+          ctx.roundRect(-textMetrics.width / 2 - 4, -6, textMetrics.width + 8, 12, 3)
+          ctx.fill()
+        } else {
+          ctx.fillRect(-textMetrics.width / 2 - 4, -6, textMetrics.width + 8, 12)
+        }
 
         // Crisp filled text aligned parallel to wall
         ctx.fillStyle = tagColor
@@ -4051,18 +4077,24 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     customPts.forEach((pt, i) => {
       const sp = toC(pt)
       const isSelected = selectedNodeIdx === i
+      const isCorner = isStructuralCorner[i] || isSelected
+      const structLabel = structuralLabels[i]
 
       ctx.save()
       ctx.beginPath()
-      ctx.arc(sp.cx, sp.cy, isSelected ? 8 : (i === 0 ? 5 : 3.5), 0, Math.PI * 2)
+      ctx.arc(sp.cx, sp.cy, isSelected ? 8 : (isCorner ? (i === 0 ? 5.5 : 4) : 2.5), 0, Math.PI * 2)
       ctx.fillStyle = isSelected
         ? "rgba(239,68,68,0.3)"
-        : (i === 0 ? "rgba(245,158,11,0.5)" : (effectiveIsDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)"))
+        : (isCorner
+            ? (i === 0 ? "rgba(245,158,11,0.5)" : (effectiveIsDark ? "rgba(56,189,248,0.25)" : "rgba(2,132,199,0.15)"))
+            : (effectiveIsDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.1)"))
       ctx.fill()
       ctx.strokeStyle = isSelected
         ? "#ef4444"
-        : (i === 0 ? "#f59e0b" : (effectiveIsDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.25)"))
-      ctx.lineWidth = isSelected ? 2.5 : 1
+        : (isCorner
+            ? (i === 0 ? "#f59e0b" : (effectiveIsDark ? "rgba(56,189,248,0.7)" : "rgba(2,132,199,0.6)"))
+            : (effectiveIsDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)"))
+      ctx.lineWidth = isSelected ? 2.5 : (isCorner ? 1.2 : 0.8)
       ctx.stroke()
 
       if (isSelected) {
@@ -4075,29 +4107,34 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.setLineDash([])
       }
 
-      // Outward vector from centroid for corner node label (T1, T2, etc.)
-      let outVx = sp.cx - cxPoly
-      let outVy = sp.cy - cyPoly
-      const outLen = Math.hypot(outVx, outVy) || 1
-      outVx /= outLen
-      outVy /= outLen
+      // Hanya render label badge T jika ini adalah sudut struktural atau sedang diseleksi
+      if (structLabel || isSelected) {
+        const labelText = isSelected ? `T${i + 1}` : (structLabel || `T${i + 1}`)
 
-      const nodeOffset = isSelected ? 14 : 10
-      const labelCx = sp.cx + outVx * nodeOffset
-      const labelCy = sp.cy + outVy * nodeOffset
+        // Outward vector from centroid for corner node label
+        let outVx = sp.cx - cxPoly
+        let outVy = sp.cy - cyPoly
+        const outLen = Math.hypot(outVx, outVy) || 1
+        outVx /= outLen
+        outVy /= outLen
 
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      ctx.font = isSelected ? "bold 10px sans-serif" : "bold 8px sans-serif"
+        const nodeOffset = isSelected ? 16 : 13
+        const labelCx = sp.cx + outVx * nodeOffset
+        const labelCy = sp.cy + outVy * nodeOffset
 
-      // Halo behind node label so it never collides with wall lines or tags
-      ctx.strokeStyle = bgFill
-      ctx.lineWidth = 2.5
-      ctx.lineJoin = "round"
-      ctx.strokeText(`T${i + 1}`, labelCx, labelCy)
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.font = isSelected ? "bold 10px sans-serif" : "bold 8.5px sans-serif"
 
-      ctx.fillStyle = isSelected ? "#ef4444" : nodeTextFill
-      ctx.fillText(`T${i + 1}`, labelCx, labelCy)
+        // Halo behind node label so it never collides with wall lines or tags
+        ctx.strokeStyle = bgFill
+        ctx.lineWidth = 3.5
+        ctx.lineJoin = "round"
+        ctx.strokeText(labelText, labelCx, labelCy)
+
+        ctx.fillStyle = isSelected ? "#ef4444" : nodeTextFill
+        ctx.fillText(labelText, labelCx, labelCy)
+      }
       ctx.restore()
     })
 
@@ -4288,7 +4325,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             ? parseFloat(String(rawWallLen)) || Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
             : Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
 
-        const dimOffset = 22
+        const dimOffset = Math.max(26, Math.min(38, (wall.type === "CHILLER" ? 0.65 : 0.45) * sc.scale))
 
         // Rantai titik dimensi [T_start, AC_1, AC_2, ..., T_end]
         const chainPoints: {
@@ -4337,8 +4374,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
         chainPoints.forEach((cp) => {
           // Jika titik as AC, mulai garis bantu dari sisi luar bodi AC agar tidak memotong bodi & teks label
-          const startX = cp.isUnit ? cp.origCanvas.cx + normX * 7.5 : cp.origCanvas.cx
-          const startY = cp.isUnit ? cp.origCanvas.cy + normY * 7.5 : cp.origCanvas.cy
+          const startX = cp.isUnit ? cp.origCanvas.cx + normX * 8.5 : cp.origCanvas.cx
+          const startY = cp.isUnit ? cp.origCanvas.cy + normY * 8.5 : cp.origCanvas.cy
 
           ctx.beginPath()
           ctx.moveTo(startX, startY)
@@ -4403,17 +4440,29 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
             const dimText = `${formatDim(segmentDistM)}m`
             const textMetrics = ctx.measureText(dimText)
-            const padX = 3
+            const padX = 4
             const padY = 2
 
-            // Pill background to clearly separate dimension text from dimension line
+            // Rounded pill background to clearly separate dimension text from dimension line
             ctx.fillStyle = bgFill
-            ctx.fillRect(
-              -textMetrics.width / 2 - padX,
-              -5 - padY,
-              textMetrics.width + padX * 2,
-              10 + padY * 2
-            )
+            if (ctx.roundRect) {
+              ctx.beginPath()
+              ctx.roundRect(
+                -textMetrics.width / 2 - padX,
+                -5 - padY,
+                textMetrics.width + padX * 2,
+                10 + padY * 2,
+                3
+              )
+              ctx.fill()
+            } else {
+              ctx.fillRect(
+                -textMetrics.width / 2 - padX,
+                -5 - padY,
+                textMetrics.width + padX * 2,
+                10 + padY * 2
+              )
+            }
 
             ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
             ctx.fillText(dimText, 0, 0)
@@ -4429,6 +4478,95 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   useEffect(() => {
     drawCanvas()
   }, [drawCanvas])
+
+  // ─── Helper Rincian Jarak AC terhadap Sudut Struktural Utama Denah ────────
+  const getStructuralWallDetails = (
+    unit: { wallIndex: number; ratio: number; id: string },
+    segments: WallSegment[],
+    pts: Point[]
+  ) => {
+    const isCorner = pts.map((pt, i) => {
+      if (pts.length <= 4) return true
+      const prev = pts[(i - 1 + pts.length) % pts.length]
+      const next = pts[(i + 1) % pts.length]
+      const v1x = pt.x - prev.x
+      const v1y = pt.y - prev.y
+      const v2x = next.x - pt.x
+      const v2y = next.y - pt.y
+      const len1 = Math.hypot(v1x, v1y) || 1
+      const len2 = Math.hypot(v2x, v2y) || 1
+      return (v1x * v2x + v1y * v2y) / (len1 * len2) < 0.97
+    })
+
+    const structIndices: number[] = []
+    isCorner.forEach((c, idx) => {
+      if (c) structIndices.push(idx)
+    })
+
+    const wall = segments.find((w) => w.index === unit.wallIndex)
+    if (!wall || structIndices.length === 0) {
+      return {
+        wallLabel: `Dinding T${unit.wallIndex + 1}`,
+        startNode: `T1`,
+        endNode: `T2`,
+        distStart: 0,
+        distEnd: 0,
+        wallLengthM: 0,
+      }
+    }
+
+    const N = pts.length
+    let startCornerIdx = wall.index
+    while (!isCorner[startCornerIdx]) {
+      startCornerIdx = (startCornerIdx - 1 + N) % N
+    }
+
+    let endCornerIdx = (wall.index + 1) % N
+    while (!isCorner[endCornerIdx]) {
+      endCornerIdx = (endCornerIdx + 1) % N
+    }
+
+    const startCornerNum = structIndices.indexOf(startCornerIdx) + 1
+    const endCornerNum = structIndices.indexOf(endCornerIdx) + 1
+    const startNode = `T${startCornerNum}`
+    const endNode = `T${endCornerNum}`
+
+    // Jarak kumulatif dari startCorner ke titik awal segmen
+    let cumDistBefore = 0
+    let curr = startCornerIdx
+    while (curr !== wall.index) {
+      const pA = pts[curr]
+      const pB = pts[(curr + 1) % N]
+      cumDistBefore += Math.hypot(pB.x - pA.x, pB.y - pA.y)
+      curr = (curr + 1) % N
+    }
+
+    const segLen = Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
+    const distFromSegStart = unit.ratio * segLen
+    const distStart = Number((cumDistBefore + distFromSegStart).toFixed(2))
+
+    // Jarak kumulatif dari titik akhir segmen ke endCorner
+    let cumDistAfter = 0
+    curr = (wall.index + 1) % N
+    while (curr !== endCornerIdx) {
+      const pA = pts[curr]
+      const pB = pts[(curr + 1) % N]
+      cumDistAfter += Math.hypot(pB.x - pA.x, pB.y - pA.y)
+      curr = (curr + 1) % N
+    }
+    const distToSegEnd = (1 - unit.ratio) * segLen
+    const distEnd = Number((cumDistAfter + distToSegEnd).toFixed(2))
+    const totalWallLen = Number((distStart + distEnd).toFixed(2))
+
+    return {
+      wallLabel: `Dinding ${startNode} - ${endNode}`,
+      startNode,
+      endNode,
+      distStart,
+      distEnd,
+      wallLengthM: totalWallLen,
+    }
+  }
 
   // ─── 13. Export Denah Handler ─────────────────────────────────────────────
   const handleExportPng = async () => {
@@ -4450,30 +4588,18 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       }
     }
 
-    // Siapkan rincian legenda jarak per unit
+    // Siapkan rincian legenda jarak per unit terhadap sudut struktural utama
     const unitDetails = placedUnits.map((unit, idx) => {
-      const wall = wallSegments.find((w) => w.index === unit.wallIndex)
-      const rawWallLen = wall ? segmentLengths[wall.index] : undefined
-      const wallLengthM =
-        wall && rawWallLen !== undefined && rawWallLen !== ""
-          ? parseFloat(String(rawWallLen)) || Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
-          : wall
-            ? Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
-            : 0
-
-      const startNode = `T${(wall?.index ?? 0) + 1}`
-      const endNode = `T${(((wall?.index ?? 0) + 1) % (customPts.length || 1)) + 1}`
-      const distStart = Number((unit.ratio * wallLengthM).toFixed(2))
-      const distEnd = Number(((1 - unit.ratio) * wallLengthM).toFixed(2))
+      const details = getStructuralWallDetails(unit, wallSegments, customPts)
 
       return {
         name: `AC ${idx + 1}`,
-        wallLabel: `Dinding ${startNode}-${endNode}`,
-        wallLengthM,
-        startNode,
-        endNode,
-        fromStart: formatDim(distStart),
-        toEnd: formatDim(distEnd),
+        wallLabel: details.wallLabel,
+        wallLengthM: details.wallLengthM,
+        startNode: details.startNode,
+        endNode: details.endNode,
+        fromStart: formatDim(details.distStart),
+        toEnd: formatDim(details.distEnd),
       }
     })
 
@@ -5246,20 +5372,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
                     <div className="space-y-2 divide-y divide-border/60">
                       {placedUnits.map((unit, idx) => {
-                        const wall = wallSegments.find((w) => w.index === unit.wallIndex)
-                        if (!wall) return null
-
-                        const rawWallLen = segmentLengths[wall.index]
-                        const wallLengthM =
-                          rawWallLen !== undefined && rawWallLen !== ""
-                            ? parseFloat(String(rawWallLen)) ||
-                            Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
-                            : Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
-
-                        const startNode = `T${wall.index + 1}`
-                        const endNode = `T${((wall.index + 1) % customPts.length) + 1}`
-                        const distStart = Number((unit.ratio * wallLengthM).toFixed(2))
-                        const distEnd = Number(((1 - unit.ratio) * wallLengthM).toFixed(2))
+                        const details = getStructuralWallDetails(unit, wallSegments, customPts)
 
                         return (
                           <div key={unit.id || idx} className="pt-2 first:pt-0 space-y-1.5 text-[11px]">
@@ -5268,24 +5381,24 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                                 AC {idx + 1} (Daikin 2 PK)
                               </span>
                               <span className="text-muted-foreground font-mono text-[10px]">
-                                Dinding {startNode} - {endNode} ({formatDim(wallLengthM)}m)
+                                {details.wallLabel} ({formatDim(details.wallLengthM)}m)
                               </span>
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-[10.5px]">
                               <div className="p-1.5 rounded-lg bg-card border border-border/60 flex flex-col">
                                 <span className="text-[9px] text-muted-foreground">
-                                  Dari Sudut {startNode}
+                                  Dari Sudut {details.startNode}
                                 </span>
                                 <span className="font-mono font-bold text-foreground">
-                                  {formatDim(distStart)} meter
+                                  {formatDim(details.distStart)} meter
                                 </span>
                               </div>
                               <div className="p-1.5 rounded-lg bg-card border border-border/60 flex flex-col">
                                 <span className="text-[9px] text-muted-foreground">
-                                  Ke Sudut {endNode}
+                                  Ke Sudut {details.endNode}
                                 </span>
                                 <span className="font-mono font-bold text-foreground">
-                                  {formatDim(distEnd)} meter
+                                  {formatDim(details.distEnd)} meter
                                 </span>
                               </div>
                             </div>
