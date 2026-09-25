@@ -466,6 +466,43 @@ export function applyZoneToPolygon(
 }
 
 /**
+ * Calculates the maximum safe depth into the room before hitting facing opposite walls
+ */
+export function getMaxInwardDepth(p1: Point, p2: Point, inNorm: { nx: number; ny: number }, polygon: Point[]): number {
+  const N = polygon.length
+  if (N < 3) return 6.0
+
+  let minHitDist = 25.0
+  const rayOrigins: Point[] = [
+    p1,
+    p2,
+    { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 },
+  ]
+
+  for (const origin of rayOrigins) {
+    for (let i = 0; i < N; i++) {
+      const w1 = polygon[i]
+      const w2 = polygon[(i + 1) % N]
+      const dx = w2.x - w1.x
+      const dy = w2.y - w1.y
+      const denom = inNorm.nx * dy - inNorm.ny * dx
+      if (Math.abs(denom) > 1e-5) {
+        const t = ((w1.x - origin.x) * dy - (w1.y - origin.y) * dx) / denom
+        const u = ((w1.x - origin.x) * inNorm.ny - (w1.y - origin.y) * inNorm.nx) / denom
+        if (t > 0.08 && u >= -0.01 && u <= 1.01) {
+          if (t < minHitDist) {
+            minHitDist = t
+          }
+        }
+      }
+    }
+  }
+
+  const safeMax = Math.max(0.6, Number(minHitDist.toFixed(2)))
+  return safeMax
+}
+
+/**
  * Constructs a single unified polygon boundary for a continuous chain of cashier segments (1-wall, corner 2-wall, or 3-wall)
  */
 export function getCashierZonePolygon(rawChain: Point[], depthM: number, polygon: Point[]): Point[] {
@@ -504,8 +541,10 @@ export function getCashierZonePolygon(rawChain: Point[], depthM: number, polygon
     const p1 = cleanChain[0]
     const p2 = cleanChain[1]
     const n = getWallInwardNormal(p1, p2, polygon)
-    const p3 = { x: Number((p2.x + depthM * n.nx).toFixed(2)), y: Number((p2.y + depthM * n.ny).toFixed(2)) }
-    const p4 = { x: Number((p1.x + depthM * n.nx).toFixed(2)), y: Number((p1.y + depthM * n.ny).toFixed(2)) }
+    const maxD = getMaxInwardDepth(p1, p2, n, polygon)
+    const clampedDepth = Math.min(maxD, Math.max(0.6, depthM))
+    const p3 = { x: Number((p2.x + clampedDepth * n.nx).toFixed(2)), y: Number((p2.y + clampedDepth * n.ny).toFixed(2)) }
+    const p4 = { x: Number((p1.x + clampedDepth * n.nx).toFixed(2)), y: Number((p1.y + clampedDepth * n.ny).toFixed(2)) }
     return [p1, p2, p3, p4]
   }
 
@@ -1005,6 +1044,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     lengthM: number
     inNorm: { nx: number; ny: number }
     depthM: number
+    maxDepthM?: number
     pathPoints?: Point[]
   } | null>(null)
 
@@ -2071,6 +2111,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             const p2 = nonCollinearPts[1] || nonCollinearPts[0]
             const inNorm = getWallInwardNormal(p1, p2, customPts)
             const wallDist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+            const maxDepthM = getMaxInwardDepth(p1, p2, inNorm, customPts)
 
             setPendingCashierDepth({
               segIdx: segIdxB,
@@ -2086,12 +2127,13 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
               t2: tB,
               lengthM: wallDist,
               inNorm,
-              depthM: 2.0,
+              depthM: Math.min(2.0, maxDepthM),
+              maxDepthM,
               pathPoints: [p1, p2],
             })
             setPendingZoneStart(null)
             toast.info(
-              `Panjang kasir (${formatDim(wallDist)}m) terkunci! Tarik kursor ke dalam ruangan untuk menentukan kedalaman, lalu klik titik ke-3 untuk mengunci.`
+              `Panjang kasir (${formatDim(wallDist)}m) terkunci! Tarik kursor ke dalam ruangan untuk menentukan kedalaman (maks ${formatDim(maxDepthM)}m), lalu klik titik ke-3 untuk mengunci.`
             )
             return
           }
@@ -2360,10 +2402,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     if (pendingCashierDepth) {
       const p1 = pendingCashierDepth.p1
       const inNorm = pendingCashierDepth.inNorm
+      const maxD = pendingCashierDepth.maxDepthM ?? 6.0
       const vX = mx - p1.x
       const vY = my - p1.y
       const distIn = vX * inNorm.nx + vY * inNorm.ny
-      const calculatedDepth = Math.max(0.6, Math.min(6.0, Math.round(Math.max(0.6, distIn) * 10) / 10))
+      const calculatedDepth = Math.max(0.6, Math.min(maxD, Math.round(Math.max(0.6, distIn) * 10) / 10))
       setPendingCashierDepth((prev) => (prev ? { ...prev, depthM: calculatedDepth } : null))
     }
 
