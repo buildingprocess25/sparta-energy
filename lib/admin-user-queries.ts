@@ -54,12 +54,22 @@ type RawAdminUserRow = {
 }
 
 const activeUserWhereSql =
-  "u.branch IS NULL OR lower(u.branch) NOT IN ('demo', 'head office')"
+  "(u.branch IS NULL OR lower(u.branch) NOT IN ('demo', 'head office'))"
 
 export const adminUsersPageSize = 20
 
 export const defaultAdminUserSort: AdminUserSortKey = "createdAt"
 export const defaultAdminUserOrder: AdminUserSortOrder = "desc"
+
+export function parseAdminUserRole(
+  value: string | null | undefined
+): UserRole | "all" {
+  if (!value) return "all"
+  const normalized = value.trim().toLowerCase()
+  if (normalized === "user") return "USER"
+  if (normalized === "admin") return "ADMIN"
+  return "all"
+}
 
 export function parseAdminUserSort(
   value: string | null | undefined
@@ -117,9 +127,22 @@ function buildWhereClause(filters: AdminUserFilters): string {
   }
 
   if (filters.branch && filters.branch !== "all") {
-    const branches = filters.branch.split(",").map((b) => b.trim().replace(/'/g, "''")).filter(Boolean)
+    const branches = filters.branch
+      .split(",")
+      .map((b) => b.trim().replace(/'/g, "''"))
+      .filter(Boolean)
     if (branches.length > 0) {
-      conditions.push(`u.branch IN (${branches.map((b) => `'${b}'`).join(", ")})`)
+      const branchListSql = branches.map((b) => `'${b}'`).join(", ")
+      conditions.push(`(
+        u.branch IS NOT NULL AND (
+          u.branch IN (${branchListSql})
+          OR EXISTS (
+            SELECT 1 
+            FROM unnest(string_to_array(u.branch, ',')) AS b_item 
+            WHERE trim(b_item) IN (${branchListSql})
+          )
+        )
+      )`)
     }
   }
 

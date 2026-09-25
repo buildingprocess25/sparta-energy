@@ -7,6 +7,7 @@ import {
   getAdminUserRoles,
   getAdminUserRows,
   parseAdminUserOrder,
+  parseAdminUserRole,
   parseAdminUserSort,
   type AdminUserFilters as AdminUserFiltersValue,
   type UserRole,
@@ -24,12 +25,6 @@ function getFilter(value: string | undefined) {
   return value?.trim() || "all"
 }
 
-function parseRole(value: string | undefined): UserRole | "all" {
-  return value === "user" || value === "admin"
-    ? (value.toUpperCase() as UserRole)
-    : "all"
-}
-
 function formatNumber(value: number | bigint) {
   return new Intl.NumberFormat("id-ID").format(Number(value))
 }
@@ -42,7 +37,7 @@ export default async function AdminUsersPage({
   const params = await searchParams
   const filters: AdminUserFiltersValue = {
     q: params.q?.trim() ?? "",
-    role: parseRole(params.role),
+    role: parseAdminUserRole(params.role),
     branch: getFilter(params.branch),
     sort: parseAdminUserSort(params.sort),
     order: parseAdminUserOrder(params.order),

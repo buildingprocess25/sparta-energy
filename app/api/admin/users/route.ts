@@ -5,6 +5,7 @@ import {
   adminUsersPageSize,
   getAdminUserRows,
   parseAdminUserOrder,
+  parseAdminUserRole,
   parseAdminUserSort,
   type AdminUserFilters,
   type UserRole,
@@ -14,12 +15,6 @@ function getFilter(value: string | null) {
   return value?.trim() || "all"
 }
 
-function parseRole(value: string | null): UserRole | "all" {
-  return value === "user" || value === "admin"
-    ? (value.toUpperCase() as UserRole)
-    : "all"
-}
-
 export async function GET(request: NextRequest) {
   try {
     await requireAdmin()
@@ -27,7 +22,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const filters: AdminUserFilters = {
       q: searchParams.get("q")?.trim() ?? "",
-      role: parseRole(searchParams.get("role")),
+      role: parseAdminUserRole(searchParams.get("role")),
       branch: getFilter(searchParams.get("branch")),
       sort: parseAdminUserSort(searchParams.get("sort")),
       order: parseAdminUserOrder(searchParams.get("order")),
