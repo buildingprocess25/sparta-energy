@@ -18,6 +18,9 @@ export type AcMappingResultCardData = {
   storeName: string
   storeBranch: string
   area: number
+  lengthM?: number
+  widthM?: number
+  grossArea?: number
   temp: number | null
   btuPerM2: number
   totalBtu: number
@@ -75,6 +78,9 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
     storeName,
     storeBranch,
     area,
+    lengthM,
+    widthM,
+    grossArea,
     temp,
     btuPerM2,
     totalBtu,
@@ -271,7 +277,20 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
 
           {/* Data rows */}
           <div style={{ padding: "0 14px", marginBottom: "6px" }}>
-            <Row label="Luas Denah Efektif" value={`${area.toFixed(1)} m²`} />
+            {lengthM !== undefined && widthM !== undefined && (
+              <Row
+                label="Dimensi Denah (PT × LT)"
+                value={`${lengthM.toFixed(2)}m × ${widthM.toFixed(2)}m`}
+              />
+            )}
+            <Row
+              label="Luas Denah Efektif"
+              value={
+                grossArea && grossArea !== area
+                  ? `${area.toFixed(1)} m² (Gross: ${grossArea.toFixed(1)} m²)`
+                  : `${area.toFixed(1)} m²`
+              }
+            />
             {temp !== null && (
               <Row
                 label="Suhu Lingkungan Desain"

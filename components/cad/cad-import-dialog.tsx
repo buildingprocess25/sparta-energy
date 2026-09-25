@@ -194,7 +194,7 @@ export function CadImportDialog({
               </div>
 
               {/* Metric grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className={`grid grid-cols-2 gap-2 ${parsedData.metrics.columnArea && parsedData.metrics.columnArea > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
                 <div className="p-2.5 rounded-xl border bg-card flex flex-col">
                   <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
                     <IconRuler className="size-3 text-sky-500" /> Dimensi Riil
@@ -215,7 +215,7 @@ export function CadImportDialog({
                     {parsedData.metrics.chillerArea > 0 ? `${parsedData.metrics.chillerArea} m²` : "0 m²"}
                   </span>
                   <span className="text-[10px] text-muted-foreground">
-                    {parsedData.zones.chiller ? `${parsedData.zones.chiller.bounds.width.toFixed(1)}m × ${parsedData.zones.chiller.bounds.height.toFixed(1)}m` : "Tidak ada"}
+                    {parsedData.zones.chiller ? `${parsedData.zones.chiller.unitCount} Unit Pintu` : "Tidak ada"}
                   </span>
                 </div>
 
@@ -231,15 +231,29 @@ export function CadImportDialog({
                   </span>
                 </div>
 
+                {parsedData.metrics.columnArea !== undefined && parsedData.metrics.columnArea > 0 && (
+                  <div className="p-2.5 rounded-xl border bg-card flex flex-col">
+                    <span className="text-[10px] text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1">
+                      <IconBuildingStore className="size-3 text-slate-500" /> Kolom / Pilar
+                    </span>
+                    <span className="text-sm font-extrabold text-slate-700 dark:text-slate-300 mt-0.5 font-mono">
+                      {parsedData.metrics.columnArea} m²
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {parsedData.zones.columns ? `${parsedData.zones.columns.length} Pilar (AR-CONC)` : "Terdeteksi"}
+                    </span>
+                  </div>
+                )}
+
                 <div className="p-2.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 flex flex-col">
                   <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1">
-                    <IconSparkles className="size-3" /> Luas Efektif Sales
+                    <IconSparkles className="size-3" /> Luas Bersih Sales
                   </span>
                   <span className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300 mt-0.5 font-mono">
                     {parsedData.metrics.netSalesArea} m²
                   </span>
                   <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">
-                    Gross - Mati
+                    Gross - Mati - Kolom
                   </span>
                 </div>
               </div>
@@ -247,38 +261,46 @@ export function CadImportDialog({
               {/* Zones and SOP Wall status preview */}
               <div className="p-3 rounded-xl border bg-muted/20 space-y-2">
                 <span className="text-[11px] font-bold text-foreground block">
-                  Klasifikasi Dinding & SOP Penempatan AC:
+                  Identifikasi Elemen & Klasifikasi Dinding Hasil CAD:
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   <div className="flex items-center gap-2 p-1.5 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-700 dark:text-orange-300">
                     <IconDoor className="size-4 shrink-0 text-orange-500" />
                     <div className="truncate">
-                      <span className="font-bold">Dinding Depan / Kaca:</span>
-                      <p className="text-[10px] text-muted-foreground truncate">Dilarang pasang AC (Pintu pv180)</p>
+                      <span className="font-bold">Dinding Depan (Kaca & Pintu):</span>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {parsedData.doors.some(d => d.type === "main_pv180") ? "Pintu Utama (Double Swing/pv180) + Kaca" : "Dinding Kaca Facade (Dilarang AC)"}
+                      </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300">
                     <IconFridge className="size-4 shrink-0 text-cyan-500" />
                     <div className="truncate">
-                      <span className="font-bold">Dinding Belakang (Chiller):</span>
-                      <p className="text-[10px] text-muted-foreground truncate">Dilarang pasang AC di atas chiller</p>
+                      <span className="font-bold">Dinding Belakang (Chiller & P1):</span>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {parsedData.zones.chiller ? `Chiller (${parsedData.metrics.chillerArea}m²)` : "Dinding Belakang"}
+                        {parsedData.doors.some(d => d.type === "warehouse_p1") ? " + Pintu Gudang P1" : ""}
+                      </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 p-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-700 dark:text-sky-300">
                     <IconCheck className="size-4 shrink-0 text-sky-500" />
                     <div className="truncate">
-                      <span className="font-bold">Dinding Kiri & Kanan:</span>
-                      <p className="text-[10px] text-muted-foreground truncate">Dinding solid aman untuk unit indoor</p>
+                      <span className="font-bold">Dinding Kiri & Kanan (Solid):</span>
+                      <p className="text-[10px] text-muted-foreground truncate">Dinding solid bata/beton (Aman untuk unit AC)</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300">
                     <IconShoppingCart className="size-4 shrink-0 text-amber-500" />
                     <div className="truncate">
-                      <span className="font-bold">Zona Kasir:</span>
-                      <p className="text-[10px] text-muted-foreground truncate">Dilarang pasang AC di atas area kasir</p>
+                      <span className="font-bold">Zona Kasir & Kolom:</span>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {parsedData.zones.cashier ? `Kasir ${parsedData.metrics.cashierArea}m²` : "Tanpa Kasir"}
+                        {parsedData.zones.columns && parsedData.zones.columns.length > 0 ? ` • ${parsedData.zones.columns.length} Kolom (${parsedData.metrics.columnArea}m²)` : ""}
+                      </p>
                     </div>
                   </div>
                 </div>

@@ -44,6 +44,7 @@ export interface CadStoreMetrics {
   grossArea: number
   chillerArea: number
   cashierArea: number
+  columnArea?: number
   netSalesArea: number
   lengthM: number
   widthM: number
@@ -90,6 +91,17 @@ export interface ParsedCadStoreData {
       areaM2: number
       unitCount: number
     }
+    glass?: {
+      bounds: { x: number; y: number; width: number; height: number }
+      polygon: Point[]
+      areaM2: number
+    }
+    columns?: Array<{
+      bounds: { x: number; y: number; width: number; height: number }
+      polygon: Point[]
+      areaM2: number
+      label?: string
+    }>
   }
   rawSummary: {
     lineCount: number
@@ -522,14 +534,156 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
     }
   }
 
-  // Doors (pv180, P1)
+  // Glass Wall / Kusen (GOST_GLASS / GLASS / KACA / KUSEN)
+  let glassAreaM2 = 0
+  let glassBoundsM: { x: number; y: number; width: number; height: number } | undefined
+  let glassPolygonM: Point[] | undefined
+
+  const glassHatch = hatches.find(h =>
+    h.pattern.toUpperCase().includes("GOST_GLASS") ||
+    h.pattern.toUpperCase().includes("GLASS") ||
+    h.layer.toLowerCase().includes("kaca") ||
+    h.layer.toLowerCase().includes("glass") ||
+    h.layer.toLowerCase().includes("kusen")
+  )
+  if (glassHatch && glassHatch.boundaryLoops.length > 0) {
+    const loop = glassHatch.boundaryLoops[0]
+    glassPolygonM = loop.map(toM)
+    const b = getLoopBounds(glassPolygonM)
+    glassBoundsM = { x: b.minX, y: b.minY, width: b.width, height: b.height }
+    glassAreaM2 = Number(getLoopArea(glassPolygonM).toFixed(2)) || Number((b.width * b.height).toFixed(2))
+  }
+
+  // Columns / Pilar (AR-CONC / CONC / CONCRETE / KOLOM / Secondary Holes)
+  const columnZones: Array<{ bounds: { x: number; y: number; width: number; height: number }; polygon: Point[]; areaM2: number; label?: string }> = []
+  let totalColumnAreaM2 = 0
+
+  const isDuplicateColumn = (b: { minX: number; minY: number; maxX: number; maxY: number }) => {
+    return columnZones.some(c => {
+      const cx = c.bounds.x + c.bounds.width / 2
+      const cy = c.bounds.y + c.bounds.height / 2
+      const bx = (b.minX + b.maxX) / 2
+      const by = (b.minY + b.maxY) / 2
+      return Math.hypot(cx - bx, cy - by) < 0.35
+    })
+  }
+
+  // 1. Hatches with AR-CONC / CONC / KOLOM pattern
+  const columnHatches = hatches.filter(h =>
+    h.pattern.toUpperCase().includes("AR-CONC") ||
+    h.pattern.toUpperCase().includes("CONC") ||
+    h.layer.toLowerCase().includes("kolom") ||
+    h.layer.toLowerCase().includes("column") ||
+    h.layer.toLowerCase().includes("pilar")
+  )
+  columnHatches.forEach((colHatch) => {
+    colHatch.boundaryLoops.forEach((loop) => {
+      if (loop.length >= 3) {
+        const polyM = loop.map(toM)
+        const b = getLoopBounds(polyM)
+        if (b.width >= 0.1 && b.width <= 1.5 && b.height >= 0.1 && b.height <= 1.5 && !isDuplicateColumn(b)) {
+          const aM2 = Number(getLoopArea(polyM).toFixed(2)) || Number((b.width * b.height).toFixed(2))
+          totalColumnAreaM2 += aM2
+          columnZones.push({
+            bounds: { x: b.minX, y: b.minY, width: b.width, height: b.height },
+            polygon: polyM,
+            areaM2: aM2,
+            label: `Kolom ${columnZones.length + 1}`,
+          })
+        }
+      }
+    })
+  })
+
+  // 2. Closed polylines matching column dimensions (0.15m - 0.8m)
+  polylines.forEach(p => {
+    if (p.vertices.length >= 4) {
+      const ptsM = p.vertices.map(toM)
+      const b = getLoopBounds(ptsM)
+      if (b.width >= 0.15 && b.width <= 0.8 && b.height >= 0.15 && b.height <= 0.8 && !isDuplicateColumn(b)) {
+        const aM2 = Number(getLoopArea(ptsM).toFixed(2)) || Number((b.width * b.height).toFixed(2))
+        totalColumnAreaM2 += aM2
+        columnZones.push({
+          bounds: { x: b.minX, y: b.minY, width: b.width, height: b.height },
+          polygon: ptsM,
+          areaM2: aM2,
+          label: `Kolom ${columnZones.length + 1}`,
+        })
+      }
+    }
+  })
+
+  // 3. Inserts with column / pilar block names
+  inserts.forEach(ins => {
+    const lName = ins.name.toLowerCase()
+    if (lName.includes("kolom") || lName.includes("column") || lName.includes("pilar")) {
+      const posM = toM(ins.position)
+      const w = 0.4 * (ins.scale?.x || 1)
+      const h = 0.4 * (ins.scale?.y || 1)
+      const b = { minX: posM.x - w / 2, minY: posM.y - h / 2, maxX: posM.x + w / 2, maxY: posM.y + h / 2 }
+      if (!isDuplicateColumn(b)) {
+        const aM2 = Number((w * h).toFixed(2))
+        totalColumnAreaM2 += aM2
+        columnZones.push({
+          bounds: { x: b.minX, y: b.minY, width: w, height: h },
+          polygon: [
+            { x: b.minX, y: b.minY },
+            { x: b.maxX, y: b.minY },
+            { x: b.maxX, y: b.maxY },
+            { x: b.minX, y: b.maxY },
+          ],
+          areaM2: aM2,
+          label: ins.name,
+        })
+      }
+    }
+  })
+
+  // 4. Check floor hatch holes (e.g. AR-SAND interior loops)
+  const floorHatches = hatches.filter(h => h.pattern.toUpperCase().includes("AR-SAND") || h.pattern.toUpperCase().includes("FLOOR"))
+  floorHatches.forEach(fh => {
+    if (fh.boundaryLoops.length > 1) {
+      // Loop 0 is outer perimeter, subsequent loops are obstacles/holes
+      for (let k = 1; k < fh.boundaryLoops.length; k++) {
+        const loop = fh.boundaryLoops[k]
+        if (loop.length >= 3) {
+          const polyM = loop.map(toM)
+          const b = getLoopBounds(polyM)
+          if (b.width >= 0.15 && b.width <= 0.8 && b.height >= 0.15 && b.height <= 0.8 && !isDuplicateColumn(b)) {
+            const aM2 = Number(getLoopArea(polyM).toFixed(2)) || Number((b.width * b.height).toFixed(2))
+            totalColumnAreaM2 += aM2
+            columnZones.push({
+              bounds: { x: b.minX, y: b.minY, width: b.width, height: b.height },
+              polygon: polyM,
+              areaM2: aM2,
+              label: `Kolom ${columnZones.length + 1}`,
+            })
+          }
+        }
+      }
+    }
+  })
+
+  // Doors (double swing, pv180, P1, etc.)
   const doors: ParsedCadStoreData["doors"] = []
   inserts.forEach(ins => {
     const lowerName = ins.name.toLowerCase()
     let type: "main_pv180" | "warehouse_p1" | "other" = "other"
-    if (lowerName.includes("pv180") || lowerName.includes("pintu") || lowerName.includes("door_main")) {
+    if (
+      lowerName.includes("double swing") ||
+      lowerName.includes("double_swing") ||
+      lowerName.includes("pv180") ||
+      lowerName.includes("pintu") ||
+      lowerName.includes("door_main") ||
+      lowerName.includes("entrance") ||
+      lowerName.includes("main")
+    ) {
       type = "main_pv180"
-    } else if (lowerName.includes("p1") || lowerName.includes("gudang")) {
+    } else if (
+      lowerName.includes("p1") ||
+      lowerName.includes("gudang") ||
+      lowerName.includes("warehouse")
+    ) {
       type = "warehouse_p1"
     }
     doors.push({
@@ -672,7 +826,7 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
       }
     }
 
-    // Check Main Door pv180 attachment
+    // Check Main Door attachment
     if (mainDoor) {
       const proj = projectPointToSegment(mainDoor.positionM, pA, pB)
       if (proj.distance <= 1.2) {
@@ -688,9 +842,10 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
       }
     }
 
-    // Determine default wall type for unassigned intervals
-    const midY = (pA.y + pB.y) / 2
-    const isFrontWall = midY >= polyBounds.maxY - 1.5 || (mainDoor && dist(projectPointToSegment(mainDoor.positionM, pA, pB).proj, mainDoor.positionM) <= 1.5)
+    // Check Glass Wall attachment (only the front horizontal facade where glass/main door is located)
+    const isHorizontalFront = Math.min(pA.y, pB.y) >= polyBounds.maxY - 0.6 && Math.abs(pA.y - pB.y) <= 0.6
+    const hasMainDoorOnThisWall = Boolean(mainDoor && dist(projectPointToSegment(mainDoor.positionM, pA, pB).proj, mainDoor.positionM) <= 0.8)
+    const isFrontWall = isHorizontalFront || (hasMainDoorOnThisWall && Math.abs(pA.y - pB.y) <= 1.0)
     const defaultWallType: CadWallType = isFrontWall ? "GLASS_DOOR" : "SOLID"
 
     // Sort intervals by t1
@@ -768,8 +923,13 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
     })
   }
 
-  // Net sales area calculation
-  const netSalesArea = Number(Math.max(1, grossArea - (chillerAreaM2 || 0) - (cashierAreaM2 || 0)).toFixed(2))
+  // Net sales area calculation (Gross - Chiller - Cashier - Columns)
+  const netSalesArea = Number(
+    Math.max(
+      1,
+      grossArea - (chillerAreaM2 || 0) - (cashierAreaM2 || 0) - (totalColumnAreaM2 || 0)
+    ).toFixed(2)
+  )
 
   return {
     success: true,
@@ -786,6 +946,7 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
       grossArea,
       chillerArea: chillerAreaM2,
       cashierArea: cashierAreaM2,
+      columnArea: Number(totalColumnAreaM2.toFixed(2)),
       netSalesArea,
       lengthM,
       widthM,
@@ -820,6 +981,19 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
             unitCount: chillerUnits,
           }
         : undefined,
+      glass: glassBoundsM
+        ? {
+            bounds: glassBoundsM,
+            polygon: glassPolygonM || [
+              { x: glassBoundsM.x, y: glassBoundsM.y },
+              { x: glassBoundsM.x + glassBoundsM.width, y: glassBoundsM.y },
+              { x: glassBoundsM.x + glassBoundsM.width, y: glassBoundsM.y + glassBoundsM.height },
+              { x: glassBoundsM.x, y: glassBoundsM.y + glassBoundsM.height },
+            ],
+            areaM2: glassAreaM2,
+          }
+        : undefined,
+      columns: columnZones.length > 0 ? columnZones : undefined,
     },
     rawSummary: {
       lineCount: lines.length,
@@ -829,3 +1003,4 @@ export function parseDxfStoreLayout(dxfContent: string, filename?: string): Pars
     },
   }
 }
+

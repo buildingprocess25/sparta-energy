@@ -249,6 +249,409 @@ export function getWallInwardNormal(p1: Point, p2: Point, polygon: Point[]): { n
   return n2
 }
 
+export interface PerimeterInterval {
+  segIdx: number
+  minT: number
+  maxT: number
+}
+
+export interface PerimeterPathResult {
+  pathPoints: Point[]
+  totalLengthM: number
+  intervals: PerimeterInterval[]
+  ptStart: Point
+  ptEnd: Point
+}
+
+export function getPerimeterPath(
+  pts: Point[],
+  segIdxA: number,
+  ptA: Point,
+  tA: number,
+  segIdxB: number,
+  ptB: Point,
+  tB: number
+): PerimeterPathResult {
+  const N = pts.length
+  if (N < 2) {
+    const minT = Math.min(tA, tB)
+    const maxT = Math.max(tA, tB)
+    return {
+      pathPoints: [ptA, ptB],
+      totalLengthM: Math.hypot(ptB.x - ptA.x, ptB.y - ptA.y),
+      intervals: [{ segIdx: segIdxA, minT, maxT }],
+      ptStart: ptA,
+      ptEnd: ptB,
+    }
+  }
+
+  const getSegLen = (idx: number) => {
+    const p1 = pts[idx]
+    const p2 = pts[(idx + 1) % N]
+    return Math.hypot(p2.x - p1.x, p2.y - p1.y)
+  }
+
+  if (segIdxA === segIdxB) {
+    const minT = Math.min(tA, tB)
+    const maxT = Math.max(tA, tB)
+    const pStart = tA <= tB ? ptA : ptB
+    const pEnd = tA <= tB ? ptB : ptA
+    return {
+      pathPoints: [pStart, pEnd],
+      totalLengthM: (maxT - minT) * getSegLen(segIdxA),
+      intervals: [{ segIdx: segIdxA, minT, maxT }],
+      ptStart: pStart,
+      ptEnd: pEnd,
+    }
+  }
+
+  // 1. Forward Path (Increasing segment indices: segIdxA -> segIdxB)
+  const fwdIntervals: PerimeterInterval[] = []
+  const fwdPoints: Point[] = [ptA]
+  let fwdLen = (1 - tA) * getSegLen(segIdxA)
+  fwdIntervals.push({ segIdx: segIdxA, minT: tA, maxT: 1.0 })
+  fwdPoints.push(pts[(segIdxA + 1) % N])
+
+  for (let k = (segIdxA + 1) % N; k !== segIdxB; k = (k + 1) % N) {
+    fwdLen += getSegLen(k)
+    fwdIntervals.push({ segIdx: k, minT: 0.0, maxT: 1.0 })
+    fwdPoints.push(pts[(k + 1) % N])
+  }
+
+  fwdLen += tB * getSegLen(segIdxB)
+  fwdIntervals.push({ segIdx: segIdxB, minT: 0.0, maxT: tB })
+  fwdPoints.push(ptB)
+
+  // 2. Backward Path (Decreasing segment indices: segIdxA -> segIdxB)
+  const bwdIntervals: PerimeterInterval[] = []
+  const bwdPoints: Point[] = [ptA]
+  let bwdLen = tA * getSegLen(segIdxA)
+  bwdIntervals.push({ segIdx: segIdxA, minT: 0.0, maxT: tA })
+  bwdPoints.push(pts[segIdxA])
+
+  for (let k = (segIdxA - 1 + N) % N; k !== segIdxB; k = (k - 1 + N) % N) {
+    bwdLen += getSegLen(k)
+    bwdIntervals.push({ segIdx: k, minT: 0.0, maxT: 1.0 })
+    bwdPoints.push(pts[k])
+  }
+
+  bwdLen += (1 - tB) * getSegLen(segIdxB)
+  bwdIntervals.push({ segIdx: segIdxB, minT: tB, maxT: 1.0 })
+  bwdPoints.push(ptB)
+
+  if (fwdLen <= bwdLen) {
+    return {
+      pathPoints: fwdPoints,
+      totalLengthM: fwdLen,
+      intervals: fwdIntervals,
+      ptStart: ptA,
+      ptEnd: ptB,
+    }
+  } else {
+    return {
+      pathPoints: bwdPoints,
+      totalLengthM: bwdLen,
+      intervals: bwdIntervals,
+      ptStart: ptA,
+      ptEnd: ptB,
+    }
+  }
+}
+
+export interface ZoneSpanResult {
+  newPts: Point[]
+  newOverrides: Record<number, WallType>
+  newDepths: Record<number, number>
+}
+
+export function applyZoneToPolygon(
+  pts: Point[],
+  segmentOverrides: Record<number, WallType>,
+  cashierDepths: Record<number, number>,
+  segIdxA: number,
+  ptA: Point,
+  tA: number,
+  segIdxB: number,
+  ptB: Point,
+  tB: number,
+  targetType: WallType,
+  depthM?: number
+): ZoneSpanResult {
+  const N = pts.length
+  if (N < 3) {
+    return {
+      newPts: [...pts],
+      newOverrides: { ...segmentOverrides },
+      newDepths: { ...cashierDepths },
+    }
+  }
+
+  const { intervals } = getPerimeterPath(
+    pts,
+    segIdxA,
+    ptA,
+    tA,
+    segIdxB,
+    ptB,
+    tB
+  )
+
+  const intervalMap = new Map<number, { minT: number; maxT: number }>()
+  intervals.forEach((inv) => {
+    intervalMap.set(inv.segIdx, { minT: inv.minT, maxT: inv.maxT })
+  })
+
+  const newPts: Point[] = []
+  const newOverrides: Record<number, WallType> = {}
+  const newDepths: Record<number, number> = {}
+  let currentSegIdx = 0
+
+  const addSubSeg = (type: WallType, depth?: number) => {
+    if (type !== "SOLID") {
+      newOverrides[currentSegIdx] = type
+    }
+    if (depth !== undefined && type === "CASHIER") {
+      newDepths[currentSegIdx] = depth
+    }
+    currentSegIdx++
+  }
+
+  for (let i = 0; i < N; i++) {
+    const p1 = pts[i]
+    const p2 = pts[(i + 1) % N]
+    const oldOverride = segmentOverrides[i] || "SOLID"
+    const oldDepth = cashierDepths[i]
+
+    newPts.push(p1)
+
+    const inv = intervalMap.get(i)
+    if (!inv) {
+      addSubSeg(oldOverride, oldDepth)
+      continue
+    }
+
+    const { minT, maxT } = inv
+    const insert1 = minT > 0.03 && minT < 0.97
+    const insert2 = maxT > 0.03 && maxT < 0.97 && (maxT - minT) > 0.02
+
+    const q1: Point = {
+      x: Number(((1 - minT) * p1.x + minT * p2.x).toFixed(2)),
+      y: Number(((1 - minT) * p1.y + minT * p2.y).toFixed(2)),
+    }
+    const q2: Point = {
+      x: Number(((1 - maxT) * p1.x + maxT * p2.x).toFixed(2)),
+      y: Number(((1 - maxT) * p1.y + maxT * p2.y).toFixed(2)),
+    }
+
+    if (insert1 && insert2) {
+      newPts.push(q1)
+      addSubSeg(oldOverride, oldDepth)
+      newPts.push(q2)
+      addSubSeg(targetType, depthM)
+      addSubSeg(oldOverride, oldDepth)
+    } else if (insert1 && !insert2) {
+      newPts.push(q1)
+      addSubSeg(oldOverride, oldDepth)
+      addSubSeg(targetType, depthM)
+    } else if (!insert1 && insert2) {
+      newPts.push(q2)
+      addSubSeg(targetType, depthM)
+      addSubSeg(oldOverride, oldDepth)
+    } else {
+      addSubSeg(targetType, depthM)
+    }
+  }
+
+  return { newPts, newOverrides, newDepths }
+}
+
+/**
+ * Constructs a single unified polygon boundary for a continuous chain of cashier segments (1-wall, corner 2-wall, or 3-wall)
+ */
+export function getCashierZonePolygon(rawChain: Point[], depthM: number, polygon: Point[]): Point[] {
+  if (!rawChain || rawChain.length < 2) return []
+
+  // 1. Bersihkan titik duplikat yang bertumpukan (< 0.05m)
+  const chain: Point[] = []
+  for (let i = 0; i < rawChain.length; i++) {
+    const pt = rawChain[i]
+    if (chain.length === 0 || Math.hypot(pt.x - chain[chain.length - 1].x, pt.y - chain[chain.length - 1].y) >= 0.05) {
+      chain.push(pt)
+    }
+  }
+
+  // 2. Hilangkan titik tengah jika 3 titik kolinear (garis lurus sama)
+  const cleanChain: Point[] = []
+  for (let i = 0; i < chain.length; i++) {
+    if (i > 0 && i < chain.length - 1) {
+      const pPrev = chain[i - 1]
+      const pCurr = chain[i]
+      const pNext = chain[i + 1]
+      const cross = (pCurr.x - pPrev.x) * (pNext.y - pPrev.y) - (pCurr.y - pPrev.y) * (pNext.x - pPrev.x)
+      const lenPrev = Math.hypot(pCurr.x - pPrev.x, pCurr.y - pPrev.y)
+      const lenNext = Math.hypot(pNext.x - pCurr.x, pNext.y - pCurr.y)
+      if (lenPrev > 0.01 && lenNext > 0.01 && Math.abs(cross) / (lenPrev * lenNext) < 0.02) {
+        continue
+      }
+    }
+    cleanChain.push(chain[i])
+  }
+
+  if (cleanChain.length < 2) return []
+
+  // Case 1: 1 Dinding Datar (p1 -> p2)
+  if (cleanChain.length === 2) {
+    const p1 = cleanChain[0]
+    const p2 = cleanChain[1]
+    const n = getWallInwardNormal(p1, p2, polygon)
+    const p3 = { x: Number((p2.x + depthM * n.nx).toFixed(2)), y: Number((p2.y + depthM * n.ny).toFixed(2)) }
+    const p4 = { x: Number((p1.x + depthM * n.nx).toFixed(2)), y: Number((p1.y + depthM * n.ny).toFixed(2)) }
+    return [p1, p2, p3, p4]
+  }
+
+  // Case 2: Corner kasir 2 Dinding (ptA -> Pc -> ptB)
+  if (cleanChain.length === 3) {
+    const ptA = cleanChain[0]
+    const pc = cleanChain[1]
+    const ptB = cleanChain[2]
+    const pInner: Point = {
+      x: Number((ptA.x + ptB.x - pc.x).toFixed(2)),
+      y: Number((ptA.y + ptB.y - pc.y).toFixed(2)),
+    }
+    return [ptA, pc, ptB, pInner]
+  }
+
+  // Case 3: Kasir 3 Dinding atau Multi-Sudut (ptA -> C1 -> C2 -> ... -> ptB)
+  // Polygon tertutup adalah rantai perimeter itu sendiri yang ditutup dari ptB kembali ke ptA
+  return [...cleanChain]
+}
+
+/**
+ * Detects EVERY wall segment (or partial segment) touching the cashier zone boundary and converts it to CASHIER
+ */
+export function applyCashierBoxToPolygon(
+  pts: Point[],
+  segmentOverrides: Record<number, WallType>,
+  cashierDepths: Record<number, number>,
+  zonePoly: Point[],
+  depthM: number
+): ZoneSpanResult {
+  const N = pts.length
+  if (N < 3 || zonePoly.length < 3) {
+    return {
+      newPts: [...pts],
+      newOverrides: { ...segmentOverrides },
+      newDepths: { ...cashierDepths },
+    }
+  }
+
+  const isPointNearZone = (pt: Point) => {
+    if (isPointInsidePolygon(pt, zonePoly)) return true
+    for (let k = 0; k < zonePoly.length; k++) {
+      const z1 = zonePoly[k]
+      const z2 = zonePoly[(k + 1) % zonePoly.length]
+      const proj = getClosestPointOnSegment(pt.x, pt.y, z1.x, z1.y, z2.x, z2.y)
+      if (proj.dist <= 0.22) return true
+    }
+    return false
+  }
+
+  const intervalMap = new Map<number, { minT: number; maxT: number }>()
+
+  for (let i = 0; i < N; i++) {
+    const p1 = pts[i]
+    const p2 = pts[(i + 1) % N]
+    const wallLen = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+    if (wallLen < 0.05) continue
+
+    const SAMPLES = Math.max(25, Math.ceil(wallLen * 25))
+    let firstT: number | null = null
+    let lastT: number | null = null
+
+    for (let s = 0; s <= SAMPLES; s++) {
+      const t = s / SAMPLES
+      const testPt: Point = {
+        x: (1 - t) * p1.x + t * p2.x,
+        y: (1 - t) * p1.y + t * p2.y,
+      }
+      if (isPointNearZone(testPt)) {
+        if (firstT === null) firstT = t
+        lastT = t
+      }
+    }
+
+    if (firstT !== null && lastT !== null && (lastT - firstT) * wallLen >= 0.10) {
+      intervalMap.set(i, {
+        minT: Math.max(0, Math.min(1, Number(firstT.toFixed(3)))),
+        maxT: Math.max(0, Math.min(1, Number(lastT.toFixed(3)))),
+      })
+    }
+  }
+
+  const newPts: Point[] = []
+  const newOverrides: Record<number, WallType> = {}
+  const newDepths: Record<number, number> = {}
+  let currentSegIdx = 0
+
+  const addSubSeg = (type: WallType, depth?: number) => {
+    if (type !== "SOLID") {
+      newOverrides[currentSegIdx] = type
+    }
+    if (depth !== undefined && type === "CASHIER") {
+      newDepths[currentSegIdx] = depth
+    }
+    currentSegIdx++
+  }
+
+  for (let i = 0; i < N; i++) {
+    const p1 = pts[i]
+    const p2 = pts[(i + 1) % N]
+    const oldOverride = segmentOverrides[i] || "SOLID"
+    const oldDepth = cashierDepths[i]
+
+    newPts.push(p1)
+
+    const inv = intervalMap.get(i)
+    if (!inv) {
+      addSubSeg(oldOverride, oldDepth)
+      continue
+    }
+
+    const { minT, maxT } = inv
+    const insert1 = minT > 0.03 && minT < 0.97
+    const insert2 = maxT > 0.03 && maxT < 0.97 && (maxT - minT) > 0.02
+
+    const q1: Point = {
+      x: Number(((1 - minT) * p1.x + minT * p2.x).toFixed(2)),
+      y: Number(((1 - minT) * p1.y + minT * p2.y).toFixed(2)),
+    }
+    const q2: Point = {
+      x: Number(((1 - maxT) * p1.x + maxT * p2.x).toFixed(2)),
+      y: Number(((1 - maxT) * p1.y + maxT * p2.y).toFixed(2)),
+    }
+
+    if (insert1 && insert2) {
+      newPts.push(q1)
+      addSubSeg(oldOverride, oldDepth)
+      newPts.push(q2)
+      addSubSeg("CASHIER", depthM)
+      addSubSeg(oldOverride, oldDepth)
+    } else if (insert1 && !insert2) {
+      newPts.push(q1)
+      addSubSeg(oldOverride, oldDepth)
+      addSubSeg("CASHIER", depthM)
+    } else if (!insert1 && insert2) {
+      newPts.push(q2)
+      addSubSeg("CASHIER", depthM)
+      addSubSeg(oldOverride, oldDepth)
+    } else {
+      addSubSeg("CASHIER", depthM)
+    }
+  }
+
+  return { newPts, newOverrides, newDepths }
+}
+
 // ─── CAD & Retail SOP Rules: Deteksi Zona Terlarang Pasang AC ─────────────────
 export interface ForbiddenInterval {
   minT: number
@@ -589,6 +992,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   // 3-Click Cashier Depth Marking State (Titik 1 & 2 di dinding, titik 3 tarik kedalaman ke dalam ruangan)
   const [pendingCashierDepth, setPendingCashierDepth] = useState<{
     segIdx: number
+    segIdxA?: number
+    segIdxB?: number
+    ptA?: Point
+    ptB?: Point
+    tA?: number
+    tB?: number
     p1: Point
     p2: Point
     t1: number
@@ -596,6 +1005,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     lengthM: number
     inNorm: { nx: number; ny: number }
     depthM: number
+    pathPoints?: Point[]
   } | null>(null)
 
   // Kedalaman kustom untuk setiap segmen kasir (default 2.0m)
@@ -638,6 +1048,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
   // Overrides status segmen dinding
   const [segmentOverrides, setSegmentOverrides] = useState<Record<number, WallType>>({})
+
+  // ─── 2B. Layer Visibility Toggles (Nama Area, Dimensi Dinding/AC, Dimensi Total PT/LT) ───
+  const [showZoneLabels, setShowZoneLabels] = useState<boolean>(true)
+  const [showWallDimensions, setShowWallDimensions] = useState<boolean>(true)
+  const [showTotalDimensions, setShowTotalDimensions] = useState<boolean>(true)
 
   // Template Preset Dialog
   const [presetModalOpen, setPresetModalOpen] = useState(false)
@@ -727,6 +1142,42 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const totalBtuRequired = useMemo(() => {
     return Math.round(effectiveArea * targetBtuPerM2)
   }, [effectiveArea, targetBtuPerM2])
+
+  const storeDimensions = useMemo(() => {
+    if (activeCadMetadata) {
+      return {
+        lengthM: activeCadMetadata.dimensions.widthM,
+        widthM: activeCadMetadata.dimensions.lengthM,
+        grossArea: activeCadMetadata.metrics.grossArea,
+      }
+    }
+    if (customPts.length === 0) return { widthM: 0, lengthM: 0, grossArea: 0 }
+    const xs = customPts.map((p) => p.x)
+    const ys = customPts.map((p) => p.y)
+    const widthM = Number((Math.max(...xs) - Math.min(...xs)).toFixed(2))
+    const lengthM = Number((Math.max(...ys) - Math.min(...ys)).toFixed(2))
+    const grossArea = Number(polygonAreaM2.toFixed(1))
+    return { widthM, lengthM, grossArea }
+  }, [activeCadMetadata, customPts, polygonAreaM2])
+
+  // Maksimum batas unit chiller dinamis berdasarkan sisi terpanjang denah toko (PT / LT / Dinding Terpanjang)
+  const maxStoreSideM = useMemo(() => {
+    const wallLengths = wallSegments.map((w) => w.lengthM)
+    const maxWall = wallLengths.length > 0 ? Math.max(...wallLengths) : 0
+    const maxDim = Math.max(maxWall, storeDimensions.lengthM, storeDimensions.widthM)
+    return maxDim > 0 ? maxDim : 12
+  }, [wallSegments, storeDimensions])
+
+  const maxChillerUnits = useMemo(() => {
+    return Math.max(1, Math.floor(maxStoreSideM / CHILLER_UNIT_WIDTH_M))
+  }, [maxStoreSideM])
+
+  // Pastikan unit chiller terpilih tidak melebihi kapasitas bentang terpanjang
+  useEffect(() => {
+    if (chillerUnits > maxChillerUnits) {
+      setChillerUnits(maxChillerUnits)
+    }
+  }, [maxChillerUnits, chillerUnits])
 
   const recommendedUnitCount = useMemo(() => {
     if (effectiveArea === 0) return 0
@@ -1268,59 +1719,18 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
     // 2. PRIORITAS 2: JIKA TAHAP 3 KASIR SEDANG AKTIF (KLIK KE-3 UNTUK KUNCI KEDALAMAN KASIR)
     if (pendingCashierDepth) {
-      const { segIdx, p1, p2, t1, t2, depthM, lengthM } = pendingCashierDepth
       pushCurrentToHistory()
+      const { depthM, lengthM, pathPoints, p1, p2 } = pendingCashierDepth
+      const ptsChain = pathPoints && pathPoints.length >= 2 ? pathPoints : [p1, p2]
+      const zonePoly = getCashierZonePolygon(ptsChain, depthM, customPts)
 
-      const insertP1 = t1 > 0.03 && t1 < 0.97
-      const insertP2 = t2 > 0.03 && t2 < 0.97 && Math.hypot(p2.x - p1.x, p2.y - p1.y) > 0.1
-
-      const oldSegmentOverride = segmentOverrides[segIdx] || "SOLID"
-      const newPts = [...customPts]
-      let insertedCount = 0
-      const newOverrides: Record<number, WallType> = {}
-      const newDepths: Record<number, number> = {}
-
-      Object.entries(segmentOverrides).forEach(([kStr, val]) => {
-        const k = parseInt(kStr, 10)
-        if (k < segIdx) {
-          newOverrides[k] = val
-          if (cashierDepths[k] !== undefined) newDepths[k] = cashierDepths[k]
-        }
-      })
-
-      let targetCashierIdx = segIdx
-      if (insertP1 && insertP2) {
-        newPts.splice(segIdx + 1, 0, p1, p2)
-        insertedCount = 2
-        if (oldSegmentOverride !== "SOLID") newOverrides[segIdx] = oldSegmentOverride
-        newOverrides[segIdx + 1] = "CASHIER"
-        targetCashierIdx = segIdx + 1
-        if (oldSegmentOverride !== "SOLID") newOverrides[segIdx + 2] = oldSegmentOverride
-      } else if (insertP1 && !insertP2) {
-        newPts.splice(segIdx + 1, 0, p1)
-        insertedCount = 1
-        if (oldSegmentOverride !== "SOLID") newOverrides[segIdx] = oldSegmentOverride
-        newOverrides[segIdx + 1] = "CASHIER"
-        targetCashierIdx = segIdx + 1
-      } else if (!insertP1 && insertP2) {
-        newPts.splice(segIdx + 1, 0, p2)
-        insertedCount = 1
-        newOverrides[segIdx] = "CASHIER"
-        targetCashierIdx = segIdx
-        if (oldSegmentOverride !== "SOLID") newOverrides[segIdx + 1] = oldSegmentOverride
-      } else {
-        newOverrides[segIdx] = "CASHIER"
-        targetCashierIdx = segIdx
-      }
-      newDepths[targetCashierIdx] = depthM
-
-      Object.entries(segmentOverrides).forEach(([kStr, val]) => {
-        const k = parseInt(kStr, 10)
-        if (k > segIdx) {
-          newOverrides[k + insertedCount] = val
-          if (cashierDepths[k] !== undefined) newDepths[k + insertedCount] = cashierDepths[k]
-        }
-      })
+      const { newPts, newOverrides, newDepths } = applyCashierBoxToPolygon(
+        customPts,
+        segmentOverrides,
+        cashierDepths,
+        zonePoly,
+        depthM
+      )
 
       setIsCalculated(false)
       setPlacedUnits([])
@@ -1501,73 +1911,31 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       let bestProj: { x: number; y: number; dist: number; t: number } | null = null
       let snappedToCorner = false
 
-      if (pendingZoneStart && pendingZoneStart.tool === activeTool) {
-        let segIdx = pendingZoneStart.segIdx
-
-        if (pendingZoneStart.isCorner && pendingZoneStart.cornerNodeIdx !== undefined) {
-          const cIdx = pendingZoneStart.cornerNodeIdx
-          const segPrevIdx = (cIdx - 1 + segCount) % segCount
-          const segNextIdx = cIdx
-
-          const pPrev1 = spts[segPrevIdx]
-          const pPrev2 = spts[(segPrevIdx + 1) % segCount]
-          const projPrev = getClosestPointOnSegment(cx, cy, pPrev1.cx, pPrev1.cy, pPrev2.cx, pPrev2.cy)
-
-          const pNext1 = spts[segNextIdx]
-          const pNext2 = spts[(segNextIdx + 1) % segCount]
-          const projNext = getClosestPointOnSegment(cx, cy, pNext1.cx, pNext1.cy, pNext2.cx, pNext2.cy)
-
-          if (projPrev.dist < projNext.dist) {
-            segIdx = segPrevIdx
-          } else {
-            segIdx = segNextIdx
-          }
-        }
-
-        const p1 = spts[segIdx]
-        const p2 = spts[(segIdx + 1) % spts.length]
+      for (let i = 0; i < segCount; i++) {
+        const p1 = spts[i]
+        const p2 = spts[(i + 1) % spts.length]
         const proj = getClosestPointOnSegment(cx, cy, p1.cx, p1.cy, p2.cx, p2.cy)
-        bestSegIdx = segIdx
-        bestProj = proj
 
-        if (Math.hypot(cx - p1.cx, cy - p1.cy) <= 18) {
+        if (proj.dist < bestDist) {
+          bestDist = proj.dist
+          bestSegIdx = i
+          bestProj = proj
+        }
+      }
+
+      if (bestSegIdx !== -1 && bestProj) {
+        const p1 = spts[bestSegIdx]
+        const p2 = spts[(bestSegIdx + 1) % spts.length]
+        if (Math.hypot(cx - p1.cx, cy - p1.cy) <= 18 || bestProj.t <= 0.03) {
           bestProj.t = 0.0
           bestProj.x = p1.cx
           bestProj.y = p1.cy
           snappedToCorner = true
-        } else if (Math.hypot(cx - p2.cx, cy - p2.cy) <= 18) {
+        } else if (Math.hypot(cx - p2.cx, cy - p2.cy) <= 18 || bestProj.t >= 0.97) {
           bestProj.t = 1.0
           bestProj.x = p2.cx
           bestProj.y = p2.cy
           snappedToCorner = true
-        }
-      } else {
-        for (let i = 0; i < segCount; i++) {
-          const p1 = spts[i]
-          const p2 = spts[(i + 1) % spts.length]
-          const proj = getClosestPointOnSegment(cx, cy, p1.cx, p1.cy, p2.cx, p2.cy)
-
-          if (proj.dist < bestDist) {
-            bestDist = proj.dist
-            bestSegIdx = i
-            bestProj = proj
-          }
-        }
-
-        if (bestSegIdx !== -1 && bestProj) {
-          const p1 = spts[bestSegIdx]
-          const p2 = spts[(bestSegIdx + 1) % spts.length]
-          if (Math.hypot(cx - p1.cx, cy - p1.cy) <= 18 || bestProj.t <= 0.03) {
-            bestProj.t = 0.0
-            bestProj.x = p1.cx
-            bestProj.y = p1.cy
-            snappedToCorner = true
-          } else if (Math.hypot(cx - p2.cx, cy - p2.cy) <= 18 || bestProj.t >= 0.97) {
-            bestProj.t = 1.0
-            bestProj.x = p2.cx
-            bestProj.y = p2.cy
-            snappedToCorner = true
-          }
         }
       }
 
@@ -1605,7 +1973,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             cornerNodeIdx: isCorner ? cornerNodeIdx : undefined,
           })
           if (activeTool === "CASHIER") {
-            toast.info("Titik awal Kasir ditandai. Klik titik kedua pada dinding untuk menentukan panjang meja kasir.")
+            toast.info("Titik awal Kasir ditandai. Klik titik kedua pada dinding (atau dinding sudut) untuk menentukan area kasir.")
           } else {
             toast.info(`Titik awal ${toolLabel} ${snappedToCorner ? "(Snap Sudut)" : ""} ditandai! Klik titik akhir pada dinding.`)
           }
@@ -1614,15 +1982,16 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
         // LANGKAH 2: Klik Titik Kedua pada Segmen Dinding
         if (pendingZoneStart && pendingZoneStart.tool === activeTool) {
-          const segIdx = bestSegIdx
           let tA = pendingZoneStart.tA
           let ptA = pendingZoneStart.ptA
+          const segIdxA = pendingZoneStart.segIdx
+          const segIdxB = bestSegIdx
 
           if (pendingZoneStart.isCorner && pendingZoneStart.cornerNodeIdx !== undefined) {
             const cIdx = pendingZoneStart.cornerNodeIdx
             ptA = customPts[cIdx]
             const segPrevIdx = (cIdx - 1 + segCount) % segCount
-            if (segIdx === segPrevIdx) {
+            if (segIdxB === segPrevIdx) {
               tA = 1.0
             } else {
               tA = 0.0
@@ -1632,85 +2001,116 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           const tB = bestProj.t
           const ptB = clickPt
 
-          const distZone = Math.hypot(ptB.x - ptA.x, ptB.y - ptA.y)
-          if (distZone < 0.2) {
+          const pathResult = getPerimeterPath(customPts, segIdxA, ptA, tA, segIdxB, ptB, tB)
+          if (pathResult.totalLengthM < 0.2) {
             toast.error("Panjang bentang area terlalu pendek (< 0.2m). Silakan tentukan jarak yang lebih besar.")
             return
           }
 
-          const isAscending = tA <= tB
-          const t1 = isAscending ? tA : tB
-          const t2 = isAscending ? tB : tA
-          const p1 = isAscending ? ptA : ptB
-          const p2 = isAscending ? ptB : ptA
-
-          // KHUSUS KASIR (3-KLIK): Setelah klik 2 (panjang terkunci), beralih ke tahap 3 (tarik kedalaman ke dalam ruangan)
+          // KHUSUS KASIR:
           if (activeTool === "CASHIER") {
+            // Bersihkan titik duplikat & kolinear pada path perimeter
+            const rawPts = pathResult.pathPoints
+            const cleanPts: Point[] = []
+            for (let i = 0; i < rawPts.length; i++) {
+              const pt = rawPts[i]
+              if (cleanPts.length === 0 || Math.hypot(pt.x - cleanPts[cleanPts.length - 1].x, pt.y - cleanPts[cleanPts.length - 1].y) >= 0.05) {
+                cleanPts.push(pt)
+              }
+            }
+            const nonCollinearPts: Point[] = []
+            for (let i = 0; i < cleanPts.length; i++) {
+              if (i > 0 && i < cleanPts.length - 1) {
+                const pPrev = cleanPts[i - 1]
+                const pCurr = cleanPts[i]
+                const pNext = cleanPts[i + 1]
+                const cross = (pCurr.x - pPrev.x) * (pNext.y - pPrev.y) - (pCurr.y - pPrev.y) * (pNext.x - pPrev.x)
+                const lenPrev = Math.hypot(pCurr.x - pPrev.x, pCurr.y - pPrev.y)
+                const lenNext = Math.hypot(pNext.x - pCurr.x, pNext.y - pCurr.y)
+                if (lenPrev > 0.01 && lenNext > 0.01 && Math.abs(cross) / (lenPrev * lenNext) < 0.02) {
+                  continue
+                }
+              }
+              nonCollinearPts.push(cleanPts[i])
+            }
+
+            // JIKA KASIR MULTI-DINDING (2-DINDING SUDUT ATAU 3-DINDING):
+            // Persegi kasir sudah 100% lengkap & pasti -> LANGSUNG TERPASANG (2-KLIK)!
+            if (nonCollinearPts.length >= 3) {
+              pushCurrentToHistory()
+              const zonePoly = getCashierZonePolygon(nonCollinearPts, CASHIER_DEPTH_M, customPts)
+              const { newPts, newOverrides, newDepths } = applyCashierBoxToPolygon(
+                customPts,
+                segmentOverrides,
+                cashierDepths,
+                zonePoly,
+                CASHIER_DEPTH_M
+              )
+
+              setIsCalculated(false)
+              setPlacedUnits([])
+              setCustomPts(newPts)
+              setSegmentOverrides(newOverrides)
+              setCashierDepths(newDepths)
+              setPendingZoneStart(null)
+              setPendingCashierDepth(null)
+
+              if (nonCollinearPts.length === 3) {
+                const l1 = Math.hypot(nonCollinearPts[0].x - nonCollinearPts[1].x, nonCollinearPts[0].y - nonCollinearPts[1].y)
+                const l2 = Math.hypot(nonCollinearPts[2].x - nonCollinearPts[1].x, nonCollinearPts[2].y - nonCollinearPts[1].y)
+                toast.success(`Area Kasir Sudut (${formatDim(l1)}m × ${formatDim(l2)}m) berhasil dipasang!`)
+              } else {
+                toast.success(`Area Kasir 3-Sisi (${formatDim(pathResult.totalLengthM)}m) berhasil dipasang!`)
+              }
+              return
+            }
+
+            // JIKA KASIR 1-DINDING DATAR (termasuk dari tengah ke pojok dinding yang sama):
+            // Panjang terkunci, beralih ke tahap 3 (tarik kedalaman ke dalam ruangan)
+            const p1 = nonCollinearPts[0]
+            const p2 = nonCollinearPts[1] || nonCollinearPts[0]
             const inNorm = getWallInwardNormal(p1, p2, customPts)
+            const wallDist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+
             setPendingCashierDepth({
-              segIdx,
+              segIdx: segIdxB,
+              segIdxA,
+              segIdxB,
+              ptA: p1,
+              ptB: p2,
+              tA,
+              tB,
               p1,
               p2,
-              t1,
-              t2,
-              lengthM: distZone,
+              t1: tA,
+              t2: tB,
+              lengthM: wallDist,
               inNorm,
               depthM: 2.0,
+              pathPoints: [p1, p2],
             })
             setPendingZoneStart(null)
-            toast.info(`Panjang kasir (${formatDim(distZone)}m) terkunci! Gerakkan kursor ke dalam ruangan untuk menentukan kedalaman, lalu klik titik ke-3 untuk mengunci.`)
+            toast.info(
+              `Panjang kasir (${formatDim(wallDist)}m) terkunci! Tarik kursor ke dalam ruangan untuk menentukan kedalaman, lalu klik titik ke-3 untuk mengunci.`
+            )
             return
           }
 
           // KHUSUS PINTU / KACA (2-KLIK SELESAI):
           pushCurrentToHistory()
 
-          const insertP1 = t1 > 0.03 && t1 < 0.97
-          const insertP2 = t2 > 0.03 && t2 < 0.97 && Math.hypot(p2.x - p1.x, p2.y - p1.y) > 0.1
-
-          const oldSegmentOverride = segmentOverrides[segIdx] || "SOLID"
-          const targetType: WallType = "GLASS_DOOR"
-
-          const newPts = [...customPts]
-          let insertedCount = 0
-          const newOverrides: Record<number, WallType> = {}
-          const newDepths: Record<number, number> = {}
-
-          Object.entries(segmentOverrides).forEach(([kStr, val]) => {
-            const k = parseInt(kStr, 10)
-            if (k < segIdx) {
-              newOverrides[k] = val
-              if (cashierDepths[k] !== undefined) newDepths[k] = cashierDepths[k]
-            }
-          })
-
-          if (insertP1 && insertP2) {
-            newPts.splice(segIdx + 1, 0, p1, p2)
-            insertedCount = 2
-            if (oldSegmentOverride !== "SOLID") newOverrides[segIdx] = oldSegmentOverride
-            newOverrides[segIdx + 1] = targetType
-            if (oldSegmentOverride !== "SOLID") newOverrides[segIdx + 2] = oldSegmentOverride
-          } else if (insertP1 && !insertP2) {
-            newPts.splice(segIdx + 1, 0, p1)
-            insertedCount = 1
-            if (oldSegmentOverride !== "SOLID") newOverrides[segIdx] = oldSegmentOverride
-            newOverrides[segIdx + 1] = targetType
-          } else if (!insertP1 && insertP2) {
-            newPts.splice(segIdx + 1, 0, p2)
-            insertedCount = 1
-            newOverrides[segIdx] = targetType
-            if (oldSegmentOverride !== "SOLID") newOverrides[segIdx + 1] = oldSegmentOverride
-          } else {
-            newOverrides[segIdx] = targetType
-          }
-
-          Object.entries(segmentOverrides).forEach(([kStr, val]) => {
-            const k = parseInt(kStr, 10)
-            if (k > segIdx) {
-              newOverrides[k + insertedCount] = val
-              if (cashierDepths[k] !== undefined) newDepths[k + insertedCount] = cashierDepths[k]
-            }
-          })
+          const { newPts, newOverrides, newDepths } = applyZoneToPolygon(
+            customPts,
+            segmentOverrides,
+            cashierDepths,
+            segIdxA,
+            ptA,
+            tA,
+            segIdxB,
+            ptB,
+            tB,
+            "GLASS_DOOR"
+          )
 
           setIsCalculated(false)
           setPlacedUnits([])
@@ -1718,7 +2118,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           setSegmentOverrides(newOverrides)
           setCashierDepths(newDepths)
           setPendingZoneStart(null)
-          toast.success(`Area ${toolLabel} (${formatDim(distZone)}m) berhasil ditandai pada dinding!`)
+          toast.success(`Area ${toolLabel} (${formatDim(pathResult.totalLengthM)}m) berhasil ditandai pada dinding!`)
           return
         }
       }
@@ -1963,7 +2363,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       const vX = mx - p1.x
       const vY = my - p1.y
       const distIn = vX * inNorm.nx + vY * inNorm.ny
-      const calculatedDepth = Math.max(0.6, Math.min(25.0, Math.round(Math.max(0.6, distIn) * 10) / 10))
+      const calculatedDepth = Math.max(0.6, Math.min(6.0, Math.round(Math.max(0.6, distIn) * 10) / 10))
       setPendingCashierDepth((prev) => (prev ? { ...prev, depthM: calculatedDepth } : null))
     }
 
@@ -2781,122 +3181,151 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
       const cashierTitle = "KASIR"
       const cashierDim = `${formatDim(cz.bounds.width)}m × ${formatDim(cz.bounds.height)}m`
+      const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
 
-      ctx.font = "bold 8.5px sans-serif"
-      const t1Metrics = ctx.measureText(cashierTitle)
-      ctx.font = "bold 7.5px sans-serif"
-      const t2Metrics = ctx.measureText(cashierDim)
-      const pillW = Math.max(t1Metrics.width, t2Metrics.width) + 10
-      const pillH = 22
+      if (showZoneLabels) {
+        ctx.save()
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.lineJoin = "round"
 
-      // Pill Background
-      ctx.fillStyle = bgFill
-      if (ctx.roundRect) {
-        ctx.beginPath()
-        ctx.roundRect(midX - pillW / 2, midY - pillH / 2, pillW, pillH, 4)
-        ctx.fill()
-      } else {
-        ctx.fillRect(midX - pillW / 2, midY - pillH / 2, pillW, pillH)
+        ctx.font = "bold 8.5px sans-serif"
+        ctx.strokeStyle = haloColor
+        ctx.lineWidth = 3.5
+        ctx.strokeText(cashierTitle, midX, midY - 5)
+        ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
+        ctx.fillText(cashierTitle, midX, midY - 5)
+
+        ctx.font = "bold 7.5px sans-serif"
+        ctx.strokeStyle = haloColor
+        ctx.lineWidth = 3.0
+        ctx.strokeText(cashierDim, midX, midY + 5)
+        ctx.fillStyle = effectiveIsDark ? "rgba(251, 191, 36, 0.95)" : "rgba(180, 83, 9, 0.95)"
+        ctx.fillText(cashierDim, midX, midY + 5)
+        ctx.restore()
       }
-
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      ctx.font = "bold 8.5px sans-serif"
-      ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
-      ctx.fillText(cashierTitle, midX, midY - 5)
-
-      ctx.font = "bold 7.5px sans-serif"
-      ctx.fillStyle = effectiveIsDark ? "rgba(251, 191, 36, 0.85)" : "rgba(180, 83, 9, 0.85)"
-      ctx.fillText(cashierDim, midX, midY + 5)
-      ctx.restore()
     } else {
-      const cashierWalls = wallSegments.filter(w => w.type === "CASHIER")
-      if (cashierWalls.length > 0) {
-        cashierWalls.forEach((wall) => {
-          const inNorm = getWallInwardNormal(wall.p1, wall.p2, customPts)
-          const depthM = cashierDepths[wall.index] !== undefined ? cashierDepths[wall.index] : CASHIER_DEPTH_M
-          const p1 = wall.p1
-          const p2 = wall.p2
-          const p3 = { x: p2.x + depthM * inNorm.nx, y: p2.y + depthM * inNorm.ny }
-          const p4 = { x: p1.x + depthM * inNorm.nx, y: p1.y + depthM * inNorm.ny }
+      const cashierSegments = wallSegments.filter((w) => w.type === "CASHIER")
+      if (cashierSegments.length > 0) {
+        // Group connected contiguous CASHIER segments into chains (e.g. corner kasir)
+        const cashierChains: WallSegment[][] = []
+        let currentChain: WallSegment[] = []
 
-          const cp1 = toC(p1)
-          const cp2 = toC(p2)
-          const cp3 = toC(p3)
-          const cp4 = toC(p4)
-
-          ctx.save()
-          ctx.beginPath()
-          ctx.moveTo(cp1.cx, cp1.cy)
-          ctx.lineTo(cp2.cx, cp2.cy)
-          ctx.lineTo(cp3.cx, cp3.cy)
-          ctx.lineTo(cp4.cx, cp4.cy)
-          ctx.closePath()
-          ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.22)" : "rgba(245, 158, 11, 0.16)"
-          ctx.fill()
-
-          ctx.save()
-          ctx.clip()
-          ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.40)" : "rgba(217, 119, 6, 0.35)"
-          ctx.lineWidth = 1
-          const minCanvasX = Math.min(cp1.cx, cp2.cx, cp3.cx, cp4.cx) - 50
-          const maxCanvasX = Math.max(cp1.cx, cp2.cx, cp3.cx, cp4.cx) + 50
-          const minCanvasY = Math.min(cp1.cy, cp2.cy, cp3.cy, cp4.cy) - 50
-          const maxCanvasY = Math.max(cp1.cy, cp2.cy, cp3.cy, cp4.cy) + 50
-          const span = maxCanvasY - minCanvasY + maxCanvasX - minCanvasX
-          for (let off = -span; off < span; off += 9) {
-            ctx.beginPath()
-            ctx.moveTo(minCanvasX + off, minCanvasY)
-            ctx.lineTo(minCanvasX + off + (maxCanvasY - minCanvasY), maxCanvasY)
-            ctx.stroke()
-          }
-          ctx.restore()
-
-          ctx.beginPath()
-          ctx.moveTo(cp1.cx, cp1.cy)
-          ctx.lineTo(cp2.cx, cp2.cy)
-          ctx.lineTo(cp3.cx, cp3.cy)
-          ctx.lineTo(cp4.cx, cp4.cy)
-          ctx.closePath()
-          ctx.strokeStyle = "#f59e0b"
-          ctx.lineWidth = 1.8
-          ctx.setLineDash([5, 3])
-          ctx.stroke()
-          ctx.setLineDash([])
-
-          const midX = (cp1.cx + cp2.cx + cp3.cx + cp4.cx) / 4
-          const midY = (cp1.cy + cp2.cy + cp3.cy + cp4.cy) / 4
-
-          const cashierTitle = "KASIR"
-          const cashierDim = `${formatDim(wall.lengthM)}m × ${formatDim(depthM)}m`
-
-          ctx.font = "bold 8.5px sans-serif"
-          const t1Metrics = ctx.measureText(cashierTitle)
-          ctx.font = "bold 7.5px sans-serif"
-          const t2Metrics = ctx.measureText(cashierDim)
-          const pillW = Math.max(t1Metrics.width, t2Metrics.width) + 10
-          const pillH = 22
-
-          // Pill Background
-          ctx.fillStyle = bgFill
-          if (ctx.roundRect) {
-            ctx.beginPath()
-            ctx.roundRect(midX - pillW / 2, midY - pillH / 2, pillW, pillH, 4)
-            ctx.fill()
+        cashierSegments.forEach((w) => {
+          if (currentChain.length === 0) {
+            currentChain.push(w)
           } else {
-            ctx.fillRect(midX - pillW / 2, midY - pillH / 2, pillW, pillH)
+            const prev = currentChain[currentChain.length - 1]
+            if (w.startIndex === prev.endIndex) {
+              currentChain.push(w)
+            } else {
+              cashierChains.push(currentChain)
+              currentChain = [w]
+            }
           }
+        })
+        if (currentChain.length > 0) {
+          if (
+            cashierChains.length > 0 &&
+            currentChain[currentChain.length - 1].endIndex === cashierChains[0][0].startIndex
+          ) {
+            cashierChains[0] = [...currentChain, ...cashierChains[0]]
+          } else {
+            cashierChains.push(currentChain)
+          }
+        }
 
-          ctx.textAlign = "center"
-          ctx.textBaseline = "middle"
-          ctx.font = "bold 8.5px sans-serif"
-          ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
-          ctx.fillText(cashierTitle, midX, midY - 5)
+        cashierChains.forEach((chain) => {
+          const chainPts: Point[] = [chain[0].p1]
+          let totalLenM = 0
+          chain.forEach((w) => {
+            chainPts.push(w.p2)
+            totalLenM += w.lengthM
+          })
 
-          ctx.font = "bold 7.5px sans-serif"
-          ctx.fillStyle = effectiveIsDark ? "rgba(251, 191, 36, 0.85)" : "rgba(180, 83, 9, 0.85)"
-          ctx.fillText(cashierDim, midX, midY + 5)
-          ctx.restore()
+          const avgDepth =
+            cashierDepths[chain[0].index] !== undefined ? cashierDepths[chain[0].index] : CASHIER_DEPTH_M
+          const zonePoly = getCashierZonePolygon(chainPts, avgDepth, customPts)
+          const canvasPoly = zonePoly.map((p) => toC(p))
+
+          if (canvasPoly.length >= 3) {
+            ctx.save()
+
+            // Fill Box
+            ctx.beginPath()
+            ctx.moveTo(canvasPoly[0].cx, canvasPoly[0].cy)
+            for (let k = 1; k < canvasPoly.length; k++) {
+              ctx.lineTo(canvasPoly[k].cx, canvasPoly[k].cy)
+            }
+            ctx.closePath()
+            ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.22)" : "rgba(245, 158, 11, 0.16)"
+            ctx.fill()
+
+            // Hatch
+            ctx.save()
+            ctx.clip()
+            ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.40)" : "rgba(217, 119, 6, 0.35)"
+            ctx.lineWidth = 1
+            const minCanvasX = Math.min(...canvasPoly.map((p) => p.cx)) - 50
+            const maxCanvasX = Math.max(...canvasPoly.map((p) => p.cx)) + 50
+            const minCanvasY = Math.min(...canvasPoly.map((p) => p.cy)) - 50
+            const maxCanvasY = Math.max(...canvasPoly.map((p) => p.cy)) + 50
+            const span = maxCanvasY - minCanvasY + maxCanvasX - minCanvasX
+            for (let off = -span; off < span; off += 9) {
+              ctx.beginPath()
+              ctx.moveTo(minCanvasX + off, minCanvasY)
+              ctx.lineTo(minCanvasX + off + (maxCanvasY - minCanvasY), maxCanvasY)
+              ctx.stroke()
+            }
+            ctx.restore()
+
+            // Dashed Amber Border
+            ctx.beginPath()
+            ctx.moveTo(canvasPoly[0].cx, canvasPoly[0].cy)
+            for (let k = 1; k < canvasPoly.length; k++) {
+              ctx.lineTo(canvasPoly[k].cx, canvasPoly[k].cy)
+            }
+            ctx.closePath()
+            ctx.strokeStyle = "#f59e0b"
+            ctx.lineWidth = 1.8
+            ctx.setLineDash([5, 3])
+            ctx.stroke()
+            ctx.setLineDash([])
+
+            const midX = canvasPoly.reduce((sum, p) => sum + p.cx, 0) / canvasPoly.length
+            const midY = canvasPoly.reduce((sum, p) => sum + p.cy, 0) / canvasPoly.length
+
+            const cashierTitle = "KASIR"
+            const cashierDim =
+              chainPts.length >= 3
+                ? `${formatDim(Math.hypot(chainPts[0].x - chainPts[1].x, chainPts[0].y - chainPts[1].y))}m × ${formatDim(Math.hypot(chainPts[2].x - chainPts[1].x, chainPts[2].y - chainPts[1].y))}m`
+                : `${formatDim(totalLenM)}m × ${formatDim(avgDepth)}m`
+            const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
+
+            if (showZoneLabels) {
+              ctx.save()
+              ctx.textAlign = "center"
+              ctx.textBaseline = "middle"
+              ctx.lineJoin = "round"
+
+              ctx.font = "bold 8.5px sans-serif"
+              ctx.strokeStyle = haloColor
+              ctx.lineWidth = 3.5
+              ctx.strokeText(cashierTitle, midX, midY - 5)
+              ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
+              ctx.fillText(cashierTitle, midX, midY - 5)
+
+              ctx.font = "bold 7.5px sans-serif"
+              ctx.strokeStyle = haloColor
+              ctx.lineWidth = 3.0
+              ctx.strokeText(cashierDim, midX, midY + 5)
+              ctx.fillStyle = effectiveIsDark ? "rgba(251, 191, 36, 0.95)" : "rgba(180, 83, 9, 0.95)"
+              ctx.fillText(cashierDim, midX, midY + 5)
+              ctx.restore()
+            }
+
+            ctx.restore()
+          }
         })
       }
     }
@@ -2981,39 +3410,34 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.lineWidth = 1.8
         ctx.stroke()
 
-        const midX = (cp1.cx + cp2.cx + cp3.cx + cp4.cx) / 4
-        const midY = (cp1.cy + cp2.cy + cp3.cy + cp4.cy) / 4
+        const frontMidX = (cp3.cx + cp4.cx) / 2 + inNorm.nx * 11
+        const frontMidY = (cp3.cy + cp4.cy) / 2 + inNorm.ny * 11
 
-        const chillerTitle = `CHILLER (${uCount} UNIT)`
-        const chillerDim = `${formatDim(wall.lengthM)}m × ${depthM}m`
+        const chillerLabel = `CHILLER ${uCount} UNIT (${formatDim(wall.lengthM)}m × ${depthM}m)`
+        const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
 
-        ctx.font = "bold 8px sans-serif"
-        const ch1Metrics = ctx.measureText(chillerTitle)
-        ctx.font = "bold 7px sans-serif"
-        const ch2Metrics = ctx.measureText(chillerDim)
-        const chPillW = Math.max(ch1Metrics.width, ch2Metrics.width) + 10
-        const chPillH = 22
+        // Rotasi teks mengikuti kemiringan dinding chiller agar presisi dan tidak menabrak
+        const wallAngle = Math.atan2(cp2.cy - cp1.cy, cp2.cx - cp1.cx)
+        let rot = wallAngle
+        if (rot > Math.PI / 2) rot -= Math.PI
+        else if (rot < -Math.PI / 2) rot += Math.PI
 
-        // Pill Background
-        ctx.fillStyle = bgFill
-        if (ctx.roundRect) {
-          ctx.beginPath()
-          ctx.roundRect(midX - chPillW / 2, midY - chPillH / 2, chPillW, chPillH, 4)
-          ctx.fill()
-        } else {
-          ctx.fillRect(midX - chPillW / 2, midY - chPillH / 2, chPillW, chPillH)
+        if (showZoneLabels) {
+          ctx.save()
+          ctx.translate(frontMidX, frontMidY)
+          ctx.rotate(rot)
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.lineJoin = "round"
+
+          ctx.font = "bold 8px sans-serif"
+          ctx.strokeStyle = haloColor
+          ctx.lineWidth = 3.5
+          ctx.strokeText(chillerLabel, 0, 0)
+          ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0891b2"
+          ctx.fillText(chillerLabel, 0, 0)
+          ctx.restore()
         }
-
-        ctx.textAlign = "center"
-        ctx.textBaseline = "middle"
-        ctx.font = "bold 8px sans-serif"
-        ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0891b2"
-        ctx.fillText(chillerTitle, midX, midY - 5)
-
-        ctx.font = "bold 7px sans-serif"
-        ctx.fillStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(8, 145, 178, 0.85)"
-        ctx.fillText(chillerDim, midX, midY + 5)
-        ctx.restore()
       })
     }
 
@@ -3030,6 +3454,13 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
         const p1C = toC(wall.p1)
         const p2C = toC(wall.p2)
+        const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
+
+        // Sudut kemiringan segmen pintu
+        const wallAngle = Math.atan2(p2C.cy - p1C.cy, p2C.cx - p1C.cx)
+        let rot = wallAngle
+        if (rot > Math.PI / 2) rot -= Math.PI
+        else if (rot < -Math.PI / 2) rot += Math.PI
 
         ctx.save()
         if (wall.type === "DOOR_MAIN") {
@@ -3087,36 +3518,33 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ctx.lineTo(cT2.cx, cT2.cy)
           ctx.stroke()
 
-          const labelPt = toC({ x: midM.x + (leafR + 0.4) * inNorm.nx, y: midM.y + (leafR + 0.4) * inNorm.ny })
+          const labelPt = toC({ x: midM.x + (leafR + 0.35) * inNorm.nx, y: midM.y + (leafR + 0.35) * inNorm.ny })
           const doorTitle = "PINTU UTAMA"
           const doorDim = `LEBAR ${formatDim(wall.lengthM)}m`
 
-          ctx.font = "bold 8px sans-serif"
-          const d1Metrics = ctx.measureText(doorTitle)
-          ctx.font = "bold 7px sans-serif"
-          const d2Metrics = ctx.measureText(doorDim)
-          const dPillW = Math.max(d1Metrics.width, d2Metrics.width) + 8
-          const dPillH = 20
+          if (showZoneLabels) {
+            ctx.save()
+            ctx.translate(labelPt.cx, labelPt.cy)
+            ctx.rotate(rot)
+            ctx.textAlign = "center"
+            ctx.textBaseline = "middle"
+            ctx.lineJoin = "round"
 
-          // Pill background
-          ctx.fillStyle = bgFill
-          if (ctx.roundRect) {
-            ctx.beginPath()
-            ctx.roundRect(labelPt.cx - dPillW / 2, labelPt.cy - dPillH / 2, dPillW, dPillH, 3)
-            ctx.fill()
-          } else {
-            ctx.fillRect(labelPt.cx - dPillW / 2, labelPt.cy - dPillH / 2, dPillW, dPillH)
+            ctx.font = "bold 8px sans-serif"
+            ctx.strokeStyle = haloColor
+            ctx.lineWidth = 3.5
+            ctx.strokeText(doorTitle, 0, -5)
+            ctx.fillStyle = "#f97316"
+            ctx.fillText(doorTitle, 0, -5)
+
+            ctx.font = "bold 7px sans-serif"
+            ctx.strokeStyle = haloColor
+            ctx.lineWidth = 3.0
+            ctx.strokeText(doorDim, 0, 5)
+            ctx.fillStyle = effectiveIsDark ? "rgba(249, 115, 22, 0.95)" : "rgba(234, 88, 12, 0.95)"
+            ctx.fillText(doorDim, 0, 5)
+            ctx.restore()
           }
-
-          ctx.textAlign = "center"
-          ctx.textBaseline = "middle"
-          ctx.font = "bold 8px sans-serif"
-          ctx.fillStyle = "#f97316"
-          ctx.fillText(doorTitle, labelPt.cx, labelPt.cy - 5)
-
-          ctx.font = "bold 7px sans-serif"
-          ctx.fillStyle = "rgba(249, 115, 22, 0.85)"
-          ctx.fillText(doorDim, labelPt.cx, labelPt.cy + 5)
         } else if (wall.type === "DOOR_P1") {
           // 1. Garis bukaan dinding putus-putus oranye/rose
           ctx.strokeStyle = "#ea580c"
@@ -3158,36 +3586,33 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ctx.lineTo(cT.cx, cT.cy)
           ctx.stroke()
 
-          const labelPt = toC({ x: hM.x + (leafR * 0.5) * ux + (leafR + 0.4) * inNorm.nx, y: hM.y + (leafR * 0.5) * uy + (leafR + 0.4) * inNorm.ny })
+          const labelPt = toC({ x: hM.x + (leafR * 0.5) * ux + (leafR + 0.35) * inNorm.nx, y: hM.y + (leafR * 0.5) * uy + (leafR + 0.35) * inNorm.ny })
           const p1Title = "PINTU P1 GUDANG"
           const p1Dim = `LEBAR ${formatDim(leafR)}m`
 
-          ctx.font = "bold 8px sans-serif"
-          const p1Metrics = ctx.measureText(p1Title)
-          ctx.font = "bold 7px sans-serif"
-          const p2Metrics = ctx.measureText(p1Dim)
-          const p1PillW = Math.max(p1Metrics.width, p2Metrics.width) + 8
-          const p1PillH = 20
+          if (showZoneLabels) {
+            ctx.save()
+            ctx.translate(labelPt.cx, labelPt.cy)
+            ctx.rotate(rot)
+            ctx.textAlign = "center"
+            ctx.textBaseline = "middle"
+            ctx.lineJoin = "round"
 
-          // Pill background
-          ctx.fillStyle = bgFill
-          if (ctx.roundRect) {
-            ctx.beginPath()
-            ctx.roundRect(labelPt.cx - p1PillW / 2, labelPt.cy - p1PillH / 2, p1PillW, p1PillH, 3)
-            ctx.fill()
-          } else {
-            ctx.fillRect(labelPt.cx - p1PillW / 2, labelPt.cy - p1PillH / 2, p1PillW, p1PillH)
+            ctx.font = "bold 8px sans-serif"
+            ctx.strokeStyle = haloColor
+            ctx.lineWidth = 3.5
+            ctx.strokeText(p1Title, 0, -5)
+            ctx.fillStyle = "#ea580c"
+            ctx.fillText(p1Title, 0, -5)
+
+            ctx.font = "bold 7px sans-serif"
+            ctx.strokeStyle = haloColor
+            ctx.lineWidth = 3.0
+            ctx.strokeText(p1Dim, 0, 5)
+            ctx.fillStyle = effectiveIsDark ? "rgba(234, 88, 12, 0.95)" : "rgba(194, 65, 12, 0.95)"
+            ctx.fillText(p1Dim, 0, 5)
+            ctx.restore()
           }
-
-          ctx.textAlign = "center"
-          ctx.textBaseline = "middle"
-          ctx.font = "bold 8px sans-serif"
-          ctx.fillStyle = "#ea580c"
-          ctx.fillText(p1Title, labelPt.cx, labelPt.cy - 5)
-
-          ctx.font = "bold 7px sans-serif"
-          ctx.fillStyle = "rgba(234, 88, 12, 0.85)"
-          ctx.fillText(p1Dim, labelPt.cx, labelPt.cy + 5)
         } else if (wall.type === "GLASS_DOOR") {
           ctx.strokeStyle = "#f97316"
           ctx.lineWidth = 3.5
@@ -3506,32 +3931,94 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           tagColor = effectiveIsDark ? "#fbbf24" : "#d97706"
         }
 
-        ctx.save()
-        ctx.translate(labelX, labelY)
-        ctx.rotate(angle)
-        ctx.textAlign = "center"
-        ctx.textBaseline = "middle"
-        ctx.font = "bold 8.5px sans-serif"
+        const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
 
-        // Background mask to prevent line and tag overlap
-        const textMetrics = ctx.measureText(tag)
-        ctx.fillStyle = bgFill
-        if (ctx.roundRect) {
-          ctx.beginPath()
-          ctx.roundRect(-textMetrics.width / 2 - 4, -6, textMetrics.width + 8, 12, 3)
-          ctx.fill()
-        } else {
-          ctx.fillRect(-textMetrics.width / 2 - 4, -6, textMetrics.width + 8, 12)
+        if (showZoneLabels) {
+          ctx.save()
+          ctx.translate(labelX, labelY)
+          ctx.rotate(angle)
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.lineJoin = "round"
+          ctx.font = "bold 8.5px sans-serif"
+
+          // Soft halo stroke instead of opaque solid box
+          ctx.strokeStyle = haloColor
+          ctx.lineWidth = 3.5
+          ctx.strokeText(tag, 0, 0)
+          ctx.fillStyle = tagColor
+          ctx.fillText(tag, 0, 0)
+
+          ctx.restore()
         }
-
-        // Crisp filled text aligned parallel to wall
-        ctx.fillStyle = tagColor
-        ctx.fillText(tag, 0, 0)
-
-        ctx.restore()
       }
       ctx.restore()
     })
+
+    // ── 3B. RENDER CAD STRUCTURAL COLUMNS / PILAR ──
+    if (activeCadMetadata?.zones?.columns && activeCadMetadata.zones.columns.length > 0) {
+      activeCadMetadata.zones.columns.forEach((col, cIdx) => {
+        const poly = col.polygon && col.polygon.length >= 3 ? col.polygon : [
+          { x: col.bounds.x, y: col.bounds.y },
+          { x: col.bounds.x + col.bounds.width, y: col.bounds.y },
+          { x: col.bounds.x + col.bounds.width, y: col.bounds.y + col.bounds.height },
+          { x: col.bounds.x, y: col.bounds.y + col.bounds.height },
+        ]
+        const cpts = poly.map((p) => toC(p))
+        if (cpts.length >= 3) {
+          ctx.save()
+          
+          // 1. Pilar 2D Body (Concrete fill)
+          ctx.beginPath()
+          ctx.moveTo(cpts[0].cx, cpts[0].cy)
+          for (let i = 1; i < cpts.length; i++) {
+            ctx.lineTo(cpts[i].cx, cpts[i].cy)
+          }
+          ctx.closePath()
+
+          ctx.fillStyle = effectiveIsDark ? "rgba(100, 116, 139, 0.45)" : "rgba(148, 163, 184, 0.45)"
+          ctx.fill()
+          ctx.strokeStyle = effectiveIsDark ? "#94a3b8" : "#475569"
+          ctx.lineWidth = 2.0
+          ctx.stroke()
+
+          // 2. Internal Cross 'X' Hatch
+          ctx.beginPath()
+          ctx.moveTo(cpts[0].cx, cpts[0].cy)
+          ctx.lineTo(cpts[2].cx, cpts[2].cy)
+          ctx.moveTo(cpts[1].cx, cpts[1].cy)
+          if (cpts[3]) ctx.lineTo(cpts[3].cx, cpts[3].cy)
+          ctx.strokeStyle = effectiveIsDark ? "rgba(148, 163, 184, 0.85)" : "rgba(71, 85, 105, 0.85)"
+          ctx.lineWidth = 1.2
+          ctx.stroke()
+
+          // 3. Clean Compact Label Positioned Above Pillar (Mencegah teks menabrak kotak beton & arsir silang)
+          if (showZoneLabels) {
+            const minY = Math.min(...cpts.map(p => p.cy))
+            const midCx = cpts.reduce((sum, p) => sum + p.cx, 0) / cpts.length
+            const colLabel = activeCadMetadata.zones!.columns!.length > 1
+              ? `KOLOM ${cIdx + 1} (${formatDim(col.bounds.width)}×${formatDim(col.bounds.height)}m)`
+              : `KOLOM (${formatDim(col.bounds.width)}×${formatDim(col.bounds.height)}m)`
+            const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
+
+            ctx.save()
+            ctx.textAlign = "center"
+            ctx.textBaseline = "bottom"
+            ctx.lineJoin = "round"
+
+            ctx.font = "bold 7.5px sans-serif"
+            ctx.strokeStyle = haloColor
+            ctx.lineWidth = 3.2
+            ctx.strokeText(colLabel, midCx, minY - 3)
+            ctx.fillStyle = effectiveIsDark ? "#f1f5f9" : "#334155"
+            ctx.fillText(colLabel, midCx, minY - 3)
+
+            ctx.restore()
+          }
+          ctx.restore()
+        }
+      })
+    }
 
     // ── 4. RENDER LIVE RUBBERBAND & 1-CLICK PREVIEW UNTUK TOOLS AREA TERLARANG ──
     // A. 1-Click Live Preview untuk Objek Baku: PINTU UTAMA (1.8m), PINTU P1 (1.0m), dan CHILLER (N x 1.2m x 0.8m)
@@ -3836,178 +4323,279 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
     // C. LIVE PREVIEW TAHAP 3 KASIR: TARIK KEDALAMAN KE DALAM RUANGAN (3-KLIK KASIR)
     if (pendingCashierDepth) {
-      const { p1, p2, depthM, lengthM, inNorm } = pendingCashierDepth
-      const p3: Point = { x: p2.x + depthM * inNorm.nx, y: p2.y + depthM * inNorm.ny }
-      const p4: Point = { x: p1.x + depthM * inNorm.nx, y: p1.y + depthM * inNorm.ny }
+      const { depthM, lengthM, pathPoints, p1, p2 } = pendingCashierDepth
+      const ptsChain = pathPoints && pathPoints.length >= 2 ? pathPoints : [p1, p2]
+      const zonePoly = getCashierZonePolygon(ptsChain, depthM, customPts)
+      const canvasPoly = zonePoly.map((p) => toC(p))
 
-      const cp1 = toC(p1)
-      const cp2 = toC(p2)
-      const cp3 = toC(p3)
-      const cp4 = toC(p4)
+      if (canvasPoly.length >= 3) {
+        ctx.save()
 
-      ctx.save()
-
-      // Fill Box
-      ctx.beginPath()
-      ctx.moveTo(cp1.cx, cp1.cy)
-      ctx.lineTo(cp2.cx, cp2.cy)
-      ctx.lineTo(cp3.cx, cp3.cy)
-      ctx.lineTo(cp4.cx, cp4.cy)
-      ctx.closePath()
-      ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.28)" : "rgba(245, 158, 11, 0.20)"
-      ctx.fill()
-
-      // Hatch
-      ctx.save()
-      ctx.clip()
-      ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.50)" : "rgba(217, 119, 6, 0.40)"
-      ctx.lineWidth = 1
-      const minX = Math.min(cp1.cx, cp2.cx, cp3.cx, cp4.cx) - 40
-      const maxX = Math.max(cp1.cx, cp2.cx, cp3.cx, cp4.cx) + 40
-      const minY = Math.min(cp1.cy, cp2.cy, cp3.cy, cp4.cy) - 40
-      const maxY = Math.max(cp1.cy, cp2.cy, cp3.cy, cp4.cy) + 40
-      const span = maxX - minX + maxY - minY
-      for (let off = -span; off < span; off += 9) {
+        // Fill Box
         ctx.beginPath()
-        ctx.moveTo(minX + off, minY)
-        ctx.lineTo(minX + off + (maxY - minY), maxY)
-        ctx.stroke()
-      }
-      ctx.restore()
-
-      // Dashed Amber Border
-      ctx.beginPath()
-      ctx.moveTo(cp1.cx, cp1.cy)
-      ctx.lineTo(cp2.cx, cp2.cy)
-      ctx.lineTo(cp3.cx, cp3.cy)
-      ctx.lineTo(cp4.cx, cp4.cy)
-      ctx.closePath()
-      ctx.strokeStyle = "#f59e0b"
-      ctx.lineWidth = 2
-      ctx.setLineDash([5, 3])
-      ctx.stroke()
-      ctx.setLineDash([])
-
-      // End nodes
-      ;[cp1, cp2, cp3, cp4].forEach((pt) => {
-        ctx.beginPath()
-        ctx.arc(pt.cx, pt.cy, 5, 0, Math.PI * 2)
-        ctx.fillStyle = "#f59e0b"
+        ctx.moveTo(canvasPoly[0].cx, canvasPoly[0].cy)
+        for (let k = 1; k < canvasPoly.length; k++) {
+          ctx.lineTo(canvasPoly[k].cx, canvasPoly[k].cy)
+        }
+        ctx.closePath()
+        ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.28)" : "rgba(245, 158, 11, 0.20)"
         ctx.fill()
-        ctx.strokeStyle = "#ffffff"
-        ctx.lineWidth = 1.8
+
+        // Hatch
+        ctx.save()
+        ctx.clip()
+        ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.50)" : "rgba(217, 119, 6, 0.40)"
+        ctx.lineWidth = 1
+        const minX = Math.min(...canvasPoly.map((p) => p.cx)) - 40
+        const maxX = Math.max(...canvasPoly.map((p) => p.cx)) + 40
+        const minY = Math.min(...canvasPoly.map((p) => p.cy)) - 40
+        const maxY = Math.max(...canvasPoly.map((p) => p.cy)) + 40
+        const span = maxX - minX + maxY - minY
+        for (let off = -span; off < span; off += 9) {
+          ctx.beginPath()
+          ctx.moveTo(minX + off, minY)
+          ctx.lineTo(minX + off + (maxY - minY), maxY)
+          ctx.stroke()
+        }
+        ctx.restore()
+
+        // Dashed Amber Border
+        ctx.beginPath()
+        ctx.moveTo(canvasPoly[0].cx, canvasPoly[0].cy)
+        for (let k = 1; k < canvasPoly.length; k++) {
+          ctx.lineTo(canvasPoly[k].cx, canvasPoly[k].cy)
+        }
+        ctx.closePath()
+        ctx.strokeStyle = "#f59e0b"
+        ctx.lineWidth = 2
+        ctx.setLineDash([5, 3])
         ctx.stroke()
-      })
+        ctx.setLineDash([])
 
-      // Badge in center
-      const midX = (cp1.cx + cp2.cx + cp3.cx + cp4.cx) / 4
-      const midY = (cp1.cy + cp2.cy + cp3.cy + cp4.cy) / 4
-      ctx.font = "bold 9.5px sans-serif"
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      ctx.strokeStyle = bgFill
-      ctx.lineWidth = 3
-      ctx.lineJoin = "round"
-      const label1 = `🛒 AREA KASIR: ${formatDim(lengthM)}m × ${formatDim(depthM)}m`
-      ctx.strokeText(label1, midX, midY - 6)
-      ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
-      ctx.fillText(label1, midX, midY - 6)
+        // End nodes along path
+        ptsChain.forEach((pt) => {
+          const cp = toC(pt)
+          ctx.beginPath()
+          ctx.arc(cp.cx, cp.cy, 5, 0, Math.PI * 2)
+          ctx.fillStyle = "#f59e0b"
+          ctx.fill()
+          ctx.strokeStyle = "#ffffff"
+          ctx.lineWidth = 1.8
+          ctx.stroke()
+        })
 
-      ctx.font = "bold 8.5px sans-serif"
-      const label2 = "(Klik titik ke-3 untuk kunci kedalaman)"
-      ctx.strokeText(label2, midX, midY + 7)
-      ctx.fillStyle = effectiveIsDark ? "#fef3c7" : "#78350f"
-      ctx.fillText(label2, midX, midY + 7)
+        // Badge in center
+        const midX = canvasPoly.reduce((sum, p) => sum + p.cx, 0) / canvasPoly.length
+        const midY = canvasPoly.reduce((sum, p) => sum + p.cy, 0) / canvasPoly.length
+        ctx.font = "bold 9.5px sans-serif"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.strokeStyle = bgFill
+        ctx.lineWidth = 3
+        ctx.lineJoin = "round"
+        const dimText =
+          ptsChain.length >= 3
+            ? `${formatDim(Math.hypot(ptsChain[0].x - ptsChain[1].x, ptsChain[0].y - ptsChain[1].y))}m × ${formatDim(Math.hypot(ptsChain[2].x - ptsChain[1].x, ptsChain[2].y - ptsChain[1].y))}m`
+            : `${formatDim(lengthM)}m × ${formatDim(depthM)}m`
+        const label1 = `🛒 AREA KASIR: ${dimText}`
+        ctx.strokeText(label1, midX, midY - 6)
+        ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
+        ctx.fillText(label1, midX, midY - 6)
 
-      ctx.restore()
+        ctx.font = "bold 8.5px sans-serif"
+        const label2 = "(Klik titik ke-3 untuk kunci kedalaman)"
+        ctx.strokeText(label2, midX, midY + 7)
+        ctx.fillStyle = effectiveIsDark ? "#fef3c7" : "#78350f"
+        ctx.fillText(label2, midX, midY + 7)
+
+        ctx.restore()
+      }
     }
 
     // D. 2-Click Live Rubberband untuk DOOR (Kaca Depan) dan CASHIER (Tahap 1 -> 2)
     if (pendingZoneStart && (activeTool === "DOOR" || activeTool === "CASHIER") && cursorPos && !pendingCashierDepth) {
       let targetSegIdx = pendingZoneStart.segIdx
+      let hoverProj = { x: 0, y: 0, t: 0, dist: Infinity }
 
-      if (pendingZoneStart.isCorner && pendingZoneStart.cornerNodeIdx !== undefined && wallSegments.length > 0) {
-        const cIdx = pendingZoneStart.cornerNodeIdx
-        const segPrevIdx = (cIdx - 1 + wallSegments.length) % wallSegments.length
-        const segNextIdx = cIdx
-
-        const segPrev = wallSegments.find((w) => w.index === segPrevIdx)
-        const segNext = wallSegments.find((w) => w.index === segNextIdx)
-
-        if (segPrev && segNext) {
-          const pPrev1 = toC(segPrev.p1)
-          const pPrev2 = toC(segPrev.p2)
-          const projPrev = getClosestPointOnSegment(cursorPos.cx, cursorPos.cy, pPrev1.cx, pPrev1.cy, pPrev2.cx, pPrev2.cy)
-
-          const pNext1 = toC(segNext.p1)
-          const pNext2 = toC(segNext.p2)
-          const projNext = getClosestPointOnSegment(cursorPos.cx, cursorPos.cy, pNext1.cx, pNext1.cy, pNext2.cx, pNext2.cy)
-
-          if (projPrev.dist < projNext.dist) {
-            targetSegIdx = segPrevIdx
-          } else {
-            targetSegIdx = segNextIdx
-          }
-        }
-      }
-
-      const seg = wallSegments.find((w) => w.index === targetSegIdx)
-      if (seg) {
+      wallSegments.forEach((seg) => {
         const p1 = toC(seg.p1)
         const p2 = toC(seg.p2)
         const proj = getClosestPointOnSegment(cursorPos.cx, cursorPos.cy, p1.cx, p1.cy, p2.cx, p2.cy)
+        if (proj.dist < hoverProj.dist) {
+          hoverProj = proj
+          targetSegIdx = seg.index
+        }
+      })
 
-        const startCanvas = pendingZoneStart.canvasA
-        const endCanvas = { cx: proj.x, cy: proj.y }
+      const mHoverPt: Point = {
+        x: Number(((hoverProj.x - sc.offX) / sc.scale).toFixed(2)),
+        y: Number(((hoverProj.y - sc.offY) / sc.scale).toFixed(2)),
+      }
 
-        const toolColor = activeTool === "DOOR" ? "#f97316" : "#eab308"
-        const toolLabel = activeTool === "DOOR" ? "PINTU/KACA" : "PANJANG KASIR"
+      const pathResult = getPerimeterPath(
+        customPts,
+        pendingZoneStart.segIdx,
+        pendingZoneStart.ptA,
+        pendingZoneStart.tA,
+        targetSegIdx,
+        mHoverPt,
+        hoverProj.t
+      )
 
-        const distM = Math.hypot(
-          (endCanvas.cx - startCanvas.cx) / sc.scale,
-          (endCanvas.cy - startCanvas.cy) / sc.scale
-        )
+      const toolColor = activeTool === "DOOR" ? "#f97316" : "#eab308"
+      const toolLabel = activeTool === "DOOR" ? "PINTU/KACA" : "PANJANG KASIR"
+      const canvasPts = pathResult.pathPoints.map((p) => toC(p))
 
+      // Bersihkan titik duplikat & kolinear pada path preview
+      const rawLivePts = pathResult.pathPoints
+      const cleanLivePts: Point[] = []
+      for (let i = 0; i < rawLivePts.length; i++) {
+        const pt = rawLivePts[i]
+        if (cleanLivePts.length === 0 || Math.hypot(pt.x - cleanLivePts[cleanLivePts.length - 1].x, pt.y - cleanLivePts[cleanLivePts.length - 1].y) >= 0.05) {
+          cleanLivePts.push(pt)
+        }
+      }
+      const nonCollinearLivePts: Point[] = []
+      for (let i = 0; i < cleanLivePts.length; i++) {
+        if (i > 0 && i < cleanLivePts.length - 1) {
+          const pPrev = cleanLivePts[i - 1]
+          const pCurr = cleanLivePts[i]
+          const pNext = cleanLivePts[i + 1]
+          const cross = (pCurr.x - pPrev.x) * (pNext.y - pPrev.y) - (pCurr.y - pPrev.y) * (pNext.x - pPrev.x)
+          const lenPrev = Math.hypot(pCurr.x - pPrev.x, pCurr.y - pPrev.y)
+          const lenNext = Math.hypot(pNext.x - pCurr.x, pNext.y - pCurr.y)
+          if (lenPrev > 0.01 && lenNext > 0.01 && Math.abs(cross) / (lenPrev * lenNext) < 0.02) {
+            continue
+          }
+        }
+        nonCollinearLivePts.push(cleanLivePts[i])
+      }
+
+      // JIKA KASIR MULTI-DINDING (2-DINDING SUDUT ATAU 3-DINDING): Gambar live preview kotak
+      if (activeTool === "CASHIER" && nonCollinearLivePts.length >= 3) {
+        const previewPoly = getCashierZonePolygon(nonCollinearLivePts, CASHIER_DEPTH_M, customPts)
+        const canvasPoly = previewPoly.map((p) => toC(p))
+
+        if (canvasPoly.length >= 3) {
+          ctx.save()
+          ctx.beginPath()
+          ctx.moveTo(canvasPoly[0].cx, canvasPoly[0].cy)
+          for (let k = 1; k < canvasPoly.length; k++) {
+            ctx.lineTo(canvasPoly[k].cx, canvasPoly[k].cy)
+          }
+          ctx.closePath()
+          ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.28)" : "rgba(245, 158, 11, 0.20)"
+          ctx.fill()
+
+          // Arsir
+          ctx.save()
+          ctx.clip()
+          ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.45)" : "rgba(217, 119, 6, 0.35)"
+          ctx.lineWidth = 1
+          const minX = Math.min(...canvasPoly.map((p) => p.cx)) - 40
+          const maxX = Math.max(...canvasPoly.map((p) => p.cx)) + 40
+          const minY = Math.min(...canvasPoly.map((p) => p.cy)) - 40
+          const maxY = Math.max(...canvasPoly.map((p) => p.cy)) + 40
+          const span = maxX - minX + maxY - minY
+          for (let off = -span; off < span; off += 9) {
+            ctx.beginPath()
+            ctx.moveTo(minX + off, minY)
+            ctx.lineTo(minX + off + (maxY - minY), maxY)
+            ctx.stroke()
+          }
+          ctx.restore()
+
+          // Border Putus-putus
+          ctx.beginPath()
+          ctx.moveTo(canvasPoly[0].cx, canvasPoly[0].cy)
+          for (let k = 1; k < canvasPoly.length; k++) {
+            ctx.lineTo(canvasPoly[k].cx, canvasPoly[k].cy)
+          }
+          ctx.closePath()
+          ctx.strokeStyle = "#f59e0b"
+          ctx.lineWidth = 2
+          ctx.setLineDash([5, 3])
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          // End nodes
+          canvasPoly.forEach((cp, idx) => {
+            ctx.beginPath()
+            ctx.arc(cp.cx, cp.cy, idx < 3 ? 5 : 4, 0, Math.PI * 2)
+            ctx.fillStyle = "#f59e0b"
+            ctx.fill()
+            ctx.strokeStyle = "#ffffff"
+            ctx.lineWidth = 1.8
+            ctx.stroke()
+          })
+
+          // Floating badge
+          const midX = canvasPoly.reduce((sum, p) => sum + p.cx, 0) / canvasPoly.length
+          const midY = canvasPoly.reduce((sum, p) => sum + p.cy, 0) / canvasPoly.length
+          const isCorner2 = nonCollinearLivePts.length === 3
+          const l1 = isCorner2 ? Math.hypot(nonCollinearLivePts[0].x - nonCollinearLivePts[1].x, nonCollinearLivePts[0].y - nonCollinearLivePts[1].y) : 0
+          const l2 = isCorner2 ? Math.hypot(nonCollinearLivePts[2].x - nonCollinearLivePts[1].x, nonCollinearLivePts[2].y - nonCollinearLivePts[1].y) : 0
+
+          ctx.font = "bold 9.5px sans-serif"
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.strokeStyle = bgFill
+          ctx.lineWidth = 3
+          ctx.lineJoin = "round"
+          const label1 = isCorner2
+            ? `🛒 KASIR SUDUT: ${formatDim(l1)}m × ${formatDim(l2)}m`
+            : `🛒 KASIR 3-SISI: ${formatDim(pathResult.totalLengthM)}m`
+          ctx.strokeText(label1, midX, midY - 6)
+          ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
+          ctx.fillText(label1, midX, midY - 6)
+
+          ctx.font = "bold 8.5px sans-serif"
+          const label2 = "(Klik titik ke-2 untuk pasang)"
+          ctx.strokeText(label2, midX, midY + 7)
+          ctx.fillStyle = effectiveIsDark ? "#fef3c7" : "#78350f"
+          ctx.fillText(label2, midX, midY + 7)
+
+          ctx.restore()
+        }
+      } else {
         ctx.save()
-        ctx.beginPath()
-        ctx.moveTo(startCanvas.cx, startCanvas.cy)
-        ctx.lineTo(endCanvas.cx, endCanvas.cy)
-        ctx.strokeStyle = toolColor
-        ctx.lineWidth = 6
-        ctx.stroke()
+        if (canvasPts.length > 0) {
+          ctx.beginPath()
+          ctx.moveTo(canvasPts[0].cx, canvasPts[0].cy)
+          for (let i = 1; i < canvasPts.length; i++) {
+            ctx.lineTo(canvasPts[i].cx, canvasPts[i].cy)
+          }
+          ctx.strokeStyle = toolColor
+          ctx.lineWidth = 6
+          ctx.stroke()
 
-        // Start node indicator
-        ctx.beginPath()
-        ctx.arc(startCanvas.cx, startCanvas.cy, 6, 0, Math.PI * 2)
-        ctx.fillStyle = toolColor
-        ctx.fill()
-        ctx.strokeStyle = "#ffffff"
-        ctx.lineWidth = 2
-        ctx.stroke()
+          // Node indicators
+          canvasPts.forEach((cp, idx) => {
+            ctx.beginPath()
+            ctx.arc(cp.cx, cp.cy, idx === 0 || idx === canvasPts.length - 1 ? 6 : 4, 0, Math.PI * 2)
+            ctx.fillStyle = toolColor
+            ctx.fill()
+            ctx.strokeStyle = "#ffffff"
+            ctx.lineWidth = 2
+            ctx.stroke()
+          })
 
-        // End node indicator (following cursor)
-        ctx.beginPath()
-        ctx.arc(endCanvas.cx, endCanvas.cy, 6, 0, Math.PI * 2)
-        ctx.fillStyle = toolColor
-        ctx.fill()
-        ctx.strokeStyle = "#ffffff"
-        ctx.lineWidth = 2
-        ctx.stroke()
+          // Floating info badge
+          const midIdx = Math.floor(canvasPts.length / 2)
+          const badgeMidX = canvasPts[midIdx].cx
+          const badgeMidY = canvasPts[midIdx].cy - 14
 
-        // Floating info badge
-        const badgeMidX = (startCanvas.cx + endCanvas.cx) / 2
-        const badgeMidY = (startCanvas.cy + endCanvas.cy) / 2 - 14
-
-        ctx.font = "bold 9px sans-serif"
-        ctx.textAlign = "center"
-        ctx.fillStyle = toolColor
-        ctx.fillText(
-          activeTool === "CASHIER"
-            ? `Panjang Kasir: ${formatDim(distM)}m (Klik titik ke-2)`
-            : `${toolLabel}: ${formatDim(distM)}m (Klik titik akhir)`,
-          badgeMidX,
-          badgeMidY
-        )
+          ctx.font = "bold 9px sans-serif"
+          ctx.textAlign = "center"
+          ctx.fillStyle = toolColor
+          ctx.fillText(
+            activeTool === "CASHIER"
+              ? `Panjang Kasir: ${formatDim(pathResult.totalLengthM)}m (Klik titik ke-2)`
+              : `${toolLabel}: ${formatDim(pathResult.totalLengthM)}m (Klik titik akhir)`,
+            badgeMidX,
+            badgeMidY
+          )
+        }
         ctx.restore()
       }
     }
@@ -4286,194 +4874,324 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       })
 
       // 10. Render CAD Dimension Lines Per Segmen Dinding (Rantai Dimensi Arsitektural Tanpa Tumpang Tindih)
-      wallSegments.forEach((wall) => {
-        const unitsOnWall = placedUnits
-          .filter((u) => u.wallIndex === wall.index)
-          .sort((a, b) => a.ratio - b.ratio)
+      if (showWallDimensions) {
+        wallSegments.forEach((wall) => {
+          const unitsOnWall = placedUnits
+            .filter((u) => u.wallIndex === wall.index)
+            .sort((a, b) => a.ratio - b.ratio)
 
-        if (unitsOnWall.length === 0) return
+          if (unitsOnWall.length === 0) return
 
-        const p1 = toC(wall.p1)
-        const p2 = toC(wall.p2)
-        const dx = p2.cx - p1.cx
-        const dy = p2.cy - p1.cy
-        const len = Math.hypot(dx, dy)
-        if (len === 0) return
+          const p1 = toC(wall.p1)
+          const p2 = toC(wall.p2)
+          const dx = p2.cx - p1.cx
+          const dy = p2.cy - p1.cy
+          const len = Math.hypot(dx, dy)
+          if (len === 0) return
 
-        const uX = dx / len
-        const uY = dy / len
+          const uX = dx / len
+          const uY = dy / len
 
-        // Normal vector menghadap ke dalam ruangan toko
-        let normX = -dy / len
-        let normY = dx / len
-        const midWallX = (wall.p1.x + wall.p2.x) / 2
-        const midWallY = (wall.p1.y + wall.p2.y) / 2
-        if (normX * (centroidX - midWallX) + normY * (centroidY - midWallY) < 0) {
-          normX = -normX
-          normY = -normY
-        }
+          // Normal vector menghadap ke dalam ruangan toko
+          let normX = -dy / len
+          let normY = dx / len
+          const midWallX = (wall.p1.x + wall.p2.x) / 2
+          const midWallY = (wall.p1.y + wall.p2.y) / 2
+          if (normX * (centroidX - midWallX) + normY * (centroidY - midWallY) < 0) {
+            normX = -normX
+            normY = -normY
+          }
 
-        const wallAngle = Math.atan2(dy, dx)
-        let textAngle = wallAngle
-        if (textAngle > Math.PI / 2 || textAngle < -Math.PI / 2) {
-          textAngle += Math.PI
-        }
+          const wallAngle = Math.atan2(dy, dx)
+          let textAngle = wallAngle
+          if (textAngle > Math.PI / 2 || textAngle < -Math.PI / 2) {
+            textAngle += Math.PI
+          }
 
-        const rawWallLen = segmentLengths[wall.index]
-        const wallLengthM =
-          rawWallLen !== undefined && rawWallLen !== ""
-            ? parseFloat(String(rawWallLen)) || Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
-            : Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
+          const rawWallLen = segmentLengths[wall.index]
+          const wallLengthM =
+            rawWallLen !== undefined && rawWallLen !== ""
+              ? parseFloat(String(rawWallLen)) || Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
+              : Math.hypot(wall.p2.x - wall.p1.x, wall.p2.y - wall.p1.y)
 
-        const dimOffset = Math.max(26, Math.min(38, (wall.type === "CHILLER" ? 0.65 : 0.45) * sc.scale))
+          const dimOffset = Math.max(26, Math.min(38, (wall.type === "CHILLER" ? 0.65 : 0.45) * sc.scale))
 
-        // Rantai titik dimensi [T_start, AC_1, AC_2, ..., T_end]
-        const chainPoints: {
-          origCanvas: { cx: number; cy: number }
-          dimCanvas: { cx: number; cy: number }
-          ratio: number
-          isUnit: boolean
-          unitId?: string
-        }[] = []
-
-        chainPoints.push({
-          origCanvas: { cx: p1.cx, cy: p1.cy },
-          dimCanvas: { cx: p1.cx + normX * dimOffset, cy: p1.cy + normY * dimOffset },
-          ratio: 0,
-          isUnit: false,
-        })
-
-        unitsOnWall.forEach((u) => {
-          const acX = wall.p1.x + (wall.p2.x - wall.p1.x) * u.ratio
-          const acY = wall.p1.y + (wall.p2.y - wall.p1.y) * u.ratio
-          const cAcX = sc.offX + acX * sc.scale
-          const cAcY = sc.offY + acY * sc.scale
+          // Rantai titik dimensi [T_start, AC_1, AC_2, ..., T_end]
+          const chainPoints: {
+            origCanvas: { cx: number; cy: number }
+            dimCanvas: { cx: number; cy: number }
+            ratio: number
+            isUnit: boolean
+            unitId?: string
+          }[] = []
 
           chainPoints.push({
-            origCanvas: { cx: cAcX, cy: cAcY },
-            dimCanvas: { cx: cAcX + normX * dimOffset, cy: cAcY + normY * dimOffset },
-            ratio: u.ratio,
-            isUnit: true,
-            unitId: u.id,
+            origCanvas: { cx: p1.cx, cy: p1.cy },
+            dimCanvas: { cx: p1.cx + normX * dimOffset, cy: p1.cy + normY * dimOffset },
+            ratio: 0,
+            isUnit: false,
           })
-        })
 
-        chainPoints.push({
-          origCanvas: { cx: p2.cx, cy: p2.cy },
-          dimCanvas: { cx: p2.cx + normX * dimOffset, cy: p2.cy + normY * dimOffset },
-          ratio: 1,
-          isUnit: false,
-        })
+          unitsOnWall.forEach((u) => {
+            const acX = wall.p1.x + (wall.p2.x - wall.p1.x) * u.ratio
+            const acY = wall.p1.y + (wall.p2.y - wall.p1.y) * u.ratio
+            const cAcX = sc.offX + acX * sc.scale
+            const cAcY = sc.offY + acY * sc.scale
 
-        ctx.save()
+            chainPoints.push({
+              origCanvas: { cx: cAcX, cy: cAcY },
+              dimCanvas: { cx: cAcX + normX * dimOffset, cy: cAcY + normY * dimOffset },
+              ratio: u.ratio,
+              isUnit: true,
+              unitId: u.id,
+            })
+          })
 
-        // 1. Extension Witness Lines (Garis bantu putus-putus dari tepi dinding/bodi ke garis ukur)
-        ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.4)" : "rgba(2, 132, 199, 0.4)"
-        ctx.lineWidth = 0.9
-        ctx.setLineDash([2, 2])
+          chainPoints.push({
+            origCanvas: { cx: p2.cx, cy: p2.cy },
+            dimCanvas: { cx: p2.cx + normX * dimOffset, cy: p2.cy + normY * dimOffset },
+            ratio: 1,
+            isUnit: false,
+          })
 
-        chainPoints.forEach((cp) => {
-          // Jika titik as AC, mulai garis bantu dari sisi luar bodi AC agar tidak memotong bodi & teks label
-          const startX = cp.isUnit ? cp.origCanvas.cx + normX * 8.5 : cp.origCanvas.cx
-          const startY = cp.isUnit ? cp.origCanvas.cy + normY * 8.5 : cp.origCanvas.cy
+          ctx.save()
 
+          // 1. Extension Witness Lines (Garis bantu putus-putus dari tepi dinding/bodi ke garis ukur)
+          ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.4)" : "rgba(2, 132, 199, 0.4)"
+          ctx.lineWidth = 0.9
+          ctx.setLineDash([2, 2])
+
+          chainPoints.forEach((cp) => {
+            // Jika titik as AC, mulai garis bantu dari sisi luar bodi AC agar tidak memotong bodi & teks label
+            const startX = cp.isUnit ? cp.origCanvas.cx + normX * 8.5 : cp.origCanvas.cx
+            const startY = cp.isUnit ? cp.origCanvas.cy + normY * 8.5 : cp.origCanvas.cy
+
+            ctx.beginPath()
+            ctx.moveTo(startX, startY)
+            ctx.lineTo(cp.dimCanvas.cx, cp.dimCanvas.cy)
+            ctx.stroke()
+          })
+          ctx.setLineDash([])
+
+          // 2. Garis Ukur Dimensi Rantai (Continuous CAD Dimension Line)
+          ctx.strokeStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+          ctx.lineWidth = 1.3
           ctx.beginPath()
-          ctx.moveTo(startX, startY)
-          ctx.lineTo(cp.dimCanvas.cx, cp.dimCanvas.cy)
-          ctx.stroke()
-        })
-        ctx.setLineDash([])
-
-        // 2. Garis Ukur Dimensi Rantai (Continuous CAD Dimension Line)
-        ctx.strokeStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
-        ctx.lineWidth = 1.3
-        ctx.beginPath()
-        ctx.moveTo(chainPoints[0].dimCanvas.cx, chainPoints[0].dimCanvas.cy)
-        ctx.lineTo(chainPoints[chainPoints.length - 1].dimCanvas.cx, chainPoints[chainPoints.length - 1].dimCanvas.cy)
-        ctx.stroke()
-
-        // 3. CAD Intersection Tick Marks (Standard Architectural 45° Slash Ticks)
-        const slashLen = 5
-        const slashUx = (uX + normX) * 0.7071
-        const slashUy = (uY + normY) * 0.7071
-
-        chainPoints.forEach((cp) => {
-          const x = cp.dimCanvas.cx
-          const y = cp.dimCanvas.cy
-          const isUnitCenter = cp.isUnit
-
-          // 45° architectural oblique slash tick
-          ctx.beginPath()
-          ctx.moveTo(x - slashUx * slashLen, y - slashUy * slashLen)
-          ctx.lineTo(x + slashUx * slashLen, y + slashUy * slashLen)
-          ctx.strokeStyle = isUnitCenter ? "#10b981" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
-          ctx.lineWidth = isUnitCenter ? 2.2 : 1.5
+          ctx.moveTo(chainPoints[0].dimCanvas.cx, chainPoints[0].dimCanvas.cy)
+          ctx.lineTo(chainPoints[chainPoints.length - 1].dimCanvas.cx, chainPoints[chainPoints.length - 1].dimCanvas.cy)
           ctx.stroke()
 
-          // Crisp center junction dot
-          ctx.beginPath()
-          ctx.arc(x, y, isUnitCenter ? 3 : 2, 0, Math.PI * 2)
-          ctx.fillStyle = isUnitCenter ? "#10b981" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
-          ctx.fill()
-          ctx.strokeStyle = bgFill
-          ctx.lineWidth = 1
-          ctx.stroke()
-        })
+          // 3. CAD Intersection Tick Marks (Standard Architectural 45° Slash Ticks)
+          const slashLen = 5
+          const slashUx = (uX + normX) * 0.7071
+          const slashUy = (uY + normY) * 0.7071
 
-        // 4. Teks Dimensi per segmen rantai (Arsitektural CAD Bersih Tanpa Tabrakan Panah)
-        ctx.font = "bold 8.5px sans-serif"
-        ctx.textAlign = "center"
-        ctx.textBaseline = "middle"
+          chainPoints.forEach((cp) => {
+            const x = cp.dimCanvas.cx
+            const y = cp.dimCanvas.cy
+            const isUnitCenter = cp.isUnit
 
-        for (let j = 0; j < chainPoints.length - 1; j++) {
-          const cpA = chainPoints[j]
-          const cpB = chainPoints[j + 1]
+            // 45° architectural oblique slash tick
+            ctx.beginPath()
+            ctx.moveTo(x - slashUx * slashLen, y - slashUy * slashLen)
+            ctx.lineTo(x + slashUx * slashLen, y + slashUy * slashLen)
+            ctx.strokeStyle = isUnitCenter ? "#10b981" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
+            ctx.lineWidth = isUnitCenter ? 2.2 : 1.5
+            ctx.stroke()
 
-          const segmentDistM = Number(((cpB.ratio - cpA.ratio) * wallLengthM).toFixed(2))
-          if (segmentDistM > 0.2) {
-            const midSegX = (cpA.dimCanvas.cx + cpB.dimCanvas.cx) / 2
-            const midSegY = (cpA.dimCanvas.cy + cpB.dimCanvas.cy) / 2
+            // Crisp center junction dot
+            ctx.beginPath()
+            ctx.arc(x, y, isUnitCenter ? 3 : 2, 0, Math.PI * 2)
+            ctx.fillStyle = isUnitCenter ? "#10b981" : (effectiveIsDark ? "#38bdf8" : "#0284c7")
+            ctx.fill()
+            ctx.strokeStyle = bgFill
+            ctx.lineWidth = 1
+            ctx.stroke()
+          })
 
-            ctx.save()
-            ctx.translate(midSegX, midSegY)
-            ctx.rotate(textAngle)
+          // 4. Teks Dimensi per segmen rantai (Arsitektural CAD Bersih Tanpa Tabrakan Panah)
+          ctx.font = "bold 8.5px sans-serif"
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
 
-            const dimText = `${formatDim(segmentDistM)}m`
-            const textMetrics = ctx.measureText(dimText)
-            const padX = 4
-            const padY = 2
+          for (let j = 0; j < chainPoints.length - 1; j++) {
+            const cpA = chainPoints[j]
+            const cpB = chainPoints[j + 1]
 
-            // Rounded pill background to clearly separate dimension text from dimension line
-            ctx.fillStyle = bgFill
-            if (ctx.roundRect) {
-              ctx.beginPath()
-              ctx.roundRect(
-                -textMetrics.width / 2 - padX,
-                -5 - padY,
-                textMetrics.width + padX * 2,
-                10 + padY * 2,
-                3
-              )
-              ctx.fill()
-            } else {
-              ctx.fillRect(
-                -textMetrics.width / 2 - padX,
-                -5 - padY,
-                textMetrics.width + padX * 2,
-                10 + padY * 2
-              )
+            const segmentDistM = Number(((cpB.ratio - cpA.ratio) * wallLengthM).toFixed(2))
+            if (segmentDistM > 0.2) {
+              const midSegX = (cpA.dimCanvas.cx + cpB.dimCanvas.cx) / 2
+              const midSegY = (cpA.dimCanvas.cy + cpB.dimCanvas.cy) / 2
+
+              ctx.save()
+              ctx.translate(midSegX, midSegY)
+              ctx.rotate(textAngle)
+
+              const dimText = `${formatDim(segmentDistM)}m`
+              const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
+
+              ctx.font = "bold 8.5px sans-serif"
+              ctx.textAlign = "center"
+              ctx.textBaseline = "middle"
+              ctx.lineJoin = "round"
+              ctx.strokeStyle = haloColor
+              ctx.lineWidth = 3.5
+              ctx.strokeText(dimText, 0, 0)
+              ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+              ctx.fillText(dimText, 0, 0)
+              ctx.restore()
             }
-
-            ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
-            ctx.fillText(dimText, 0, 0)
-            ctx.restore()
           }
-        }
 
-        ctx.restore()
-      })
+          ctx.restore()
+        })
+      }
     }
-  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, activeTool, activeCadMetadata])
+
+    // ── 5. GARIS UKUR DIMENSI KESELURUHAN (PANJANG TOTAL & LEBAR TOTAL) DARI TITIK TERJAUH ──
+    if (showTotalDimensions && customClosed && customPts.length >= 3) {
+      ctx.save()
+      const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
+
+      const minCanvasX = Math.min(...sPts.map(p => p.cx))
+      const maxCanvasX = Math.max(...sPts.map(p => p.cx))
+      const minCanvasY = Math.min(...sPts.map(p => p.cy))
+      const maxCanvasY = Math.max(...sPts.map(p => p.cy))
+
+      const totalWidthM = sc.rW
+      const totalLengthM = sc.rH
+
+      // ==========================================
+      // A. GARIS LEBAR TOTAL (LT) — SPAN DARI TITIK TERKIRI KE TERKANAN
+      // ==========================================
+      const dimY_LT = maxCanvasY + 22
+      const strokeLT = effectiveIsDark ? "#38bdf8" : "#0284c7"
+
+      // 1. Extension / Witness lines dari titik terbawah ke garis ukur LT
+      ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.45)" : "rgba(2, 132, 199, 0.45)"
+      ctx.lineWidth = 1
+      ctx.setLineDash([2.5, 2.5])
+
+      // Cari titik poligon yang paling bawah di area xMin dan xMax untuk anchor garis bantu
+      const anchorLeftPt = sPts.reduce((best, p) => Math.abs(p.cx - minCanvasX) < Math.abs(best.cx - minCanvasX) ? (p.cy > best.cy ? p : best) : best, sPts[0])
+      const anchorRightPt = sPts.reduce((best, p) => Math.abs(p.cx - maxCanvasX) < Math.abs(best.cx - maxCanvasX) ? (p.cy > best.cy ? p : best) : best, sPts[0])
+
+      ctx.beginPath()
+      ctx.moveTo(minCanvasX, anchorLeftPt.cy + 3)
+      ctx.lineTo(minCanvasX, dimY_LT + 5)
+      ctx.moveTo(maxCanvasX, anchorRightPt.cy + 3)
+      ctx.lineTo(maxCanvasX, dimY_LT + 5)
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      // 2. Garis Dimensi Utama Horizontal LT
+      ctx.strokeStyle = strokeLT
+      ctx.lineWidth = 1.6
+      ctx.beginPath()
+      ctx.moveTo(minCanvasX, dimY_LT)
+      ctx.lineTo(maxCanvasX, dimY_LT)
+      ctx.stroke()
+
+      // 3. Panah / Slash Ticks di Ujung Kiri dan Kanan LT
+      const arrowSize = 4.5
+      // Panah Kiri (menghadap ke kiri)
+      ctx.fillStyle = strokeLT
+      ctx.beginPath()
+      ctx.moveTo(minCanvasX, dimY_LT)
+      ctx.lineTo(minCanvasX + arrowSize * 1.5, dimY_LT - arrowSize)
+      ctx.lineTo(minCanvasX + arrowSize * 1.5, dimY_LT + arrowSize)
+      ctx.closePath()
+      ctx.fill()
+
+      // Panah Kanan (menghadap ke kanan)
+      ctx.beginPath()
+      ctx.moveTo(maxCanvasX, dimY_LT)
+      ctx.lineTo(maxCanvasX - arrowSize * 1.5, dimY_LT - arrowSize)
+      ctx.lineTo(maxCanvasX - arrowSize * 1.5, dimY_LT + arrowSize)
+      ctx.closePath()
+      ctx.fill()
+
+      // 4. Teks Lebar Total (LT) di Tengah Garis
+      const midLtX = (minCanvasX + maxCanvasX) / 2
+      const ltLabel = `LT: ${formatDim(totalWidthM)}m (Lebar Total)`
+      ctx.font = "bold 9px sans-serif"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.lineJoin = "round"
+      ctx.strokeStyle = haloColor
+      ctx.lineWidth = 4
+      ctx.strokeText(ltLabel, midLtX, dimY_LT)
+      ctx.fillStyle = strokeLT
+      ctx.fillText(ltLabel, midLtX, dimY_LT)
+
+      // ==========================================
+      // B. GARIS PANJANG TOTAL (PT) — SPAN DARI TITIK TERATAS KE TERBAWAH
+      // ==========================================
+      const dimX_PT = minCanvasX - 22
+      const strokePT = effectiveIsDark ? "#c4b5fd" : "#7c3aed"
+
+      // 1. Extension / Witness lines dari titik terkiri ke garis ukur PT
+      ctx.strokeStyle = effectiveIsDark ? "rgba(196, 181, 253, 0.45)" : "rgba(124, 58, 237, 0.45)"
+      ctx.lineWidth = 1
+      ctx.setLineDash([2.5, 2.5])
+
+      const anchorTopPt = sPts.reduce((best, p) => Math.abs(p.cy - minCanvasY) < Math.abs(best.cy - minCanvasY) ? (p.cx < best.cx ? p : best) : best, sPts[0])
+      const anchorBotPt = sPts.reduce((best, p) => Math.abs(p.cy - maxCanvasY) < Math.abs(best.cy - maxCanvasY) ? (p.cx < best.cx ? p : best) : best, sPts[0])
+
+      ctx.beginPath()
+      ctx.moveTo(anchorTopPt.cx - 3, minCanvasY)
+      ctx.lineTo(dimX_PT - 5, minCanvasY)
+      ctx.moveTo(anchorBotPt.cx - 3, maxCanvasY)
+      ctx.lineTo(dimX_PT - 5, maxCanvasY)
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      // 2. Garis Dimensi Utama Vertikal PT
+      ctx.strokeStyle = strokePT
+      ctx.lineWidth = 1.6
+      ctx.beginPath()
+      ctx.moveTo(dimX_PT, minCanvasY)
+      ctx.lineTo(dimX_PT, maxCanvasY)
+      ctx.stroke()
+
+      // 3. Panah di Ujung Atas dan Bawah PT
+      // Panah Atas (menghadap ke atas)
+      ctx.fillStyle = strokePT
+      ctx.beginPath()
+      ctx.moveTo(dimX_PT, minCanvasY)
+      ctx.lineTo(dimX_PT - arrowSize, minCanvasY + arrowSize * 1.5)
+      ctx.lineTo(dimX_PT + arrowSize, minCanvasY + arrowSize * 1.5)
+      ctx.closePath()
+      ctx.fill()
+
+      // Panah Bawah (menghadap ke bawah)
+      ctx.beginPath()
+      ctx.moveTo(dimX_PT, maxCanvasY)
+      ctx.lineTo(dimX_PT - arrowSize, maxCanvasY - arrowSize * 1.5)
+      ctx.lineTo(dimX_PT + arrowSize, maxCanvasY - arrowSize * 1.5)
+      ctx.closePath()
+      ctx.fill()
+
+      // 4. Teks Panjang Total (PT) di Tengah Garis (Rotated Vertikal)
+      const midPtY = (minCanvasY + maxCanvasY) / 2
+      const ptLabel = `PT: ${formatDim(totalLengthM)}m (Panjang Total)`
+      ctx.save()
+      ctx.translate(dimX_PT, midPtY)
+      ctx.rotate(-Math.PI / 2)
+      ctx.font = "bold 9px sans-serif"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.lineJoin = "round"
+      ctx.strokeStyle = haloColor
+      ctx.lineWidth = 4
+      ctx.strokeText(ptLabel, 0, 0)
+      ctx.fillStyle = strokePT
+      ctx.fillText(ptLabel, 0, 0)
+      ctx.restore()
+
+      ctx.restore()
+    }
+  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions])
 
   useEffect(() => {
     drawCanvas()
@@ -4608,6 +5326,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       storeName: storeMode === "existing" ? selectedStore?.name || "Toko Retail" : newStoreName || "Toko Baru",
       storeBranch: storeMode === "existing" ? selectedStore?.branch || "—" : newStoreBranch || "—",
       area: effectiveArea,
+      lengthM: storeDimensions.lengthM,
+      widthM: storeDimensions.widthM,
+      grossArea: storeDimensions.grossArea,
       temp: calculatedTemp,
       btuPerM2: targetBtuPerM2,
       totalBtu: totalBtuRequired,
@@ -4967,9 +5688,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                           ? "bg-amber-500 text-white"
                           : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
                         }`}
-                      title="Area Meja Kasir (3-Klik: Tentukan Panjang di Dinding lalu Tarik Kedalaman)"
+                      title="Area Meja Kasir (2-Klik Sudut / 3-Klik Kedalaman Bebas)"
                     >
-                      <IconShoppingCart className="size-3.5" /> Kasir (3-Klik)
+                      <IconShoppingCart className="size-3.5" /> Kasir
                     </Button>
 
                     <div className="flex items-center gap-1">
@@ -4985,7 +5706,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                             ? "bg-cyan-500 text-white"
                             : "border-cyan-500/40 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
                           }`}
-                        title="Chiller Open Multi-Deck (1 - 8 Unit @ 1.2m, Kedalaman 0.8m)"
+                        title={`Chiller Open Multi-Deck (1 - ${maxChillerUnits} Unit @ 1.2m, Kedalaman 0.8m)`}
                       >
                         <IconFridge className="size-3.5" /> Chiller
                       </Button>
@@ -5006,10 +5727,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                           </span>
                           <button
                             type="button"
-                            disabled={chillerUnits >= 8}
-                            onClick={() => setChillerUnits((prev) => Math.min(8, prev + 1))}
+                            disabled={chillerUnits >= maxChillerUnits}
+                            onClick={() => setChillerUnits((prev) => Math.min(maxChillerUnits, prev + 1))}
                             className="size-6 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs cursor-pointer"
-                            title="Tambah unit chiller (+1.2m)"
+                            title={`Tambah unit chiller (+1.2m, Maks: ${maxChillerUnits} Unit / ${formatDim(maxChillerUnits * 1.2)}m)`}
                           >
                             +
                           </button>
@@ -5060,6 +5781,74 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     </Button>
                   </div>
                 </div>
+
+                {/* LAYER VISIBILITY TOGGLE BAR */}
+                {customClosed && customPts.length >= 3 && (
+                  <div className="flex items-center justify-between gap-2 px-1 py-0.5 text-xs flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-bold text-muted-foreground mr-0.5">Legenda:</span>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowZoneLabels((v) => !v)}
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${
+                          showZoneLabels
+                            ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 shadow-xs"
+                            : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
+                        }`}
+                        title="Tampilkan / Sembunyikan Nama Area (Kasir, Chiller, Pintu, Kolom)"
+                      >
+                        <span>🏷️</span>
+                        <span>Nama Area</span>
+                        <span className="text-[9px] opacity-80">{showZoneLabels ? "ON" : "OFF"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowWallDimensions((v) => !v)}
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${
+                          showWallDimensions
+                            ? "bg-sky-500/15 border-sky-500/40 text-sky-700 dark:text-sky-300 shadow-xs"
+                            : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
+                        }`}
+                        title="Tampilkan / Sembunyikan Garis Ukuran Dinding & Jarak As AC"
+                      >
+                        <span>📐</span>
+                        <span>Ukuran Dinding</span>
+                        <span className="text-[9px] opacity-80">{showWallDimensions ? "ON" : "OFF"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowTotalDimensions((v) => !v)}
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${
+                          showTotalDimensions
+                            ? "bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300 shadow-xs"
+                            : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
+                        }`}
+                        title="Tampilkan / Sembunyikan Garis Dimensi Luar Panjang Total (PT) & Lebar Total (LT)"
+                      >
+                        <span>📏</span>
+                        <span>Dimensi Total (PT/LT)</span>
+                        <span className="text-[9px] opacity-80">{showTotalDimensions ? "ON" : "OFF"}</span>
+                      </button>
+                    </div>
+
+                    {/* Quick Clean Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allOn = showZoneLabels && showWallDimensions && showTotalDimensions
+                        setShowZoneLabels(!allOn)
+                        setShowWallDimensions(!allOn)
+                        setShowTotalDimensions(!allOn)
+                      }}
+                      className="text-[10px] text-muted-foreground hover:text-foreground underline decoration-dotted cursor-pointer shrink-0"
+                    >
+                      {showZoneLabels && showWallDimensions && showTotalDimensions ? "Sembunyikan Semua (Clean)" : "Tampilkan Semua"}
+                    </button>
+                  </div>
+                )}
 
                 {/* Canvas Viewport (100% Bersih Tanpa Overlay) */}
                 <div className="relative w-full h-[340px] rounded-2xl border border-border/80 bg-slate-900/5 dark:bg-slate-950/40 overflow-hidden flex items-center justify-center">
@@ -5341,6 +6130,46 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       {placedUnits.length} <span className="text-[10px] font-bold">Unit</span>
                     </span>
                     <span className="text-[10px] text-emerald-700 dark:text-emerald-400">Daikin 2 PK</span>
+                  </div>
+                </div>
+
+                {/* Ringkasan Dimensi Denah Toko (Panjang Total & Lebar Total) */}
+                <div className="p-3 rounded-xl border bg-muted/20 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold flex items-center gap-1.5 text-foreground">
+                      <IconBuildingStore className="size-3.5 text-sky-500" />
+                      Dimensi & Luas Denah Toko
+                    </span>
+                    {activeCadMetadata ? (
+                      <Badge variant="outline" className="text-[9px] font-mono border-sky-500/40 text-sky-700 dark:text-sky-300 bg-sky-500/10">
+                        CAD Riil 1:1
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[9px] font-mono">
+                        {customPts.length} Titik Sudut
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="p-2 rounded-lg bg-card border border-border/60 flex flex-col">
+                      <span className="text-[9.5px] text-muted-foreground font-medium">Panjang Total (PT)</span>
+                      <span className="font-bold text-purple-700 dark:text-purple-300 font-mono mt-0.5 text-sm">
+                        {formatDim(storeDimensions.lengthM)} meter
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-card border border-border/60 flex flex-col">
+                      <span className="text-[9.5px] text-muted-foreground font-medium">Lebar Total (LT)</span>
+                      <span className="font-bold text-sky-700 dark:text-sky-300 font-mono mt-0.5 text-sm">
+                        {formatDim(storeDimensions.widthM)} meter
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-border/50 text-[10.5px]">
+                    <span className="text-muted-foreground">Luas Total: <strong className="text-foreground font-mono">{storeDimensions.grossArea} m²</strong></span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold font-mono">Luas Sales Bersih: {effectiveArea} m²</span>
                   </div>
                 </div>
 
