@@ -47,14 +47,23 @@ Berdasarkan evolusi file acuan toko retail (`Layout Kalkulator Standar A.Sales.d
 ---
 
 ### B. Kalkulator Lampu (`light-estimation`) & Beban AC (`ac-estimation`)
-**Aturan Fiksasi Perhitungan Luas Efektif Sales (Net Sales Area):**
-Sesuai standar operasional dan arsitektur toko retail, perhitungan kebutuhan titik lampu dan kapasitas pendinginan AC **secara baku menggunakan Luas Efektif Area Sales**, yaitu total luasan kotor lantai dikurangi area perabotan mati dan pilar (*fixed equipment & obstacles*):
 
-$$\mathbf{\text{Luas Sales Efektif}} = \mathbf{\text{Luas Total Toko}} - \mathbf{\text{Luas Chiller}} - \mathbf{\text{Luas Kasir}} - \mathbf{\text{Luas Kolom/Pilar}}$$
+**1. Aturan Perhitungan Luas Efektif Sales (Net Sales Area):**
+Sesuai standar operasional dan arsitektur toko retail, luasan bersih area belanja aktif dihitung dengan mengurangi perabotan mati dan pilar (*fixed equipment & obstacles*):
 
-**Dampak Teknis & Keunggulan pada Kalkulator Lampu:**
-- **Pencegahan Tabrakan Titik Lampu:** Kolom beton `AR-CONC` memiliki bounding box tersendiri sehingga titik armatur lampu otomatis tidak diletakkan menabrak tiang kolom.
-- **Efisiensi Energi Akurat:** Daya watt/lumen dihitung murni pada luas lantai belanja aktif tanpa memboroskan pencahayaan di area tertutup pilar atau chiller.
+$$\mathbf{\text{Luas Sales Bersih (Net)}} = \mathbf{\text{Luas Total Toko (Gross)}} - \mathbf{\text{Luas Chiller}} - \mathbf{\text{Luas Kasir}} - \mathbf{\text{Luas Kolom/Pilar}}$$
+
+**2. Catatan & Agenda Diskusi Teknis (AC vs Lampu):**
+- **Kalkulator AC (`ac-mapping` & `ac-estimation`):**
+  - *Status Saat Ini*: Menggunakan **Luas Bersih (`effectiveArea`)** untuk total BTU agar tidak terjadi *oversizing* akibat beban dingin mandiri dari chiller display.
+  - *Agenda Kajian Lanjutan*: Membandingkan apakah beban udara termal AC lebih ideal menggunakan **Luas Kotor (Gross)** untuk mencakup total volume kubikasi udara toko atau tetap menggunakan Luas Bersih.
+- **Kalkulator Lampu (`light-estimation`):**
+  - *Status*: Menggunakan **Luas Bersih & Zonasi Terpisah**, karena:
+    1. **Di atas Chiller**: Tidak dipasang lampu plafon reguler (kanopi chiller memiliki sistem lampu display mandiri).
+    2. **Di atas Meja Kasir**: Memerlukan jenis & intensitas lampu berbeda (fokus $500\text{ lux}$ untuk akurasi transaksi POS).
+    3. **Kolom / Pilar Struktur (`AR-CONC`)**: Objek padat mati yang tidak memerlukan penerangan dan menjadi batas bebas armatur lampu (*obstacle clearance*).
+  - *Formula Kebutuhan Lumen*:
+    $$\text{Total Lumen} = \frac{(\text{Luas Sales Bersih} \times 300\text{ lux}) + (\text{Luas Kasir} \times 500\text{ lux})}{\text{UF} \times \text{MF}}$$
 
 ---
 

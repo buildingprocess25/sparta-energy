@@ -5651,178 +5651,185 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
               <CardContent className="p-4 space-y-3">
                 {/* TOOLBAR PALETTE (Tools Penanda Dinding & Preset) */}
-                <div className="p-2 rounded-xl bg-muted/40 border flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-muted-foreground mr-1">Alat:</span>
-
-                    <Button
-                      size="sm"
-                      variant={activeTool === "DRAW" ? "default" : "outline"}
-                      onClick={() => {
-                        setActiveTool("DRAW")
-                        setPendingZoneStart(null)
-                        setPendingCashierDepth(null)
-                      }}
-                      className="h-7 text-xs font-bold gap-1"
-                    >
-                      <IconPointer className="size-3.5" /> Denah
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant={activeTool === "DOOR" ? "default" : "outline"}
-                      onClick={() => {
-                        setActiveTool("DOOR")
-                        setPendingZoneStart(null)
-                        setPendingCashierDepth(null)
-                      }}
-                      className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR"
-                          ? "bg-orange-500 text-white"
-                          : "border-orange-500/40 text-orange-600 dark:text-orange-400 bg-orange-500/10"
-                        }`}
-                      title="Dinding Pintu / Kaca (2-Klik Rentang Bebas)"
-                    >
-                      <IconDoor className="size-3.5" /> Pintu / Kaca
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant={activeTool === "DOOR_MAIN" ? "default" : "outline"}
-                      onClick={() => {
-                        setActiveTool("DOOR_MAIN")
-                        setPendingZoneStart(null)
-                        setPendingCashierDepth(null)
-                      }}
-                      className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR_MAIN"
-                          ? "bg-amber-600 text-white"
-                          : "border-amber-600/40 text-amber-600 dark:text-amber-400 bg-amber-600/10"
-                        }`}
-                      title="Pintu Utama (2 Daun - Lebar 1.8m Baku)"
-                    >
-                      <IconDoor className="size-3.5" /> Pintu Utama (1.8m)
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant={activeTool === "DOOR_P1" ? "default" : "outline"}
-                      onClick={() => {
-                        setActiveTool("DOOR_P1")
-                        setPendingZoneStart(null)
-                        setPendingCashierDepth(null)
-                      }}
-                      className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR_P1"
-                          ? "bg-rose-600 text-white"
-                          : "border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/10"
-                        }`}
-                      title="Pintu P1 Gudang (1 Daun - Lebar 1.0m Baku)"
-                    >
-                      <IconDoor className="size-3.5" /> Pintu P1 (1.0m)
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant={activeTool === "CASHIER" ? "default" : "outline"}
-                      onClick={() => {
-                        setActiveTool("CASHIER")
-                        setPendingZoneStart(null)
-                        setPendingCashierDepth(null)
-                      }}
-                      className={`h-7 text-xs font-bold gap-1 ${activeTool === "CASHIER"
-                          ? "bg-amber-500 text-white"
-                          : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
-                        }`}
-                      title="Area Meja Kasir (2-Klik Sudut / 3-Klik Kedalaman Bebas)"
-                    >
-                      <IconShoppingCart className="size-3.5" /> Kasir
-                    </Button>
-
-                    <div className="flex items-center gap-1">
+                <div className="p-2 rounded-xl bg-muted/40 border flex flex-wrap items-center justify-between gap-2 min-h-[44px]">
+                  {isCalculated ? (
+                    <div className="flex items-center justify-between w-full gap-2">
+                      <Badge variant="outline" className="border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold text-xs gap-1 py-0.5 shrink-0">
+                        <IconLock className="size-3 text-amber-500" /> Denah Terkunci
+                      </Badge>
                       <Button
                         size="sm"
-                        variant={activeTool === "CHILLER" ? "default" : "outline"}
-                        onClick={() => {
-                          setActiveTool("CHILLER")
-                          setPendingZoneStart(null)
-                          setPendingCashierDepth(null)
-                        }}
-                        className={`h-7 text-xs font-bold gap-1 ${activeTool === "CHILLER"
-                            ? "bg-cyan-500 text-white"
-                            : "border-cyan-500/40 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
-                          }`}
-                        title={`Chiller Open Multi-Deck (1 - ${maxChillerUnits} Unit @ 1.2m, Kedalaman 0.8m)`}
-                      >
-                        <IconFridge className="size-3.5" /> Chiller
-                      </Button>
-
-                      {activeTool === "CHILLER" && (
-                        <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-lg p-0.5 animate-in fade-in zoom-in-95">
-                          <button
-                            type="button"
-                            disabled={chillerUnits <= 1}
-                            onClick={() => setChillerUnits((prev) => Math.max(1, prev - 1))}
-                            className="size-6 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs cursor-pointer"
-                            title="Kurangi unit chiller (-1.2m)"
-                          >
-                            -
-                          </button>
-                          <span className="text-[11px] font-bold text-cyan-900 dark:text-cyan-100 px-1.5 font-mono whitespace-nowrap">
-                            {chillerUnits} Unit ({formatDim(chillerUnits * 1.2)}m)
-                          </span>
-                          <button
-                            type="button"
-                            disabled={chillerUnits >= maxChillerUnits}
-                            onClick={() => setChillerUnits((prev) => Math.min(maxChillerUnits, prev + 1))}
-                            className="size-6 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs cursor-pointer"
-                            title={`Tambah unit chiller (+1.2m, Maks: ${maxChillerUnits} Unit / ${formatDim(maxChillerUnits * 1.2)}m)`}
-                          >
-                            +
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {(pendingZoneStart || pendingCashierDepth) && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setPendingZoneStart(null)
-                          setPendingCashierDepth(null)
-                        }}
-                        className="h-7 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-500/10 gap-1 px-2 border border-red-500/30"
-                        title="Batalkan penandaan (Esc)"
-                      >
-                        <IconX className="size-3.5" /> Batal (Esc)
-                      </Button>
-                    )}
-
-                    {isCalculated && (
-                      <Button
-                        size="sm"
-                        variant="outline"
+                        variant="default"
                         onClick={() => {
                           setIsCalculated(false)
                           setPlacedUnits([])
-                          toast.info("Mode Edit Denah aktif. Anda sekarang dapat mengubah sudut & ukuran toko.")
+                          toast.info("Mode Edit Denah aktif.")
                         }}
-                        className="h-7 text-xs font-bold gap-1 border-sky-500/50 text-sky-600 dark:text-sky-400 bg-sky-500/10 hover:bg-sky-500/20"
-                        title="Edit bentuk denah dan titik sudut"
+                        className="h-7 text-xs font-bold gap-1.5 bg-sky-600 hover:bg-sky-700 text-white shadow-xs cursor-pointer ml-auto shrink-0"
+                        title="Edit denah dan zona toko"
                       >
-                        <IconEdit className="size-3.5 text-sky-500" /> Edit Denah
+                        <IconEdit className="size-3.5 text-white" /> Edit Denah
                       </Button>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] font-bold text-muted-foreground mr-1">Alat:</span>
 
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setPresetModalOpen(true)}
-                      className="h-7 text-xs font-bold gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20"
-                    >
-                      <IconSquare className="size-3.5 text-amber-500" /> Template Bentuk
-                    </Button>
-                  </div>
+                        <Button
+                          size="sm"
+                          variant={activeTool === "DRAW" ? "default" : "outline"}
+                          onClick={() => {
+                            setActiveTool("DRAW")
+                            setPendingZoneStart(null)
+                            setPendingCashierDepth(null)
+                          }}
+                          className="h-7 text-xs font-bold gap-1"
+                        >
+                          <IconPointer className="size-3.5" /> Denah
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant={activeTool === "DOOR" ? "default" : "outline"}
+                          onClick={() => {
+                            setActiveTool("DOOR")
+                            setPendingZoneStart(null)
+                            setPendingCashierDepth(null)
+                          }}
+                          className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR"
+                              ? "bg-orange-500 text-white"
+                              : "border-orange-500/40 text-orange-600 dark:text-orange-400 bg-orange-500/10"
+                            }`}
+                          title="Dinding Pintu / Kaca (2-Klik Rentang Bebas)"
+                        >
+                          <IconDoor className="size-3.5" /> Pintu / Kaca
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant={activeTool === "DOOR_MAIN" ? "default" : "outline"}
+                          onClick={() => {
+                            setActiveTool("DOOR_MAIN")
+                            setPendingZoneStart(null)
+                            setPendingCashierDepth(null)
+                          }}
+                          className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR_MAIN"
+                              ? "bg-amber-600 text-white"
+                              : "border-amber-600/40 text-amber-600 dark:text-amber-400 bg-amber-600/10"
+                            }`}
+                          title="Pintu Utama (2 Daun - Lebar 1.8m Baku)"
+                        >
+                          <IconDoor className="size-3.5" /> Pintu Utama (1.8m)
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant={activeTool === "DOOR_P1" ? "default" : "outline"}
+                          onClick={() => {
+                            setActiveTool("DOOR_P1")
+                            setPendingZoneStart(null)
+                            setPendingCashierDepth(null)
+                          }}
+                          className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR_P1"
+                              ? "bg-rose-600 text-white"
+                              : "border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/10"
+                            }`}
+                          title="Pintu P1 Gudang (1 Daun - Lebar 1.0m Baku)"
+                        >
+                          <IconDoor className="size-3.5" /> Pintu P1 (1.0m)
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant={activeTool === "CASHIER" ? "default" : "outline"}
+                          onClick={() => {
+                            setActiveTool("CASHIER")
+                            setPendingZoneStart(null)
+                            setPendingCashierDepth(null)
+                          }}
+                          className={`h-7 text-xs font-bold gap-1 ${activeTool === "CASHIER"
+                              ? "bg-amber-500 text-white"
+                              : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                            }`}
+                          title="Area Meja Kasir (2-Klik Sudut / 3-Klik Kedalaman Bebas)"
+                        >
+                          <IconShoppingCart className="size-3.5" /> Kasir
+                        </Button>
+
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant={activeTool === "CHILLER" ? "default" : "outline"}
+                            onClick={() => {
+                              setActiveTool("CHILLER")
+                              setPendingZoneStart(null)
+                              setPendingCashierDepth(null)
+                            }}
+                            className={`h-7 text-xs font-bold gap-1 ${activeTool === "CHILLER"
+                                ? "bg-cyan-500 text-white"
+                                : "border-cyan-500/40 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
+                              }`}
+                            title={`Chiller Open Multi-Deck (1 - ${maxChillerUnits} Unit @ 1.2m, Kedalaman 0.8m)`}
+                          >
+                            <IconFridge className="size-3.5" /> Chiller
+                          </Button>
+
+                          {activeTool === "CHILLER" && (
+                            <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-lg p-0.5 animate-in fade-in zoom-in-95">
+                              <button
+                                type="button"
+                                disabled={chillerUnits <= 1}
+                                onClick={() => setChillerUnits((prev) => Math.max(1, prev - 1))}
+                                className="size-6 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs cursor-pointer"
+                                title="Kurangi unit chiller (-1.2m)"
+                              >
+                                -
+                              </button>
+                              <span className="text-[11px] font-bold text-cyan-900 dark:text-cyan-100 px-1.5 font-mono whitespace-nowrap">
+                                {chillerUnits} Unit ({formatDim(chillerUnits * 1.2)}m)
+                              </span>
+                              <button
+                                type="button"
+                                disabled={chillerUnits >= maxChillerUnits}
+                                onClick={() => setChillerUnits((prev) => Math.min(maxChillerUnits, prev + 1))}
+                                className="size-6 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs cursor-pointer"
+                                title={`Tambah unit chiller (+1.2m, Maks: ${maxChillerUnits} Unit / ${formatDim(maxChillerUnits * 1.2)}m)`}
+                              >
+                                +
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {(pendingZoneStart || pendingCashierDepth) && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setPendingZoneStart(null)
+                              setPendingCashierDepth(null)
+                            }}
+                            className="h-7 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-500/10 gap-1 px-2 border border-red-500/30"
+                            title="Batalkan penandaan (Esc)"
+                          >
+                            <IconX className="size-3.5" /> Batal (Esc)
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPresetModalOpen(true)}
+                          className="h-7 text-xs font-bold gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20"
+                        >
+                          <IconSquare className="size-3.5 text-amber-500" /> Template Bentuk
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* LAYER VISIBILITY TOGGLE BAR */}
