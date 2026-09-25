@@ -309,34 +309,50 @@ export function getPerimeterPath(
   const fwdIntervals: PerimeterInterval[] = []
   const fwdPoints: Point[] = [ptA]
   let fwdLen = (1 - tA) * getSegLen(segIdxA)
-  fwdIntervals.push({ segIdx: segIdxA, minT: tA, maxT: 1.0 })
+  if (fwdLen >= 0.05) {
+    fwdIntervals.push({ segIdx: segIdxA, minT: tA, maxT: 1.0 })
+  }
   fwdPoints.push(pts[(segIdxA + 1) % N])
 
   for (let k = (segIdxA + 1) % N; k !== segIdxB; k = (k + 1) % N) {
-    fwdLen += getSegLen(k)
-    fwdIntervals.push({ segIdx: k, minT: 0.0, maxT: 1.0 })
+    const kLen = getSegLen(k)
+    fwdLen += kLen
+    if (kLen >= 0.05) {
+      fwdIntervals.push({ segIdx: k, minT: 0.0, maxT: 1.0 })
+    }
     fwdPoints.push(pts[(k + 1) % N])
   }
 
-  fwdLen += tB * getSegLen(segIdxB)
-  fwdIntervals.push({ segIdx: segIdxB, minT: 0.0, maxT: tB })
+  const endFwdLen = tB * getSegLen(segIdxB)
+  fwdLen += endFwdLen
+  if (endFwdLen >= 0.05) {
+    fwdIntervals.push({ segIdx: segIdxB, minT: 0.0, maxT: tB })
+  }
   fwdPoints.push(ptB)
 
   // 2. Backward Path (Decreasing segment indices: segIdxA -> segIdxB)
   const bwdIntervals: PerimeterInterval[] = []
   const bwdPoints: Point[] = [ptA]
   let bwdLen = tA * getSegLen(segIdxA)
-  bwdIntervals.push({ segIdx: segIdxA, minT: 0.0, maxT: tA })
+  if (bwdLen >= 0.05) {
+    bwdIntervals.push({ segIdx: segIdxA, minT: 0.0, maxT: tA })
+  }
   bwdPoints.push(pts[segIdxA])
 
   for (let k = (segIdxA - 1 + N) % N; k !== segIdxB; k = (k - 1 + N) % N) {
-    bwdLen += getSegLen(k)
-    bwdIntervals.push({ segIdx: k, minT: 0.0, maxT: 1.0 })
+    const kLen = getSegLen(k)
+    bwdLen += kLen
+    if (kLen >= 0.05) {
+      bwdIntervals.push({ segIdx: k, minT: 0.0, maxT: 1.0 })
+    }
     bwdPoints.push(pts[k])
   }
 
-  bwdLen += (1 - tB) * getSegLen(segIdxB)
-  bwdIntervals.push({ segIdx: segIdxB, minT: tB, maxT: 1.0 })
+  const endBwdLen = (1 - tB) * getSegLen(segIdxB)
+  bwdLen += endBwdLen
+  if (endBwdLen >= 0.05) {
+    bwdIntervals.push({ segIdx: segIdxB, minT: tB, maxT: 1.0 })
+  }
   bwdPoints.push(ptB)
 
   if (fwdLen <= bwdLen) {
@@ -398,7 +414,12 @@ export function applyZoneToPolygon(
 
   const intervalMap = new Map<number, { minT: number; maxT: number }>()
   intervals.forEach((inv) => {
-    intervalMap.set(inv.segIdx, { minT: inv.minT, maxT: inv.maxT })
+    const p1 = pts[inv.segIdx]
+    const p2 = pts[(inv.segIdx + 1) % N]
+    const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+    if ((inv.maxT - inv.minT) * segLen >= 0.05) {
+      intervalMap.set(inv.segIdx, { minT: inv.minT, maxT: inv.maxT })
+    }
   })
 
   const newPts: Point[] = []
@@ -419,16 +440,23 @@ export function applyZoneToPolygon(
   for (let i = 0; i < N; i++) {
     const p1 = pts[i]
     const p2 = pts[(i + 1) % N]
+    const wallLen = Math.hypot(p2.x - p1.x, p2.y - p1.y)
     const oldOverride = segmentOverrides[i] || "SOLID"
     const oldDepth = cashierDepths[i]
 
     newPts.push(p1)
 
     const inv = intervalMap.get(i)
-    if (!inv) {
+    if (!inv || (inv.maxT - inv.minT) * wallLen < 0.05) {
       addSubSeg(oldOverride, oldDepth)
       continue
     }
+
+    // Jika segmen sudah memiliki fixture penting (Chiller, Kasir, Pintu Utama, Pintu P1),
+    // dan targetType adalah GLASS_DOOR, pertahankan fixture tersebut agar tidak terhapus!
+    const isProtectedFixture = oldOverride !== "SOLID" && oldOverride !== "GLASS_DOOR" && targetType === "GLASS_DOOR"
+    const subTargetType = isProtectedFixture ? oldOverride : targetType
+    const subTargetDepth = isProtectedFixture ? oldDepth : depthM
 
     const { minT, maxT } = inv
     const insert1 = minT > 0.03 && minT < 0.97
@@ -447,18 +475,18 @@ export function applyZoneToPolygon(
       newPts.push(q1)
       addSubSeg(oldOverride, oldDepth)
       newPts.push(q2)
-      addSubSeg(targetType, depthM)
+      addSubSeg(subTargetType, subTargetDepth)
       addSubSeg(oldOverride, oldDepth)
     } else if (insert1 && !insert2) {
       newPts.push(q1)
       addSubSeg(oldOverride, oldDepth)
-      addSubSeg(targetType, depthM)
+      addSubSeg(subTargetType, subTargetDepth)
     } else if (!insert1 && insert2) {
       newPts.push(q2)
-      addSubSeg(targetType, depthM)
+      addSubSeg(subTargetType, subTargetDepth)
       addSubSeg(oldOverride, oldDepth)
     } else {
-      addSubSeg(targetType, depthM)
+      addSubSeg(subTargetType, subTargetDepth)
     }
   }
 
@@ -2024,22 +2052,61 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         if (pendingZoneStart && pendingZoneStart.tool === activeTool) {
           let tA = pendingZoneStart.tA
           let ptA = pendingZoneStart.ptA
-          const segIdxA = pendingZoneStart.segIdx
-          const segIdxB = bestSegIdx
+          let segIdxA = pendingZoneStart.segIdx
+          let segIdxB = bestSegIdx
+          let tB = bestProj.t
+          let ptB = clickPt
 
           if (pendingZoneStart.isCorner && pendingZoneStart.cornerNodeIdx !== undefined) {
             const cIdx = pendingZoneStart.cornerNodeIdx
             ptA = customPts[cIdx]
             const segPrevIdx = (cIdx - 1 + segCount) % segCount
+            const segNextIdx = cIdx
+
             if (segIdxB === segPrevIdx) {
+              segIdxA = segPrevIdx
               tA = 1.0
-            } else {
+            } else if (segIdxB === segNextIdx) {
+              segIdxA = segNextIdx
               tA = 0.0
+            } else {
+              const pathNext = getPerimeterPath(customPts, segNextIdx, ptA, 0.0, segIdxB, ptB, tB)
+              const pathPrev = getPerimeterPath(customPts, segPrevIdx, ptA, 1.0, segIdxB, ptB, tB)
+              if (pathNext.totalLengthM <= pathPrev.totalLengthM) {
+                segIdxA = segNextIdx
+                tA = 0.0
+              } else {
+                segIdxA = segPrevIdx
+                tA = 1.0
+              }
             }
           }
 
-          const tB = bestProj.t
-          const ptB = clickPt
+          // Jika Klik 2 berada di titik sudut (Corner Node):
+          if (isCorner && cornerNodeIdx !== -1) {
+            const cIdx = cornerNodeIdx
+            ptB = customPts[cIdx]
+            const segPrevIdx = (cIdx - 1 + segCount) % segCount
+            const segNextIdx = cIdx
+
+            if (segIdxA === segPrevIdx) {
+              segIdxB = segPrevIdx
+              tB = 1.0
+            } else if (segIdxA === segNextIdx) {
+              segIdxB = segNextIdx
+              tB = 0.0
+            } else {
+              const pathNext = getPerimeterPath(customPts, segIdxA, ptA, tA, segNextIdx, ptB, 0.0)
+              const pathPrev = getPerimeterPath(customPts, segIdxA, ptA, tA, segPrevIdx, ptB, 1.0)
+              if (pathNext.totalLengthM <= pathPrev.totalLengthM) {
+                segIdxB = segNextIdx
+                tB = 0.0
+              } else {
+                segIdxB = segPrevIdx
+                tB = 1.0
+              }
+            }
+          }
 
           const pathResult = getPerimeterPath(customPts, segIdxA, ptA, tA, segIdxB, ptB, tB)
           if (pathResult.totalLengthM < 0.2) {
@@ -3599,10 +3666,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ctx.stroke()
           ctx.setLineDash([])
 
-          // 2. Daun pintu tunggal dan 1 busur swing arc
+          // 2. Daun pintu tunggal dan 1 busur swing arc menjorok ke LUAR ruangan (outward)
+          const outNorm = { nx: -inNorm.nx, ny: -inNorm.ny }
           const leafR = Math.min(1.0, wall.lengthM)
           const hM = wall.p1
-          const tM = { x: hM.x + leafR * inNorm.nx, y: hM.y + leafR * inNorm.ny }
+          const tM = { x: hM.x + leafR * outNorm.nx, y: hM.y + leafR * outNorm.ny }
           const arcStartM = wall.p2
 
           const cH = toC(hM)
@@ -3616,8 +3684,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ctx.beginPath()
           ctx.moveTo(cArcStart.cx, cArcStart.cy)
           ctx.quadraticCurveTo(
-            (cArcStart.cx + cT.cx) / 2 + inNorm.nx * (rPx * 0.25),
-            (cArcStart.cy + cT.cy) / 2 + inNorm.ny * (rPx * 0.25),
+            (cArcStart.cx + cT.cx) / 2 + outNorm.nx * (rPx * 0.25),
+            (cArcStart.cy + cT.cy) / 2 + outNorm.ny * (rPx * 0.25),
             cT.cx, cT.cy
           )
           ctx.stroke()
@@ -3629,7 +3697,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ctx.lineTo(cT.cx, cT.cy)
           ctx.stroke()
 
-          const labelPt = toC({ x: hM.x + (leafR * 0.5) * ux + (leafR + 0.35) * inNorm.nx, y: hM.y + (leafR * 0.5) * uy + (leafR + 0.35) * inNorm.ny })
+          const labelPt = toC({ x: hM.x + (leafR * 0.5) * ux + (leafR + 0.35) * outNorm.nx, y: hM.y + (leafR * 0.5) * uy + (leafR + 0.35) * outNorm.ny })
           const p1Title = "PINTU P1 GUDANG"
           const p1Dim = `LEBAR ${formatDim(leafR)}m`
 
@@ -4278,10 +4346,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             ctx.fillStyle = effectiveIsDark ? "#fed7aa" : "#7c2d12"
             ctx.fillText("(Klik untuk pasang)", badgeMidX, badgeMidY + 6)
           } else if (activeTool === "DOOR_P1") {
-            // 3. JIKA PINTU P1 GUDANG (1.0m): TAMPILKAN 1 DAUN PINTU + SWING ARC KE DALAM
+            // 3. JIKA PINTU P1 GUDANG (1.0m): TAMPILKAN 1 DAUN PINTU + SWING ARC KE LUAR
+            const outNorm = { nx: -inNorm.nx, ny: -inNorm.ny }
             const leafR = Math.min(1.0, targetLen)
             const hM = ptA
-            const tM = { x: hM.x + leafR * inNorm.nx, y: hM.y + leafR * inNorm.ny }
+            const tM = { x: hM.x + leafR * outNorm.nx, y: hM.y + leafR * outNorm.ny }
             const arcStartM = ptB
 
             const cH = cpA
@@ -4295,8 +4364,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             ctx.beginPath()
             ctx.moveTo(cArcStart.cx, cArcStart.cy)
             ctx.quadraticCurveTo(
-              (cArcStart.cx + cT.cx) / 2 + inNorm.nx * (rPx * 0.25),
-              (cArcStart.cy + cT.cy) / 2 + inNorm.ny * (rPx * 0.25),
+              (cArcStart.cx + cT.cx) / 2 + outNorm.nx * (rPx * 0.25),
+              (cArcStart.cy + cT.cy) / 2 + outNorm.ny * (rPx * 0.25),
               cT.cx, cT.cy
             )
             ctx.stroke()
@@ -4315,8 +4384,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             ctx.lineTo(cpB.cx, cpB.cy)
             ctx.stroke()
 
-            const badgeMidX = (cpA.cx + cpB.cx) / 2 + inNorm.nx * (rPx + 16)
-            const badgeMidY = (cpA.cy + cpB.cy) / 2 + inNorm.ny * (rPx + 16)
+            const badgeMidX = (cpA.cx + cpB.cx) / 2 + outNorm.nx * (rPx + 16)
+            const badgeMidY = (cpA.cy + cpB.cy) / 2 + outNorm.ny * (rPx + 16)
             ctx.font = "bold 9px sans-serif"
             ctx.textAlign = "center"
             ctx.textBaseline = "middle"
@@ -4475,14 +4544,83 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         y: Number(((hoverProj.y - sc.offY) / sc.scale).toFixed(2)),
       }
 
+      let segIdxA = pendingZoneStart.segIdx
+      let tA = pendingZoneStart.tA
+      let ptA = pendingZoneStart.ptA
+
+      if (pendingZoneStart.isCorner && pendingZoneStart.cornerNodeIdx !== undefined) {
+        const segCount = customPts.length
+        const cIdx = pendingZoneStart.cornerNodeIdx
+        ptA = customPts[cIdx]
+        const segPrevIdx = (cIdx - 1 + segCount) % segCount
+        const segNextIdx = cIdx
+
+        if (targetSegIdx === segPrevIdx) {
+          segIdxA = segPrevIdx
+          tA = 1.0
+        } else if (targetSegIdx === segNextIdx) {
+          segIdxA = segNextIdx
+          tA = 0.0
+        } else {
+          const pathNext = getPerimeterPath(customPts, segNextIdx, ptA, 0.0, targetSegIdx, mHoverPt, hoverProj.t)
+          const pathPrev = getPerimeterPath(customPts, segPrevIdx, ptA, 1.0, targetSegIdx, mHoverPt, hoverProj.t)
+          if (pathNext.totalLengthM <= pathPrev.totalLengthM) {
+            segIdxA = segNextIdx
+            tA = 0.0
+          } else {
+            segIdxA = segPrevIdx
+            tA = 1.0
+          }
+        }
+      }
+
+      let isHoverCorner = false
+      let hoverCornerNodeIdx = -1
+      if (hoverProj.t <= 0.02) {
+        isHoverCorner = true
+        hoverCornerNodeIdx = targetSegIdx
+      } else if (hoverProj.t >= 0.98) {
+        isHoverCorner = true
+        hoverCornerNodeIdx = (targetSegIdx + 1) % customPts.length
+      }
+
+      let segIdxB = targetSegIdx
+      let tB = hoverProj.t
+      let ptB = mHoverPt
+
+      if (isHoverCorner && hoverCornerNodeIdx !== -1) {
+        const cIdx = hoverCornerNodeIdx
+        ptB = customPts[cIdx]
+        const segPrevIdx = (cIdx - 1 + customPts.length) % customPts.length
+        const segNextIdx = cIdx
+
+        if (segIdxA === segPrevIdx) {
+          segIdxB = segPrevIdx
+          tB = 1.0
+        } else if (segIdxA === segNextIdx) {
+          segIdxB = segNextIdx
+          tB = 0.0
+        } else {
+          const pathNext = getPerimeterPath(customPts, segIdxA, ptA, tA, segNextIdx, ptB, 0.0)
+          const pathPrev = getPerimeterPath(customPts, segIdxA, ptA, tA, segPrevIdx, ptB, 1.0)
+          if (pathNext.totalLengthM <= pathPrev.totalLengthM) {
+            segIdxB = segNextIdx
+            tB = 0.0
+          } else {
+            segIdxB = segPrevIdx
+            tB = 1.0
+          }
+        }
+      }
+
       const pathResult = getPerimeterPath(
         customPts,
-        pendingZoneStart.segIdx,
-        pendingZoneStart.ptA,
-        pendingZoneStart.tA,
-        targetSegIdx,
-        mHoverPt,
-        hoverProj.t
+        segIdxA,
+        ptA,
+        tA,
+        segIdxB,
+        ptB,
+        tB
       )
 
       const toolColor = activeTool === "DOOR" ? "#f97316" : "#eab308"
