@@ -1180,8 +1180,25 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     return calculatedBtuPerM2
   }, [calculatedBtuPerM2])
 
-  // Total Luas Efektif
-  const effectiveArea = useMemo(() => {
+  // Luas Kotor Ruang Sales (Dasar Perhitungan Beban Termal & Unit AC)
+  const grossCalculationArea = useMemo(() => {
+    if (activeCadMetadata) {
+      return activeCadMetadata.metrics.grossArea || activeCadMetadata.metrics.netSalesArea
+    }
+    if (customPts.length >= 3 && customClosed) {
+      return Number(polygonAreaM2.toFixed(1))
+    }
+    if (storeMode === "existing" && selectedStore?.salesAreaM2) {
+      return selectedStore.salesAreaM2
+    }
+    if (storeMode === "new" && parseFloat(newStoreArea) > 0) {
+      return parseFloat(newStoreArea)
+    }
+    return 0
+  }, [activeCadMetadata, customPts, customClosed, polygonAreaM2, storeMode, selectedStore, newStoreArea])
+
+  // Total Luas Bersih (Setelah dikurangi footprint fixture Chiller & Kasir)
+  const netSalesArea = useMemo(() => {
     if (activeCadMetadata) {
       return activeCadMetadata.metrics.netSalesArea
     }
@@ -1207,9 +1224,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     return 0
   }, [activeCadMetadata, customPts, customClosed, polygonAreaM2, wallSegments, cashierDepths, storeMode, selectedStore, newStoreArea])
 
+  // Backward compatibility alias: effectiveArea menggunakan Luas Kotor untuk AC
+  const effectiveArea = grossCalculationArea
+
   const totalBtuRequired = useMemo(() => {
-    return Math.round(effectiveArea * targetBtuPerM2)
-  }, [effectiveArea, targetBtuPerM2])
+    return Math.round(grossCalculationArea * targetBtuPerM2)
+  }, [grossCalculationArea, targetBtuPerM2])
 
   const storeDimensions = useMemo(() => {
     if (activeCadMetadata) {
@@ -1248,19 +1268,19 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   }, [maxChillerUnits, chillerUnits])
 
   const recommendedUnitCount = useMemo(() => {
-    if (effectiveArea === 0) return 0
-    const totalBtu = effectiveArea * targetBtuPerM2
+    if (grossCalculationArea === 0) return 0
+    const totalBtu = grossCalculationArea * targetBtuPerM2
     const downQty = Math.floor(totalBtu / AC_CAPACITY_BTU)
     const upQty = Math.ceil(totalBtu / AC_CAPACITY_BTU)
 
-    const actualDownBtuPerM2 = (downQty * AC_CAPACITY_BTU) / (effectiveArea || 1)
-    const actualUpBtuPerM2 = (upQty * AC_CAPACITY_BTU) / (effectiveArea || 1)
+    const actualDownBtuPerM2 = (downQty * AC_CAPACITY_BTU) / (grossCalculationArea || 1)
+    const actualUpBtuPerM2 = (upQty * AC_CAPACITY_BTU) / (grossCalculationArea || 1)
 
     const distDown = Math.abs(actualDownBtuPerM2 - targetBtuPerM2)
     const distUp = Math.abs(actualUpBtuPerM2 - targetBtuPerM2)
     let n = distDown <= distUp ? downQty : upQty
     return Math.max(1, n)
-  }, [effectiveArea, targetBtuPerM2])
+  }, [grossCalculationArea, targetBtuPerM2])
 
   // ─── 5. Sync Input Panjang Sisi Dinding ──────────────────────────────────
   useEffect(() => {
@@ -6356,8 +6376,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                   </div>
 
                   <div className="flex items-center justify-between pt-1 border-t border-border/50 text-[10.5px]">
-                    <span className="text-muted-foreground">Luas Total: <strong className="text-foreground font-mono">{storeDimensions.grossArea} m²</strong></span>
-                    <span className="text-emerald-700 dark:text-emerald-400 font-bold font-mono">Luas Sales Bersih: {effectiveArea} m²</span>
+                    <span className="text-muted-foreground">Luas Sales Total: <strong className="text-foreground font-mono">{grossCalculationArea} m²</strong></span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold font-mono">Luas Bersih: {netSalesArea} m²</span>
                   </div>
                 </div>
 
