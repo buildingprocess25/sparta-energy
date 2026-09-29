@@ -42,7 +42,13 @@ pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# presentation reports & drafts
+presentation_report/
+
 # simulation and export artifacts
+simulation_analyze/
+scripts/run-ac-relocation-simulation.ps1
+scripts/run-fast-relocation-simulation.js
 Simulasi_Kalkulator_Lampu*.csv
 Simulasi_Kalkulator_Lampu*.xlsx
 Ringkasan_Analisis_Kalkulator_Lampu*.csv
@@ -68,4 +74,5 @@ go2rtc*.yaml
 *.exe
 app/cctv-test/
 components/cctv/
+
 
