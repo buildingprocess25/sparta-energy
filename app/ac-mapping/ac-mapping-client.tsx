@@ -19,6 +19,7 @@ import {
   IconDoor,
   IconShoppingCart,
   IconFridge,
+  IconColumns,
   IconX,
   IconRuler,
   IconLock,
@@ -50,6 +51,15 @@ interface AcMappingClientProps {
   stores: StoreData[]
 }
 
+export interface StorePillar {
+  id: string
+  x: number       // Posisi pusat X (meter)
+  y: number       // Posisi pusat Y (meter)
+  widthM: number  // Lebar pilar (meter)
+  lengthM: number // Panjang pilar (meter)
+  label?: string  // Nama label e.g. "Pilar 1", "P1"
+}
+
 // Model & Spec Standar AC Daikin 2 PK
 const AC_CAPACITY_BTU = 18000 // Daikin 2 PK = 18.000 BTU/h
 const AC_INDOOR_WIDTH_M = 1.05 // Panjang fisik unit indoor: 1.050 mm (1.05 m)
@@ -73,7 +83,7 @@ const FIXED_SCALE = 24 // Scale in drawing mode (px/m)
 const FIXED_OX = 30    // Offset X
 const FIXED_OY = 30    // Offset Y
 
-type ActiveTool = "DRAW" | "DOOR" | "DOOR_MAIN" | "DOOR_P1" | "CASHIER" | "CHILLER"
+type ActiveTool = "DRAW" | "DOOR" | "DOOR_MAIN" | "DOOR_P1" | "CASHIER" | "CHILLER" | "COLUMN"
 type WallType = "SOLID" | "GLASS_DOOR" | "DOOR_MAIN" | "DOOR_P1" | "CASHIER" | "CHILLER"
 
 interface HistorySnapshot {
@@ -83,6 +93,7 @@ interface HistorySnapshot {
   cashierDepths?: Record<number, number>
   placedUnits: PlacedAcUnit[]
   isCalculated: boolean
+  pillars?: StorePillar[]
 }
 
 interface SnapGuide {
@@ -247,6 +258,78 @@ export function getWallInwardNormal(p1: Point, p2: Point, polygon: Point[]): { n
     return n1
   }
   return n2
+}
+
+/**
+ * Calculates perpendicular distances from a pillar's center point to the room walls in 4 orthogonal directions (Left, Right, Top/Back, Bottom/Front)
+ */
+export function getPillarWallDistances(
+  pt: Point,
+  polygon: Point[]
+): {
+  left: { dist: number; pWall: Point } | null
+  right: { dist: number; pWall: Point } | null
+  top: { dist: number; pWall: Point } | null
+  bottom: { dist: number; pWall: Point } | null
+} {
+  const N = polygon.length
+  if (N < 3) return { left: null, right: null, top: null, bottom: null }
+
+  let bestLeft: { dist: number; pWall: Point } | null = null
+  let bestRight: { dist: number; pWall: Point } | null = null
+  let bestTop: { dist: number; pWall: Point } | null = null
+  let bestBottom: { dist: number; pWall: Point } | null = null
+
+  for (let i = 0; i < N; i++) {
+    const p1 = polygon[i]
+    const p2 = polygon[(i + 1) % N]
+    const minY = Math.min(p1.y, p2.y)
+    const maxY = Math.max(p1.y, p2.y)
+    const minX = Math.min(p1.x, p2.x)
+    const maxX = Math.max(p1.x, p2.x)
+
+    // Raycast Horizontal: y = pt.y
+    if (pt.y >= minY - 0.001 && pt.y <= maxY + 0.001 && Math.abs(p2.y - p1.y) > 1e-4) {
+      const t = (pt.y - p1.y) / (p2.y - p1.y)
+      if (t >= -0.001 && t <= 1.001) {
+        const hitX = p1.x + t * (p2.x - p1.x)
+        if (hitX <= pt.x + 0.001) {
+          const dist = pt.x - hitX
+          if (!bestLeft || dist < bestLeft.dist) {
+            bestLeft = { dist: Math.max(0, Number(dist.toFixed(2))), pWall: { x: hitX, y: pt.y } }
+          }
+        }
+        if (hitX >= pt.x - 0.001) {
+          const dist = hitX - pt.x
+          if (!bestRight || dist < bestRight.dist) {
+            bestRight = { dist: Math.max(0, Number(dist.toFixed(2))), pWall: { x: hitX, y: pt.y } }
+          }
+        }
+      }
+    }
+
+    // Raycast Vertical: x = pt.x
+    if (pt.x >= minX - 0.001 && pt.x <= maxX + 0.001 && Math.abs(p2.x - p1.x) > 1e-4) {
+      const t = (pt.x - p1.x) / (p2.x - p1.x)
+      if (t >= -0.001 && t <= 1.001) {
+        const hitY = p1.y + t * (p2.y - p1.y)
+        if (hitY <= pt.y + 0.001) {
+          const dist = pt.y - hitY
+          if (!bestBottom || dist < bestBottom.dist) {
+            bestBottom = { dist: Math.max(0, Number(dist.toFixed(2))), pWall: { x: pt.x, y: hitY } }
+          }
+        }
+        if (hitY >= pt.y - 0.001) {
+          const dist = hitY - pt.y
+          if (!bestTop || dist < bestTop.dist) {
+            bestTop = { dist: Math.max(0, Number(dist.toFixed(2))), pWall: { x: pt.x, y: hitY } }
+          }
+        }
+      }
+    }
+  }
+
+  return { left: bestLeft, right: bestRight, top: bestTop, bottom: bestBottom }
 }
 
 export interface PerimeterInterval {
@@ -1132,6 +1215,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const [cadModalOpen, setCadModalOpen] = useState(false)
   const [activeCadMetadata, setActiveCadMetadata] = useState<ParsedCadStoreData | null>(null)
 
+  // ─── 2C. State Kolom / Pilar Struktur ────────────────────────────────────
+  const [pillars, setPillars] = useState<StorePillar[]>([])
+  const [selectedPillarId, setSelectedPillarId] = useState<string | null>(null)
+  const [activeDragPillarId, setActiveDragPillarId] = useState<string | null>(null)
+  const dragPillarOffsetRef = useRef<{ offsetX: number; offsetY: number } | null>(null)
+  const [pillarSizeM, setPillarSizeM] = useState<number>(0.4) // default 40x40 cm
+  const [pillarWidthInput, setPillarWidthInput] = useState<string>("0.4")
+  const [pillarLengthInput, setPillarLengthInput] = useState<string>("0.4")
+
   // ─── 3. State AC Layout & Perhitungan ──────────────────────────────────────
   const [placedUnits, setPlacedUnits] = useState<PlacedAcUnit[]>([])
   const [isCalculated, setIsCalculated] = useState<boolean>(false)
@@ -1146,6 +1238,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const polygonAreaM2 = useMemo(() => {
     return calcPolygonArea(customPts)
   }, [customPts])
+
+  const totalPillarAreaM2 = useMemo(() => {
+    return pillars.reduce((sum, p) => sum + (p.widthM * p.lengthM), 0)
+  }, [pillars])
 
   const wallSegments = useMemo<WallSegment[]>(() => {
     const pts = customPts
@@ -1197,7 +1293,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     return 0
   }, [activeCadMetadata, customPts, customClosed, polygonAreaM2, storeMode, selectedStore, newStoreArea])
 
-  // Total Luas Bersih (Setelah dikurangi footprint fixture Chiller & Kasir)
+  // Total Luas Bersih (Setelah dikurangi footprint fixture Chiller, Kasir & Pilar)
   const netSalesArea = useMemo(() => {
     if (activeCadMetadata) {
       return activeCadMetadata.metrics.netSalesArea
@@ -1212,7 +1308,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           fixtureArea += w.lengthM * depth
         }
       })
-      const net = Math.max(1, polygonAreaM2 - fixtureArea)
+      const net = Math.max(1, polygonAreaM2 - fixtureArea - totalPillarAreaM2)
       return Number(net.toFixed(1))
     }
     if (storeMode === "existing" && selectedStore?.salesAreaM2) {
@@ -1222,7 +1318,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return parseFloat(newStoreArea)
     }
     return 0
-  }, [activeCadMetadata, customPts, customClosed, polygonAreaM2, wallSegments, cashierDepths, storeMode, selectedStore, newStoreArea])
+  }, [activeCadMetadata, customPts, customClosed, polygonAreaM2, wallSegments, cashierDepths, totalPillarAreaM2, storeMode, selectedStore, newStoreArea])
 
   // Backward compatibility alias: effectiveArea menggunakan Luas Kotor untuk AC
   const effectiveArea = grossCalculationArea
@@ -1318,10 +1414,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         cashierDepths: { ...cashierDepths },
         placedUnits: [...placedUnits],
         isCalculated,
+        pillars: [...pillars],
       },
     ])
     setHistoryFuture([])
-  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated])
+  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated, pillars])
 
   const handleUndo = useCallback(() => {
     setHistoryPast((prevPast) => {
@@ -1340,6 +1437,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           cashierDepths: { ...cashierDepths },
           placedUnits: [...placedUnits],
           isCalculated,
+          pillars: [...pillars],
         },
         ...prevFuture,
       ])
@@ -1349,12 +1447,14 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       if (last.cashierDepths) setCashierDepths(last.cashierDepths)
       if (last.placedUnits) setPlacedUnits(last.placedUnits)
       if (last.isCalculated !== undefined) setIsCalculated(last.isCalculated)
+      if (last.pillars) setPillars(last.pillars)
       return newPast
     })
     setPendingZoneStart(null)
     setPendingCashierDepth(null)
+    setSelectedPillarId(null)
     toast.info("Perubahan denah dibatalkan (Undo)")
-  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated])
+  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated, pillars])
 
   const handleRedo = useCallback(() => {
     setHistoryFuture((prevFuture) => {
@@ -1374,6 +1474,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           cashierDepths: { ...cashierDepths },
           placedUnits: [...placedUnits],
           isCalculated,
+          pillars: [...pillars],
         },
       ])
       setCustomPts(next.pts)
@@ -1382,12 +1483,96 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       if (next.cashierDepths) setCashierDepths(next.cashierDepths)
       if (next.placedUnits) setPlacedUnits(next.placedUnits)
       if (next.isCalculated !== undefined) setIsCalculated(next.isCalculated)
+      if (next.pillars) setPillars(next.pillars)
       return newFuture
     })
     setPendingZoneStart(null)
     setPendingCashierDepth(null)
+    setSelectedPillarId(null)
     toast.info("Perubahan denah dipulihkan (Redo)")
-  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated])
+  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated, pillars])
+
+  const selectedPillar = useMemo(() => {
+    return pillars.find((p) => p.id === selectedPillarId) || null
+  }, [pillars, selectedPillarId])
+
+  const selectedPillarDistances = useMemo(() => {
+    if (!selectedPillar || customPts.length < 3) return null
+    return getPillarWallDistances({ x: selectedPillar.x, y: selectedPillar.y }, customPts)
+  }, [selectedPillar, customPts])
+
+  // Sync input fields saat pilar terpilih berubah
+  useEffect(() => {
+    if (selectedPillar) {
+      setPillarWidthInput(String(selectedPillar.widthM))
+      setPillarLengthInput(String(selectedPillar.lengthM))
+    }
+  }, [selectedPillar])
+
+  // Helper Hapus & Ubah Ukuran / Posisi Pilar
+  const handleDeletePillar = useCallback((id: string) => {
+    pushCurrentToHistory()
+    setPillars((prev) => prev.filter((p) => p.id !== id))
+    if (selectedPillarId === id) {
+      setSelectedPillarId(null)
+    }
+    toast.info("Pilar dihapus dari denah")
+  }, [pushCurrentToHistory, selectedPillarId])
+
+  const handleUpdatePillarSize = useCallback((id: string, newSizeM: number) => {
+    pushCurrentToHistory()
+    const clamped = Math.max(0.1, Number(newSizeM.toFixed(2)))
+    setPillars((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, widthM: clamped, lengthM: clamped } : p))
+    )
+    setPillarSizeM(clamped)
+    setPillarWidthInput(String(clamped))
+    setPillarLengthInput(String(clamped))
+    toast.success(`Ukuran pilar diubah menjadi ${formatDim(clamped)}m × ${formatDim(clamped)}m`)
+  }, [pushCurrentToHistory])
+
+  const handleUpdatePillarDimensions = useCallback((id: string, widthM: number, lengthM: number) => {
+    if (isNaN(widthM) || isNaN(lengthM) || widthM <= 0 || lengthM <= 0) return
+    pushCurrentToHistory()
+    const clampedW = Math.max(0.1, Number(widthM.toFixed(2)))
+    const clampedL = Math.max(0.1, Number(lengthM.toFixed(2)))
+    setPillars((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, widthM: clampedW, lengthM: clampedL } : p))
+    )
+    setPillarWidthInput(String(clampedW))
+    setPillarLengthInput(String(clampedL))
+    toast.success(`Dimensi pilar diubah: ${formatDim(clampedW)}m × ${formatDim(clampedL)}m`)
+  }, [pushCurrentToHistory])
+
+  const handleUpdatePillarDistanceX = useCallback((id: string, targetDistFromLeftM: number) => {
+    if (isNaN(targetDistFromLeftM) || targetDistFromLeftM < 0 || !selectedPillar || !selectedPillarDistances?.left) return
+    const leftWallX = selectedPillarDistances.left.pWall.x
+    const newCenterX = Number((leftWallX + targetDistFromLeftM).toFixed(2))
+    if (!isPointInsidePolygon({ x: newCenterX, y: selectedPillar.y }, customPts)) {
+      toast.warning("Jarak X tersebut membuat pilar keluar dari batas denah toko.")
+      return
+    }
+    pushCurrentToHistory()
+    setPillars((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, x: newCenterX } : p))
+    )
+    toast.info(`Posisi X pilar diatur: ${formatDim(targetDistFromLeftM)}m dari dinding kiri`)
+  }, [pushCurrentToHistory, selectedPillar, selectedPillarDistances, customPts])
+
+  const handleUpdatePillarDistanceY = useCallback((id: string, targetDistFromBottomM: number) => {
+    if (isNaN(targetDistFromBottomM) || targetDistFromBottomM < 0 || !selectedPillar || !selectedPillarDistances?.bottom) return
+    const bottomWallY = selectedPillarDistances.bottom.pWall.y
+    const newCenterY = Number((bottomWallY + targetDistFromBottomM).toFixed(2))
+    if (!isPointInsidePolygon({ x: selectedPillar.x, y: newCenterY }, customPts)) {
+      toast.warning("Jarak Y tersebut membuat pilar keluar dari batas denah toko.")
+      return
+    }
+    pushCurrentToHistory()
+    setPillars((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, y: newCenterY } : p))
+    )
+    toast.info(`Posisi Y pilar diatur: ${formatDim(targetDistFromBottomM)}m dari dinding`)
+  }, [pushCurrentToHistory, selectedPillar, selectedPillarDistances, customPts])
 
   // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Escape)
   useEffect(() => {
@@ -1399,6 +1584,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
       if (e.key === "Escape") {
         setSelectedNodeIdx(null)
+        setSelectedPillarId(null)
         setPendingZoneStart(null)
         setPendingCashierDepth(null)
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
@@ -1412,25 +1598,28 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault()
         handleRedo()
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedPillarId) {
+        handleDeletePillar(selectedPillarId)
       }
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [handleUndo, handleRedo])
+  }, [handleUndo, handleRedo, selectedPillarId, handleDeletePillar])
 
   // Auto-deselect node when clicking outside
   useEffect(() => {
-    if (selectedNodeIdx === null && pendingZoneStart === null) return
+    if (selectedNodeIdx === null && pendingZoneStart === null && selectedPillarId === null) return
     const handleDocumentPointerDown = (e: MouseEvent | TouchEvent) => {
       const container = canvasRef.current?.parentElement?.parentElement
       if (container && !container.contains(e.target as Node)) {
         setSelectedNodeIdx(null)
+        setSelectedPillarId(null)
       }
     }
     document.addEventListener("pointerdown", handleDocumentPointerDown)
     return () => document.removeEventListener("pointerdown", handleDocumentPointerDown)
-  }, [selectedNodeIdx, pendingZoneStart])
+  }, [selectedNodeIdx, pendingZoneStart, selectedPillarId])
 
   const handleResetCanvas = () => {
     pushCurrentToHistory()
@@ -1439,6 +1628,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     setSelectedNodeIdx(null)
     setSegmentOverrides({})
     setCashierDepths({})
+    setPillars([])
+    setSelectedPillarId(null)
+    setActiveDragPillarId(null)
     setPlacedUnits([])
     setIsCalculated(false)
     setPendingZoneStart(null)
@@ -1803,6 +1995,59 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         }
       }
       return
+    }
+
+    // 1B. CEK KLIK PADA PILAR / KOLOM (Bisa dipilih & digeser)
+    if (customClosed && customPts.length >= 3 && pillars.length > 0) {
+      const pMx = Number(((cx - offX) / scale).toFixed(2))
+      const pMy = Number(((cy - offY) / scale).toFixed(2))
+      for (let i = 0; i < pillars.length; i++) {
+        const p = pillars[i]
+        const halfW = p.widthM / 2 + 0.15
+        const halfH = p.lengthM / 2 + 0.15
+        if (Math.abs(pMx - p.x) <= halfW && Math.abs(pMy - p.y) <= halfH) {
+          pushCurrentToHistory()
+          setSelectedPillarId(p.id)
+          setActiveDragPillarId(p.id)
+          dragPillarOffsetRef.current = {
+            offsetX: pMx - p.x,
+            offsetY: pMy - p.y,
+          }
+          try {
+            ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+          } catch {}
+          return
+        }
+      }
+    }
+
+    // 1C. JIKA TOOL COLUMN (PILAR): KLIK DI DALAM DENAH UNTUK MENAMBAHKAN PILAR BARU
+    if (activeTool === "COLUMN") {
+      const pMx = Number(((cx - offX) / scale).toFixed(2))
+      const pMy = Number(((cy - offY) / scale).toFixed(2))
+      if (customClosed && customPts.length >= 3) {
+        if (isPointInsidePolygon({ x: pMx, y: pMy }, customPts)) {
+          pushCurrentToHistory()
+          const newPillar: StorePillar = {
+            id: `pillar-${Date.now()}`,
+            x: pMx,
+            y: pMy,
+            widthM: pillarSizeM,
+            lengthM: pillarSizeM,
+            label: `P${pillars.length + 1}`,
+          }
+          setPillars((prev) => [...prev, newPillar])
+          setSelectedPillarId(newPillar.id)
+          toast.success(`Pilar P${pillars.length + 1} (${Math.round(pillarSizeM * 100)}×${Math.round(pillarSizeM * 100)} cm) ditambahkan! Geser untuk memposisikan.`)
+          return
+        } else {
+          toast.warning("Klik di dalam area denah toko untuk meletakkan pilar.")
+          return
+        }
+      } else {
+        toast.warning("Tutup denah poligon toko terlebih dahulu sebelum menambahkan pilar.")
+        return
+      }
     }
 
     // 2. PRIORITAS 2: JIKA TAHAP 3 KASIR SEDANG AKTIF (KLIK KE-3 UNTUK KUNCI KEDALAMAN KASIR)
@@ -2497,7 +2742,76 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       setPendingCashierDepth((prev) => (prev ? { ...prev, depthM: calculatedDepth } : null))
     }
 
-    // 1. DRAGGING PLACED AC HANDLER (Menggeser AC di sepanjang dinding)
+    // 1. DRAGGING PILLAR HANDLER (Strict Polygon Room Boundary Check)
+    if (activeDragPillarId !== null) {
+      const offset = dragPillarOffsetRef.current || { offsetX: 0, offsetY: 0 }
+      const targetMx = Number((mx - offset.offsetX).toFixed(2))
+      const targetMy = Number((my - offset.offsetY).toFixed(2))
+
+      const currentPillar = pillars.find((p) => p.id === activeDragPillarId)
+      if (!currentPillar) return
+
+      let nextX = currentPillar.x
+      let nextY = currentPillar.y
+
+      if (customPts.length >= 3) {
+        let candX = targetMx
+        let candY = targetMy
+
+        // Magnetic Snap to another pillar's X or Y (jarak < 15cm)
+        const snapDistM = 0.15
+        for (const other of pillars) {
+          if (other.id !== activeDragPillarId) {
+            if (Math.abs(candX - other.x) <= snapDistM) {
+              candX = other.x
+            }
+            if (Math.abs(candY - other.y) <= snapDistM) {
+              candY = other.y
+            }
+          }
+        }
+
+        const halfW = currentPillar.widthM / 2
+        const halfL = currentPillar.lengthM / 2
+
+        const isSafeInside = (x: number, y: number) => {
+          if (!isPointInsidePolygon({ x, y }, customPts)) return false
+          const margin = 0.05
+          const c1 = { x: x - halfW + margin, y: y - halfL + margin }
+          const c2 = { x: x + halfW - margin, y: y - halfL + margin }
+          const c3 = { x: x + halfW - margin, y: y + halfL - margin }
+          const c4 = { x: x - halfW + margin, y: y + halfL - margin }
+          return (
+            isPointInsidePolygon(c1, customPts) &&
+            isPointInsidePolygon(c2, customPts) &&
+            isPointInsidePolygon(c3, customPts) &&
+            isPointInsidePolygon(c4, customPts)
+          )
+        }
+
+        // Test full move (candX, candY)
+        if (isSafeInside(candX, candY)) {
+          nextX = candX
+          nextY = candY
+        } else {
+          // Slide along X only if inside
+          if (isSafeInside(candX, currentPillar.y)) {
+            nextX = candX
+          }
+          // Slide along Y only if inside
+          if (isSafeInside(currentPillar.x, candY)) {
+            nextY = candY
+          }
+        }
+      }
+
+      setPillars((prev) =>
+        prev.map((p) => (p.id === activeDragPillarId ? { ...p, x: nextX, y: nextY } : p))
+      )
+      return
+    }
+
+    // 1B. DRAGGING PLACED AC HANDLER (Menggeser AC di sepanjang dinding)
     if (activeDragAcId !== null) {
       setPlacedUnits((prev) =>
         prev.map((unit) => {
@@ -2856,6 +3170,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   }
 
   const handleCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Selesai drag pilar
+    if (activeDragPillarId !== null) {
+      try {
+        ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      } catch {}
+      setActiveDragPillarId(null)
+      toast.info("Posisi pilar berhasil disesuaikan!")
+    }
+
     // Selesai drag AC unit
     if (activeDragAcId !== null) {
       try {
@@ -3754,6 +4077,172 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ctx.stroke()
           ctx.setLineDash([])
         }
+        ctx.restore()
+      })
+    }
+
+    // ── 1D. RENDER KOLOM / PILAR STRUKTUR (CAD & MANUAL) ──
+    if (pillars.length > 0) {
+      pillars.forEach((pillar, pIdx) => {
+        const halfW = pillar.widthM / 2
+        const halfH = pillar.lengthM / 2
+        const pTopLeft = toC({ x: pillar.x - halfW, y: pillar.y - halfH })
+        const pBottomRight = toC({ x: pillar.x + halfW, y: pillar.y + halfH })
+        const pCenter = toC({ x: pillar.x, y: pillar.y })
+        const colW = Math.max(8, Math.abs(pBottomRight.cx - pTopLeft.cx))
+        const colH = Math.max(8, Math.abs(pBottomRight.cy - pTopLeft.cy))
+
+        const isSelected = pillar.id === selectedPillarId || pillar.id === activeDragPillarId
+
+        ctx.save()
+        // 1. Fill Pilar Beton
+        ctx.fillStyle = isSelected
+          ? (effectiveIsDark ? "rgba(30, 41, 59, 0.95)" : "rgba(226, 232, 240, 0.95)")
+          : (effectiveIsDark ? "rgba(51, 65, 85, 0.85)" : "rgba(203, 213, 225, 0.9)")
+        ctx.fillRect(pTopLeft.cx, pTopLeft.cy, colW, colH)
+
+        // 2. Concrete Hatching
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(pTopLeft.cx, pTopLeft.cy, colW, colH)
+        ctx.clip()
+        ctx.strokeStyle = effectiveIsDark ? "rgba(148, 163, 184, 0.35)" : "rgba(100, 116, 139, 0.3)"
+        ctx.lineWidth = 0.8
+        for (let off = -colH - colW; off < colH + colW; off += 5) {
+          ctx.beginPath()
+          ctx.moveTo(pTopLeft.cx + off, pTopLeft.cy)
+          ctx.lineTo(pTopLeft.cx + off + colH, pTopLeft.cy + colH)
+          ctx.stroke()
+        }
+        ctx.restore()
+
+        // 3. Stroke Border
+        ctx.strokeStyle = isSelected
+          ? (effectiveIsDark ? "#38bdf8" : "#0284c7")
+          : (effectiveIsDark ? "#64748b" : "#475569")
+        ctx.lineWidth = isSelected ? 2.2 : 1.2
+        ctx.strokeRect(pTopLeft.cx, pTopLeft.cy, colW, colH)
+
+        // 4. Label Pilar
+        const pLabel = pillar.label || `P${pIdx + 1}`
+        ctx.font = "bold 8px sans-serif"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.fillStyle = isSelected
+          ? (effectiveIsDark ? "#38bdf8" : "#0284c7")
+          : (effectiveIsDark ? "#e2e8f0" : "#1e293b")
+        ctx.fillText(pLabel, pCenter.cx, pCenter.cy)
+
+        // 5. SMART DISTANCE GUIDES (Garis Ukur Dinamis Sumbu X & Y ke Dinding Terdekat)
+        if (isSelected) {
+          const distances = getPillarWallDistances({ x: pillar.x, y: pillar.y }, customPts)
+          const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
+
+          // Guide Kiri (-X)
+          if (distances.left) {
+            const cWall = toC(distances.left.pWall)
+            ctx.save()
+            ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(2, 132, 199, 0.85)"
+            ctx.lineWidth = 1.2
+            ctx.setLineDash([3, 3])
+            ctx.beginPath()
+            ctx.moveTo(cWall.cx, pCenter.cy)
+            ctx.lineTo(pTopLeft.cx, pCenter.cy)
+            ctx.stroke()
+            ctx.setLineDash([])
+
+            const midX = (cWall.cx + pTopLeft.cx) / 2
+            const dText = `↔ ${formatDim(distances.left.dist)}m`
+            ctx.font = "bold 7.5px sans-serif"
+            ctx.textAlign = "center"
+            ctx.textBaseline = "bottom"
+            ctx.lineWidth = 2.5
+            ctx.strokeStyle = haloColor
+            ctx.strokeText(dText, midX, pCenter.cy - 2)
+            ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+            ctx.fillText(dText, midX, pCenter.cy - 2)
+            ctx.restore()
+          }
+
+          // Guide Kanan (+X)
+          if (distances.right) {
+            const cWall = toC(distances.right.pWall)
+            ctx.save()
+            ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(2, 132, 199, 0.85)"
+            ctx.lineWidth = 1.2
+            ctx.setLineDash([3, 3])
+            ctx.beginPath()
+            ctx.moveTo(pBottomRight.cx, pCenter.cy)
+            ctx.lineTo(cWall.cx, pCenter.cy)
+            ctx.stroke()
+            ctx.setLineDash([])
+
+            const midX = (pBottomRight.cx + cWall.cx) / 2
+            const dText = `↔ ${formatDim(distances.right.dist)}m`
+            ctx.font = "bold 7.5px sans-serif"
+            ctx.textAlign = "center"
+            ctx.textBaseline = "bottom"
+            ctx.lineWidth = 2.5
+            ctx.strokeStyle = haloColor
+            ctx.strokeText(dText, midX, pCenter.cy - 2)
+            ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+            ctx.fillText(dText, midX, pCenter.cy - 2)
+            ctx.restore()
+          }
+
+          // Guide Atas (-Y)
+          if (distances.bottom) {
+            const cWall = toC(distances.bottom.pWall)
+            ctx.save()
+            ctx.strokeStyle = effectiveIsDark ? "rgba(52, 211, 153, 0.85)" : "rgba(5, 150, 105, 0.85)"
+            ctx.lineWidth = 1.2
+            ctx.setLineDash([3, 3])
+            ctx.beginPath()
+            ctx.moveTo(pCenter.cx, cWall.cy)
+            ctx.lineTo(pCenter.cx, pTopLeft.cy)
+            ctx.stroke()
+            ctx.setLineDash([])
+
+            const midY = (cWall.cy + pTopLeft.cy) / 2
+            const dText = `↕ ${formatDim(distances.bottom.dist)}m`
+            ctx.font = "bold 7.5px sans-serif"
+            ctx.textAlign = "left"
+            ctx.textBaseline = "middle"
+            ctx.lineWidth = 2.5
+            ctx.strokeStyle = haloColor
+            ctx.strokeText(dText, pCenter.cx + 4, midY)
+            ctx.fillStyle = effectiveIsDark ? "#34d399" : "#059669"
+            ctx.fillText(dText, pCenter.cx + 4, midY)
+            ctx.restore()
+          }
+
+          // Guide Bawah (+Y)
+          if (distances.top) {
+            const cWall = toC(distances.top.pWall)
+            ctx.save()
+            ctx.strokeStyle = effectiveIsDark ? "rgba(52, 211, 153, 0.85)" : "rgba(5, 150, 105, 0.85)"
+            ctx.lineWidth = 1.2
+            ctx.setLineDash([3, 3])
+            ctx.beginPath()
+            ctx.moveTo(pCenter.cx, pBottomRight.cy)
+            ctx.lineTo(pCenter.cx, cWall.cy)
+            ctx.stroke()
+            ctx.setLineDash([])
+
+            const midY = (pBottomRight.cy + cWall.cy) / 2
+            const dText = `↕ ${formatDim(distances.top.dist)}m`
+            ctx.font = "bold 7.5px sans-serif"
+            ctx.textAlign = "left"
+            ctx.textBaseline = "middle"
+            ctx.lineWidth = 2.5
+            ctx.strokeStyle = haloColor
+            ctx.strokeText(dText, pCenter.cx + 4, midY)
+            ctx.fillStyle = effectiveIsDark ? "#34d399" : "#059669"
+            ctx.fillText(dText, pCenter.cx + 4, midY)
+            ctx.restore()
+          }
+        }
+
         ctx.restore()
       })
     }
@@ -5960,6 +6449,182 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                           )}
                         </div>
 
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant={activeTool === "COLUMN" ? "default" : "outline"}
+                            onClick={() => {
+                              setActiveTool("COLUMN")
+                              setPendingZoneStart(null)
+                              setPendingCashierDepth(null)
+                            }}
+                            className={`h-7 text-xs font-bold gap-1 ${
+                              activeTool === "COLUMN"
+                                ? "bg-slate-700 text-white dark:bg-slate-600"
+                                : "border-slate-500/40 text-slate-700 dark:text-slate-300 bg-slate-500/10"
+                            }`}
+                            title="Tambah Kolom / Pilar Beton (Tap di dalam denah, geser untuk mengatur posisi)"
+                          >
+                            <IconColumns className="size-3.5" /> Pilar ({Math.round(pillarSizeM * 100)}cm)
+                          </Button>
+
+                          {(activeTool === "COLUMN" || selectedPillarId) && (
+                            <div className="flex items-center gap-1.5 bg-slate-500/15 border border-slate-500/40 rounded-lg p-1 animate-in fade-in zoom-in-95 flex-wrap">
+                              {/* Preset sizes */}
+                              <div className="flex items-center gap-0.5">
+                                {[0.3, 0.4, 0.5, 0.6].map((s) => (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => {
+                                      setPillarSizeM(s)
+                                      setPillarWidthInput(String(s))
+                                      setPillarLengthInput(String(s))
+                                      if (selectedPillarId) {
+                                        handleUpdatePillarSize(selectedPillarId, s)
+                                      }
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                                      (selectedPillar ? selectedPillar.widthM === s && selectedPillar.lengthM === s : pillarSizeM === s)
+                                        ? "bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900"
+                                        : "bg-background/80 hover:bg-background text-muted-foreground"
+                                    }`}
+                                  >
+                                    {Math.round(s * 100)}cm
+                                  </button>
+                                ))}
+                              </div>
+
+                              <span className="text-muted-foreground/50 text-[10px]">|</span>
+
+                              {/* Custom Width & Length Inputs */}
+                              <div className="flex items-center gap-1 text-[10.5px]">
+                                <span className="font-semibold text-muted-foreground text-[10px]">P:</span>
+                                <input
+                                  type="number"
+                                  step="0.05"
+                                  min="0.1"
+                                  max="5"
+                                  value={pillarWidthInput}
+                                  onChange={(e) => {
+                                    const val = e.target.value
+                                    setPillarWidthInput(val)
+                                    const num = parseFloat(val)
+                                    if (!isNaN(num) && num > 0) {
+                                      if (selectedPillarId) {
+                                        handleUpdatePillarDimensions(selectedPillarId, num, parseFloat(pillarLengthInput) || num)
+                                      } else {
+                                        setPillarSizeM(num)
+                                      }
+                                    }
+                                  }}
+                                  className="w-12 h-5 text-[10px] text-center font-mono font-bold bg-background border rounded px-0.5"
+                                  title="Panjang Pilar (meter) - Bisa ketik bebas e.g. 0.35, 0.40, 0.75"
+                                />
+                                <span className="font-semibold text-muted-foreground text-[10px]">× L:</span>
+                                <input
+                                  type="number"
+                                  step="0.05"
+                                  min="0.1"
+                                  max="5"
+                                  value={pillarLengthInput}
+                                  onChange={(e) => {
+                                    const val = e.target.value
+                                    setPillarLengthInput(val)
+                                    const num = parseFloat(val)
+                                    if (!isNaN(num) && num > 0) {
+                                      if (selectedPillarId) {
+                                        handleUpdatePillarDimensions(selectedPillarId, parseFloat(pillarWidthInput) || num, num)
+                                      }
+                                    }
+                                  }}
+                                  className="w-12 h-5 text-[10px] text-center font-mono font-bold bg-background border rounded px-0.5"
+                                  title="Lebar Pilar (meter) - Bisa ketik bebas e.g. 0.35, 0.40, 0.75"
+                                />
+                                <span className="text-[9px] text-muted-foreground font-bold">m</span>
+                              </div>
+
+                              {/* Selected Pillar Distance Inputs (X & Y) */}
+                              {selectedPillar && selectedPillarDistances && (
+                                <>
+                                  <span className="text-muted-foreground/50 text-[10px]">|</span>
+                                  <div className="flex items-center gap-1 text-[10.5px]">
+                                    {selectedPillarDistances.left && (
+                                      <div className="flex items-center gap-0.5" title="Ketik jarak dari Dinding Kiri (meter) lalu tekan Enter">
+                                        <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">↔</span>
+                                        <input
+                                          type="number"
+                                          step="0.1"
+                                          min="0"
+                                          defaultValue={selectedPillarDistances.left.dist}
+                                          key={`left-${selectedPillar.id}-${selectedPillarDistances.left.dist}`}
+                                          onBlur={(e) => {
+                                            const num = parseFloat(e.target.value)
+                                            if (!isNaN(num) && num >= 0) {
+                                              handleUpdatePillarDistanceX(selectedPillar.id, num)
+                                            }
+                                          }}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                              const num = parseFloat((e.target as HTMLInputElement).value)
+                                              if (!isNaN(num) && num >= 0) {
+                                                handleUpdatePillarDistanceX(selectedPillar.id, num)
+                                              }
+                                            }
+                                          }}
+                                          className="w-12 h-5 text-[10px] text-center font-mono font-bold bg-background border border-sky-500/40 rounded px-0.5 text-sky-700 dark:text-sky-300"
+                                        />
+                                        <span className="text-[9px] text-muted-foreground">m</span>
+                                      </div>
+                                    )}
+
+                                    {selectedPillarDistances.bottom && (
+                                      <div className="flex items-center gap-0.5" title="Ketik jarak dari Dinding Depan/Bawah (meter) lalu tekan Enter">
+                                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">↕</span>
+                                        <input
+                                          type="number"
+                                          step="0.1"
+                                          min="0"
+                                          defaultValue={selectedPillarDistances.bottom.dist}
+                                          key={`bottom-${selectedPillar.id}-${selectedPillarDistances.bottom.dist}`}
+                                          onBlur={(e) => {
+                                            const num = parseFloat(e.target.value)
+                                            if (!isNaN(num) && num >= 0) {
+                                              handleUpdatePillarDistanceY(selectedPillar.id, num)
+                                            }
+                                          }}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                              const num = parseFloat((e.target as HTMLInputElement).value)
+                                              if (!isNaN(num) && num >= 0) {
+                                                handleUpdatePillarDistanceY(selectedPillar.id, num)
+                                              }
+                                            }
+                                          }}
+                                          className="w-12 h-5 text-[10px] text-center font-mono font-bold bg-background border border-emerald-500/40 rounded px-0.5 text-emerald-700 dark:text-emerald-300"
+                                        />
+                                        <span className="text-[9px] text-muted-foreground">m</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+
+                              {selectedPillarId && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDeletePillar(selectedPillarId)}
+                                  className="h-5 text-[10px] font-bold gap-0.5 px-1.5 ml-0.5"
+                                  title="Hapus Pilar Terpilih (Del)"
+                                >
+                                  <IconTrash className="size-3" /> Hapus
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
                         {(pendingZoneStart || pendingCashierDepth) && (
                           <Button
                             size="sm"
@@ -6677,7 +7342,24 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
               })
             }
             setCashierDepths(depths)
+
+            // Populate kolom dari CAD (.dxf)
+            if (cadData.zones?.columns && cadData.zones.columns.length > 0) {
+              const loadedPillars: StorePillar[] = cadData.zones.columns.map((col, idx) => ({
+                id: `cad-col-${idx + 1}-${Date.now()}`,
+                x: Number((col.bounds.x + col.bounds.width / 2).toFixed(2)),
+                y: Number((col.bounds.y + col.bounds.height / 2).toFixed(2)),
+                widthM: Number(col.bounds.width.toFixed(2)) || 0.4,
+                lengthM: Number(col.bounds.height.toFixed(2)) || 0.4,
+                label: col.label || `P${idx + 1}`,
+              }))
+              setPillars(loadedPillars)
+            } else {
+              setPillars([])
+            }
+
             setSelectedNodeIdx(null)
+            setSelectedPillarId(null)
             setPendingZoneStart(null)
             setActiveCadMetadata(cadData)
           }}
