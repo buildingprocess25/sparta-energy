@@ -1239,6 +1239,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const [pillarSizeM, setPillarSizeM] = useState<number>(0.4) // default 40x40 cm
   const [pillarWidthInput, setPillarWidthInput] = useState<string>("0.4")
   const [pillarLengthInput, setPillarLengthInput] = useState<string>("0.4")
+  const [pillarDistXInput, setPillarDistXInput] = useState<string>("")
+  const [pillarDistYInput, setPillarDistYInput] = useState<string>("")
 
   // ─── 3. State AC Layout & Perhitungan ──────────────────────────────────────
   const [placedUnits, setPlacedUnits] = useState<PlacedAcUnit[]>([])
@@ -1522,8 +1524,21 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     if (selectedPillar) {
       setPillarWidthInput(String(selectedPillar.widthM))
       setPillarLengthInput(String(selectedPillar.lengthM))
+      if (selectedPillarDistances?.left) {
+        setPillarDistXInput(String(formatDim(selectedPillarDistances.left.dist)))
+      } else {
+        setPillarDistXInput("")
+      }
+      if (selectedPillarDistances?.bottom) {
+        setPillarDistYInput(String(formatDim(selectedPillarDistances.bottom.dist)))
+      } else {
+        setPillarDistYInput("")
+      }
+    } else {
+      setPillarDistXInput("")
+      setPillarDistYInput("")
     }
-  }, [selectedPillar])
+  }, [selectedPillar, selectedPillarDistances])
 
   // Helper Hapus & Ubah Ukuran / Posisi Pilar
   const handleDeletePillar = useCallback((id: string) => {
@@ -1546,6 +1561,40 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     setPillarLengthInput(String(clamped))
     toast.success(`Ukuran pilar diubah menjadi ${formatDim(clamped)}m × ${formatDim(clamped)}m`)
   }, [pushCurrentToHistory])
+
+  // Realtime handlers (tanpa spam toast pada setiap ketukan keyboard)
+  const handleUpdatePillarDimensionsRealtime = useCallback((id: string, widthM: number, lengthM: number) => {
+    if (isNaN(widthM) || isNaN(lengthM) || widthM <= 0 || lengthM <= 0) return
+    const clampedW = Math.max(0.1, Number(widthM.toFixed(2)))
+    const clampedL = Math.max(0.1, Number(lengthM.toFixed(2)))
+    setPillars((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, widthM: clampedW, lengthM: clampedL } : p))
+    )
+  }, [])
+
+  const handleUpdatePillarDistanceXRealtime = useCallback((id: string, targetDistFromLeftM: number) => {
+    if (isNaN(targetDistFromLeftM) || targetDistFromLeftM < 0 || !selectedPillar || !selectedPillarDistances?.left) return
+    const leftWallX = selectedPillarDistances.left.pWall.x
+    const newCenterX = Number((leftWallX + targetDistFromLeftM).toFixed(2))
+    if (!isPointInsidePolygon({ x: newCenterX, y: selectedPillar.y }, customPts)) {
+      return
+    }
+    setPillars((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, x: newCenterX } : p))
+    )
+  }, [selectedPillar, selectedPillarDistances, customPts])
+
+  const handleUpdatePillarDistanceYRealtime = useCallback((id: string, targetDistFromBottomM: number) => {
+    if (isNaN(targetDistFromBottomM) || targetDistFromBottomM < 0 || !selectedPillar || !selectedPillarDistances?.bottom) return
+    const bottomWallY = selectedPillarDistances.bottom.pWall.y
+    const newCenterY = Number((bottomWallY + targetDistFromBottomM).toFixed(2))
+    if (!isPointInsidePolygon({ x: selectedPillar.x, y: newCenterY }, customPts)) {
+      return
+    }
+    setPillars((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, y: newCenterY } : p))
+    )
+  }, [selectedPillar, selectedPillarDistances, customPts])
 
   const handleUpdatePillarDimensions = useCallback((id: string, widthM: number, lengthM: number) => {
     if (isNaN(widthM) || isNaN(lengthM) || widthM <= 0 || lengthM <= 0) return
@@ -2428,8 +2477,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
             // JIKA KASIR 1-DINDING DATAR (termasuk dari tengah ke pojok dinding yang sama):
             // Panjang terkunci, beralih ke tahap 3 (tarik kedalaman ke dalam ruangan)
-            const p1 = nonCollinearPts[0]
-            const p2 = nonCollinearPts[1] || nonCollinearPts[0]
+            // Selalu pertahankan urutan klik asli: p1 = Klik 1 (ptA), p2 = Klik 2 (ptB) agar Titik 3 selalu searah Titik 2!
+            const p1 = ptA
+            const p2 = ptB
             const inNorm = getWallInwardNormal(p1, p2, customPts)
             const wallDist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
             const maxDepthM = getMaxInwardDepth(p1, p2, inNorm, customPts)
@@ -2438,8 +2488,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
               segIdx: segIdxB,
               segIdxA,
               segIdxB,
-              ptA: p1,
-              ptB: p2,
+              ptA,
+              ptB,
               tA,
               tB,
               p1,
@@ -4929,6 +4979,107 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             ctx.stroke()
           })
 
+          // ── CONTINUOUS CAD DIMENSION CHAIN ALONG FULL WALL (Sesuai Rotasi Dinding) ──
+          const p1C = toC(seg.p1)
+          const p2C = toC(seg.p2)
+          const dxW = p2C.cx - p1C.cx
+          const dyW = p2C.cy - p1C.cy
+          const wallPxLen = Math.hypot(dxW, dyW) || 1
+          const uX = dxW / wallPxLen
+          const uY = dyW / wallPxLen
+
+          const wallAngle = Math.atan2(dyW, dxW)
+          let textAngle = wallAngle
+          if (textAngle > Math.PI / 2 || textAngle < -Math.PI / 2) {
+            textAngle += Math.PI
+          }
+
+          // Offset normal ke dalam ruangan
+          const dimOffset = Math.max(22, 0.45 * sc.scale)
+          const normX = inNorm.nx
+          const normY = inNorm.ny
+
+          // 4 Titik Rantai: [p1, fixture_start, fixture_end, p2]
+          const chainPoints = [
+            { orig: p1C, dim: { cx: p1C.cx + normX * dimOffset, cy: p1C.cy + normY * dimOffset }, ratio: 0 },
+            { orig: cpA, dim: { cx: cpA.cx + normX * dimOffset, cy: cpA.cy + normY * dimOffset }, ratio: t1 },
+            { orig: cpB, dim: { cx: cpB.cx + normX * dimOffset, cy: cpB.cy + normY * dimOffset }, ratio: t2 },
+            { orig: p2C, dim: { cx: p2C.cx + normX * dimOffset, cy: p2C.cy + normY * dimOffset }, ratio: 1.0 },
+          ]
+
+          ctx.save()
+
+          // 1. Extension / Witness lines dari dinding ke garis dimensi
+          ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.45)" : "rgba(2, 132, 199, 0.45)"
+          ctx.lineWidth = 0.9
+          ctx.setLineDash([2, 2])
+          chainPoints.forEach((cp) => {
+            ctx.beginPath()
+            ctx.moveTo(cp.orig.cx, cp.orig.cy)
+            ctx.lineTo(cp.dim.cx, cp.dim.cy)
+            ctx.stroke()
+          })
+          ctx.setLineDash([])
+
+          // 2. Garis Dimensi Kontinu Penuh Spanning P1 -> P2
+          ctx.strokeStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+          ctx.lineWidth = 1.4
+          ctx.beginPath()
+          ctx.moveTo(chainPoints[0].dim.cx, chainPoints[0].dim.cy)
+          ctx.lineTo(chainPoints[3].dim.cx, chainPoints[3].dim.cy)
+          ctx.stroke()
+
+          // 3. 45° Architectural Slash Ticks
+          const slashLen = 4.5
+          const slashUx = (uX + normX) * 0.7071
+          const slashUy = (uY + normY) * 0.7071
+          chainPoints.forEach((cp, idx) => {
+            const isFixtureEdge = idx === 1 || idx === 2
+            ctx.beginPath()
+            ctx.moveTo(cp.dim.cx - slashUx * slashLen, cp.dim.cy - slashUy * slashLen)
+            ctx.lineTo(cp.dim.cx + slashUx * slashLen, cp.dim.cy + slashUy * slashLen)
+            ctx.strokeStyle = isFixtureEdge ? toolColor : (effectiveIsDark ? "#38bdf8" : "#0284c7")
+            ctx.lineWidth = isFixtureEdge ? 2 : 1.4
+            ctx.stroke()
+
+            // Center dot
+            ctx.beginPath()
+            ctx.arc(cp.dim.cx, cp.dim.cy, isFixtureEdge ? 2.5 : 1.8, 0, Math.PI * 2)
+            ctx.fillStyle = isFixtureEdge ? toolColor : (effectiveIsDark ? "#38bdf8" : "#0284c7")
+            ctx.fill()
+          })
+
+          // 4. Teks Dimensi Rotated Sesuai Sudut Dinding
+          const haloGuideCol = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
+          for (let k = 0; k < chainPoints.length - 1; k++) {
+            const cA = chainPoints[k]
+            const cB = chainPoints[k + 1]
+            const segDistM = Number(((cB.ratio - cA.ratio) * wallLen).toFixed(2))
+
+            if (segDistM > 0.05) {
+              const midX = (cA.dim.cx + cB.dim.cx) / 2
+              const midY = (cA.dim.cy + cB.dim.cy) / 2
+
+              ctx.save()
+              ctx.translate(midX, midY)
+              ctx.rotate(textAngle)
+
+              const isMiddleFixture = k === 1
+              const dText = isMiddleFixture ? `${formatDim(segDistM)}m (${toolLabel.split(" ")[0]})` : `${formatDim(segDistM)}m`
+
+              ctx.font = isMiddleFixture ? "bold 8.5px sans-serif" : "bold 8px sans-serif"
+              ctx.textAlign = "center"
+              ctx.textBaseline = "middle"
+              ctx.lineWidth = 3
+              ctx.lineJoin = "round"
+              ctx.strokeStyle = haloGuideCol
+              ctx.strokeText(dText, 0, 0)
+              ctx.fillStyle = isMiddleFixture ? toolColor : (effectiveIsDark ? "#38bdf8" : "#0284c7")
+              ctx.fillText(dText, 0, 0)
+              ctx.restore()
+            }
+          }
+
           ctx.restore()
         }
       }
@@ -4954,7 +5105,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
     // C. LIVE PREVIEW TAHAP 3 KASIR: TARIK KEDALAMAN KE DALAM RUANGAN (3-KLIK KASIR)
     if (pendingCashierDepth) {
-      const { depthM, lengthM, pathPoints, p1, p2 } = pendingCashierDepth
+      const { depthM, lengthM, pathPoints, p1, p2, inNorm } = pendingCashierDepth
       const ptsChain = pathPoints && pathPoints.length >= 2 ? pathPoints : [p1, p2]
       const zonePoly = getCashierZonePolygon(ptsChain, depthM, customPts)
       const canvasPoly = zonePoly.map((p) => toC(p))
@@ -4962,7 +5113,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       if (canvasPoly.length >= 3) {
         ctx.save()
 
-        // Fill Box
+        // 1. Fill Box
         ctx.beginPath()
         ctx.moveTo(canvasPoly[0].cx, canvasPoly[0].cy)
         for (let k = 1; k < canvasPoly.length; k++) {
@@ -4972,7 +5123,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.28)" : "rgba(245, 158, 11, 0.20)"
         ctx.fill()
 
-        // Hatch
+        // 2. Hatch
         ctx.save()
         ctx.clip()
         ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.50)" : "rgba(217, 119, 6, 0.40)"
@@ -4990,7 +5141,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         }
         ctx.restore()
 
-        // Dashed Amber Border
+        // 3. Dashed Amber Border
         ctx.beginPath()
         ctx.moveTo(canvasPoly[0].cx, canvasPoly[0].cy)
         for (let k = 1; k < canvasPoly.length; k++) {
@@ -5003,19 +5154,202 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.stroke()
         ctx.setLineDash([])
 
-        // End nodes along path
-        ptsChain.forEach((pt) => {
-          const cp = toC(pt)
+        // 4. End nodes along polygon
+        canvasPoly.forEach((cp, idx) => {
           ctx.beginPath()
-          ctx.arc(cp.cx, cp.cy, 5, 0, Math.PI * 2)
-          ctx.fillStyle = "#f59e0b"
+          ctx.arc(cp.cx, cp.cy, idx >= 2 ? 6 : 5, 0, Math.PI * 2)
+          ctx.fillStyle = idx >= 2 ? "#fbbf24" : "#f59e0b"
           ctx.fill()
           ctx.strokeStyle = "#ffffff"
           ctx.lineWidth = 1.8
           ctx.stroke()
         })
 
-        // Badge in center
+        // 5. TITIK KE-3 DI DALAM DENAH: GARIS BANTU KOORDINAT 2 SUMBU (ORTHOGONAL X & Y) TEPAT PADA TITIK KE-3 (pt3M)
+        const pt1M = ptsChain[0]
+        const pt2M = ptsChain[ptsChain.length - 1]
+        const pt3M: Point = { x: Number((pt2M.x + depthM * inNorm.nx).toFixed(3)), y: Number((pt2M.y + depthM * inNorm.ny).toFixed(3)) }
+        const pt4M: Point = { x: Number((pt1M.x + depthM * inNorm.nx).toFixed(3)), y: Number((pt1M.y + depthM * inNorm.ny).toFixed(3)) }
+        const cPt3 = toC(pt3M)
+        const innerDistances = getPillarWallDistances(pt3M, customPts)
+        const haloCol = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
+
+        // Fallback bounds jika raycast tepat mengenai tepi / sudut denah
+        const polyMinX = Math.min(...customPts.map((p) => p.x))
+        const polyMaxX = Math.max(...customPts.map((p) => p.x))
+        const polyMinY = Math.min(...customPts.map((p) => p.y))
+        const polyMaxY = Math.max(...customPts.map((p) => p.y))
+
+        const leftDist = innerDistances.left ? innerDistances.left.dist : Math.max(0, Number((pt3M.x - polyMinX).toFixed(2)))
+        const leftWallPt = innerDistances.left ? innerDistances.left.pWall : { x: polyMinX, y: pt3M.y }
+
+        const rightDist = innerDistances.right ? innerDistances.right.dist : Math.max(0, Number((polyMaxX - pt3M.x).toFixed(2)))
+        const rightWallPt = innerDistances.right ? innerDistances.right.pWall : { x: polyMaxX, y: pt3M.y }
+
+        const topDist = innerDistances.bottom ? innerDistances.bottom.dist : Math.max(0, Number((pt3M.y - polyMinY).toFixed(2)))
+        const topWallPt = innerDistances.bottom ? innerDistances.bottom.pWall : { x: pt3M.x, y: polyMinY }
+
+        const bottomDist = innerDistances.top ? innerDistances.top.dist : Math.max(0, Number((polyMaxY - pt3M.y).toFixed(2)))
+        const bottomWallPt = innerDistances.top ? innerDistances.top.pWall : { x: pt3M.x, y: polyMaxY }
+
+        // Guide Kiri (-X) tepat pada Y Titik 3
+        if (leftDist > 0.05) {
+          const cWall = toC(leftWallPt)
+          ctx.save()
+          ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(2, 132, 199, 0.85)"
+          ctx.lineWidth = 1.3
+          ctx.setLineDash([3, 3])
+          ctx.beginPath()
+          ctx.moveTo(cWall.cx, cPt3.cy)
+          ctx.lineTo(cPt3.cx, cPt3.cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          const midX = (cWall.cx + cPt3.cx) / 2
+          const dText = `↔ ${formatDim(leftDist)}m`
+          ctx.font = "bold 8px sans-serif"
+          ctx.textAlign = "center"
+          ctx.textBaseline = "bottom"
+          ctx.lineWidth = 3
+          ctx.lineJoin = "round"
+          ctx.strokeStyle = haloCol
+          ctx.strokeText(dText, midX, cPt3.cy - 3)
+          ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+          ctx.fillText(dText, midX, cPt3.cy - 3)
+          ctx.restore()
+        }
+
+        // Guide Kanan (+X) tepat pada Y Titik 3
+        if (rightDist > 0.05) {
+          const cWall = toC(rightWallPt)
+          ctx.save()
+          ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(2, 132, 199, 0.85)"
+          ctx.lineWidth = 1.3
+          ctx.setLineDash([3, 3])
+          ctx.beginPath()
+          ctx.moveTo(cPt3.cx, cPt3.cy)
+          ctx.lineTo(cWall.cx, cPt3.cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          const midX = (cPt3.cx + cWall.cx) / 2
+          const dText = `↔ ${formatDim(rightDist)}m`
+          ctx.font = "bold 8px sans-serif"
+          ctx.textAlign = "center"
+          ctx.textBaseline = "bottom"
+          ctx.lineWidth = 3
+          ctx.lineJoin = "round"
+          ctx.strokeStyle = haloCol
+          ctx.strokeText(dText, midX, cPt3.cy - 3)
+          ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+          ctx.fillText(dText, midX, cPt3.cy - 3)
+          ctx.restore()
+        }
+
+        // Guide Atas (-Y) tepat pada X Titik 3
+        if (topDist > 0.05) {
+          const cWall = toC(topWallPt)
+          ctx.save()
+          ctx.strokeStyle = effectiveIsDark ? "rgba(52, 211, 153, 0.85)" : "rgba(5, 150, 105, 0.85)"
+          ctx.lineWidth = 1.3
+          ctx.setLineDash([3, 3])
+          ctx.beginPath()
+          ctx.moveTo(cPt3.cx, cWall.cy)
+          ctx.lineTo(cPt3.cx, cPt3.cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          const midY = (cWall.cy + cPt3.cy) / 2
+          const dText = `↕ ${formatDim(topDist)}m`
+          ctx.font = "bold 8px sans-serif"
+          ctx.textAlign = "left"
+          ctx.textBaseline = "middle"
+          ctx.lineWidth = 3
+          ctx.lineJoin = "round"
+          ctx.strokeStyle = haloCol
+          ctx.strokeText(dText, cPt3.cx + 5, midY)
+          ctx.fillStyle = effectiveIsDark ? "#34d399" : "#059669"
+          ctx.fillText(dText, cPt3.cx + 5, midY)
+          ctx.restore()
+        }
+
+        // Guide Bawah (+Y) tepat pada X Titik 3
+        if (bottomDist > 0.05) {
+          const cWall = toC(bottomWallPt)
+          ctx.save()
+          ctx.strokeStyle = effectiveIsDark ? "rgba(52, 211, 153, 0.85)" : "rgba(5, 150, 105, 0.85)"
+          ctx.lineWidth = 1.3
+          ctx.setLineDash([3, 3])
+          ctx.beginPath()
+          ctx.moveTo(cPt3.cx, cPt3.cy)
+          ctx.lineTo(cPt3.cx, cWall.cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          const midY = (cPt3.cy + cWall.cy) / 2
+          const dText = `↕ ${formatDim(bottomDist)}m`
+          ctx.font = "bold 8px sans-serif"
+          ctx.textAlign = "left"
+          ctx.textBaseline = "middle"
+          ctx.lineWidth = 3
+          ctx.lineJoin = "round"
+          ctx.strokeStyle = haloCol
+          ctx.strokeText(dText, cPt3.cx + 5, midY)
+          ctx.fillStyle = effectiveIsDark ? "#34d399" : "#059669"
+          ctx.fillText(dText, cPt3.cx + 5, midY)
+          ctx.restore()
+        }
+
+        // Highlight khusus untuk Titik 3 (Cursor target node)
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(cPt3.cx, cPt3.cy, 7.5, 0, Math.PI * 2)
+        ctx.fillStyle = "#f59e0b"
+        ctx.fill()
+        ctx.strokeStyle = "#ffffff"
+        ctx.lineWidth = 2.5
+        ctx.stroke()
+
+        // Label Titik 3 + Koordinat Floating Badge
+        ctx.font = "bold 8.5px sans-serif"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "bottom"
+        ctx.lineWidth = 3
+        ctx.lineJoin = "round"
+        ctx.strokeStyle = haloCol
+        const t3Badge = `T3 (${formatDim(pt3M.x)}m, ${formatDim(pt3M.y)}m)`
+        ctx.strokeText(t3Badge, cPt3.cx, cPt3.cy - 7)
+        ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
+        ctx.fillText(t3Badge, cPt3.cx, cPt3.cy - 7)
+        ctx.restore()
+
+        // 6. DIMENSI KEDALAMAN (CAD DIMENSION ROTATED PERPENDICULAR)
+        const p2C = toC(pt2M)
+        const p3C = toC(pt3M)
+        const depthAngle = Math.atan2(p3C.cy - p2C.cy, p3C.cx - p2C.cx)
+        let depthTextAngle = depthAngle
+        if (depthTextAngle > Math.PI / 2 || depthTextAngle < -Math.PI / 2) {
+          depthTextAngle += Math.PI
+        }
+
+        const midSideX = (p2C.cx + p3C.cx) / 2
+        const midSideY = (p2C.cy + p3C.cy) / 2
+        ctx.save()
+        ctx.translate(midSideX, midSideY)
+        ctx.rotate(depthTextAngle)
+        ctx.font = "bold 8.5px sans-serif"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "bottom"
+        ctx.lineWidth = 3
+        ctx.lineJoin = "round"
+        ctx.strokeStyle = haloCol
+        const depthTag = `↕ ${formatDim(depthM)}m (Kedalaman)`
+        ctx.strokeText(depthTag, 0, -3)
+        ctx.fillStyle = "#f59e0b"
+        ctx.fillText(depthTag, 0, -3)
+        ctx.restore()
+
+        // 7. Badge in center of box
         const midX = canvasPoly.reduce((sum, p) => sum + p.cx, 0) / canvasPoly.length
         const midY = canvasPoly.reduce((sum, p) => sum + p.cy, 0) / canvasPoly.length
         ctx.font = "bold 9.5px sans-serif"
@@ -5259,7 +5593,142 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         }
       } else {
         ctx.save()
-        if (canvasPts.length > 0) {
+        if (segIdxA === segIdxB) {
+          const seg = wallSegments.find((w) => w.index === segIdxA)
+          if (seg) {
+            const p1C = toC(seg.p1)
+            const p2C = toC(seg.p2)
+            const inNorm = getWallInwardNormal(seg.p1, seg.p2, customPts)
+            const dxW = p2C.cx - p1C.cx
+            const dyW = p2C.cy - p1C.cy
+            const wallPxLen = Math.hypot(dxW, dyW) || 1
+            const uX = dxW / wallPxLen
+            const uY = dyW / wallPxLen
+
+            const wallAngle = Math.atan2(dyW, dxW)
+            let textAngle = wallAngle
+            if (textAngle > Math.PI / 2 || textAngle < -Math.PI / 2) {
+              textAngle += Math.PI
+            }
+
+            const dimOffset = Math.max(22, 0.45 * sc.scale)
+            const normX = inNorm.nx
+            const normY = inNorm.ny
+
+            const t1 = Math.min(tA, tB)
+            const t2 = Math.max(tA, tB)
+            const ptMinM: Point = {
+              x: Number((seg.p1.x + t1 * (seg.p2.x - seg.p1.x)).toFixed(3)),
+              y: Number((seg.p1.y + t1 * (seg.p2.y - seg.p1.y)).toFixed(3)),
+            }
+            const ptMaxM: Point = {
+              x: Number((seg.p1.x + t2 * (seg.p2.x - seg.p1.x)).toFixed(3)),
+              y: Number((seg.p1.y + t2 * (seg.p2.y - seg.p1.y)).toFixed(3)),
+            }
+            const cpMin = toC(ptMinM)
+            const cpMax = toC(ptMaxM)
+
+            // 4 Titik Rantai Dimensi: [p1, ptMin, ptMax, p2]
+            const chainPoints = [
+              { orig: p1C, dim: { cx: p1C.cx + normX * dimOffset, cy: p1C.cy + normY * dimOffset }, ratio: 0 },
+              { orig: cpMin, dim: { cx: cpMin.cx + normX * dimOffset, cy: cpMin.cy + normY * dimOffset }, ratio: t1 },
+              { orig: cpMax, dim: { cx: cpMax.cx + normX * dimOffset, cy: cpMax.cy + normY * dimOffset }, ratio: t2 },
+              { orig: p2C, dim: { cx: p2C.cx + normX * dimOffset, cy: p2C.cy + normY * dimOffset }, ratio: 1.0 },
+            ]
+
+            // 1. Witness Lines
+            ctx.strokeStyle = effectiveIsDark ? "rgba(249, 115, 22, 0.45)" : "rgba(234, 88, 12, 0.45)"
+            ctx.lineWidth = 0.9
+            ctx.setLineDash([2, 2])
+            chainPoints.forEach((cp) => {
+              ctx.beginPath()
+              ctx.moveTo(cp.orig.cx, cp.orig.cy)
+              ctx.lineTo(cp.dim.cx, cp.dim.cy)
+              ctx.stroke()
+            })
+            ctx.setLineDash([])
+
+            // 2. Garis Dimensi Kontinu Penuh Spanning P1 -> P2
+            ctx.strokeStyle = toolColor
+            ctx.lineWidth = 1.4
+            ctx.beginPath()
+            ctx.moveTo(chainPoints[0].dim.cx, chainPoints[0].dim.cy)
+            ctx.lineTo(chainPoints[3].dim.cx, chainPoints[3].dim.cy)
+            ctx.stroke()
+
+            // 3. 45° Slash Ticks
+            const slashLen = 4.5
+            const slashUx = (uX + normX) * 0.7071
+            const slashUy = (uY + normY) * 0.7071
+            chainPoints.forEach((cp, idx) => {
+              const isSelectedEdge = idx === 1 || idx === 2
+              ctx.beginPath()
+              ctx.moveTo(cp.dim.cx - slashUx * slashLen, cp.dim.cy - slashUy * slashLen)
+              ctx.lineTo(cp.dim.cx + slashUx * slashLen, cp.dim.cy + slashUy * slashLen)
+              ctx.strokeStyle = isSelectedEdge ? toolColor : (effectiveIsDark ? "#38bdf8" : "#0284c7")
+              ctx.lineWidth = isSelectedEdge ? 2 : 1.4
+              ctx.stroke()
+
+              // Center dot
+              ctx.beginPath()
+              ctx.arc(cp.dim.cx, cp.dim.cy, isSelectedEdge ? 2.5 : 1.8, 0, Math.PI * 2)
+              ctx.fillStyle = isSelectedEdge ? toolColor : (effectiveIsDark ? "#38bdf8" : "#0284c7")
+              ctx.fill()
+            })
+
+            // 4. Teks Dimensi Rotated Sesuai Sudut Dinding
+            const haloGuideCol = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
+            for (let k = 0; k < chainPoints.length - 1; k++) {
+              const cA = chainPoints[k]
+              const cB = chainPoints[k + 1]
+              const segDistM = Number(((cB.ratio - cA.ratio) * seg.lengthM).toFixed(2))
+
+              if (segDistM > 0.05) {
+                const midX = (cA.dim.cx + cB.dim.cx) / 2
+                const midY = (cA.dim.cy + cB.dim.cy) / 2
+
+                ctx.save()
+                ctx.translate(midX, midY)
+                ctx.rotate(textAngle)
+
+                const isMiddleSelected = k === 1
+                const dText = isMiddleSelected
+                  ? `${formatDim(segDistM)}m (${activeTool === "DOOR" ? "PINTU/KACA" : "KASIR"})`
+                  : `${formatDim(segDistM)}m`
+
+                ctx.font = isMiddleSelected ? "bold 8.5px sans-serif" : "bold 8px sans-serif"
+                ctx.textAlign = "center"
+                ctx.textBaseline = "middle"
+                ctx.lineWidth = 3
+                ctx.lineJoin = "round"
+                ctx.strokeStyle = haloGuideCol
+                ctx.strokeText(dText, 0, 0)
+                ctx.fillStyle = isMiddleSelected ? toolColor : (effectiveIsDark ? "#fb923c" : "#ea580c")
+                ctx.fillText(dText, 0, 0)
+                ctx.restore()
+              }
+            }
+
+            // Active highlighted span along the wall
+            ctx.strokeStyle = toolColor
+            ctx.lineWidth = 5
+            ctx.beginPath()
+            ctx.moveTo(cpMin.cx, cpMin.cy)
+            ctx.lineTo(cpMax.cx, cpMax.cy)
+            ctx.stroke()
+
+            // End node dots for point 1 and point 2
+            ;[cpMin, cpMax].forEach((cp) => {
+              ctx.beginPath()
+              ctx.arc(cp.cx, cp.cy, 6, 0, Math.PI * 2)
+              ctx.fillStyle = toolColor
+              ctx.fill()
+              ctx.strokeStyle = "#ffffff"
+              ctx.lineWidth = 2
+              ctx.stroke()
+            })
+          }
+        } else if (canvasPts.length > 0) {
           ctx.beginPath()
           ctx.moveTo(canvasPts[0].cx, canvasPts[0].cy)
           for (let i = 1; i < canvasPts.length; i++) {
@@ -5298,6 +5767,196 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         }
         ctx.restore()
       }
+    }
+
+    // ── 4E. LIVE GHOST PREVIEW & ORTHOGONAL GUIDES UNTUK TOOL PILAR (COLUMN) ──
+    if (activeTool === "COLUMN" && cursorPos && customClosed && customPts.length >= 3 && activeDragIdx === null && activeDragPillarId === null) {
+      const mx = cursorPos.mx
+      const my = cursorPos.my
+      const isInside = isPointInsidePolygon({ x: mx, y: my }, customPts)
+
+      const colW_M = parseFloat(pillarWidthInput) || pillarSizeM
+      const colL_M = parseFloat(pillarLengthInput) || pillarSizeM
+      const halfW = colW_M / 2
+      const halfL = colL_M / 2
+
+      const pTopLeft = toC({ x: mx - halfW, y: my - halfL })
+      const pBottomRight = toC({ x: mx + halfW, y: my + halfL })
+      const pCenter = toC({ x: mx, y: my })
+      const colW = Math.max(8, Math.abs(pBottomRight.cx - pTopLeft.cx))
+      const colH = Math.max(8, Math.abs(pBottomRight.cy - pTopLeft.cy))
+
+      ctx.save()
+
+      // 1. Fill Ghost Pilar
+      ctx.fillStyle = isInside
+        ? (effectiveIsDark ? "rgba(56, 189, 248, 0.25)" : "rgba(2, 132, 199, 0.20)")
+        : "rgba(239, 68, 68, 0.20)"
+      ctx.fillRect(pTopLeft.cx, pTopLeft.cy, colW, colH)
+
+      // 2. Concrete Hatching
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(pTopLeft.cx, pTopLeft.cy, colW, colH)
+      ctx.clip()
+      ctx.strokeStyle = isInside
+        ? (effectiveIsDark ? "rgba(56, 189, 248, 0.40)" : "rgba(2, 132, 199, 0.35)")
+        : "rgba(239, 68, 68, 0.40)"
+      ctx.lineWidth = 0.8
+      for (let off = -colH - colW; off < colH + colW; off += 5) {
+        ctx.beginPath()
+        ctx.moveTo(pTopLeft.cx + off, pTopLeft.cy)
+        ctx.lineTo(pTopLeft.cx + off + colH, pTopLeft.cy + colH)
+        ctx.stroke()
+      }
+      ctx.restore()
+
+      // 3. Dashed Border
+      ctx.strokeStyle = isInside ? (effectiveIsDark ? "#38bdf8" : "#0284c7") : "#ef4444"
+      ctx.lineWidth = 1.8
+      ctx.setLineDash([4, 3])
+      ctx.strokeRect(pTopLeft.cx, pTopLeft.cy, colW, colH)
+      ctx.setLineDash([])
+
+      // 4. Label Pilar Ghost
+      const haloCol = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
+      ctx.font = "bold 8.5px sans-serif"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.lineWidth = 2.5
+      ctx.strokeStyle = haloCol
+      const ghostLabel = `+ P${pillars.length + 1}`
+      ctx.strokeText(ghostLabel, pCenter.cx, pCenter.cy)
+      ctx.fillStyle = isInside ? (effectiveIsDark ? "#38bdf8" : "#0284c7") : "#ef4444"
+      ctx.fillText(ghostLabel, pCenter.cx, pCenter.cy)
+
+      // 5. Live Dimension Guide Lines to Walls (Orthogonal X & Y)
+      if (isInside) {
+        const distances = getPillarWallDistances({ x: mx, y: my }, customPts)
+
+        // Guide Kiri (-X)
+        if (distances.left) {
+          const cWall = toC(distances.left.pWall)
+          ctx.save()
+          ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(2, 132, 199, 0.85)"
+          ctx.lineWidth = 1.2
+          ctx.setLineDash([3, 3])
+          ctx.beginPath()
+          ctx.moveTo(cWall.cx, pCenter.cy)
+          ctx.lineTo(pTopLeft.cx, pCenter.cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          const midX = (cWall.cx + pTopLeft.cx) / 2
+          const dText = `↔ ${formatDim(distances.left.dist)}m`
+          ctx.font = "bold 7.5px sans-serif"
+          ctx.textAlign = "center"
+          ctx.textBaseline = "bottom"
+          ctx.lineWidth = 2.5
+          ctx.strokeStyle = haloCol
+          ctx.strokeText(dText, midX, pCenter.cy - 2)
+          ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+          ctx.fillText(dText, midX, pCenter.cy - 2)
+          ctx.restore()
+        }
+
+        // Guide Kanan (+X)
+        if (distances.right) {
+          const cWall = toC(distances.right.pWall)
+          ctx.save()
+          ctx.strokeStyle = effectiveIsDark ? "rgba(56, 189, 248, 0.85)" : "rgba(2, 132, 199, 0.85)"
+          ctx.lineWidth = 1.2
+          ctx.setLineDash([3, 3])
+          ctx.beginPath()
+          ctx.moveTo(pBottomRight.cx, pCenter.cy)
+          ctx.lineTo(cWall.cx, pCenter.cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          const midX = (pBottomRight.cx + cWall.cx) / 2
+          const dText = `↔ ${formatDim(distances.right.dist)}m`
+          ctx.font = "bold 7.5px sans-serif"
+          ctx.textAlign = "center"
+          ctx.textBaseline = "bottom"
+          ctx.lineWidth = 2.5
+          ctx.strokeStyle = haloCol
+          ctx.strokeText(dText, midX, pCenter.cy - 2)
+          ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+          ctx.fillText(dText, midX, pCenter.cy - 2)
+          ctx.restore()
+        }
+
+        // Guide Atas (-Y)
+        if (distances.bottom) {
+          const cWall = toC(distances.bottom.pWall)
+          ctx.save()
+          ctx.strokeStyle = effectiveIsDark ? "rgba(52, 211, 153, 0.85)" : "rgba(5, 150, 105, 0.85)"
+          ctx.lineWidth = 1.2
+          ctx.setLineDash([3, 3])
+          ctx.beginPath()
+          ctx.moveTo(pCenter.cx, cWall.cy)
+          ctx.lineTo(pCenter.cx, pTopLeft.cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          const midY = (cWall.cy + pTopLeft.cy) / 2
+          const dText = `↕ ${formatDim(distances.bottom.dist)}m`
+          ctx.font = "bold 7.5px sans-serif"
+          ctx.textAlign = "left"
+          ctx.textBaseline = "middle"
+          ctx.lineWidth = 2.5
+          ctx.strokeStyle = haloCol
+          ctx.strokeText(dText, pCenter.cx + 4, midY)
+          ctx.fillStyle = effectiveIsDark ? "#34d399" : "#059669"
+          ctx.fillText(dText, pCenter.cx + 4, midY)
+          ctx.restore()
+        }
+
+        // Guide Bawah (+Y)
+        if (distances.top) {
+          const cWall = toC(distances.top.pWall)
+          ctx.save()
+          ctx.strokeStyle = effectiveIsDark ? "rgba(52, 211, 153, 0.85)" : "rgba(5, 150, 105, 0.85)"
+          ctx.lineWidth = 1.2
+          ctx.setLineDash([3, 3])
+          ctx.beginPath()
+          ctx.moveTo(pCenter.cx, pBottomRight.cy)
+          ctx.lineTo(pCenter.cx, cWall.cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+
+          const midY = (pBottomRight.cy + cWall.cy) / 2
+          const dText = `↕ ${formatDim(distances.top.dist)}m`
+          ctx.font = "bold 7.5px sans-serif"
+          ctx.textAlign = "left"
+          ctx.textBaseline = "middle"
+          ctx.lineWidth = 2.5
+          ctx.strokeStyle = haloCol
+          ctx.strokeText(dText, pCenter.cx + 4, midY)
+          ctx.fillStyle = effectiveIsDark ? "#34d399" : "#059669"
+          ctx.fillText(dText, pCenter.cx + 4, midY)
+          ctx.restore()
+        }
+
+        // Action badge below ghost pillar
+        ctx.font = "bold 8px sans-serif"
+        ctx.textAlign = "center"
+        ctx.lineWidth = 2.5
+        ctx.strokeStyle = haloCol
+        ctx.strokeText("(Klik untuk pasang pilar)", pCenter.cx, pBottomRight.cy + 11)
+        ctx.fillStyle = effectiveIsDark ? "#38bdf8" : "#0284c7"
+        ctx.fillText("(Klik untuk pasang pilar)", pCenter.cx, pBottomRight.cy + 11)
+      } else {
+        ctx.font = "bold 8px sans-serif"
+        ctx.textAlign = "center"
+        ctx.lineWidth = 2.5
+        ctx.strokeStyle = haloCol
+        ctx.strokeText("(Di luar denah)", pCenter.cx, pBottomRight.cy + 11)
+        ctx.fillStyle = "#ef4444"
+        ctx.fillText("(Di luar denah)", pCenter.cx, pBottomRight.cy + 11)
+      }
+
+      ctx.restore()
     }
 
     // 5. Render Dimensi Bounding Box (LT & PT) - hanya jika bukan mode CAD
@@ -5452,6 +6111,112 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.font = "bold 8.5px sans-serif"
         ctx.fillStyle = isCornerSnap ? "#10b981" : (effectiveIsDark ? "#f97316" : "#c2410c")
         ctx.fillText(hoverLabel, hoverEdge.cx, hoverEdge.cy - 12)
+
+        // ── CONTINUOUS CAD DIMENSION CHAIN UNTUK DOOR & CASHIER (Sesuai Rotasi Dinding) ──
+        if (activeTool === "DOOR" || activeTool === "CASHIER") {
+          const seg = wallSegments.find((w) => w.index === hoverEdge.segmentIdx)
+          if (seg) {
+            const p1C = toC(seg.p1)
+            const p2C = toC(seg.p2)
+            const inNorm = getWallInwardNormal(seg.p1, seg.p2, customPts)
+            const dxW = p2C.cx - p1C.cx
+            const dyW = p2C.cy - p1C.cy
+            const wallPxLen = Math.hypot(dxW, dyW) || 1
+            const uX = dxW / wallPxLen
+            const uY = dyW / wallPxLen
+
+            const wallAngle = Math.atan2(dyW, dxW)
+            let textAngle = wallAngle
+            if (textAngle > Math.PI / 2 || textAngle < -Math.PI / 2) {
+              textAngle += Math.PI
+            }
+
+            const dimOffset = Math.max(22, 0.45 * sc.scale)
+            const normX = inNorm.nx
+            const normY = inNorm.ny
+
+            const hoverPtCanvas = { cx: hoverEdge.cx, cy: hoverEdge.cy }
+
+            // 3 Titik Rantai: [p1, hoverPt, p2]
+            const chainPoints = [
+              { orig: p1C, dim: { cx: p1C.cx + normX * dimOffset, cy: p1C.cy + normY * dimOffset }, ratio: 0 },
+              { orig: hoverPtCanvas, dim: { cx: hoverPtCanvas.cx + normX * dimOffset, cy: hoverPtCanvas.cy + normY * dimOffset }, ratio: hoverEdge.t },
+              { orig: p2C, dim: { cx: p2C.cx + normX * dimOffset, cy: p2C.cy + normY * dimOffset }, ratio: 1.0 },
+            ]
+
+            ctx.save()
+
+            // 1. Witness Lines
+            ctx.strokeStyle = effectiveIsDark ? "rgba(249, 115, 22, 0.45)" : "rgba(234, 88, 12, 0.45)"
+            ctx.lineWidth = 0.9
+            ctx.setLineDash([2, 2])
+            chainPoints.forEach((cp) => {
+              ctx.beginPath()
+              ctx.moveTo(cp.orig.cx, cp.orig.cy)
+              ctx.lineTo(cp.dim.cx, cp.dim.cy)
+              ctx.stroke()
+            })
+            ctx.setLineDash([])
+
+            // 2. Garis Dimensi Kontinu Penuh
+            ctx.strokeStyle = effectiveIsDark ? "#f97316" : "#ea580c"
+            ctx.lineWidth = 1.4
+            ctx.beginPath()
+            ctx.moveTo(chainPoints[0].dim.cx, chainPoints[0].dim.cy)
+            ctx.lineTo(chainPoints[2].dim.cx, chainPoints[2].dim.cy)
+            ctx.stroke()
+
+            // 3. 45° Slash Ticks
+            const slashLen = 4.5
+            const slashUx = (uX + normX) * 0.7071
+            const slashUy = (uY + normY) * 0.7071
+            chainPoints.forEach((cp, idx) => {
+              const isCenter = idx === 1
+              ctx.beginPath()
+              ctx.moveTo(cp.dim.cx - slashUx * slashLen, cp.dim.cy - slashUy * slashLen)
+              ctx.lineTo(cp.dim.cx + slashUx * slashLen, cp.dim.cy + slashUy * slashLen)
+              ctx.strokeStyle = effectiveIsDark ? "#f97316" : "#ea580c"
+              ctx.lineWidth = isCenter ? 2 : 1.4
+              ctx.stroke()
+
+              ctx.beginPath()
+              ctx.arc(cp.dim.cx, cp.dim.cy, isCenter ? 2.5 : 1.8, 0, Math.PI * 2)
+              ctx.fillStyle = effectiveIsDark ? "#f97316" : "#ea580c"
+              ctx.fill()
+            })
+
+            // 4. Teks Dimensi Rotated Sesuai Sudut Dinding
+            const haloGuideCol = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
+            for (let k = 0; k < chainPoints.length - 1; k++) {
+              const cA = chainPoints[k]
+              const cB = chainPoints[k + 1]
+              const segDistM = Number(((cB.ratio - cA.ratio) * seg.lengthM).toFixed(2))
+
+              if (segDistM > 0.05) {
+                const midX = (cA.dim.cx + cB.dim.cx) / 2
+                const midY = (cA.dim.cy + cB.dim.cy) / 2
+
+                ctx.save()
+                ctx.translate(midX, midY)
+                ctx.rotate(textAngle)
+
+                const dText = `${formatDim(segDistM)}m`
+                ctx.font = "bold 8px sans-serif"
+                ctx.textAlign = "center"
+                ctx.textBaseline = "middle"
+                ctx.lineWidth = 3
+                ctx.lineJoin = "round"
+                ctx.strokeStyle = haloGuideCol
+                ctx.strokeText(dText, 0, 0)
+                ctx.fillStyle = effectiveIsDark ? "#fb923c" : "#ea580c"
+                ctx.fillText(dText, 0, 0)
+                ctx.restore()
+              }
+            }
+
+            ctx.restore()
+          }
+        }
       }
       ctx.restore()
     }
@@ -5892,7 +6657,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
       ctx.restore()
     }
-  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions])
+  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions, pillars, selectedPillarId, activeDragPillarId, pillarSizeM, pillarWidthInput, pillarLengthInput, pillarDistXInput, pillarDistYInput, magneticSnapFeedback])
 
   useEffect(() => {
     drawCanvas()
@@ -6523,11 +7288,17 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                                     const num = parseFloat(val)
                                     if (!isNaN(num) && num > 0) {
                                       if (selectedPillarId) {
-                                        handleUpdatePillarDimensions(selectedPillarId, num, parseFloat(pillarLengthInput) || num)
+                                        handleUpdatePillarDimensionsRealtime(selectedPillarId, num, parseFloat(pillarLengthInput) || num)
                                       } else {
                                         setPillarSizeM(num)
                                       }
                                     }
+                                  }}
+                                  onBlur={() => {
+                                    if (selectedPillarId) pushCurrentToHistory()
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && selectedPillarId) pushCurrentToHistory()
                                   }}
                                   className="w-12 h-5 text-[10px] text-center font-mono font-bold bg-background border rounded px-0.5"
                                   title="Panjang Pilar (meter) - Bisa ketik bebas e.g. 0.35, 0.40, 0.75"
@@ -6545,9 +7316,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                                     const num = parseFloat(val)
                                     if (!isNaN(num) && num > 0) {
                                       if (selectedPillarId) {
-                                        handleUpdatePillarDimensions(selectedPillarId, parseFloat(pillarWidthInput) || num, num)
+                                        handleUpdatePillarDimensionsRealtime(selectedPillarId, parseFloat(pillarWidthInput) || num, num)
                                       }
                                     }
+                                  }}
+                                  onBlur={() => {
+                                    if (selectedPillarId) pushCurrentToHistory()
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && selectedPillarId) pushCurrentToHistory()
                                   }}
                                   className="w-12 h-5 text-[10px] text-center font-mono font-bold bg-background border rounded px-0.5"
                                   title="Lebar Pilar (meter) - Bisa ketik bebas e.g. 0.35, 0.40, 0.75"
@@ -6561,27 +7338,26 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                                   <span className="text-muted-foreground/50 text-[10px]">|</span>
                                   <div className="flex items-center gap-1 text-[10.5px]">
                                     {selectedPillarDistances.left && (
-                                      <div className="flex items-center gap-0.5" title="Ketik jarak dari Dinding Kiri (meter) lalu tekan Enter">
+                                      <div className="flex items-center gap-0.5" title="Jarak dari Dinding Kiri (meter) - Realtime">
                                         <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400">↔</span>
                                         <input
                                           type="number"
                                           step="0.1"
                                           min="0"
-                                          defaultValue={selectedPillarDistances.left.dist}
-                                          key={`left-${selectedPillar.id}-${selectedPillarDistances.left.dist}`}
-                                          onBlur={(e) => {
-                                            const num = parseFloat(e.target.value)
-                                            if (!isNaN(num) && num >= 0) {
-                                              handleUpdatePillarDistanceX(selectedPillar.id, num)
+                                          value={pillarDistXInput}
+                                          onChange={(e) => {
+                                            const val = e.target.value
+                                            setPillarDistXInput(val)
+                                            const num = parseFloat(val)
+                                            if (!isNaN(num) && num >= 0 && selectedPillar) {
+                                              handleUpdatePillarDistanceXRealtime(selectedPillar.id, num)
                                             }
                                           }}
+                                          onBlur={() => {
+                                            if (selectedPillar) pushCurrentToHistory()
+                                          }}
                                           onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                              const num = parseFloat((e.target as HTMLInputElement).value)
-                                              if (!isNaN(num) && num >= 0) {
-                                                handleUpdatePillarDistanceX(selectedPillar.id, num)
-                                              }
-                                            }
+                                            if (e.key === "Enter" && selectedPillar) pushCurrentToHistory()
                                           }}
                                           className="w-12 h-5 text-[10px] text-center font-mono font-bold bg-background border border-sky-500/40 rounded px-0.5 text-sky-700 dark:text-sky-300"
                                         />
@@ -6590,27 +7366,26 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                                     )}
 
                                     {selectedPillarDistances.bottom && (
-                                      <div className="flex items-center gap-0.5" title="Ketik jarak dari Dinding Depan/Bawah (meter) lalu tekan Enter">
+                                      <div className="flex items-center gap-0.5" title="Jarak dari Dinding Depan/Bawah (meter) - Realtime">
                                         <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">↕</span>
                                         <input
                                           type="number"
                                           step="0.1"
                                           min="0"
-                                          defaultValue={selectedPillarDistances.bottom.dist}
-                                          key={`bottom-${selectedPillar.id}-${selectedPillarDistances.bottom.dist}`}
-                                          onBlur={(e) => {
-                                            const num = parseFloat(e.target.value)
-                                            if (!isNaN(num) && num >= 0) {
-                                              handleUpdatePillarDistanceY(selectedPillar.id, num)
+                                          value={pillarDistYInput}
+                                          onChange={(e) => {
+                                            const val = e.target.value
+                                            setPillarDistYInput(val)
+                                            const num = parseFloat(val)
+                                            if (!isNaN(num) && num >= 0 && selectedPillar) {
+                                              handleUpdatePillarDistanceYRealtime(selectedPillar.id, num)
                                             }
                                           }}
+                                          onBlur={() => {
+                                            if (selectedPillar) pushCurrentToHistory()
+                                          }}
                                           onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                              const num = parseFloat((e.target as HTMLInputElement).value)
-                                              if (!isNaN(num) && num >= 0) {
-                                                handleUpdatePillarDistanceY(selectedPillar.id, num)
-                                              }
-                                            }
+                                            if (e.key === "Enter" && selectedPillar) pushCurrentToHistory()
                                           }}
                                           className="w-12 h-5 text-[10px] text-center font-mono font-bold bg-background border border-emerald-500/40 rounded px-0.5 text-emerald-700 dark:text-emerald-300"
                                         />
