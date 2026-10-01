@@ -46,6 +46,8 @@ import { AcMappingResultCard, type AcMappingResultCardData } from "@/components/
 import { CadImportDialog } from "@/components/cad/cad-import-dialog"
 import type { ParsedCadStoreData } from "@/lib/cad/dxf-parser"
 import type { StoreData } from "@/app/audit/start/start-client"
+import { optimizeAcPlacements } from "@/lib/ac-placement-optimizer"
+
 
 interface AcMappingClientProps {
   stores: StoreData[]
@@ -105,7 +107,7 @@ interface SnapGuide {
   refNodeIdx: number
 }
 
-interface WallSegment {
+export interface WallSegment {
   index: number
   startIndex: number
   endIndex: number
@@ -115,13 +117,14 @@ interface WallSegment {
   type: WallType
 }
 
-interface PlacedAcUnit {
+export interface PlacedAcUnit {
   id: string
   wallIndex: number
   ratio: number // 0.0 - 1.0 along wall segment
   customName: string
   wallLabel: string
 }
+
 
 function getClosestPointOnSegment(
   px: number, py: number,
@@ -960,14 +963,27 @@ export function checkAcPlacementValidation(
 ): { isValid: boolean; reason?: string } {
   const wall = wallSegments.find(w => w.index === wallIndex)
   if (!wall) return { isValid: false, reason: "Dinding tidak ditemukan" }
+
+  const wallLen = wall.lengthM || 1
+  const halfWidthT = (AC_INDOOR_WIDTH_M / 2) / wallLen
+  const acStartT = ratio - halfWidthT
+  const acEndT = ratio + halfWidthT
+
+  // Cek apakah bodi fisik AC keluar dari ujung/sudut dinding
+  if (acStartT < -0.01 || acEndT > 1.01) {
+    return { isValid: false, reason: "Bodi fisik AC (1.05m) menabrak sudut dinding" }
+  }
+
   const forbidden = getWallForbiddenIntervals(wall, cadData)
   for (const f of forbidden) {
-    if (ratio >= f.minT && ratio <= f.maxT) {
+    // Cek tabrakan fisik jika rentang bodi AC bertumpukan dengan zona terlarang
+    if (acEndT > f.minT + 0.005 && acStartT < f.maxT - 0.005) {
       return { isValid: false, reason: f.reason }
     }
   }
   return { isValid: true }
 }
+
 
 export interface ValidWallSpan {
   wallIndex: number
@@ -1896,56 +1912,28 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return
     }
 
-    const newUnits: PlacedAcUnit[] = []
-
-    // 1. Alokasi kuantitas unit ke bentang-bentang dinding yang valid berdasarkan proporsi panjangnya
-    const sortedSpans = [...validSpans].sort((a, b) => b.lengthM - a.lengthM)
-    const spanUnitCounts = new Map<number, number>()
-    validSpans.forEach((_, idx) => spanUnitCounts.set(idx, 0))
-
-    for (let i = 0; i < n; i++) {
-      let bestSpanIdx = 0
-      let minDensity = Infinity
-      sortedSpans.forEach((span) => {
-        const spanIdx = validSpans.indexOf(span)
-        const count = spanUnitCounts.get(spanIdx) || 0
-        const density = (count + 1) / span.lengthM
-        if (density < minDensity) {
-          minDensity = density
-          bestSpanIdx = spanIdx
-        }
-      })
-      spanUnitCounts.set(bestSpanIdx, (spanUnitCounts.get(bestSpanIdx) || 0) + 1)
-    }
-
-    // 2. Tempatkan unit pada setiap bentang bebas rintangan dengan posisi simetris
-    let unitIndex = 1
-    validSpans.forEach((span, spanIdx) => {
-      const count = spanUnitCounts.get(spanIdx) || 0
-      if (count === 0) return
-
-      const spanTRange = span.endT - span.startT
-      const wall = span.wall
-
-      for (let slot = 0; slot < count; slot++) {
-        // Pembagian rata di dalam span
-        const rawLocalRatio = (slot + 1) / (count + 1)
-        const globalRatio = Number((span.startT + rawLocalRatio * spanTRange).toFixed(3))
-
-        newUnits.push({
-          id: `ac-unit-${unitIndex}`,
-          wallIndex: span.wallIndex,
-          ratio: globalRatio,
-          customName: `Daikin 2 PK #${unitIndex}`,
-          wallLabel: `Dinding T${wall.startIndex + 1} - T${wall.endIndex + 1}`,
-        })
-        unitIndex++
-      }
+    // 2D Spatial & Aesthetic Optimal AC Placement Engine (Coverage Maximization & SOP Protected)
+    const newUnits = optimizeAcPlacements({
+      customPts,
+      wallSegments,
+      validSpans,
+      targetCount: n,
+      cadData: activeCadMetadata,
+      throwRadiusM: THROW_Z3_M,
+      spreadAngleDeg: SPREAD_ANGLE_DEG,
     })
+
+    if (newUnits.length === 0) {
+      toast.error("Gagal menentukan posisi AC yang valid. Pastikan ada dinding solid yang cukup.")
+      return
+    }
 
     setPlacedUnits(newUnits)
     setIsCalculated(true)
-    toast.success(`Berhasil menghitung (${maxTemp}°C / ${clusterBtu} BTU/m²) & memetakan ${n} Unit AC Daikin 2 PK di zona aman SOP!`)
+    setActiveTool("DRAW")
+    setPendingZoneStart(null)
+    setPendingCashierDepth(null)
+    toast.success(`Berhasil menghitung (${maxTemp}°C / ${clusterBtu} BTU/m²) & memetakan ${n} Unit AC Daikin 2 PK dengan cakupan optimal & estetika seimbang!`)
   }
 
   // ─── 11. Canvas Pointer Interactions (Drag, Snap & 2-Click Zone Marking) ───
@@ -1962,8 +1950,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     const offX = sc ? sc.offX : FIXED_OX
     const offY = sc ? sc.offY : FIXED_OY
 
-    // 1. PRIORITAS: Cek jika klik pada Unit AC Terpasang (Bisa digeser di tool DRAW)
-    if (activeTool === "DRAW" && isCalculated && placedUnits.length > 0) {
+    // 1. PRIORITAS: Cek jika klik pada Unit AC Terpasang (Bisa langsung digeser)
+    if (isCalculated && placedUnits.length > 0) {
       for (let i = 0; i < placedUnits.length; i++) {
         const u = placedUnits[i]
         const wall = wallSegments.find((w) => w.index === u.wallIndex)
@@ -1982,6 +1970,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           }
         }
       }
+
 
       // JIKA HASIL AC AKTIF & KLIK DI LUAR UNIT AC -> DENAH TERKUNCI!
       const spts = customPts.map((pt) => ({
@@ -2811,7 +2800,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return
     }
 
-    // 1B. DRAGGING PLACED AC HANDLER (Menggeser AC di sepanjang dinding)
+    // 1B. DRAGGING PLACED AC HANDLER (Menggeser AC di sepanjang dinding dengan proteksi fisik bodi AC)
     if (activeDragAcId !== null) {
       setPlacedUnits((prev) =>
         prev.map((unit) => {
@@ -2823,14 +2812,35 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           const p2 = { cx: offX + wall.p2.x * scale, cy: offY + wall.p2.y * scale }
           const proj = getClosestPointOnSegment(cx, cy, p1.cx, p1.cy, p2.cx, p2.cy)
 
+          const wallLen = wall.lengthM || 1
+          const halfWidthT = (AC_INDOOR_WIDTH_M / 2) / wallLen
+          const minT = Math.min(0.5, Math.max(0.01, halfWidthT))
+          const maxT = Math.max(0.5, Math.min(0.99, 1 - halfWidthT))
+
+          let targetT = Math.min(maxT, Math.max(minT, proj.t))
+
+          // Cek tabrakan fisik bodi AC (1.05m) dengan zona terlarang (Chiller / Kasir / Pintu)
+          const forbidden = getWallForbiddenIntervals(wall, activeCadMetadata)
+          for (const f of forbidden) {
+            const forbiddenMinWithBody = Math.max(0, f.minT - halfWidthT)
+            const forbiddenMaxWithBody = Math.min(1, f.maxT + halfWidthT)
+
+            if (targetT > forbiddenMinWithBody && targetT < forbiddenMaxWithBody) {
+              const distToMin = Math.abs(targetT - forbiddenMinWithBody)
+              const distToMax = Math.abs(targetT - forbiddenMaxWithBody)
+              targetT = distToMin <= distToMax ? forbiddenMinWithBody : forbiddenMaxWithBody
+            }
+          }
+
           return {
             ...unit,
-            ratio: Math.min(0.95, Math.max(0.05, Number(proj.t.toFixed(3)))),
+            ratio: Number(targetT.toFixed(3)),
           }
         })
       )
       return
     }
+
 
     // 2. DRAGGING WHOLE FIXED SEGMENT (Pintu P1 atau Chiller - Geser Kedua Titik Bersamaan)
     if (activeDragSegmentIdx !== null && dragSegmentSnapshotRef.current) {
@@ -5482,10 +5492,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         ctx.translate(cAcX, cAcY)
         ctx.rotate(wallAngle)
 
-        const unitL = 30 // Panjang body AC sejajar dinding
-        const unitD = 13 // Ketebalan body AC tegak lurus dinding
+        const unitL = Math.max(26, AC_INDOOR_WIDTH_M * sc.scale) // Panjang bodi fisik AC 1.05m (Daikin 2 PK presisi skala)
+        const unitD = Math.max(10, 0.32 * sc.scale)             // Tebal fisik bodi ~32cm
 
         if (isDraggingThisAc) {
+
           ctx.shadowColor = isForbidden ? "#ef4444" : "#38bdf8"
           ctx.shadowBlur = 12
         }
