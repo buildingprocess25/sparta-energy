@@ -2052,8 +2052,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             offsetY: pMy - p.y,
           }
           try {
-            ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-          } catch {}
+            ; (e.target as HTMLElement).setPointerCapture(e.pointerId)
+          } catch { }
           return
         }
       }
@@ -3233,8 +3233,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     // Selesai drag pilar
     if (activeDragPillarId !== null) {
       try {
-        ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
-      } catch {}
+        ; (e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      } catch { }
       setActiveDragPillarId(null)
       toast.info("Posisi pilar berhasil disesuaikan!")
     }
@@ -4647,7 +4647,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
         const cpts = poly.map((p) => toC(p))
         if (cpts.length >= 3) {
           ctx.save()
-          
+
           // 1. Pilar 2D Body (Concrete fill)
           ctx.beginPath()
           ctx.moveTo(cpts[0].cx, cpts[0].cy)
@@ -5717,16 +5717,16 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             ctx.lineTo(cpMax.cx, cpMax.cy)
             ctx.stroke()
 
-            // End node dots for point 1 and point 2
-            ;[cpMin, cpMax].forEach((cp) => {
-              ctx.beginPath()
-              ctx.arc(cp.cx, cp.cy, 6, 0, Math.PI * 2)
-              ctx.fillStyle = toolColor
-              ctx.fill()
-              ctx.strokeStyle = "#ffffff"
-              ctx.lineWidth = 2
-              ctx.stroke()
-            })
+              // End node dots for point 1 and point 2
+              ;[cpMin, cpMax].forEach((cp) => {
+                ctx.beginPath()
+                ctx.arc(cp.cx, cp.cy, 6, 0, Math.PI * 2)
+                ctx.fillStyle = toolColor
+                ctx.fill()
+                ctx.strokeStyle = "#ffffff"
+                ctx.lineWidth = 2
+                ctx.stroke()
+              })
           }
         } else if (canvasPts.length > 0) {
           ctx.beginPath()
@@ -6033,14 +6033,14 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       ctx.fillStyle = isSelected
         ? "rgba(239,68,68,0.3)"
         : (isCorner
-            ? (i === 0 ? "rgba(245,158,11,0.5)" : (effectiveIsDark ? "rgba(56,189,248,0.25)" : "rgba(2,132,199,0.15)"))
-            : (effectiveIsDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.1)"))
+          ? (i === 0 ? "rgba(245,158,11,0.5)" : (effectiveIsDark ? "rgba(56,189,248,0.25)" : "rgba(2,132,199,0.15)"))
+          : (effectiveIsDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.1)"))
       ctx.fill()
       ctx.strokeStyle = isSelected
         ? "#ef4444"
         : (isCorner
-            ? (i === 0 ? "#f59e0b" : (effectiveIsDark ? "rgba(56,189,248,0.7)" : "rgba(2,132,199,0.6)"))
-            : (effectiveIsDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)"))
+          ? (i === 0 ? "#f59e0b" : (effectiveIsDark ? "rgba(56,189,248,0.7)" : "rgba(2,132,199,0.6)"))
+          : (effectiveIsDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)"))
       ctx.lineWidth = isSelected ? 2.5 : (isCorner ? 1.2 : 0.8)
       ctx.stroke()
 
@@ -6875,8 +6875,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
               type="button"
               onClick={() => setStoreMode("existing")}
               className={`flex-1 rounded-md py-1.5 text-xs font-bold transition-all cursor-pointer ${storeMode === "existing"
-                  ? "bg-background text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
                 }`}
             >
               Toko Terdaftar
@@ -6885,8 +6885,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
               type="button"
               onClick={() => setStoreMode("new")}
               className={`flex-1 rounded-md py-1.5 text-xs font-bold transition-all cursor-pointer ${storeMode === "new"
-                  ? "bg-background text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
                 }`}
             >
               Toko Baru
@@ -7121,8 +7121,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                             setPendingCashierDepth(null)
                           }}
                           className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR"
-                              ? "bg-orange-500 text-white"
-                              : "border-orange-500/40 text-orange-600 dark:text-orange-400 bg-orange-500/10"
+                            ? "bg-orange-500 text-white"
+                            : "border-orange-500/40 text-orange-600 dark:text-orange-400 bg-orange-500/10"
                             }`}
                           title="Dinding Pintu / Kaca (2-Klik Rentang Bebas)"
                         >
@@ -7138,8 +7138,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                             setPendingCashierDepth(null)
                           }}
                           className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR_MAIN"
-                              ? "bg-amber-600 text-white"
-                              : "border-amber-600/40 text-amber-600 dark:text-amber-400 bg-amber-600/10"
+                            ? "bg-amber-600 text-white"
+                            : "border-amber-600/40 text-amber-600 dark:text-amber-400 bg-amber-600/10"
                             }`}
                           title="Pintu Utama (2 Daun - Lebar 1.8m Baku)"
                         >
@@ -7155,8 +7155,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                             setPendingCashierDepth(null)
                           }}
                           className={`h-7 text-xs font-bold gap-1 ${activeTool === "DOOR_P1"
-                              ? "bg-rose-600 text-white"
-                              : "border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/10"
+                            ? "bg-rose-600 text-white"
+                            : "border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/10"
                             }`}
                           title="Pintu P1 Gudang (1 Daun - Lebar 1.0m Baku)"
                         >
@@ -7172,8 +7172,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                             setPendingCashierDepth(null)
                           }}
                           className={`h-7 text-xs font-bold gap-1 ${activeTool === "CASHIER"
-                              ? "bg-amber-500 text-white"
-                              : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                            ? "bg-amber-500 text-white"
+                            : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
                             }`}
                           title="Area Meja Kasir (2-Klik Sudut / 3-Klik Kedalaman Bebas)"
                         >
@@ -7190,8 +7190,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                               setPendingCashierDepth(null)
                             }}
                             className={`h-7 text-xs font-bold gap-1 ${activeTool === "CHILLER"
-                                ? "bg-cyan-500 text-white"
-                                : "border-cyan-500/40 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
+                              ? "bg-cyan-500 text-white"
+                              : "border-cyan-500/40 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
                               }`}
                             title={`Chiller Open Multi-Deck (1 - ${maxChillerUnits} Unit @ 1.2m, Kedalaman 0.8m)`}
                           >
@@ -7234,11 +7234,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                               setPendingZoneStart(null)
                               setPendingCashierDepth(null)
                             }}
-                            className={`h-7 text-xs font-bold gap-1 ${
-                              activeTool === "COLUMN"
+                            className={`h-7 text-xs font-bold gap-1 ${activeTool === "COLUMN"
                                 ? "bg-slate-700 text-white dark:bg-slate-600"
                                 : "border-slate-500/40 text-slate-700 dark:text-slate-300 bg-slate-500/10"
-                            }`}
+                              }`}
                             title="Tambah Kolom / Pilar Beton (Tap di dalam denah, geser untuk mengatur posisi)"
                           >
                             <IconColumns className="size-3.5" /> Pilar ({Math.round(pillarSizeM * 100)}cm)
@@ -7260,11 +7259,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                                         handleUpdatePillarSize(selectedPillarId, s)
                                       }
                                     }}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
-                                      (selectedPillar ? selectedPillar.widthM === s && selectedPillar.lengthM === s : pillarSizeM === s)
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${(selectedPillar ? selectedPillar.widthM === s && selectedPillar.lengthM === s : pillarSizeM === s)
                                         ? "bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900"
                                         : "bg-background/80 hover:bg-background text-muted-foreground"
-                                    }`}
+                                      }`}
                                   >
                                     {Math.round(s * 100)}cm
                                   </button>
@@ -7450,11 +7448,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       <button
                         type="button"
                         onClick={() => setShowZoneLabels((v) => !v)}
-                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${
-                          showZoneLabels
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${showZoneLabels
                             ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 shadow-xs"
                             : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
-                        }`}
+                          }`}
                         title="Tampilkan / Sembunyikan Nama Area (Kasir, Chiller, Pintu, Kolom)"
                       >
                         <span>🏷️</span>
@@ -7465,11 +7462,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       <button
                         type="button"
                         onClick={() => setShowWallDimensions((v) => !v)}
-                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${
-                          showWallDimensions
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${showWallDimensions
                             ? "bg-sky-500/15 border-sky-500/40 text-sky-700 dark:text-sky-300 shadow-xs"
                             : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
-                        }`}
+                          }`}
                         title="Tampilkan / Sembunyikan Garis Ukuran Dinding & Jarak As AC"
                       >
                         <span>📐</span>
@@ -7480,11 +7476,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       <button
                         type="button"
                         onClick={() => setShowTotalDimensions((v) => !v)}
-                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${
-                          showTotalDimensions
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${showTotalDimensions
                             ? "bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300 shadow-xs"
                             : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
-                        }`}
+                          }`}
                         title="Tampilkan / Sembunyikan Garis Dimensi Luar Panjang Total (PT) & Lebar Total (LT)"
                       >
                         <span>📏</span>
@@ -7518,8 +7513,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     onPointerUp={handleCanvasPointerUp}
                     onPointerLeave={handleCanvasPointerLeave}
                     className={`w-full h-full touch-none select-none block ${activeDragAcId !== null || activeDragIdx !== null
-                        ? "cursor-grabbing"
-                        : "cursor-crosshair"
+                      ? "cursor-grabbing"
+                      : "cursor-crosshair"
                       }`}
                     style={{ height: `${CANVAS_H}px` }}
                   />
@@ -7553,8 +7548,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       size="sm"
                       variant={selectedNodeIdx !== null ? "destructive" : "outline"}
                       className={`h-7 text-[11px] font-semibold transition-all ${selectedNodeIdx !== null
-                          ? "shadow-sm animate-in fade-in"
-                          : "opacity-50 cursor-not-allowed text-muted-foreground"
+                        ? "shadow-sm animate-in fade-in"
+                        : "opacity-50 cursor-not-allowed text-muted-foreground"
                         }`}
                       disabled={selectedNodeIdx === null || customPts.length <= 3}
                       onClick={() => {

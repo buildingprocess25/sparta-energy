@@ -44,6 +44,8 @@ next-env.d.ts
 
 # presentation reports & drafts
 presentation_report/
+personal_doc/
+
 
 # simulation and export artifacts
 simulation_analyze/
