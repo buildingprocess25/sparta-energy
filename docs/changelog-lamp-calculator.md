@@ -7,6 +7,11 @@ Format penomoran versi mengikuti aturan [Semantic Versioning (SemVer)](https://s
 - **MINOR** (`v1.1.0`): Penyesuaian rasio W/m², standar Lux, penambahan parameter spasial/grid, atau fitur baru.
 - **PATCH** (`v1.1.1`): Perbaikan bug kecil, penataan tepi poligon, perbaikan UI/UX canvas, atau export kartu unduhan.
 
+## [v1.1.1] - 2026-10-06
+### Fixed
+- Perbaikan logika fitting lampu (`placeLamps`) agar memprioritaskan target lampu per baris (`targetLpb`) yang muat secara fisik di dalam bentang dinding tanpa pemotongan margin ganda yang prematur.
+- Sinkronisasi nilai jarak samping (`activeMargin`) pada kartu ringkasan UI bawah dengan data lampu riil yang terpasang di denah canvas sehingga nilai margin selalu 100% konsisten dan identik.
+
 ---
 
 ## [v1.1.0] - 2026-09-04

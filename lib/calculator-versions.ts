@@ -8,5 +8,6 @@
  */
 
 export const AC_CALCULATOR_VERSION = "v1.2.0"
-export const LAMP_CALCULATOR_VERSION = "v1.1.0"
+export const LAMP_CALCULATOR_VERSION = "v1.1.1"
 export const AC_MAPPING_VERSION = "v0.1.0-dev"
+
