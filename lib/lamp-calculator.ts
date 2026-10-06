@@ -84,16 +84,24 @@ export function placeLamps(
         const rowW = rightX - leftX
         if (rowW < lampLen * 0.8) continue
 
-        // Independent per-row lamp fitting
-        let calculatedN = Math.floor((rowW - 2 * margin + spasiLampu + 0.001) / (lampLen + spasiLampu))
-        if (calculatedN < 1 && rowW >= lampLen) {
-          calculatedN = Math.floor((rowW + 0.001) / (lampLen + spasiLampu))
+        // Dynamic & robust lamp fitting:
+        // If targetLpb is specified and fits within this span, prioritize targetLpb!
+        let nPerRow: number
+        if (targetLpb && targetLpb > 0) {
+          const targetW = targetLpb * lampLen + (targetLpb > 1 ? (targetLpb - 1) * spasiLampu : 0)
+          if (targetW <= rowW + 0.001) {
+            nPerRow = targetLpb
+          } else {
+            // Span is narrower than target, fit maximum available lamps
+            nPerRow = Math.max(0, Math.floor((rowW + spasiLampu + 0.001) / (lampLen + spasiLampu)))
+          }
+        } else {
+          let calculatedN = Math.floor((rowW - 2 * margin + spasiLampu + 0.001) / (lampLen + spasiLampu))
+          if (calculatedN < 1 && rowW >= lampLen) {
+            calculatedN = Math.floor((rowW + 0.001) / (lampLen + spasiLampu))
+          }
+          nPerRow = Math.max(0, calculatedN)
         }
-        calculatedN = Math.max(0, calculatedN)
-
-        const nPerRow = targetLpb && targetLpb > 0
-          ? Math.min(targetLpb, calculatedN)
-          : calculatedN
 
         if (nPerRow <= 0) continue
 
@@ -147,15 +155,24 @@ export function placeLamps(
         const colH = bottomY - topY
         if (colH < lampLen * 0.8) continue
 
-        let calculatedN = Math.floor((colH - 2 * margin + spasiLampu + 0.001) / (lampLen + spasiLampu))
-        if (calculatedN < 1 && colH >= lampLen) {
-          calculatedN = Math.floor((colH + 0.001) / (lampLen + spasiLampu))
+        // Dynamic & robust lamp fitting:
+        // If targetLpb is specified and fits within this span, prioritize targetLpb!
+        let nPerCol: number
+        if (targetLpb && targetLpb > 0) {
+          const targetH = targetLpb * lampLen + (targetLpb > 1 ? (targetLpb - 1) * spasiLampu : 0)
+          if (targetH <= colH + 0.001) {
+            nPerCol = targetLpb
+          } else {
+            // Span is narrower than target, fit maximum available lamps
+            nPerCol = Math.max(0, Math.floor((colH + spasiLampu + 0.001) / (lampLen + spasiLampu)))
+          }
+        } else {
+          let calculatedN = Math.floor((colH - 2 * margin + spasiLampu + 0.001) / (lampLen + spasiLampu))
+          if (calculatedN < 1 && colH >= lampLen) {
+            calculatedN = Math.floor((colH + 0.001) / (lampLen + spasiLampu))
+          }
+          nPerCol = Math.max(0, calculatedN)
         }
-        calculatedN = Math.max(0, calculatedN)
-
-        const nPerCol = targetLpb && targetLpb > 0
-          ? Math.min(targetLpb, calculatedN)
-          : calculatedN
 
         if (nPerCol <= 0) continue
 

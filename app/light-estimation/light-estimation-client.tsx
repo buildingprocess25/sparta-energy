@@ -1888,10 +1888,10 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (!pts || pts.length === 0) return 0.45
     const xs = pts.map(pt => pt.x)
     const W2 = Math.max(...xs) - Math.min(...xs)
-    const activeLpb = irregOverrideLpb !== null ? irregOverrideLpb : calcResult.lampuPerbaris
+    const activeLpb = irregOverrideLpb !== null ? irregOverrideLpb : (stats.nPerRow > 0 ? stats.nPerRow : calcResult.lampuPerbaris)
     const margin = (W2 - activeLpb * lampLen) / 2
     return margin > 0 ? margin : 0.45
-  }, [calcResult, shape, parsedP, adjustedPts, customClosed, irregOverrideLpb, lampLen])
+  }, [calcResult, shape, parsedP, adjustedPts, customClosed, irregOverrideLpb, stats.nPerRow, lampLen])
 
   const activeIrregRasio = useMemo(() => {
     return stats.luas > 0 ? (stats.n * watt) / stats.luas : 0
