@@ -1676,7 +1676,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         energyRatio: 0,
         complianceStatus: "idle" as "ideal" | "over" | "under" | "idle",
         standardEval: checkStandards(0, 0, 0),
-        placedLampsList: [] as { x: number; y: number; dir: "h" | "v"; isBlocked?: boolean; blockReason?: string }[],
+        placedLampsList: [] as { x: number; y: number; dir: "h" | "v" }[],
         simResult: null,
       }
     }
@@ -1703,19 +1703,21 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
 
     const rawLamps = placeLamps(pts, usedJarak, usedMargin, lampOrient, lampLen, lampSpasi, activeBaris, activeLpb)
 
-    // Deteksi & Nonaktifkan Lampu yang Bertabrakan dengan Pilar atau berada di zona Kasir / Chiller
-    const placedLampsWithObstacles = rawLamps.map((lamp) => {
+    // Deteksi & Filter: Hanya tempatkan lampu pada area bersih ruang sales (bebas pilar, kasir, chiller)
+    const validCleanLamps: { x: number; y: number; dir: "h" | "v" }[] = []
+    let blockedCount = 0
+
+    rawLamps.forEach((lamp) => {
       const obstacle = checkLampObstacle(lamp, lampLen, pillars, wallSegments, cashierDepths, pts)
-      return {
-        ...lamp,
-        isBlocked: obstacle.isBlocked,
-        blockReason: obstacle.reason,
+      if (obstacle.isBlocked) {
+        blockedCount++
+      } else {
+        validCleanLamps.push(lamp)
       }
     })
 
-    const blockedLampsCount = placedLampsWithObstacles.filter((l) => l.isBlocked).length
-    const manuallyDisabledCount = placedLampsWithObstacles.filter((l, idx) => !l.isBlocked && irregDisabledLamps.has(idx.toString())).length
-    const activeLamps = placedLampsWithObstacles.filter((l, idx) => !l.isBlocked && !irregDisabledLamps.has(idx.toString())).length
+    const activeLamps = validCleanLamps.filter((_, idx) => !irregDisabledLamps.has(idx.toString())).length
+    const manuallyDisabledCount = validCleanLamps.filter((_, idx) => irregDisabledLamps.has(idx.toString())).length
 
     const totalWatt = activeLamps * lampWatt
     const energyRatio = luas > 0 ? Number((totalWatt / luas).toFixed(2)) : 0
@@ -1727,10 +1729,10 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     return {
       luas: Number(luas.toFixed(1)),
       minLamps: range.minLamps,
-      maxLamps: Math.max(range.maxLamps, rawLamps.length),
-      totalCalculatedLamps: rawLamps.length,
+      maxLamps: range.maxLamps,
+      totalCalculatedLamps: validCleanLamps.length,
       activeLamps,
-      blockedLampsCount,
+      blockedLampsCount: blockedCount,
       manuallyDisabledCount,
       baris: activeBaris,
       lampuPerbaris: activeLpb,
@@ -1740,7 +1742,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
       energyRatio,
       complianceStatus,
       standardEval,
-      placedLampsList: placedLampsWithObstacles,
+      placedLampsList: validCleanLamps,
       simResult,
     }
   }, [
@@ -2470,10 +2472,6 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         const cLampX = offX + lamp.x * scale
         const cLampY = offY + lamp.y * scale
         if (Math.hypot(cx - cLampX, cy - cLampY) <= 16) {
-          if (lamp.isBlocked) {
-            toast.warning(`Lampu #${idx + 1} dinonaktifkan otomatis (${lamp.blockReason}). Tidak dapat diaktifkan manual karena menabrak rintangan.`)
-            return
-          }
           setIrregDisabledLamps((prev) => {
             const next = new Set(prev)
             const key = idx.toString()
@@ -7229,9 +7227,8 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
       if (showLightingGlow && placedLampsList.length > 0) {
         ctx.save()
         placedLampsList.forEach((lamp, idx) => {
-          const isBlocked = !!lamp.isBlocked
           const isManuallyDisabled = irregDisabledLamps.has(idx.toString())
-          if (isBlocked || isManuallyDisabled) return
+          if (isManuallyDisabled) return
 
           const cx = sc.offX + lamp.x * sc.scale
           const cy = sc.offY + lamp.y * sc.scale
@@ -7255,9 +7252,8 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         const isH = lamp.dir === "h"
         const w = isH ? lampLen_px : lampW_px
         const h = isH ? lampW_px : lampLen_px
-        const isBlocked = !!lamp.isBlocked
         const isManuallyDisabled = irregDisabledLamps.has(idx.toString())
-        const isDisabled = isBlocked || isManuallyDisabled
+        const isDisabled = isManuallyDisabled
 
         ctx.save()
         ctx.translate(cx, cy)
@@ -7294,15 +7290,13 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
           ctx.lineWidth = 0.9
           ctx.stroke()
         } else {
-          // Ikon Silang Merah / Muted jika dinonaktifkan / terhalang rintangan
+          // Ikon Silang Merah / Muted jika dinonaktifkan secara manual
           ctx.beginPath()
           ctx.moveTo(-w / 2 + 2, -h / 2 + 2)
           ctx.lineTo(w / 2 - 2, h / 2 - 2)
           ctx.moveTo(w / 2 - 2, -h / 2 + 2)
           ctx.lineTo(-w / 2 + 2, h / 2 - 2)
-          ctx.strokeStyle = isBlocked
-            ? (effectiveIsDark ? "#f87171" : "#ef4444")
-            : (effectiveIsDark ? "#ef4444" : "#dc2626")
+          ctx.strokeStyle = effectiveIsDark ? "#ef4444" : "#dc2626"
           ctx.lineWidth = 1.2
           ctx.stroke()
         }
@@ -9688,12 +9682,12 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                         </div>
                       )}
 
-                      {/* Notifikasi Lampu yang Terhalang Rintangan */}
+                      {/* Notifikasi Titik di Luar Area Bersih Sales */}
                       {lightingCalculation.blockedLampsCount > 0 && (
-                        <div className="p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs flex items-center justify-between text-rose-800 dark:text-rose-300">
+                        <div className="p-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-xs flex items-center justify-between text-sky-900 dark:text-sky-300">
                           <div className="flex items-center gap-1.5 font-medium">
-                            <span>🚫</span>
-                            <span><b>{lightingCalculation.blockedLampsCount}</b> titik lampu dinonaktifkan (menabrak pilar / kasir / chiller)</span>
+                            <IconInfoCircle className="size-3.5 text-sky-500 shrink-0" />
+                            <span><b>{lightingCalculation.blockedLampsCount}</b> titik di area kasir / chiller / pilar otomatis ditiadakan (hanya memetakan area bersih).</span>
                           </div>
                         </div>
                       )}
