@@ -2981,13 +2981,24 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return
     }
 
-    // 1B. DRAGGING PLACED AC HANDLER (Menggeser AC di sepanjang dinding dengan proteksi fisik bodi AC)
+    // 1B. DRAGGING PLACED AC HANDLER (Bisa dipindah bebas ke dinding lain yang valid & aman untuk AC)
     if (activeDragAcId !== null) {
-      setPlacedUnits((prev) =>
-        prev.map((unit) => {
-          if (unit.id !== activeDragAcId) return unit
-          const wall = wallSegments.find((w) => w.index === unit.wallIndex)
-          if (!wall) return unit
+      setPlacedUnits((prev) => {
+        const draggingUnit = prev.find((u) => u.id === activeDragAcId)
+        if (!draggingUnit) return prev
+
+        // Cari semua dinding kandidat yang valid (SOLID dan memiliki panjang cukup untuk unit AC)
+        interface CandidateWallResult {
+          wallIndex: number
+          ratio: number
+          distPx: number
+        }
+
+        const candidates: CandidateWallResult[] = []
+
+        wallSegments.forEach((wall) => {
+          // Hanya dinding SOLID dengan panjang minimal untuk fisik AC
+          if (wall.type !== "SOLID" || wall.lengthM < AC_INDOOR_WIDTH_M) return
 
           const p1 = { cx: offX + wall.p1.x * scale, cy: offY + wall.p1.y * scale }
           const p2 = { cx: offX + wall.p2.x * scale, cy: offY + wall.p2.y * scale }
@@ -3000,7 +3011,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
           let targetT = Math.min(maxT, Math.max(minT, proj.t))
 
-          // Cek tabrakan fisik bodi AC (1.05m) dengan zona terlarang (Chiller / Kasir / Pintu)
+          // Cek dan hindari tabrakan dengan zona terlarang (Chiller / Kasir / Pintu)
           const forbidden = getWallForbiddenIntervals(wall, activeCadMetadata)
           for (const f of forbidden) {
             const forbiddenMinWithBody = Math.max(0, f.minT - halfWidthT)
@@ -3013,12 +3024,38 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             }
           }
 
+          // Hitung posisi fisik hasil proyeksi AC pada dinding ini
+          const acPxX = p1.cx + (p2.cx - p1.cx) * targetT
+          const acPxY = p1.cy + (p2.cy - p1.cy) * targetT
+          let distToCursor = Math.hypot(cx - acPxX, cy - acPxY)
+
+          // Berikan sedikit hysteresis (bias) ke dinding saat ini agar tidak bergetar di dekat sudut
+          if (wall.index === draggingUnit.wallIndex) {
+            distToCursor *= 0.85
+          }
+
+          candidates.push({
+            wallIndex: wall.index,
+            ratio: Number(targetT.toFixed(3)),
+            distPx: distToCursor,
+          })
+        })
+
+        if (candidates.length === 0) return prev
+
+        // Pilih dinding dengan jarak terdekat dari kursor mouse pengguna
+        candidates.sort((a, b) => a.distPx - b.distPx)
+        const best = candidates[0]
+
+        return prev.map((unit) => {
+          if (unit.id !== activeDragAcId) return unit
           return {
             ...unit,
-            ratio: Number(targetT.toFixed(3)),
+            wallIndex: best.wallIndex,
+            ratio: best.ratio,
           }
         })
-      )
+      })
       return
     }
 
