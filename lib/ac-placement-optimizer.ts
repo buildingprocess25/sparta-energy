@@ -121,7 +121,7 @@ export function optimizeAcPlacements({
         id: `ac-unit-${idx + 1}`,
         wallIndex: span.wallIndex,
         ratio: Number(midT.toFixed(3)),
-        customName: `Daikin 2 PK #${idx + 1}`,
+        customName: `AC 2 PK #${idx + 1}`,
         wallLabel: `Dinding T${wall.startIndex + 1} - T${wall.endIndex + 1}`,
       }
     })
@@ -316,7 +316,7 @@ export function optimizeAcPlacements({
       id: `ac-unit-${idx + 1}`,
       wallIndex: u.wallIndex,
       ratio: u.ratio,
-      customName: `Daikin 2 PK #${idx + 1}`,
+      customName: `AC 2 PK #${idx + 1}`,
       wallLabel,
     }
   })

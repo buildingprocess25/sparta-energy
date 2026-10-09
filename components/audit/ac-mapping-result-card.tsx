@@ -26,7 +26,7 @@ export type AcMappingResultCardData = {
   totalBtu: number
   acUnits: number
   layoutSnapshot: string | null
-  placedUnits: AcMappingUnitDetail[]
+  placedUnits?: AcMappingUnitDetail[]
   outdoorNotes?: string
 }
 
@@ -42,16 +42,16 @@ function Row({ label, value }: { label: string; value: string }) {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "flex-start",
-        padding: "6px 0",
-        borderBottom: "1px solid #e5e7eb",
-        gap: "8px",
+        padding: "7px 0",
+        borderBottom: "1px solid #f1f5f9",
+        gap: "10px",
       }}
     >
       <span
         style={{
-          fontSize: "10.5px",
-          color: "#6b7280",
-          fontWeight: 500,
+          fontSize: "11px",
+          color: "#64748b",
+          fontWeight: 600,
           textTransform: "uppercase",
           letterSpacing: "0.04em",
           flexShrink: 0,
@@ -61,9 +61,9 @@ function Row({ label, value }: { label: string; value: string }) {
       </span>
       <span
         style={{
-          fontSize: "11.5px",
-          color: "#111827",
-          fontWeight: 600,
+          fontSize: "12px",
+          color: "#0f172a",
+          fontWeight: 700,
           textAlign: "right",
         }}
       >
@@ -87,7 +87,6 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
     totalBtu,
     acUnits,
     layoutSnapshot,
-    placedUnits,
     outdoorNotes,
   } = data
 
@@ -106,55 +105,57 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
       <div
         ref={cardRef}
         style={{
-          width: "390px",
+          width: "1120px",
+          minHeight: "792px",
           backgroundColor: "#ffffff",
           display: "flex",
           flexDirection: "column",
+          justifyContent: "space-between",
           fontFamily:
-            "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           overflow: "hidden",
-          borderRadius: "0px",
+          boxSizing: "border-box",
         }}
       >
-        {/* ── Header ── */}
+        {/* ── Top Header Bar ── */}
         <div
           style={{
             background: "linear-gradient(135deg, #0f4a35 0%, #082e20 100%)",
-            padding: "20px 24px 16px",
+            padding: "16px 28px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/assets/Alfamart-Emblem.png"
               alt="Alfamart"
-              width={80}
-              height={80}
-              style={{ height: "22px", width: "auto", objectFit: "contain" }}
+              width={90}
+              height={90}
+              style={{ height: "26px", width: "auto", objectFit: "contain" }}
             />
             <div
               style={{
-                width: "1px",
-                height: "18px",
+                width: "1.5px",
+                height: "22px",
                 backgroundColor: "rgba(255,255,255,0.3)",
               }}
             />
-            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/assets/Building-Logo.png"
                 alt="SPARTA"
                 width={40}
                 height={40}
-                style={{ height: "18px", width: "auto", objectFit: "contain" }}
+                style={{ height: "22px", width: "auto", objectFit: "contain" }}
               />
               <div style={{ lineHeight: 1 }}>
                 <div
                   style={{
-                    fontSize: "11px",
+                    fontSize: "13px",
                     fontWeight: 800,
                     color: "#ffffff",
                     letterSpacing: "0.1em",
@@ -164,345 +165,345 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
                 </div>
                 <div
                   style={{
-                    fontSize: "7px",
-                    fontWeight: 500,
+                    fontSize: "8.5px",
+                    fontWeight: 600,
                     color: "rgba(255,255,255,0.7)",
                   }}
                 >
                   Energy
                 </div>
-                <div
-                  style={{
-                    fontSize: "9px",
-                    fontWeight: 600,
-                    color: "rgba(255, 255, 255, 0.8)",
-                    letterSpacing: "0.04em",
-                    marginTop: "2px",
-                  }}
-                >
-                  {AC_MAPPING_VERSION}
-                </div>
+              </div>
+              <div
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  color: "#6ee7b7",
+                  backgroundColor: "rgba(110, 231, 183, 0.15)",
+                  padding: "2px 8px",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(110, 231, 183, 0.3)",
+                  letterSpacing: "0.04em",
+                  marginLeft: "4px",
+                }}
+              >
+                {AC_MAPPING_VERSION}
               </div>
             </div>
           </div>
+
           <div style={{ textAlign: "right" }}>
             <div
               style={{
-                fontSize: "9px",
-                color: "rgba(255,255,255,0.6)",
+                fontSize: "10px",
+                color: "rgba(255,255,255,0.7)",
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
+                fontWeight: 600,
               }}
             >
-              Mapping & Layout
+              Layout & Beban Termal
             </div>
             <div
               style={{
-                fontSize: "11px",
-                fontWeight: 700,
+                fontSize: "14px",
+                fontWeight: 800,
                 color: "#6ee7b7",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
               }}
             >
-              AC Daikin 2 PK
+              Mapping & Tata Letak AC 2 PK
             </div>
           </div>
         </div>
 
-        {/* ── Denah Snapshot ── */}
+        {/* ── Main Content Area: 60% Canvas Denah | 40% Keterangan & Spesifikasi ── */}
         <div
           style={{
-            margin: "14px 16px 0",
-            borderRadius: "12px",
-            overflow: "hidden",
-            border: "1.5px solid #e5e7eb",
-            backgroundColor: "#ffffff",
-            position: "relative",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            flex: 1,
+            padding: "20px 28px",
+            gap: "20px",
+            alignItems: "stretch",
+            boxSizing: "border-box",
           }}
         >
-          {layoutSnapshot ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={layoutSnapshot}
-              alt="Denah Layout AC"
-              style={{ width: "100%", height: "auto", display: "block" }}
-            />
-          ) : (
+          {/* ── Kiri: Denah Layout Snapshot (~60%) ── */}
+          <div
+            style={{
+              flex: "1.4 1 0%",
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: "14px",
+              border: "1.5px solid #e2e8f0",
+              backgroundColor: "#ffffff",
+              overflow: "hidden",
+            }}
+          >
             <div
               style={{
-                width: "100%",
-                height: "180px",
+                padding: "10px 16px",
+                backgroundColor: "#f8fafc",
+                borderBottom: "1.5px solid #e2e8f0",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "11.5px",
+                  fontWeight: 700,
+                  color: "#0f172a",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                📐 Visual Denah Tata Letak AC Ruang Sales
+              </span>
+              <span
+                style={{
+                  fontSize: "10.5px",
+                  color: "#0369a1",
+                  fontWeight: 700,
+                  backgroundColor: "#e0f2fe",
+                  padding: "2px 8px",
+                  borderRadius: "6px",
+                }}
+              >
+                {acUnits} Unit Terpasang
+              </span>
+            </div>
+
+            <div
+              style={{
+                flex: 1,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "12px",
-                color: "#9ca3af",
+                padding: "12px",
+                backgroundColor: "#ffffff",
               }}
             >
-              Denah tidak tersedia
+              {layoutSnapshot ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={layoutSnapshot}
+                  alt="Denah Layout AC"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    maxHeight: "560px",
+                    objectFit: "contain",
+                    display: "block",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "#94a3b8",
+                    fontWeight: 500,
+                  }}
+                >
+                  Denah tidak tersedia
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* ── Info Card ── */}
-        <div
-          style={{
-            margin: "10px 16px 0",
-            borderRadius: "12px",
-            border: "1.5px solid #e5e7eb",
-            overflow: "hidden",
-          }}
-        >
-          {/* Store header */}
+          {/* ── Kanan: Keterangan, Parameter & Rekomendasi (~40%) ── */}
           <div
             style={{
-              background: "#f8fafc",
-              padding: "9px 14px",
-              borderBottom: "1.5px solid #e5e7eb",
+              flex: "1 1 0%",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              borderRadius: "14px",
+              border: "1.5px solid #e2e8f0",
+              backgroundColor: "#ffffff",
+              overflow: "hidden",
             }}
           >
-            <div
-              style={{ fontSize: "13px", fontWeight: 800, color: "#111827" }}
-            >
-              {storeCode || "Toko Baru"} - {storeName || "Tanpa Nama"}
-            </div>
-            <div
-              style={{ fontSize: "10.5px", color: "#6b7280", marginTop: "1px" }}
-            >
-              {storeBranch || "—"}
-            </div>
-          </div>
-
-          {/* Data rows */}
-          <div style={{ padding: "0 14px", marginBottom: "6px" }}>
-            {lengthM !== undefined && widthM !== undefined && (
-              <Row
-                label="Dimensi Denah (PT × LT)"
-                value={`${lengthM.toFixed(2)}m × ${widthM.toFixed(2)}m`}
-              />
-            )}
-            <Row
-              label="Luas Denah Efektif"
-              value={
-                grossArea && grossArea !== area
-                  ? `${area.toFixed(1)} m² (Gross: ${grossArea.toFixed(1)} m²)`
-                  : `${area.toFixed(1)} m²`
-              }
-            />
-            {temp !== null && (
-              <Row
-                label="Suhu Lingkungan Desain"
-                value={`${temp}°C (${btuPerM2} BTU/m²)`}
-              />
-            )}
-            <Row
-              label="Target Beban Pendinginan"
-              value={`${totalBtu.toLocaleString("id-ID")} BTU`}
-            />
-            <Row
-              label="Spesifikasi Unit AC"
-              value="Daikin 2 PK (18.000 BTU/h)"
-            />
-          </div>
-
-          {/* Legenda Detail Posisi Jarak AC */}
-          {placedUnits.length > 0 && (
-            <div
-              style={{
-                margin: "4px 14px 10px",
-                borderRadius: "8px",
-                border: "1px solid #e2e8f0",
-                backgroundColor: "#f8fafc",
-                padding: "8px 10px",
-              }}
-            >
+            {/* Toko Header & Parameter */}
+            <div>
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "6px",
-                  borderBottom: "1px solid #e2e8f0",
-                  paddingBottom: "4px",
+                  background: "#f8fafc",
+                  padding: "12px 18px",
+                  borderBottom: "1.5px solid #e2e8f0",
                 }}
               >
-                <span
-                  style={{
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    color: "#0369a1",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                  }}
+                <div
+                  style={{ fontSize: "14.5px", fontWeight: 800, color: "#0f172a" }}
                 >
-                  📐 Legenda Posisi (As Tengah AC)
-                </span>
-                <span
-                  style={{
-                    fontSize: "9px",
-                    color: "#64748b",
-                    fontWeight: 600,
-                  }}
+                  {storeCode || "TOKO-BARU"} - {storeName || "Toko Retail"}
+                </div>
+                <div
+                  style={{ fontSize: "11px", color: "#64748b", marginTop: "2px", fontWeight: 500 }}
                 >
-                  {placedUnits.length} Posisi Terpasang
-                </span>
+                  Cabang: {storeBranch || "—"}
+                </div>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                {placedUnits.map((u, i) => (
+              {/* Data rows parameter & spesifikasi */}
+              <div style={{ padding: "8px 18px 12px" }}>
+                {lengthM !== undefined && widthM !== undefined && (
+                  <Row
+                    label="Dimensi Denah (PT × LT)"
+                    value={`${lengthM.toFixed(2)}m × ${widthM.toFixed(2)}m`}
+                  />
+                )}
+                <Row
+                  label="Luas Denah Efektif"
+                  value={
+                    grossArea && grossArea !== area
+                      ? `${area.toFixed(1)} m² (Gross: ${grossArea.toFixed(1)} m²)`
+                      : `${area.toFixed(1)} m²`
+                  }
+                />
+                {temp !== null && (
+                  <Row
+                    label="Suhu Lingkungan Desain"
+                    value={`${temp}°C (${btuPerM2} BTU/m²)`}
+                  />
+                )}
+                <Row
+                  label="Target Beban Pendinginan"
+                  value={`${totalBtu.toLocaleString("id-ID")} BTU`}
+                />
+                <Row
+                  label="Spesifikasi Unit AC"
+                  value="2 PK (18.000 BTU/h)"
+                />
+              </div>
+
+              {/* ── Keterangan Penempatan Outdoor AC ── */}
+              {outdoorNotes && outdoorNotes.trim() && (
+                <div
+                  style={{
+                    margin: "0 18px 12px",
+                    borderRadius: "10px",
+                    border: "1px solid #e2e8f0",
+                    backgroundColor: "#f8fafc",
+                    padding: "10px 14px",
+                  }}
+                >
                   <div
-                    key={i}
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      fontSize: "10px",
+                      fontSize: "10.5px",
+                      fontWeight: 700,
+                      color: "#0369a1",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                      marginBottom: "4px",
                     }}
                   >
-                    <span style={{ fontWeight: 700, color: "#0f172a" }}>
-                      {u.name}{" "}
-                      <span style={{ fontWeight: 500, color: "#64748b" }}>
-                        ({u.wallLabel})
-                      </span>
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: "monospace",
-                        color: "#0284c7",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {u.startNode}: {u.fromStart}m | {u.endNode}: {u.toEnd}m
-                    </span>
+                    📍 Penempatan Outdoor AC
                   </div>
-                ))}
-              </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "#0f172a",
+                      fontWeight: 600,
+                      lineHeight: "1.4",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {outdoorNotes.trim()}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
 
-          {/* ── Keterangan Penempatan Outdoor AC ── */}
-          {outdoorNotes && outdoorNotes.trim() && (
+            {/* Rekomendasi Jumlah Unit AC Highlight */}
             <div
               style={{
-                margin: "0px 14px 10px",
-                borderRadius: "8px",
-                border: "1px solid #e2e8f0",
-                backgroundColor: "#f8fafc",
-                padding: "8px 10px",
+                margin: "12px 18px 18px",
+                borderRadius: "12px",
+                background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
+                border: "1.5px solid #bbf7d0",
+                padding: "12px 18px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "12px",
               }}
             >
-              <div
-                style={{
-                  fontSize: "9.5px",
-                  fontWeight: 700,
-                  color: "#0369a1",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                  marginBottom: "3px",
-                }}
-              >
-                📍 Penempatan Outdoor AC
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    color: "#15803d",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    lineHeight: "1.3",
+                  }}
+                >
+                  Rekomendasi Jumlah Unit AC
+                </div>
+                <div
+                  style={{
+                    fontSize: "10px",
+                    color: "#374151",
+                    marginTop: "3px",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  Kapasitas 1 unit: 18.000 BTU/h (2 PK)
+                </div>
               </div>
-              <div
-                style={{
-                  fontSize: "10px",
-                  color: "#0f172a",
-                  fontWeight: 600,
-                  lineHeight: "1.35",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                }}
-              >
-                {outdoorNotes.trim()}
-              </div>
-            </div>
-          )}
-
-          {/* Recommendation highlight */}
-          <div
-            style={{
-              margin: "0px 14px 12px",
-              borderRadius: "10px",
-              background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
-              border: "1.5px solid #bbf7d0",
-              padding: "10px 14px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "10px",
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: "10px",
-                  fontWeight: 800,
-                  color: "#15803d",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  lineHeight: "1.3",
-                }}
-              >
-                Rekomendasi Jumlah Unit AC
-              </div>
-              <div
-                style={{
-                  fontSize: "9.5px",
-                  color: "#374151",
-                  marginTop: "2px",
-                  lineHeight: 1.2,
-                }}
-              >
-                Kapasitas 1 unit: 18.000 BTU/h (Daikin 2 PK)
-              </div>
-            </div>
-            <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <div
-                style={{
-                  fontSize: "28px",
-                  fontWeight: 900,
-                  color: "#166534",
-                  lineHeight: 1,
-                  letterSpacing: "-0.02em",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {acUnits}
-              </div>
-              <div
-                style={{
-                  fontSize: "9.5px",
-                  fontWeight: 700,
-                  color: "#16a34a",
-                  whiteSpace: "nowrap",
-                  marginTop: "2px",
-                }}
-              >
-                Unit AC 2 PK
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div
+                  style={{
+                    fontSize: "34px",
+                    fontWeight: 900,
+                    color: "#166534",
+                    lineHeight: 1,
+                    letterSpacing: "-0.02em",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {acUnits}
+                </div>
+                <div
+                  style={{
+                    fontSize: "10.5px",
+                    fontWeight: 700,
+                    color: "#16a34a",
+                    whiteSpace: "nowrap",
+                    marginTop: "3px",
+                  }}
+                >
+                  Unit AC 2 PK
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Footer ── */}
+        {/* ── Bottom Footer ── */}
         <div
           style={{
-            padding: "8px 16px 12px",
-            textAlign: "center",
-            fontSize: "8.5px",
-            color: "#9ca3af",
+            padding: "10px 28px 14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            fontSize: "9.5px",
+            color: "#94a3b8",
+            borderTop: "1px solid #f1f5f9",
           }}
         >
-          Generated by SPARTA Energy •{" "}
-          {new Date().toLocaleDateString("id-ID", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
+          <span>SPARTA Energy • Dokumen Perencanaan Tata Letak & Beban Termal AC</span>
+          <span>
+            {new Date().toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </span>
         </div>
       </div>
     </div>

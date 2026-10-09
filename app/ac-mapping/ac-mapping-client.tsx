@@ -47,7 +47,6 @@ import { StoreCombobox } from "@/components/audit/store-combobox"
 import { toast } from "sonner"
 import { generateCalculationFilename } from "@/lib/utils"
 import { getTemperature } from "@/app/actions/get-temperature"
-import { getScaleInfo } from "@/lib/lamp-calculator"
 import { calcPolygonArea, type Point } from "@/lib/polygon-utils"
 import { AcMappingResultCard, type AcMappingResultCardData } from "@/components/audit/ac-mapping-result-card"
 import { CadImportDialog } from "@/components/cad/cad-import-dialog"
@@ -86,8 +85,56 @@ const CASHIER_WIDTH_M = 2.4       // Meja Kasir: 2.4 meter (baku)
 const CASHIER_DEPTH_M = 2.0       // Kedalaman Kasir: 2.0 meter (baku)
 const CHILLER_UNIT_WIDTH_M = 1.2  // Open Chiller: 1.2 meter per unit (baku)
 const CHILLER_DEPTH_M = 0.8       // Kedalaman Chiller: 0.8 meter (baku)
-
 const CANVAS_H = 340
+
+export interface StoreScaleInfo {
+  scale: number
+  offX: number
+  offY: number
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+  rW: number
+  rH: number
+}
+
+// Helper Auto-Fit Scale Dinamis: Memperbesar gambar denah agar mengisi canvas secara optimal & konsisten
+const getStoreScaleInfo = (pts: Point[], canvasW: number, canvasH: number): StoreScaleInfo => {
+  if (!pts || !pts.length) {
+    return { scale: 20, offX: 34, offY: 24, minX: 0, minY: 0, maxX: 10, maxY: 10, rW: 10, rH: 10 }
+  }
+  const xs = pts.map((p) => p.x)
+  const ys = pts.map((p) => p.y)
+  const minX = Math.min(...xs), maxX = Math.max(...xs)
+  const minY = Math.min(...ys), maxY = Math.max(...ys)
+  const rW = maxX - minX || 1
+  const rH = maxY - minY || 1
+
+  // Margin yang pas & proporsional:
+  // - Sisakan margin 34px di kiri & bawah untuk garis dimensi ukur (PT & LT) serta teks label
+  // - Sisakan margin 22px di kanan & atas untuk nomor titik node / label dinding
+  const padLeft = 34
+  const padRight = 22
+  const padTop = 22
+  const padBottom = 34
+  const availW = Math.max(60, canvasW - padLeft - padRight)
+  const availH = Math.max(60, canvasH - padTop - padBottom)
+
+  const s = Math.min(availW / rW, availH / rH)
+  return {
+    scale: s,
+    offX: padLeft + (availW - rW * s) / 2 - minX * s,
+    offY: padTop + (availH - rH * s) / 2 - minY * s,
+    minX,
+    minY,
+    maxX,
+    maxY,
+    rW,
+    rH,
+  }
+}
+
 const FIXED_SCALE = 24 // Scale in drawing mode (px/m)
 const FIXED_OX = 30    // Offset X
 const FIXED_OY = 30    // Offset Y
@@ -2095,7 +2142,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     setActiveTool("DRAW")
     setPendingZoneStart(null)
     setPendingCashierDepth(null)
-    toast.success(`Berhasil menghitung (${maxTemp}°C / ${clusterBtu} BTU/m²) & memetakan ${n} Unit AC Daikin 2 PK dengan cakupan optimal & estetika seimbang!`)
+    toast.success(`Berhasil menghitung (${maxTemp}°C / ${clusterBtu} BTU/m²) & memetakan ${n} Unit AC 2 PK dengan cakupan optimal & estetika seimbang!`)
   }
 
   // ─── 11. Canvas Pointer Interactions (Drag, Snap & 2-Click Zone Marking) ───
@@ -2118,7 +2165,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
     const W = canvas.offsetWidth || 340
     const H = canvas.offsetHeight || CANVAS_H
-    const sc = customClosed && customPts.length >= 3 ? getScaleInfo(customPts, W, H) : null
+    const sc = customClosed && customPts.length >= 3 ? getStoreScaleInfo(customPts, W, H) : null
     const baseScale = sc ? sc.scale : FIXED_SCALE
     const baseOffX = sc ? sc.offX : FIXED_OX
     const baseOffY = sc ? sc.offY : FIXED_OY
@@ -2899,7 +2946,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
     const W = canvas.offsetWidth || 340
     const H = canvas.offsetHeight || CANVAS_H
-    const sc = customClosed && customPts.length >= 3 ? getScaleInfo(customPts, W, H) : null
+    const sc = customClosed && customPts.length >= 3 ? getStoreScaleInfo(customPts, W, H) : null
     const baseScale = sc ? sc.scale : FIXED_SCALE
     const baseOffX = sc ? sc.offX : FIXED_OX
     const baseOffY = sc ? sc.offY : FIXED_OY
@@ -3831,8 +3878,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return
     }
 
-    // B. MODE CLOSED: AUTO-CENTER DENGAN GETSCALEINFO (Sama Seperti Kalkulator Lampu)
-    const baseSc = getScaleInfo(customPts, W, H)
+    // B. MODE CLOSED: AUTO-CENTER DENGAN GETSTORESCALEINFO (Auto-Fit Optimal & Konsisten)
+    const baseSc = getStoreScaleInfo(customPts, W, H)
     const effectiveScale = baseSc.scale * effectiveZoom
     const effectiveOffX = W / 2 + (baseSc.offX - W / 2) * effectiveZoom + effectivePanX
     const effectiveOffY = H / 2 + (baseSc.offY - H / 2) * effectiveZoom + effectivePanY
@@ -6980,19 +7027,21 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return
     }
 
-    // Ambil snapshot bersih langsung dari canvas asli (menjamin bentuk & proporsi 100% identik dengan tampilan di web)
-    const canvas = canvasRef.current
+    // Ambil snapshot bersih langsung dengan canvas high-res proporsional (sesuai container 60% Landscape A4)
     let snapshotUrl: string | null = null
-    if (canvas) {
-      try {
-        // 1. Render mode light (latar putih bersih) untuk hasil card download
+    try {
+      const exportCanvas = document.createElement("canvas")
+      const exportW = 740
+      const exportH = 540
+      drawCanvas(exportCanvas, true, exportW, exportH)
+      snapshotUrl = exportCanvas.toDataURL("image/png")
+    } catch (err) {
+      console.error("Gagal capture snapshot canvas:", err)
+      const canvas = canvasRef.current
+      if (canvas) {
         drawCanvas(canvas, true)
         snapshotUrl = canvas.toDataURL("image/png")
-        // 2. Kembalikan ke tema pengguna saat ini
         drawCanvas(canvas, false)
-      } catch (err) {
-        console.error("Gagal capture snapshot canvas:", err)
-        snapshotUrl = canvas.toDataURL("image/png")
       }
     }
 
@@ -7078,7 +7127,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       <Header
         variant="dashboard-back"
         title="Mapping & Layout AC"
-        subtitle="Kalkulator Pemetaan Tata Letak AC Daikin 2 PK"
+        subtitle="Kalkulator Pemetaan Tata Letak AC 2 PK"
         badge={AC_MAPPING_VERSION}
         backHref="/dashboard"
         className="px-0"
@@ -8477,7 +8526,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
                             {currentType === "SOLID" && (typeof len === "number" || typeof len === "string") && (parseFloat(String(len)) || 0) > 0 && (parseFloat(String(len)) || 0) < AC_INDOOR_WIDTH_M && (
                               <div className="text-[9.5px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 pt-0.5">
-                                <span>⚠️ Sempit (&lt; 1.05m, tidak muat AC Daikin 2 PK)</span>
+                                <span>⚠️ Sempit (&lt; 1.05m, tidak muat AC 2 PK)</span>
                               </div>
                             )}
                           </div>
@@ -8555,7 +8604,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
                       {placedUnits.length} <span className="text-[10px] font-bold">Unit</span>
                     </span>
-                    <span className="text-[10px] text-emerald-700 dark:text-emerald-400">Daikin 2 PK</span>
+                    <span className="text-[10px] text-emerald-700 dark:text-emerald-400">AC 2 PK</span>
                   </div>
                 </div>
 
@@ -8608,58 +8657,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     </div>
                     <div className="font-bold text-sky-900 dark:text-sky-200">
                       {calculatedTemp}°C <span className="text-[11px] font-normal text-muted-foreground">({targetBtuPerM2} BTU/m²)</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Legenda Detail Jarak Posisi AC (Patokan As Tengah AC) */}
-                {isCalculated && placedUnits.length > 0 && (
-                  <div className="p-3 rounded-xl border bg-muted/20 space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold flex items-center gap-1.5 text-foreground">
-                        <IconRuler className="size-3.5 text-sky-500" />
-                        Legenda Jarak Posisi AC
-                      </span>
-                      <Badge variant="outline" className="text-[9px] font-mono">
-                        As Tengah AC
-                      </Badge>
-                    </div>
-
-                    <div className="space-y-2 divide-y divide-border/60">
-                      {placedUnits.map((unit, idx) => {
-                        const details = getStructuralWallDetails(unit, wallSegments, customPts)
-
-                        return (
-                          <div key={unit.id || idx} className="pt-2 first:pt-0 space-y-1.5 text-[11px]">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-sky-600 dark:text-sky-400">
-                                AC {idx + 1} (Daikin 2 PK)
-                              </span>
-                              <span className="text-muted-foreground font-mono text-[10px]">
-                                {details.wallLabel} ({formatDim(details.wallLengthM)}m)
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-[10.5px]">
-                              <div className="p-1.5 rounded-lg bg-card border border-border/60 flex flex-col">
-                                <span className="text-[9px] text-muted-foreground">
-                                  Dari Sudut {details.startNode}
-                                </span>
-                                <span className="font-mono font-bold text-foreground">
-                                  {formatDim(details.distStart)} meter
-                                </span>
-                              </div>
-                              <div className="p-1.5 rounded-lg bg-card border border-border/60 flex flex-col">
-                                <span className="text-[9px] text-muted-foreground">
-                                  Ke Sudut {details.endNode}
-                                </span>
-                                <span className="font-mono font-bold text-foreground">
-                                  {formatDim(details.distEnd)} meter
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
                     </div>
                   </div>
                 )}
