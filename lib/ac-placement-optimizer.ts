@@ -9,6 +9,9 @@ const MIN_SPAN_LENGTH_FOR_AC = 1.55
 const FIXTURE_CLEARANCE_M = 0.60
 const CASHIER_CLEARANCE_M = 0.62
 
+// Jarak aman fisik minimum antar titik pusat 2 unit AC bersebelahan (mencegah tabrakan bodi 1.05m)
+const MIN_AC_SPACING_M = 2.0
+
 export interface OptimizeAcPlacementOptions {
   customPts: Point[]
   wallSegments: WallSegment[]
@@ -27,20 +30,31 @@ interface MacroWallSide {
   wallIndices: number[]
   validSpans: ValidWallSpan[]
   usableLengthM: number
+  maxCapacity: number
+}
+
+/**
+ * Menghitung kapasitas maksimum unit AC yang dapat dipasang pada suatu bentang dinding
+ * tanpa ada benturan fisik antar unit AC (Bodi Daikin 2 PK = 1.05m).
+ */
+function getSpanMaxCapacity(spanLenM: number): number {
+  if (spanLenM < MIN_SPAN_LENGTH_FOR_AC) return 0
+  if (spanLenM < 3.6) return 1
+  if (spanLenM < 5.8) return 2
+  if (spanLenM < 8.2) return 3
+  if (spanLenM < 11.0) return 4
+  if (spanLenM < 14.5) return 5
+  if (spanLenM < 18.5) return 6
+  return Math.max(1, Math.floor(spanLenM / MIN_AC_SPACING_M))
 }
 
 /**
  * Universal Dynamic AC Placement Engine
  *
- * Klasifikasi Bentang Dinding Dinamis:
- * 1. Sempit (< 1.55m): Kapasitas 0 (dilewati karena tidak muat bodi AC 1.05m + clearance).
- * 2. Sedang (1.55m s/d 3.8m): Kapasitas 1 unit.
- *    - Jika berbatasan dengan Chiller / Kasir: digeser mendekati fixture (0.60m - 0.62m).
- *    - Jika dinding bebas / sudut normal: diletakkan tepat di tengah (50%).
- * 3. Panjang (3.8m s/d 7.5m): Kapasitas 1 - 2 unit.
- *    - Jika 1 unit: WAJIB tepat di tengah (50%) agar tidak meninggalkan ruang kosong besar 4-5 meter.
- *    - Jika 2 unit: dibagi rata menjadi 3 bagian sama (di titik 1/3 dan 2/3).
- * 4. Sangat Panjang (>= 7.5m): Kapasitas 2 - 4 unit, dibagi rata simetris penuh.
+ * Menempatkan unit AC secara merata, simetris, dan estetis di sekeliling dinding toko:
+ * - Menjamin TIDAK ADA tabrakan fisik antar bodi AC (Clearance >= 0.70m).
+ * - Menghindari penumpukan unit AC pada satu sisi dinding tertentu.
+ * - Membagi unit secara proporsional ke semua sisi dinding solid yang tersedia.
  */
 export function optimizeAcPlacements({
   customPts,
@@ -90,6 +104,7 @@ export function optimizeAcPlacements({
         (sp) => currentSideWalls.includes(sp.wallIndex) && sp.lengthM >= MIN_SPAN_LENGTH_FOR_AC
       )
       const usableLen = sideSpans.reduce((sum, sp) => sum + sp.lengthM, 0)
+      const maxCap = sideSpans.reduce((sum, sp) => sum + getSpanMaxCapacity(sp.lengthM), 0)
 
       macroSides.push({
         sideIndex: macroSides.length,
@@ -99,6 +114,7 @@ export function optimizeAcPlacements({
         wallIndices: [...currentSideWalls],
         validSpans: sideSpans,
         usableLengthM: usableLen,
+        maxCapacity: maxCap,
       })
 
       currentSideWalls = []
@@ -106,10 +122,10 @@ export function optimizeAcPlacements({
     }
   }
 
-  // Filter sisi makro yang memiliki bentang solid layak (usableLength >= 1.55m)
-  let eligibleMacroSides = macroSides.filter((side) => side.usableLengthM >= MIN_SPAN_LENGTH_FOR_AC)
+  // Filter sisi makro yang memiliki bentang solid layak
+  let eligibleMacroSides = macroSides.filter((side) => side.usableLengthM >= MIN_SPAN_LENGTH_FOR_AC && side.maxCapacity > 0)
 
-  // Fallback jika tidak ada bentang >= 1.55m sama sekali
+  // Fallback jika tidak ada sisi yang lolos filter
   if (eligibleMacroSides.length === 0) {
     eligibleMacroSides = macroSides.filter((side) => side.validSpans.length > 0)
   }
@@ -127,42 +143,36 @@ export function optimizeAcPlacements({
     })
   }
 
-  // 3. Alokasi Kuantitas Unit secara Proporsional & Berimbang
+  // Total kapasitas toko yang aman tanpa tabrakan fisik
+  const totalStoreMaxCapacity = eligibleMacroSides.reduce((sum, s) => sum + s.maxCapacity, 0)
+  const effectiveTargetUnits = Math.min(targetCount, totalStoreMaxCapacity > 0 ? totalStoreMaxCapacity : targetCount)
+
+  // 3. Alokasi Kuantitas Unit secara Proporsional, Merata & Anti-Tabrakan
   const sideAllocations = new Map<number, number>()
   eligibleMacroSides.forEach((side) => sideAllocations.set(side.sideIndex, 0))
 
-  let remainingUnits = targetCount
+  let remainingUnits = effectiveTargetUnits
 
-  // Sisi solid panjang yang bersih (panjang >= 6.0m dan tidak terpotong rintangan) dapat 2 unit untuk targetCount >= 5
-  const longCleanSide = eligibleMacroSides.find(
-    (s) => s.totalLengthM >= 6.0 && s.usableLengthM / s.totalLengthM > 0.85
-  )
-
-  if (targetCount >= 5 && longCleanSide) {
-    sideAllocations.set(longCleanSide.sideIndex, 2)
-    remainingUnits -= 2
-  }
-
-  // Berikan 1 unit ke setiap sisi makro lain yang masih kosong
+  // Tahap 1: Berikan 1 unit ke setiap sisi makro yang layak (prioritas keliling toko)
   const sortedSides = [...eligibleMacroSides].sort((a, b) => b.usableLengthM - a.usableLengthM)
 
   for (const side of sortedSides) {
-    if (remainingUnits > 0 && (sideAllocations.get(side.sideIndex) || 0) === 0) {
+    if (remainingUnits > 0 && side.maxCapacity > 0) {
       sideAllocations.set(side.sideIndex, 1)
       remainingUnits--
     }
   }
 
-  // Alokasikan sisa unit ke sisi makro yang memiliki sisa kapasitas bentang terpanjang
+  // Tahap 2: Distribusikan sisa unit ke sisi-sisi yang paling lapang (densitas terendah) tanpa melebihi maxCapacity
   while (remainingUnits > 0) {
-    let bestSide = sortedSides[0]
+    let bestSide: MacroWallSide | null = null
     let minDensity = Infinity
 
     for (const side of sortedSides) {
-      const count = sideAllocations.get(side.sideIndex) || 0
-      const maxCap = Math.max(1, Math.floor(side.usableLengthM / 3.2))
-      if (count < maxCap) {
-        const density = (count + 1) / side.usableLengthM
+      const currentUnits = sideAllocations.get(side.sideIndex) || 0
+      if (currentUnits < side.maxCapacity) {
+        // Densitas: unit / panjang dinding usable
+        const density = (currentUnits + 1) / side.usableLengthM
         if (density < minDensity) {
           minDensity = density
           bestSide = side
@@ -170,11 +180,16 @@ export function optimizeAcPlacements({
       }
     }
 
+    if (!bestSide) {
+      // Semua sisi telah mencapai batas kapasitas aman fisik maksimal
+      break
+    }
+
     sideAllocations.set(bestSide.sideIndex, (sideAllocations.get(bestSide.sideIndex) || 0) + 1)
     remainingUnits--
   }
 
-  // 4. Tempatkan AC pada Setiap Sisi Makro
+  // 4. Tempatkan Unit AC pada Setiap Sisi Makro & Bentang
   const placedAcResults: {
     wallIndex: number
     ratio: number
@@ -190,7 +205,7 @@ export function optimizeAcPlacements({
 
     if (usableSpans.length === 0) return
 
-    // A. SISI MAKRO BERSIH TANPA RINTANGAN (Misal Dinding Kiri 7.28m)
+    // A. SISI MAKRO BERSIH 1 BENTANG (Misal Dinding Kiri 18.0m)
     if (usableSpans.length === 1 && side.usableLengthM / sideLen > 0.85) {
       const singleSpan = usableSpans[0]
       const spanRange = singleSpan.endT - singleSpan.startT
@@ -209,7 +224,6 @@ export function optimizeAcPlacements({
     }
 
     // B. SISI MAKRO DENGAN BEBERAPA BENTANG (Terpotong Chiller / Kasir / Pintu)
-    // Alokasikan unit kCount ke usableSpans berdasarkan panjang masing-masing bentang
     const spanUnitAlloc = new Map<number, number>()
     usableSpans.forEach((_, idx) => spanUnitAlloc.set(idx, 0))
 
@@ -217,33 +231,43 @@ export function optimizeAcPlacements({
 
     // Urutkan bentang dari yang terpanjang
     const sortedSpanIndices = usableSpans
-      .map((sp, idx) => ({ idx, len: sp.lengthM }))
+      .map((sp, idx) => ({ idx, len: sp.lengthM, maxCap: getSpanMaxCapacity(sp.lengthM) }))
       .sort((a, b) => b.len - a.len)
 
     // Setiap bentang solid layak dapat 1 unit jika cukup
     for (const item of sortedSpanIndices) {
-      if (unitsToDistribute > 0 && (spanUnitAlloc.get(item.idx) || 0) === 0) {
+      if (unitsToDistribute > 0 && item.maxCap > 0 && (spanUnitAlloc.get(item.idx) || 0) === 0) {
         spanUnitAlloc.set(item.idx, 1)
         unitsToDistribute--
       }
     }
 
-    // Jika masih ada sisa unit, berikan ke bentang yang panjangnya >= 4.5m
+    // Distribusikan sisa unit ke bentang yang masih di bawah maxCap masing-masing
     while (unitsToDistribute > 0) {
-      let longestIdx = sortedSpanIndices[0].idx
+      let chosenIdx: number | null = null
+      let lowestSpanDensity = Infinity
+
       for (const item of sortedSpanIndices) {
         const currentInSpan = spanUnitAlloc.get(item.idx) || 0
-        const maxSpanCap = Math.max(1, Math.floor(item.len / 2.8))
-        if (currentInSpan < maxSpanCap) {
-          longestIdx = item.idx
-          break
+        if (currentInSpan < item.maxCap) {
+          const spanDensity = (currentInSpan + 1) / item.len
+          if (spanDensity < lowestSpanDensity) {
+            lowestSpanDensity = spanDensity
+            chosenIdx = item.idx
+          }
         }
       }
-      spanUnitAlloc.set(longestIdx, (spanUnitAlloc.get(longestIdx) || 0) + 1)
+
+      if (chosenIdx === null) {
+        // Semua bentang pada sisi ini sudah penuh kapasitas fisik amannya
+        break
+      }
+
+      spanUnitAlloc.set(chosenIdx, (spanUnitAlloc.get(chosenIdx) || 0) + 1)
       unitsToDistribute--
     }
 
-    // Tempatkan AC pada masing-masing bentang
+    // Tempatkan AC pada masing-masing bentang secara simetris dan aman
     usableSpans.forEach((bestSpan, spIdx) => {
       const countInSpan = spanUnitAlloc.get(spIdx) || 0
       if (countInSpan === 0) return
@@ -252,8 +276,7 @@ export function optimizeAcPlacements({
       const spanLenM = bestSpan.lengthM
       const spanRange = bestSpan.endT - bestSpan.startT
 
-      // Jika bentang menampung 2 unit (misal bentang 5.86m dapat 2 AC)
-      // Wajib dibagi rata menjadi 3 bagian sama: 1/3 dan 2/3
+      // Jika bentang menampung >= 2 unit: bagi rata simetris
       if (countInSpan >= 2) {
         for (let s = 1; s <= countInSpan; s++) {
           const localRatio = s / (countInSpan + 1)
@@ -269,14 +292,13 @@ export function optimizeAcPlacements({
       }
 
       // Jika bentang menampung 1 unit:
-      let chosenLocalRatio = 0.5 // Default tengah
+      let chosenLocalRatio = 0.5 // Default tepat di tengah
 
-      // Aturan Khusus Bentang Panjang (>= 3.8m): Wajib tepat di tengah (50%)
-      // agar tidak meninggalkan ruang kosong besar 4-5 meter
+      // Jika bentang cukup panjang (>= 3.8m): wajib tepat di tengah (50%)
       if (spanLenM >= 3.8) {
         chosenLocalRatio = 0.5
       } else if (spanLenM >= 1.8 && spanLenM < 3.8) {
-        // Bentang sedang (1.8m s/d 3.8m): Cek apakah perlu geser mendekati Chiller atau Kasir
+        // Bentang sedang (1.8m s/d 3.8m): cek perbatasan dengan Chiller atau Kasir
         const prevSeg = wallSegments[(wall.index - 1 + N_PTS) % N_PTS]
         const nextSeg = wallSegments[(wall.index + 1) % N_PTS]
 

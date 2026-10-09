@@ -362,15 +362,17 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
                       : `${area.toFixed(1)} m²`
                   }
                 />
-                {temp !== null && (
-                  <Row
-                    label="Suhu Lingkungan Desain"
-                    value={`${temp}°C (${btuPerM2} BTU/m²)`}
-                  />
-                )}
+                <Row
+                  label="Suhu Desain (Open-Meteo)"
+                  value={
+                    temp !== null
+                      ? `${temp}°C (${btuPerM2} BTU/m²)`
+                      : `Standar Toko (${btuPerM2} BTU/m²)`
+                  }
+                />
                 <Row
                   label="Target Beban Pendinginan"
-                  value={`${totalBtu.toLocaleString("id-ID")} BTU`}
+                  value={`${totalBtu.toLocaleString("id-ID")} BTU/h`}
                 />
                 <Row
                   label="Spesifikasi Unit AC"
