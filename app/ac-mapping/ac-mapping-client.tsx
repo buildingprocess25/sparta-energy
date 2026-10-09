@@ -26,6 +26,13 @@ import {
   IconLockOpen,
   IconEdit,
   IconFileCode,
+  IconMaximize,
+  IconMinimize,
+  IconZoomIn,
+  IconZoomOut,
+  IconZoomReset,
+  IconHandMove,
+  IconFocusCentered,
 } from "@tabler/icons-react"
 import { useTheme } from "next-themes"
 import { Header } from "@/components/header"
@@ -1252,6 +1259,101 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const exportCardRef = useRef<HTMLDivElement | null>(null)
   const dragStartSnapshotRef = useRef<HistorySnapshot | null>(null)
 
+  // ─── 3B. State Fullscreen Modal, Zoom & Pan Dinamis ────────────────────────
+  const [isFullscreenCanvas, setIsFullscreenCanvas] = useState<boolean>(false)
+  const [zoom, setZoom] = useState<number>(1)
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [isPanMode, setIsPanMode] = useState<boolean>(false)
+  const [isSpacePressed, setIsSpacePressed] = useState<boolean>(false)
+  const isPanningRef = useRef<boolean>(false)
+  const panStartRef = useRef<{ x: number; y: number; startPanX: number; startPanY: number } | null>(null)
+
+  const handleResetZoomPan = useCallback(() => {
+    setZoom(1)
+    setPanOffset({ x: 0, y: 0 })
+  }, [])
+
+  const handleToggleFullscreen = useCallback((val?: boolean) => {
+    setIsFullscreenCanvas((prev) => {
+      const next = typeof val === "boolean" ? val : !prev
+      return next
+    })
+    // Reset zoom dan pan agar denah kembali centered rapi tanpa displacement
+    setZoom(1)
+    setPanOffset({ x: 0, y: 0 })
+    setIsPanMode(false)
+  }, [])
+
+  // Keyboard shortcut listener (Space = Pan, Esc = Exit Fullscreen, +/- = Zoom, 0 = Reset)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault()
+        setIsSpacePressed(true)
+      }
+      if (e.key === "Escape" && isFullscreenCanvas) {
+        handleToggleFullscreen(false)
+      }
+      if (isFullscreenCanvas) {
+        if (e.key === "+" || e.key === "=") {
+          setZoom((z) => Math.min(4, Number((z + 0.15).toFixed(2))))
+        } else if (e.key === "-" || e.key === "_") {
+          setZoom((z) => Math.max(0.4, Number((z - 0.15).toFixed(2))))
+        } else if (e.key === "0") {
+          handleResetZoomPan()
+        }
+      }
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setIsSpacePressed(false)
+        if (!isPanMode) {
+          isPanningRef.current = false
+          panStartRef.current = null
+        }
+      }
+    }
+    const handleWindowBlur = () => {
+      setIsSpacePressed(false)
+      isPanningRef.current = false
+      panStartRef.current = null
+    }
+    const handleWindowPointerUp = () => {
+      isPanningRef.current = false
+      panStartRef.current = null
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keyup", handleKeyUp)
+    window.addEventListener("blur", handleWindowBlur)
+    window.addEventListener("pointerup", handleWindowPointerUp)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
+      window.removeEventListener("blur", handleWindowBlur)
+      window.removeEventListener("pointerup", handleWindowPointerUp)
+    }
+  }, [isFullscreenCanvas, isPanMode, handleToggleFullscreen, handleResetZoomPan])
+
+  // Mouse wheel zoom listener
+  const handleCanvasWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    const zoomFactor = e.deltaY < 0 ? 1.12 : 0.9
+    setZoom((prev) => {
+      const next = Math.min(4, Math.max(0.4, Number((prev * zoomFactor).toFixed(2))))
+      return next
+    })
+  }, [])
+
+  const canvasCursorClass = useMemo(() => {
+    if (isPanningRef.current) return "cursor-grabbing"
+    if (isPanMode || isSpacePressed) return "cursor-grab"
+    if (activeDragAcId !== null || activeDragIdx !== null || activeDragPillarId !== null || activeDragSegmentIdx !== null) {
+      return "cursor-grabbing"
+    }
+    return "cursor-crosshair"
+  }, [isPanMode, isSpacePressed, activeDragAcId, activeDragIdx, activeDragPillarId, activeDragSegmentIdx])
+
   // ─── 4. Hitung Luas Denah Poligon & Segmen Dinding ───────────────────────
   const polygonAreaM2 = useMemo(() => {
     return calcPolygonArea(customPts)
@@ -1993,11 +2095,25 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     const cx = e.clientX - rect.left
     const cy = e.clientY - rect.top
 
+    // Panning priority (Middle click, Pan Mode active, or Spacebar held)
+    if (e.button === 1 || isPanMode || isSpacePressed) {
+      isPanningRef.current = true
+      panStartRef.current = { x: e.clientX, y: e.clientY, startPanX: panOffset.x, startPanY: panOffset.y }
+      try {
+        ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+      } catch {}
+      return
+    }
+
     const W = canvas.offsetWidth || 340
-    const sc = customClosed && customPts.length >= 3 ? getScaleInfo(customPts, W, CANVAS_H) : null
-    const scale = sc ? sc.scale : FIXED_SCALE
-    const offX = sc ? sc.offX : FIXED_OX
-    const offY = sc ? sc.offY : FIXED_OY
+    const H = canvas.offsetHeight || CANVAS_H
+    const sc = customClosed && customPts.length >= 3 ? getScaleInfo(customPts, W, H) : null
+    const baseScale = sc ? sc.scale : FIXED_SCALE
+    const baseOffX = sc ? sc.offX : FIXED_OX
+    const baseOffY = sc ? sc.offY : FIXED_OY
+    const scale = baseScale * zoom
+    const offX = W / 2 + (baseOffX - W / 2) * zoom + panOffset.x
+    const offY = H / 2 + (baseOffY - H / 2) * zoom + panOffset.y
 
     // 1. PRIORITAS: Cek jika klik pada Unit AC Terpasang (Bisa langsung digeser)
     if (isCalculated && placedUnits.length > 0) {
@@ -2753,6 +2869,17 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   }
 
   const handleCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // If currently panning, update pan offset
+    if (isPanningRef.current && panStartRef.current) {
+      const dx = e.clientX - panStartRef.current.x
+      const dy = e.clientY - panStartRef.current.y
+      setPanOffset({
+        x: Math.round(panStartRef.current.startPanX + dx),
+        y: Math.round(panStartRef.current.startPanY + dy),
+      })
+      return
+    }
+
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
@@ -2760,10 +2887,14 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     const cy = e.clientY - rect.top
 
     const W = canvas.offsetWidth || 340
-    const sc = customClosed && customPts.length >= 3 ? getScaleInfo(customPts, W, CANVAS_H) : null
-    const scale = sc ? sc.scale : FIXED_SCALE
-    const offX = sc ? sc.offX : FIXED_OX
-    const offY = sc ? sc.offY : FIXED_OY
+    const H = canvas.offsetHeight || CANVAS_H
+    const sc = customClosed && customPts.length >= 3 ? getScaleInfo(customPts, W, H) : null
+    const baseScale = sc ? sc.scale : FIXED_SCALE
+    const baseOffX = sc ? sc.offX : FIXED_OX
+    const baseOffY = sc ? sc.offY : FIXED_OY
+    const scale = baseScale * zoom
+    const offX = W / 2 + (baseOffX - W / 2) * zoom + panOffset.x
+    const offY = H / 2 + (baseOffY - H / 2) * zoom + panOffset.y
 
     const mx = Number(((cx - offX) / scale).toFixed(2))
     const my = Number(((cy - offY) / scale).toFixed(2))
@@ -3230,6 +3361,16 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   }
 
   const handleCanvasPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Selesai pan kanvas (Middle click / Space / Pan Drag)
+    if (isPanningRef.current) {
+      isPanningRef.current = false
+      panStartRef.current = null
+      try {
+        ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      } catch {}
+      return
+    }
+
     // Selesai drag pilar
     if (activeDragPillarId !== null) {
       try {
@@ -3318,6 +3459,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   }
 
   const handleCanvasPointerLeave = () => {
+    if (isPanningRef.current) {
+      isPanningRef.current = false
+      panStartRef.current = null
+    }
     setCursorPos(null)
     setHoverEdge(null)
     setActiveSnapGuides([])
@@ -3333,6 +3478,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     const dpr = Math.max(window.devicePixelRatio || 1, 2)
     const W = customW || canvas.offsetWidth || 340
     const H = customH || canvas.offsetHeight || CANVAS_H
+
+    const effectiveZoom = (targetCanvas || customW) ? 1 : zoom
+    const effectivePanX = (targetCanvas || customW) ? 0 : panOffset.x
+    const effectivePanY = (targetCanvas || customW) ? 0 : panOffset.y
 
     canvas.width = Math.round(W * dpr)
     canvas.height = Math.round(H * dpr)
@@ -3370,26 +3519,30 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
     // A. MODE UNCLOSED: FIXED GRID (0m, 2m, 4m...) & LIVE RUBBERBAND PEN-TOOL
     if (!customClosed || customPts.length < 3) {
+      const curFixedScale = FIXED_SCALE * effectiveZoom
+      const curFixedOx = W / 2 + (FIXED_OX - W / 2) * effectiveZoom + effectivePanX
+      const curFixedOy = H / 2 + (FIXED_OY - H / 2) * effectiveZoom + effectivePanY
+
       ctx.strokeStyle = meterGridStroke
       ctx.lineWidth = 0.5
-      for (let m = 0; m <= 25; m++) {
-        const sx = FIXED_OX + m * FIXED_SCALE
-        const sy = FIXED_OY + m * FIXED_SCALE
-        if (sx < W) { ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke() }
-        if (sy < H) { ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke() }
+      for (let m = 0; m <= 35; m++) {
+        const sx = curFixedOx + m * curFixedScale
+        const sy = curFixedOy + m * curFixedScale
+        if (sx >= 0 && sx < W) { ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke() }
+        if (sy >= 0 && sy < H) { ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke() }
       }
 
       ctx.fillStyle = meterLabelFill
       ctx.font = "8px sans-serif"
       ctx.textAlign = "center"
-      for (let m = 0; m <= 20; m += 2) {
-        const sx = FIXED_OX + m * FIXED_SCALE
-        if (sx < W - 10) ctx.fillText(`${m}m`, sx, FIXED_OY - 4)
+      for (let m = 0; m <= 30; m += 2) {
+        const sx = curFixedOx + m * curFixedScale
+        if (sx >= 0 && sx < W - 10) ctx.fillText(`${m}m`, sx, Math.max(10, Math.min(H - 10, curFixedOy - 4)))
       }
       ctx.textAlign = "right"
-      for (let m = 0; m <= 15; m += 2) {
-        const sy = FIXED_OY + m * FIXED_SCALE
-        if (sy < H - 6) ctx.fillText(`${m}m`, FIXED_OX - 4, sy + 3)
+      for (let m = 0; m <= 25; m += 2) {
+        const sy = curFixedOy + m * curFixedScale
+        if (sy >= 0 && sy < H - 6) ctx.fillText(`${m}m`, Math.max(20, Math.min(W - 10, curFixedOx - 4)), sy + 3)
       }
 
       if (customPts.length === 0) {
@@ -3404,7 +3557,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       }
 
       // Render garis unclosed
-      const toF = (pt: Point) => ({ cx: FIXED_OX + pt.x * FIXED_SCALE, cy: FIXED_OY + pt.y * FIXED_SCALE })
+      const toF = (pt: Point) => ({ cx: curFixedOx + pt.x * curFixedScale, cy: curFixedOy + pt.y * curFixedScale })
       const spts = customPts.map(toF)
 
       ctx.beginPath()
@@ -3631,7 +3784,16 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     }
 
     // B. MODE CLOSED: AUTO-CENTER DENGAN GETSCALEINFO (Sama Seperti Kalkulator Lampu)
-    const sc = getScaleInfo(customPts, W, H)
+    const baseSc = getScaleInfo(customPts, W, H)
+    const effectiveScale = baseSc.scale * effectiveZoom
+    const effectiveOffX = W / 2 + (baseSc.offX - W / 2) * effectiveZoom + effectivePanX
+    const effectiveOffY = H / 2 + (baseSc.offY - H / 2) * effectiveZoom + effectivePanY
+    const sc = {
+      ...baseSc,
+      scale: effectiveScale,
+      offX: effectiveOffX,
+      offY: effectiveOffY,
+    }
     const toC = (pt: Point) => ({ cx: sc.offX + pt.x * sc.scale, cy: sc.offY + pt.y * sc.scale })
     const sPts = customPts.map(toC)
 
@@ -6657,11 +6819,15 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
       ctx.restore()
     }
-  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions, pillars, selectedPillarId, activeDragPillarId, pillarSizeM, pillarWidthInput, pillarLengthInput, pillarDistXInput, pillarDistYInput, magneticSnapFeedback])
+  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions, pillars, selectedPillarId, activeDragPillarId, pillarSizeM, pillarWidthInput, pillarLengthInput, pillarDistXInput, pillarDistYInput, magneticSnapFeedback, zoom, panOffset, isFullscreenCanvas])
 
   useEffect(() => {
     drawCanvas()
-  }, [drawCanvas])
+    const timer = setTimeout(() => {
+      drawCanvas()
+    }, 50)
+    return () => clearTimeout(timer)
+  }, [drawCanvas, isFullscreenCanvas])
 
   // ─── Helper Rincian Jarak AC terhadap Sudut Struktural Utama Denah ────────
   const getStructuralWallDetails = (
@@ -7488,37 +7654,568 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       </button>
                     </div>
 
-                    {/* Quick Clean Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const allOn = showZoneLabels && showWallDimensions && showTotalDimensions
-                        setShowZoneLabels(!allOn)
-                        setShowWallDimensions(!allOn)
-                        setShowTotalDimensions(!allOn)
-                      }}
-                      className="text-[10px] text-muted-foreground hover:text-foreground underline decoration-dotted cursor-pointer shrink-0"
-                    >
-                      {showZoneLabels && showWallDimensions && showTotalDimensions ? "Sembunyikan Semua (Clean)" : "Tampilkan Semua"}
-                    </button>
+                    {/* Quick Clean & Fullscreen Toggles */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allOn = showZoneLabels && showWallDimensions && showTotalDimensions
+                          setShowZoneLabels(!allOn)
+                          setShowWallDimensions(!allOn)
+                          setShowTotalDimensions(!allOn)
+                        }}
+                        className="text-[10px] text-muted-foreground hover:text-foreground underline decoration-dotted cursor-pointer shrink-0"
+                      >
+                        {showZoneLabels && showWallDimensions && showTotalDimensions ? "Sembunyikan Semua" : "Tampilkan Semua"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFullscreen(true)}
+                        className="h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300 hover:bg-sky-500/20 shadow-xs cursor-pointer"
+                        title="Buka kanvas dalam tampilan layar penuh / popup besar"
+                      >
+                        <IconMaximize className="size-3" />
+                        <span>Layar Penuh</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* Canvas Viewport (100% Bersih Tanpa Overlay) */}
-                <div className="relative w-full h-[340px] rounded-2xl border border-border/80 bg-slate-900/5 dark:bg-slate-950/40 overflow-hidden flex items-center justify-center">
-                  <canvas
-                    ref={canvasRef}
-                    onPointerDown={handleCanvasPointerDown}
-                    onPointerMove={handleCanvasPointerMove}
-                    onPointerUp={handleCanvasPointerUp}
-                    onPointerLeave={handleCanvasPointerLeave}
-                    className={`w-full h-full touch-none select-none block ${activeDragAcId !== null || activeDragIdx !== null
-                      ? "cursor-grabbing"
-                      : "cursor-crosshair"
-                      }`}
-                    style={{ height: `${CANVAS_H}px` }}
-                  />
-                </div>
+                {/* Canvas Viewport (Normal Inline vs Fullscreen Modal) */}
+                {!isFullscreenCanvas ? (
+                  <div className="relative w-full h-[340px] rounded-2xl border border-border/80 bg-slate-900/5 dark:bg-slate-950/40 overflow-hidden flex items-center justify-center group">
+                    {/* Floating Fullscreen Trigger Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleFullscreen(true)}
+                      className="absolute top-2.5 right-2.5 z-10 px-2.5 py-1 rounded-lg bg-background/85 hover:bg-background border border-border/80 shadow-md backdrop-blur-xs text-[11px] font-semibold text-foreground flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer opacity-90 group-hover:opacity-100"
+                      title="Buka kanvas dalam tampilan layar penuh / popup besar"
+                    >
+                      <IconMaximize className="size-3.5 text-sky-500" />
+                      <span>Fullscreen</span>
+                    </button>
+
+                    <canvas
+                      ref={canvasRef}
+                      onPointerDown={handleCanvasPointerDown}
+                      onPointerMove={handleCanvasPointerMove}
+                      onPointerUp={handleCanvasPointerUp}
+                      onPointerLeave={handleCanvasPointerLeave}
+                      className={`w-full h-full touch-none select-none block ${canvasCursorClass}`}
+                      style={{ height: `${CANVAS_H}px` }}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    {/* Inline Placeholder to preserve layout while modal is open */}
+                    <div className="w-full h-[340px] rounded-2xl border border-dashed border-sky-500/40 bg-sky-500/5 flex flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-semibold">
+                        <IconMaximize className="size-4 animate-pulse" />
+                        <span>Kanvas sedang aktif dalam Mode Layar Penuh (Expanded Popup)</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleToggleFullscreen(false)}
+                        className="h-7 text-xs border-sky-500/30 text-sky-600 dark:text-sky-400 hover:bg-sky-500/10 cursor-pointer"
+                      >
+                        Kembalikan ke Tampilan Biasa
+                      </Button>
+                    </div>
+
+                    {/* ─── FULLSCREEN MODAL POPUP DIALOG ─── */}
+                    <div
+                      className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 transition-opacity animate-in fade-in duration-150"
+                      onClick={() => handleToggleFullscreen(false)}
+                    />
+
+                    <div className="fixed inset-3 sm:inset-5 md:inset-7 z-50 bg-background/95 border border-border/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl animate-in zoom-in-95 duration-150">
+                      {/* Top Header Bar */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-border/60 bg-muted/30 shrink-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                            <IconAirConditioning className="size-4 text-sky-500" />
+                            Editor Denah & Pemetaan AC
+                          </span>
+                          <Badge variant="outline" className="text-[10px] font-semibold py-0">
+                            {storeMode === "existing" ? selectedStore?.name || "Toko" : newStoreName || "Toko Baru"}
+                          </Badge>
+                          <span
+                            className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${customClosed
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                              }`}
+                          >
+                            {customClosed ? "Poligon Tertutup" : "Belum Tertutup"}
+                          </span>
+                        </div>
+
+                        {/* Center Floating Zoom & Pan Toolbar */}
+                        <div className="flex items-center gap-1 bg-background/90 p-1 rounded-xl border border-border/80 shadow-xs">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 cursor-pointer"
+                            onClick={() => setZoom((z) => Math.max(0.4, Number((z - 0.15).toFixed(2))))}
+                            title="Zoom Out (-)"
+                          >
+                            <IconZoomOut className="size-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-[11px] font-bold font-mono cursor-pointer"
+                            onClick={handleResetZoomPan}
+                            title="Klik untuk Reset Zoom ke 100% & Pusatkan (0)"
+                          >
+                            {Math.round(zoom * 100)}%
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 cursor-pointer"
+                            onClick={() => setZoom((z) => Math.min(4, Number((z + 0.15).toFixed(2))))}
+                            title="Zoom In (+)"
+                          >
+                            <IconZoomIn className="size-3.5" />
+                          </Button>
+                          <div className="w-[1px] h-4 bg-border/60 mx-0.5" />
+                          <Button
+                            size="sm"
+                            variant={isPanMode ? "default" : "outline"}
+                            className={`h-7 px-2 text-[11px] font-medium gap-1 cursor-pointer ${isPanMode ? "bg-primary text-primary-foreground" : ""
+                              }`}
+                            onClick={() => setIsPanMode(!isPanMode)}
+                            title="Aktifkan Mode Pan (atau tahan Spasi / Klik Tengah)"
+                          >
+                            <IconHandMove className="size-3.5" />
+                            <span>{isPanMode ? "Pan Aktif" : "Pan"}</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-[11px] font-medium gap-1 cursor-pointer"
+                            onClick={handleResetZoomPan}
+                            title="Pusatkan Tampilan Denah (Reset Offset)"
+                          >
+                            <IconFocusCentered className="size-3.5" />
+                            <span>Pusatkan</span>
+                          </Button>
+                        </div>
+
+                        {/* Right Layer Toggles & Close */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {customClosed && customPts.length >= 3 && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setShowZoneLabels((v) => !v)}
+                                className={`h-7 px-2 rounded-md text-[10px] font-semibold border cursor-pointer ${showZoneLabels
+                                  ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                                  : "bg-muted/40 border-border/60 text-muted-foreground"
+                                  }`}
+                              >
+                                🏷️ Area {showZoneLabels ? "ON" : "OFF"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowWallDimensions((v) => !v)}
+                                className={`h-7 px-2 rounded-md text-[10px] font-semibold border cursor-pointer ${showWallDimensions
+                                  ? "bg-sky-500/15 border-sky-500/40 text-sky-700 dark:text-sky-300"
+                                  : "bg-muted/40 border-border/60 text-muted-foreground"
+                                  }`}
+                              >
+                                📐 Dinding {showWallDimensions ? "ON" : "OFF"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowTotalDimensions((v) => !v)}
+                                className={`h-7 px-2 rounded-md text-[10px] font-semibold border cursor-pointer ${showTotalDimensions
+                                  ? "bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300"
+                                  : "bg-muted/40 border-border/60 text-muted-foreground"
+                                  }`}
+                              >
+                                📏 Dimensi PT/LT {showTotalDimensions ? "ON" : "OFF"}
+                              </button>
+                            </>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 px-2.5 text-[11px] font-semibold gap-1 ml-1 cursor-pointer"
+                            onClick={() => handleToggleFullscreen(false)}
+                          >
+                            <IconMinimize className="size-3.5" />
+                            <span>Tutup (Esc)</span>
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Fullscreen Drawing Tools Toolbar */}
+                      {isCalculated ? (
+                        <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-b border-border/50 bg-sky-500/10 shrink-0">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-sky-700 dark:text-sky-300">
+                            <IconLock className="size-3.5 text-sky-500" />
+                            <span>Denah terkunci dalam Mode Hasil AC ({placedUnits.length} Unit terpasang)</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => {
+                              setIsCalculated(false)
+                              setPlacedUnits([])
+                              toast.info("Mode Edit Denah aktif.")
+                            }}
+                            className="h-6 text-[11px] font-bold gap-1.5 bg-sky-600 hover:bg-sky-700 text-white shadow-xs cursor-pointer shrink-0"
+                            title="Edit denah dan zona toko"
+                          >
+                            <IconEdit className="size-3 text-white" /> Edit Denah
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5 border-b border-border/50 bg-muted/20 shrink-0 text-xs">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="text-[10px] font-bold text-muted-foreground mr-0.5">Alat:</span>
+
+                            <Button
+                              size="sm"
+                              variant={activeTool === "DRAW" ? "default" : "outline"}
+                              onClick={() => {
+                                setActiveTool("DRAW")
+                                setPendingZoneStart(null)
+                                setPendingCashierDepth(null)
+                              }}
+                              className="h-6 px-2 text-[10.5px] font-bold gap-1 cursor-pointer"
+                            >
+                              <IconPointer className="size-3" /> Denah
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant={activeTool === "DOOR" ? "default" : "outline"}
+                              onClick={() => {
+                                setActiveTool("DOOR")
+                                setPendingZoneStart(null)
+                                setPendingCashierDepth(null)
+                              }}
+                              className={`h-6 px-2 text-[10.5px] font-bold gap-1 cursor-pointer ${activeTool === "DOOR"
+                                ? "bg-orange-500 text-white"
+                                : "border-orange-500/40 text-orange-600 dark:text-orange-400 bg-orange-500/10"
+                                }`}
+                              title="Dinding Pintu / Kaca (2-Klik Rentang Bebas)"
+                            >
+                              <IconDoor className="size-3" /> Pintu/Kaca
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant={activeTool === "DOOR_MAIN" ? "default" : "outline"}
+                              onClick={() => {
+                                setActiveTool("DOOR_MAIN")
+                                setPendingZoneStart(null)
+                                setPendingCashierDepth(null)
+                              }}
+                              className={`h-6 px-2 text-[10.5px] font-bold gap-1 cursor-pointer ${activeTool === "DOOR_MAIN"
+                                ? "bg-amber-600 text-white"
+                                : "border-amber-600/40 text-amber-600 dark:text-amber-400 bg-amber-600/10"
+                                }`}
+                              title="Pintu Utama (2 Daun - Lebar 1.8m Baku)"
+                            >
+                              <IconDoor className="size-3" /> Pintu Utama (1.8m)
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant={activeTool === "DOOR_P1" ? "default" : "outline"}
+                              onClick={() => {
+                                setActiveTool("DOOR_P1")
+                                setPendingZoneStart(null)
+                                setPendingCashierDepth(null)
+                              }}
+                              className={`h-6 px-2 text-[10.5px] font-bold gap-1 cursor-pointer ${activeTool === "DOOR_P1"
+                                ? "bg-rose-600 text-white"
+                                : "border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/10"
+                                }`}
+                              title="Pintu P1 Gudang (1 Daun - Lebar 1.0m Baku)"
+                            >
+                              <IconDoor className="size-3" /> Pintu P1 (1.0m)
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant={activeTool === "CASHIER" ? "default" : "outline"}
+                              onClick={() => {
+                                setActiveTool("CASHIER")
+                                setPendingZoneStart(null)
+                                setPendingCashierDepth(null)
+                              }}
+                              className={`h-6 px-2 text-[10.5px] font-bold gap-1 cursor-pointer ${activeTool === "CASHIER"
+                                ? "bg-amber-500 text-white"
+                                : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                                }`}
+                              title="Area Meja Kasir (2-Klik Sudut / 3-Klik Kedalaman Bebas)"
+                            >
+                              <IconShoppingCart className="size-3" /> Kasir
+                            </Button>
+
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant={activeTool === "CHILLER" ? "default" : "outline"}
+                                onClick={() => {
+                                  setActiveTool("CHILLER")
+                                  setPendingZoneStart(null)
+                                  setPendingCashierDepth(null)
+                                }}
+                                className={`h-6 px-2 text-[10.5px] font-bold gap-1 cursor-pointer ${activeTool === "CHILLER"
+                                  ? "bg-cyan-500 text-white"
+                                  : "border-cyan-500/40 text-cyan-600 dark:text-cyan-400 bg-cyan-500/10"
+                                  }`}
+                                title={`Chiller Open Multi-Deck (1 - ${maxChillerUnits} Unit @ 1.2m, Kedalaman 0.8m)`}
+                              >
+                                <IconFridge className="size-3" /> Chiller
+                              </Button>
+
+                              {activeTool === "CHILLER" && (
+                                <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-md p-0.5 animate-in fade-in">
+                                  <button
+                                    type="button"
+                                    disabled={chillerUnits <= 1}
+                                    onClick={() => setChillerUnits((prev) => Math.max(1, prev - 1))}
+                                    className="size-5 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 font-bold text-xs cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="text-[10px] font-bold text-cyan-900 dark:text-cyan-100 px-1 font-mono whitespace-nowrap">
+                                    {chillerUnits} ({formatDim(chillerUnits * 1.2)}m)
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={chillerUnits >= maxChillerUnits}
+                                    onClick={() => setChillerUnits((prev) => Math.min(maxChillerUnits, prev + 1))}
+                                    className="size-5 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 font-bold text-xs cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant={activeTool === "COLUMN" ? "default" : "outline"}
+                                onClick={() => {
+                                  setActiveTool("COLUMN")
+                                  setPendingZoneStart(null)
+                                  setPendingCashierDepth(null)
+                                }}
+                                className={`h-6 px-2 text-[10.5px] font-bold gap-1 cursor-pointer ${activeTool === "COLUMN"
+                                  ? "bg-slate-700 text-white dark:bg-slate-600"
+                                  : "border-slate-500/40 text-slate-700 dark:text-slate-300 bg-slate-500/10"
+                                  }`}
+                                title="Tambah Kolom / Pilar Beton (Tap di dalam denah, geser untuk mengatur posisi)"
+                              >
+                                <IconColumns className="size-3" /> Pilar ({Math.round(pillarSizeM * 100)}cm)
+                              </Button>
+
+                              {(activeTool === "COLUMN" || selectedPillarId) && (
+                                <div className="flex items-center gap-1 bg-slate-500/15 border border-slate-500/40 rounded-md p-0.5 animate-in fade-in flex-wrap">
+                                  {[0.3, 0.4, 0.5, 0.6].map((s) => (
+                                    <button
+                                      key={s}
+                                      type="button"
+                                      onClick={() => {
+                                        setPillarSizeM(s)
+                                        setPillarWidthInput(String(s))
+                                        setPillarLengthInput(String(s))
+                                        if (selectedPillarId) {
+                                          handleUpdatePillarSize(selectedPillarId, s)
+                                        }
+                                      }}
+                                      className={`px-1 py-0.5 rounded text-[9.5px] font-bold transition-colors cursor-pointer ${(selectedPillar ? selectedPillar.widthM === s && selectedPillar.lengthM === s : pillarSizeM === s)
+                                        ? "bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900"
+                                        : "bg-background/80 hover:bg-background text-muted-foreground"
+                                        }`}
+                                    >
+                                      {Math.round(s * 100)}cm
+                                    </button>
+                                  ))}
+                                  {selectedPillarId && (
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => handleDeletePillar(selectedPillarId)}
+                                      className="h-4 text-[9px] font-bold gap-0.5 px-1 ml-0.5 cursor-pointer"
+                                    >
+                                      <IconTrash className="size-2.5" /> Hapus
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {(pendingZoneStart || pendingCashierDepth) && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setPendingZoneStart(null)
+                                  setPendingCashierDepth(null)
+                                }}
+                                className="h-6 text-[10.5px] font-bold text-red-600 dark:text-red-400 hover:bg-red-500/10 gap-1 px-1.5 border border-red-500/30 cursor-pointer"
+                              >
+                                <IconX className="size-3" /> Batal
+                              </Button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setPresetModalOpen(true)}
+                              className="h-6 px-2 text-[10.5px] font-bold gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer"
+                            >
+                              <IconSquare className="size-3" /> Template
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setCadModalOpen(true)}
+                              className="h-6 px-2 text-[10.5px] font-bold gap-1 border-sky-500/40 text-sky-600 dark:text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 cursor-pointer"
+                            >
+                              <IconFileCode className="size-3" /> Import DXF
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Expanded Canvas Viewport */}
+                      <div className="flex-1 w-full h-full relative overflow-hidden bg-slate-900/5 dark:bg-slate-950/40 flex items-center justify-center min-h-[300px]">
+                        <canvas
+                          ref={canvasRef}
+                          onWheel={handleCanvasWheel}
+                          onPointerDown={handleCanvasPointerDown}
+                          onPointerMove={handleCanvasPointerMove}
+                          onPointerUp={handleCanvasPointerUp}
+                          onPointerLeave={handleCanvasPointerLeave}
+                          className={`w-full h-full touch-none select-none block ${canvasCursorClass}`}
+                          style={{ width: "100%", height: "100%" }}
+                        />
+
+                        {/* Floating Instruction Tip */}
+                        <div className="absolute bottom-3 left-3 z-10 bg-background/85 backdrop-blur-sm border border-border/60 rounded-lg px-2.5 py-1 text-[10.5px] text-muted-foreground shadow-xs pointer-events-none flex items-center gap-2">
+                          <span>💡 <b>Scroll</b> untuk Zoom ({Math.round(zoom * 100)}%)</span>
+                          <span>·</span>
+                          <span><b>Tahan Spasi / Klik Tengah</b> untuk Geser (Pan)</span>
+                          <span>·</span>
+                          <span><b>Drag</b> Unit AC / Pilar untuk reposisi</span>
+                        </div>
+
+                        {/* Floating Mini Zoom Bar Bottom Right */}
+                        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 bg-background/85 backdrop-blur-sm border border-border/60 rounded-lg p-1 shadow-xs">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0 text-xs cursor-pointer"
+                            onClick={() => setZoom((z) => Math.max(0.4, Number((z - 0.15).toFixed(2))))}
+                            title="Zoom Out (-)"
+                          >
+                            <IconZoomOut className="size-3.5" />
+                          </Button>
+                          <span className="text-[10px] font-mono font-bold px-1 min-w-9 text-center">
+                            {Math.round(zoom * 100)}%
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0 text-xs cursor-pointer"
+                            onClick={() => setZoom((z) => Math.min(4, Number((z + 0.15).toFixed(2))))}
+                            title="Zoom In (+)"
+                          >
+                            <IconZoomIn className="size-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Modal Bottom Action Controls Bar */}
+                      <div className="px-4 py-2.5 border-t border-border/60 bg-muted/20 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                        <div className="flex flex-wrap gap-1.5 items-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] font-medium cursor-pointer"
+                            disabled={historyPast.length === 0}
+                            onClick={handleUndo}
+                          >
+                            <IconArrowBackUp className="size-3.5 mr-1 text-sky-500" /> Undo
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] font-medium cursor-pointer"
+                            disabled={historyFuture.length === 0}
+                            onClick={handleRedo}
+                          >
+                            <IconArrowForwardUp className="size-3.5 mr-1 text-purple-500" /> Redo
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={selectedNodeIdx !== null ? "destructive" : "outline"}
+                            className={`h-7 text-[11px] font-semibold transition-all cursor-pointer ${selectedNodeIdx !== null
+                              ? "shadow-sm animate-in fade-in"
+                              : "opacity-50 cursor-not-allowed text-muted-foreground"
+                              }`}
+                            disabled={selectedNodeIdx === null || customPts.length <= 3}
+                            onClick={() => {
+                              if (selectedNodeIdx !== null) {
+                                handleDeleteCustomPoint(selectedNodeIdx)
+                              }
+                            }}
+                          >
+                            <IconTrash className="size-3.5 mr-1" />
+                            {selectedNodeIdx !== null ? `Hapus T${selectedNodeIdx + 1}` : "Hapus Titik"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] font-medium cursor-pointer"
+                            onClick={handleResetCanvas}
+                          >
+                            <IconRefresh className="size-3.5 mr-1" /> Reset
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-7 text-[11px] font-semibold cursor-pointer"
+                            disabled={customPts.length < 3 || customClosed}
+                            onClick={() => {
+                              pushCurrentToHistory()
+                              setCustomClosed(true)
+                              toast.success("Denah poligon berhasil ditutup dan dipusatkan!")
+                            }}
+                          >
+                            {customClosed ? "Poligon Tertutup" : "Tutup Poligon"}
+                          </Button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            className="h-7 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1 cursor-pointer"
+                            onClick={calculateAndPlaceUnits}
+                            disabled={!customClosed || customPts.length < 3}
+                          >
+                            <IconSparkles className="size-3.5" />
+                            <span>Hitung & Petakan AC</span>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Canvas Action Controls (Undo, Redo, Hapus Titik, Reset, Tutup Poligon) */}
                 <div className="p-2.5 rounded-xl border bg-muted/20 space-y-2">
