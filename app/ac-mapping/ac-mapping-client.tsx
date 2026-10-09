@@ -7027,12 +7027,12 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       return
     }
 
-    // Ambil snapshot bersih langsung dengan canvas high-res proporsional (sesuai container 60% Landscape A4)
+    // Ambil snapshot bersih langsung dengan canvas high-res proporsional (sesuai container ~70% Landscape A4)
     let snapshotUrl: string | null = null
     try {
       const exportCanvas = document.createElement("canvas")
-      const exportW = 740
-      const exportH = 540
+      const exportW = 840
+      const exportH = 580
       drawCanvas(exportCanvas, true, exportW, exportH)
       snapshotUrl = exportCanvas.toDataURL("image/png")
     } catch (err) {

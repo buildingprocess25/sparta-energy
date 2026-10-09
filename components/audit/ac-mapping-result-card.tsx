@@ -217,7 +217,7 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
           </div>
         </div>
 
-        {/* ── Main Content Area: 60% Canvas Denah | 40% Keterangan & Spesifikasi ── */}
+        {/* ── Main Content Area: ~70% Canvas Denah | ~30% Keterangan & Spesifikasi ── */}
         <div
           style={{
             display: "flex",
@@ -228,10 +228,10 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
             boxSizing: "border-box",
           }}
         >
-          {/* ── Kiri: Denah Layout Snapshot (~60%) ── */}
+          {/* ── Kiri: Denah Layout Snapshot (~70%) ── */}
           <div
             style={{
-              flex: "1.4 1 0%",
+              flex: "2.4 1 0%",
               display: "flex",
               flexDirection: "column",
               borderRadius: "14px",
@@ -293,7 +293,7 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
                   style={{
                     width: "100%",
                     height: "100%",
-                    maxHeight: "560px",
+                    maxHeight: "580px",
                     objectFit: "contain",
                     display: "block",
                   }}
@@ -312,7 +312,7 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
             </div>
           </div>
 
-          {/* ── Kanan: Keterangan, Parameter & Rekomendasi (~40%) ── */}
+          {/* ── Kanan: Keterangan, Parameter & Rekomendasi (~30%) ── */}
           <div
             style={{
               flex: "1 1 0%",
