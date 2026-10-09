@@ -1252,6 +1252,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   // ─── 3. State AC Layout & Perhitungan ──────────────────────────────────────
   const [placedUnits, setPlacedUnits] = useState<PlacedAcUnit[]>([])
   const [isCalculated, setIsCalculated] = useState<boolean>(false)
+  const [outdoorNotes, setOutdoorNotes] = useState<string>("")
   const [exportCardData, setExportCardData] = useState<AcMappingResultCardData | null>(null)
   const [isSaving, setIsSaving] = useState<boolean>(false)
 
@@ -1990,6 +1991,16 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const calculateAndPlaceUnits = async () => {
     if (customPts.length < 3 || !customClosed) {
       toast.error("Tutup denah poligon toko terlebih dahulu sebelum menghitung.")
+      return
+    }
+
+    if (!outdoorNotes.trim()) {
+      toast.error("Harap isi Keterangan Penempatan Outdoor AC terlebih dahulu sebagai instruksi untuk vendor.")
+      const el = document.getElementById("outdoor-notes-input")
+      if (el) {
+        el.focus()
+        el.scrollIntoView({ behavior: "smooth", block: "center" })
+      }
       return
     }
 
@@ -6959,6 +6970,16 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const handleExportPng = async () => {
     if (isSaving || !isCalculated || placedUnits.length === 0) return
 
+    if (!outdoorNotes.trim()) {
+      toast.error("Harap isi Keterangan Penempatan Outdoor AC terlebih dahulu sebelum mengunduh hasil denah.")
+      const el = document.getElementById("outdoor-notes-input")
+      if (el) {
+        el.focus()
+        el.scrollIntoView({ behavior: "smooth", block: "center" })
+      }
+      return
+    }
+
     // Ambil snapshot bersih langsung dari canvas asli (menjamin bentuk & proporsi 100% identik dengan tampilan di web)
     const canvas = canvasRef.current
     let snapshotUrl: string | null = null
@@ -7004,6 +7025,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
       acUnits: placedUnits.length,
       layoutSnapshot: snapshotUrl,
       placedUnits: unitDetails,
+      outdoorNotes: outdoorNotes.trim(),
     }
 
     setExportCardData(cardData)
@@ -8466,6 +8488,22 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                 )}
 
 
+                {/* Input Keterangan Penempatan Outdoor AC */}
+                <div className="space-y-1.5 p-3 rounded-xl border border-border/70 bg-muted/20 shadow-xs">
+                  <Label htmlFor="outdoor-notes-input" className="text-xs font-bold text-foreground flex items-center gap-1">
+                    <span>Keterangan Penempatan Outdoor AC</span>
+                    <span className="text-rose-500 font-bold">*</span>
+                  </Label>
+                  <textarea
+                    id="outdoor-notes-input"
+                    rows={2}
+                    value={outdoorNotes}
+                    onChange={(e) => setOutdoorNotes(e.target.value)}
+                    placeholder="Contoh: 2 unit outdoor ditempatkan di dak atap belakang / dinding luar lantai atas..."
+                    className="w-full text-xs font-medium rounded-lg border border-input bg-background p-2.5 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none shadow-xs"
+                  />
+                </div>
+
                 {/* Action Hitung & Petakan AC */}
                 <Button
                   size="lg"
@@ -8623,6 +8661,18 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                         )
                       })}
                     </div>
+                  </div>
+                )}
+
+                {/* Catatan Penempatan Outdoor AC */}
+                {outdoorNotes.trim() && (
+                  <div className="p-3 rounded-xl border bg-muted/20 space-y-1 text-xs">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                      Penempatan Outdoor AC
+                    </span>
+                    <p className="text-[11px] font-semibold text-foreground leading-relaxed">
+                      {outdoorNotes.trim()}
+                    </p>
                   </div>
                 )}
 

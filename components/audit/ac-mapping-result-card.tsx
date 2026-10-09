@@ -27,6 +27,7 @@ export type AcMappingResultCardData = {
   acUnits: number
   layoutSnapshot: string | null
   placedUnits: AcMappingUnitDetail[]
+  outdoorNotes?: string
 }
 
 type Props = {
@@ -87,6 +88,7 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
     acUnits,
     layoutSnapshot,
     placedUnits,
+    outdoorNotes,
   } = data
 
   return (
@@ -378,6 +380,44 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Keterangan Penempatan Outdoor AC ── */}
+          {outdoorNotes && outdoorNotes.trim() && (
+            <div
+              style={{
+                margin: "0px 14px 10px",
+                borderRadius: "8px",
+                border: "1px solid #e2e8f0",
+                backgroundColor: "#f8fafc",
+                padding: "8px 10px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "9.5px",
+                  fontWeight: 700,
+                  color: "#0369a1",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  marginBottom: "3px",
+                }}
+              >
+                📍 Penempatan Outdoor AC
+              </div>
+              <div
+                style={{
+                  fontSize: "10px",
+                  color: "#0f172a",
+                  fontWeight: 600,
+                  lineHeight: "1.35",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {outdoorNotes.trim()}
               </div>
             </div>
           )}
