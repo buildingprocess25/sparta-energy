@@ -39,6 +39,7 @@ import {
   IconAdjustmentsHorizontal,
   IconLayersLinked,
   IconLayoutGrid,
+  IconCalculator,
 } from "@tabler/icons-react"
 import { useTheme } from "next-themes"
 import { Header } from "@/components/header"
@@ -1449,6 +1450,10 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
   const [cadModalOpen, setCadModalOpen] = useState(false)
   const [activeCadMetadata, setActiveCadMetadata] = useState<ParsedCadStoreData | null>(null)
 
+  // Confirmation Modal Before Calculating
+  const [isConfirmCalcOpen, setIsConfirmCalcOpen] = useState<boolean>(false)
+  const [confirmCalcType, setConfirmCalcType] = useState<"ac" | "lighting">("ac")
+
   // ─── 2C. State Kolom / Pilar Struktur ────────────────────────────────────
   const [pillars, setPillars] = useState<StorePillar[]>([])
   const [selectedPillarId, setSelectedPillarId] = useState<string | null>(null)
@@ -1565,8 +1570,11 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     if (activeDragAcId !== null || activeDragIdx !== null || activeDragPillarId !== null || activeDragSegmentIdx !== null) {
       return "cursor-grabbing"
     }
+    if (isCalculated || isLightCalculated) {
+      return "cursor-default"
+    }
     return "cursor-crosshair"
-  }, [isPanMode, isSpacePressed, activeDragAcId, activeDragIdx, activeDragPillarId, activeDragSegmentIdx])
+  }, [isPanMode, isSpacePressed, activeDragAcId, activeDragIdx, activeDragPillarId, activeDragSegmentIdx, activeMepTab, isCalculated, isLightCalculated])
 
   // ─── 4. Hitung Luas Denah Poligon & Segmen Dinding ───────────────────────
   const polygonAreaM2 = useMemo(() => {
@@ -2436,6 +2444,43 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     toast.success(`Berhasil menghitung (${maxTemp}°C / ${clusterBtu} BTU/m²) & memetakan ${n} Unit AC 2 PK dengan cakupan optimal & estetika seimbang!`)
   }
 
+  // ─── 10C. Handler Buka Dialog Konfirmasi Parameter Perhitungan ────────────
+  const handleOpenAcConfirm = () => {
+    if (customPts.length < 3 || !customClosed) {
+      toast.error("Tutup denah poligon toko terlebih dahulu sebelum menghitung.")
+      return
+    }
+
+    if (!outdoorNotes.trim()) {
+      toast.error("Harap isi Keterangan Penempatan Outdoor AC terlebih dahulu sebagai instruksi untuk vendor.")
+      const el = document.getElementById("outdoor-notes-input")
+      if (el) {
+        el.focus()
+        el.scrollIntoView({ behavior: "smooth", block: "center" })
+      }
+      return
+    }
+
+    const validWalls = wallSegments.filter((w) => w.type === "SOLID")
+    if (validWalls.length === 0) {
+      toast.error("Semua dinding ditandai sebagai area terlarang. Sisakan minimal 1 dinding solid.")
+      return
+    }
+
+    setConfirmCalcType("ac")
+    setIsConfirmCalcOpen(true)
+  }
+
+  const handleOpenLightingConfirm = () => {
+    if (customPts.length < 3 || !customClosed) {
+      toast.error("Tutup denah poligon toko terlebih dahulu sebelum menghitung.")
+      return
+    }
+
+    setConfirmCalcType("lighting")
+    setIsConfirmCalcOpen(true)
+  }
+
   // ─── 11. Canvas Pointer Interactions (Drag, Snap & 2-Click Zone Marking) ───
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -2464,64 +2509,87 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     const offX = W / 2 + (baseOffX - W / 2) * zoom + panOffset.x
     const offY = H / 2 + (baseOffY - H / 2) * zoom + panOffset.y
 
-    // 0. LIGHTING MODE INTERACTION: Klik Lampu untuk Toggle Enable/Disable (Hanya jika sudah calculate)
-    if (activeMepTab === "lighting" && isLightCalculated && customClosed && customPts.length >= 3) {
-      const lamps = lightingCalculation.placedLampsList
-      for (let idx = 0; idx < lamps.length; idx++) {
-        const lamp = lamps[idx]
-        const cLampX = offX + lamp.x * scale
-        const cLampY = offY + lamp.y * scale
-        if (Math.hypot(cx - cLampX, cy - cLampY) <= 16) {
-          setIrregDisabledLamps((prev) => {
-            const next = new Set(prev)
-            const key = idx.toString()
-            if (next.has(key)) {
-              next.delete(key)
-              toast.success(`Lampu #${idx + 1} diaktifkan kembali`)
-            } else {
-              next.add(key)
-              toast.info(`Lampu #${idx + 1} dinonaktifkan`)
+    // 0. INTERAKSI DALAM MODE HASIL / DENAH TERKUNCI
+    const isLockedMode = isCalculated || isLightCalculated
+
+    if (isLockedMode) {
+      // 0A. Jika di Sistem AC: Cek jika klik pada Unit AC Terpasang (Bisa langsung digeser untuk fine-tune)
+      if (activeMepTab === "ac" && isCalculated && placedUnits.length > 0) {
+        for (let i = 0; i < placedUnits.length; i++) {
+          const u = placedUnits[i]
+          const wall = wallSegments.find((w) => w.index === u.wallIndex)
+          if (wall) {
+            const acX = wall.p1.x + (wall.p2.x - wall.p1.x) * u.ratio
+            const acY = wall.p1.y + (wall.p2.y - wall.p1.y) * u.ratio
+            const cAcX = offX + acX * scale
+            const cAcY = offY + acY * scale
+            if (Math.hypot(cx - cAcX, cy - cAcY) <= 18) {
+              pushCurrentToHistory()
+              setActiveDragAcId(u.id)
+              try {
+                ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+              } catch {}
+              return
             }
-            return next
-          })
-          return
+          }
         }
       }
-    }
 
-    // 1. PRIORITAS: Cek jika klik pada Unit AC Terpasang (Bisa langsung digeser)
-    if (activeMepTab === "ac" && isCalculated && placedUnits.length > 0) {
-      for (let i = 0; i < placedUnits.length; i++) {
-        const u = placedUnits[i]
-        const wall = wallSegments.find((w) => w.index === u.wallIndex)
-        if (wall) {
-          const acX = wall.p1.x + (wall.p2.x - wall.p1.x) * u.ratio
-          const acY = wall.p1.y + (wall.p2.y - wall.p1.y) * u.ratio
-          const cAcX = offX + acX * scale
-          const cAcY = offY + acY * scale
-          if (Math.hypot(cx - cAcX, cy - cAcY) <= 18) {
-            pushCurrentToHistory()
-            setActiveDragAcId(u.id)
-            try {
-              ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-            } catch {}
+      // 0B. Jika di Sistem Lampu: Cek jika klik pada Titik Lampu (Toggle on/off)
+      if (activeMepTab === "lighting" && isLightCalculated && customClosed && customPts.length >= 3) {
+        const lamps = lightingCalculation.placedLampsList
+        for (let idx = 0; idx < lamps.length; idx++) {
+          const lamp = lamps[idx]
+          const cLampX = offX + lamp.x * scale
+          const cLampY = offY + lamp.y * scale
+          if (Math.hypot(cx - cLampX, cy - cLampY) <= 16) {
+            setIrregDisabledLamps((prev) => {
+              const next = new Set(prev)
+              const key = idx.toString()
+              if (next.has(key)) {
+                next.delete(key)
+                toast.success(`Lampu #${idx + 1} diaktifkan kembali`)
+                return next
+              } else {
+                const currentActiveLamps = lamps.filter((_, i) => !prev.has(i.toString())).length
+                const limitMin = lightingCalculation.minLamps
+                if (limitMin > 0 && currentActiveLamps <= limitMin) {
+                  toast.warning(
+                    `Batas minimum tercapai (${limitMin} Titik). Lampu tidak dapat dinonaktifkan lagi agar intensitas pencahayaan tetap memenuhi standar retail minimal 4 W/m².`
+                  )
+                  return prev
+                }
+                next.add(key)
+                toast.info(`Lampu #${idx + 1} dinonaktifkan`)
+                return next
+              }
+            })
             return
           }
         }
       }
 
-
-      // JIKA HASIL AC AKTIF & KLIK DI LUAR UNIT AC -> DENAH TERKUNCI!
+      // 0C. JIKA KLIK DI LUAR AC ATAU LAMPU SAAT DENAH TERKUNCI -> KUNCI TOTAL!
+      // Beri notifikasi jika pengguna mengklik titik sudut dinding
       const spts = customPts.map((pt) => ({
         cx: offX + pt.x * scale,
         cy: offY + pt.y * scale,
       }))
       for (let i = 0; i < spts.length; i++) {
         if (Math.hypot(cx - spts[i].cx, cy - spts[i].cy) <= 18) {
-          toast.info("🔒 Denah terkunci dalam mode Hasil AC. Klik tombol 'Edit Denah' di toolbar jika ingin mengubah ukuran/sudut toko.")
+          const modeLabel = (activeMepTab === "ac" && isCalculated)
+            ? "Hasil AC"
+            : (activeMepTab === "lighting" && isLightCalculated)
+              ? "Hasil Lampu"
+              : isCalculated
+                ? "Hasil AC"
+                : "Hasil Lampu"
+          toast.info(`Denah terkunci dalam mode ${modeLabel}. Klik tombol 'Edit Denah' di toolbar jika ingin mengubah ukuran atau sudut toko.`)
           return
         }
       }
+
+      // Blok semua interaksi lainnya (tidak boleh geser titik, sisip titik, geser pilar, atau ubah struktur)
       return
     }
 
@@ -2821,7 +2889,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
           clickPt = { x: mX, y: mY }
         }
 
-        const toolLabel = activeTool === "DOOR" ? "Pintu/Kaca 🚪" : "Kasir 🛒"
+        const toolLabel = activeTool === "DOOR" ? "Pintu/Kaca" : "Kasir"
 
         // LANGKAH 1: Klik Titik Awal
         if (!pendingZoneStart || pendingZoneStart.tool !== activeTool) {
@@ -3680,8 +3748,13 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
       setActiveSnapGuides([])
     }
 
-    // Hover detection untuk Pen Tool & Penanda Zona pada garis / sudut
+    // Hover detection untuk Pen Tool & Penanda Zona pada garis / sudut (hanya jika mode edit denah aktif)
     if (customPts.length >= 2) {
+      if (isCalculated || isLightCalculated) {
+        setHoverEdge(null)
+        return
+      }
+
       const spts = customPts.map((pt) => ({
         cx: offX + pt.x * scale,
         cy: offY + pt.y * scale,
@@ -5939,7 +6012,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
           ptsChain.length >= 3
             ? `${formatDim(Math.hypot(ptsChain[0].x - ptsChain[1].x, ptsChain[0].y - ptsChain[1].y))}m × ${formatDim(Math.hypot(ptsChain[2].x - ptsChain[1].x, ptsChain[2].y - ptsChain[1].y))}m`
             : `${formatDim(lengthM)}m × ${formatDim(depthM)}m`
-        const label1 = `🛒 AREA KASIR: ${dimText}`
+        const label1 = `AREA KASIR: ${dimText}`
         ctx.strokeText(label1, midX, midY - 6)
         ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
         ctx.fillText(label1, midX, midY - 6)
@@ -6154,8 +6227,8 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
           ctx.lineWidth = 3
           ctx.lineJoin = "round"
           const label1 = isCorner2
-            ? `🛒 KASIR SUDUT: ${formatDim(l1)}m × ${formatDim(l2)}m`
-            : `🛒 KASIR 3-SISI: ${formatDim(pathResult.totalLengthM)}m`
+            ? `KASIR SUDUT: ${formatDim(l1)}m × ${formatDim(l2)}m`
+            : `KASIR 3-SISI: ${formatDim(pathResult.totalLengthM)}m`
           ctx.strokeText(label1, midX, midY - 6)
           ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
           ctx.fillText(label1, midX, midY - 6)
@@ -8130,22 +8203,22 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                   >
                     {(isCalculated || isLightCalculated)
                       ? activeMepTab === "ac"
-                        ? "🔒 Denah terkunci. Geser unit AC di dinding untuk fine-tune jarak."
-                        : "🔒 Denah terkunci. Klik titik lampu untuk aktifkan/nonaktifkan."
+                        ? "Denah terkunci. Geser unit AC di dinding untuk fine-tune jarak."
+                        : "Denah terkunci. Klik titik lampu untuk aktifkan/nonaktifkan."
                       : activeTool === "DOOR"
-                        ? "🚪 Mode Pintu / Kaca Bebas (2-Klik): Klik titik awal & akhir."
+                        ? "Mode Pintu / Kaca Bebas (2-Klik): Klik titik awal & akhir."
                         : activeTool === "DOOR_MAIN"
-                          ? "🚪 Mode Pintu Utama (1.8m): Klik dinding untuk memasang."
+                          ? "Mode Pintu Utama (1.8m): Klik dinding untuk memasang."
                           : activeTool === "DOOR_P1"
-                            ? "🚪 Mode Pintu P1 (1.0m): Klik dinding untuk memasang."
+                            ? "Mode Pintu P1 (1.0m): Klik dinding untuk memasang."
                             : activeTool === "CASHIER"
                               ? pendingCashierDepth
-                                ? "🛒 Tarik kedalaman kasir, lalu klik titik ke-3 untuk kunci."
+                                ? "Tarik kedalaman kasir, lalu klik titik ke-3 untuk kunci."
                                 : pendingZoneStart
-                                  ? "🛒 Klik titik ke-2 di dinding untuk tentukan panjang."
-                                  : "🛒 Mode Kasir (3-Klik): Klik titik awal pada dinding."
+                                  ? "Klik titik ke-2 di dinding untuk tentukan panjang."
+                                  : "Mode Kasir (3-Klik): Klik titik awal pada dinding."
                               : activeTool === "CHILLER"
-                                ? `🧊 Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m × 0.8m): Klik dinding untuk pasang.`
+                                ? `Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m × 0.8m): Klik dinding untuk pasang.`
                                 : activeTool === "DRAW"
                                   ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
                                   : "Pilih alat gambar atau pasang fixture interior."}
@@ -8557,13 +8630,13 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                       <button
                         type="button"
                         onClick={() => setShowZoneLabels((v) => !v)}
-                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${showZoneLabels
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1.5 transition-all border cursor-pointer ${showZoneLabels
                             ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 shadow-xs"
                             : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
                           }`}
                         title="Tampilkan / Sembunyikan Nama Area (Kasir, Chiller, Pintu, Kolom)"
                       >
-                        <span>🏷️</span>
+                        <IconBuildingStore className="size-3 text-amber-500" />
                         <span>Nama Area</span>
                         <span className="text-[9px] opacity-80">{showZoneLabels ? "ON" : "OFF"}</span>
                       </button>
@@ -8571,13 +8644,13 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                       <button
                         type="button"
                         onClick={() => setShowWallDimensions((v) => !v)}
-                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${showWallDimensions
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1.5 transition-all border cursor-pointer ${showWallDimensions
                             ? "bg-sky-500/15 border-sky-500/40 text-sky-700 dark:text-sky-300 shadow-xs"
                             : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
                           }`}
                         title="Tampilkan / Sembunyikan Garis Ukuran Dinding & Jarak As AC"
                       >
-                        <span>📐</span>
+                        <IconRuler className="size-3 text-sky-500" />
                         <span>Ukuran Dinding</span>
                         <span className="text-[9px] opacity-80">{showWallDimensions ? "ON" : "OFF"}</span>
                       </button>
@@ -8585,19 +8658,19 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                       <button
                         type="button"
                         onClick={() => setShowTotalDimensions((v) => !v)}
-                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${showTotalDimensions
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1.5 transition-all border cursor-pointer ${showTotalDimensions
                             ? "bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300 shadow-xs"
                             : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
                           }`}
                         title="Tampilkan / Sembunyikan Garis Dimensi Luar Panjang Total (PT) & Lebar Total (LT)"
                       >
-                        <span>📏</span>
+                        <IconRuler className="size-3 text-purple-500" />
                         <span>Dimensi Total (PT/LT)</span>
                         <span className="text-[9px] opacity-80">{showTotalDimensions ? "ON" : "OFF"}</span>
                       </button>
                     </div>
 
-                    {/* Quick Clean & Fullscreen Toggles */}
+                    {/* Quick Clean Toggle */}
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -8610,16 +8683,6 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                         className="text-[10px] text-muted-foreground hover:text-foreground underline decoration-dotted cursor-pointer shrink-0"
                       >
                         {showZoneLabels && showWallDimensions && showTotalDimensions ? "Sembunyikan Semua" : "Tampilkan Semua"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleToggleFullscreen(true)}
-                        className="h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300 hover:bg-sky-500/20 shadow-xs cursor-pointer"
-                        title="Buka kanvas dalam tampilan layar penuh / popup besar"
-                      >
-                        <IconMaximize className="size-3" />
-                        <span>Layar Penuh</span>
                       </button>
                     </div>
                   </div>
@@ -8676,11 +8739,49 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                     <div className="fixed inset-3 sm:inset-5 md:inset-7 z-50 bg-background/95 border border-border/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl animate-in zoom-in-95 duration-150">
                       {/* Top Header Bar */}
                       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-border/60 bg-muted/30 shrink-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                            <IconAirConditioning className="size-4 text-sky-500" />
-                            Editor Denah & Pemetaan AC
+                            {activeMepTab === "ac" ? (
+                              <>
+                                <IconSnowflake className="size-4 text-sky-500" />
+                                <span>Editor Denah & Pemetaan AC</span>
+                              </>
+                            ) : (
+                              <>
+                                <IconBulb className="size-4 text-amber-500" />
+                                <span>Editor Denah & Simulasi Lampu</span>
+                              </>
+                            )}
                           </span>
+
+                          {/* Quick MEP Tab Switcher (Tanpa Emoji) */}
+                          <div className="flex items-center gap-1 bg-muted/80 p-0.5 rounded-lg border border-border/60">
+                            <button
+                              type="button"
+                              onClick={() => setActiveMepTab("ac")}
+                              className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                                activeMepTab === "ac"
+                                  ? "bg-sky-500 text-white shadow-xs"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                              }`}
+                            >
+                              <IconSnowflake className="size-3" />
+                              <span>Sistem AC</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveMepTab("lighting")}
+                              className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                                activeMepTab === "lighting"
+                                  ? "bg-amber-500 text-white shadow-xs"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                              }`}
+                            >
+                              <IconBulb className="size-3" />
+                              <span>Sistem Lampu</span>
+                            </button>
+                          </div>
+
                           <Badge variant="outline" className="text-[10px] font-semibold py-0">
                             {storeMode === "existing" ? selectedStore?.name || "Toko" : newStoreName || "Toko Baru"}
                           </Badge>
@@ -8754,32 +8855,35 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                               <button
                                 type="button"
                                 onClick={() => setShowZoneLabels((v) => !v)}
-                                className={`h-7 px-2 rounded-md text-[10px] font-semibold border cursor-pointer ${showZoneLabels
+                                className={`h-7 px-2 rounded-md text-[10px] font-semibold flex items-center gap-1 border cursor-pointer ${showZoneLabels
                                   ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300"
                                   : "bg-muted/40 border-border/60 text-muted-foreground"
                                   }`}
                               >
-                                🏷️ Area {showZoneLabels ? "ON" : "OFF"}
+                                <IconBuildingStore className="size-3 text-amber-500" />
+                                <span>Area {showZoneLabels ? "ON" : "OFF"}</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setShowWallDimensions((v) => !v)}
-                                className={`h-7 px-2 rounded-md text-[10px] font-semibold border cursor-pointer ${showWallDimensions
+                                className={`h-7 px-2 rounded-md text-[10px] font-semibold flex items-center gap-1 border cursor-pointer ${showWallDimensions
                                   ? "bg-sky-500/15 border-sky-500/40 text-sky-700 dark:text-sky-300"
                                   : "bg-muted/40 border-border/60 text-muted-foreground"
                                   }`}
                               >
-                                📐 Dinding {showWallDimensions ? "ON" : "OFF"}
+                                <IconRuler className="size-3 text-sky-500" />
+                                <span>Dinding {showWallDimensions ? "ON" : "OFF"}</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setShowTotalDimensions((v) => !v)}
-                                className={`h-7 px-2 rounded-md text-[10px] font-semibold border cursor-pointer ${showTotalDimensions
+                                className={`h-7 px-2 rounded-md text-[10px] font-semibold flex items-center gap-1 border cursor-pointer ${showTotalDimensions
                                   ? "bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300"
                                   : "bg-muted/40 border-border/60 text-muted-foreground"
                                   }`}
                               >
-                                📏 Dimensi PT/LT {showTotalDimensions ? "ON" : "OFF"}
+                                <IconRuler className="size-3 text-purple-500" />
+                                <span>Dimensi PT/LT {showTotalDimensions ? "ON" : "OFF"}</span>
                               </button>
                             </>
                           )}
@@ -8796,7 +8900,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                       </div>
 
                       {/* Fullscreen Drawing Tools Toolbar */}
-                      {isCalculated ? (
+                      {activeMepTab === "ac" && isCalculated ? (
                         <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-b border-border/50 bg-sky-500/10 shrink-0">
                           <div className="flex items-center gap-2 text-xs font-semibold text-sky-700 dark:text-sky-300">
                             <IconLock className="size-3.5 text-sky-500" />
@@ -8811,6 +8915,25 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                               toast.info("Mode Edit Denah aktif.")
                             }}
                             className="h-6 text-[11px] font-bold gap-1.5 bg-sky-600 hover:bg-sky-700 text-white shadow-xs cursor-pointer shrink-0"
+                            title="Edit denah dan zona toko"
+                          >
+                            <IconEdit className="size-3 text-white" /> Edit Denah
+                          </Button>
+                        </div>
+                      ) : activeMepTab === "lighting" && isLightCalculated ? (
+                        <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-b border-border/50 bg-amber-500/10 shrink-0">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                            <IconLock className="size-3.5 text-amber-500" />
+                            <span>Denah terkunci dalam Mode Hasil Lampu (LED Tube T8 {lampWatt}W, Target 4–5 W/m²)</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => {
+                              setIsLightCalculated(false)
+                              toast.info("Mode Edit Denah aktif.")
+                            }}
+                            className="h-6 text-[11px] font-bold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-xs cursor-pointer shrink-0"
                             title="Edit denah dan zona toko"
                           >
                             <IconEdit className="size-3 text-white" /> Edit Denah
@@ -9051,11 +9174,14 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
 
                         {/* Floating Instruction Tip */}
                         <div className="absolute bottom-3 left-3 z-10 bg-background/85 backdrop-blur-sm border border-border/60 rounded-lg px-2.5 py-1 text-[10.5px] text-muted-foreground shadow-xs pointer-events-none flex items-center gap-2">
-                          <span>💡 <b>Scroll</b> untuk Zoom ({Math.round(zoom * 100)}%)</span>
+                          <span className="flex items-center gap-1">
+                            <IconInfoCircle className="size-3 text-sky-500" />
+                            <span><b>Scroll</b> untuk Zoom ({Math.round(zoom * 100)}%)</span>
+                          </span>
                           <span>·</span>
                           <span><b>Tahan Spasi / Klik Tengah</b> untuk Geser (Pan)</span>
                           <span>·</span>
-                          <span><b>Drag</b> Unit AC / Pilar untuk reposisi</span>
+                          <span>{activeMepTab === "ac" ? <><b>Drag</b> Unit AC / Pilar untuk reposisi</> : <><b>Klik</b> Titik Lampu untuk On/Off (Terkunci pada min. standar)</>}</span>
                         </div>
 
                         {/* Floating Mini Zoom Bar Bottom Right */}
@@ -9145,15 +9271,36 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            className="h-7 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1 cursor-pointer"
-                            onClick={calculateAndPlaceUnits}
-                            disabled={!customClosed || customPts.length < 3}
-                          >
-                            <IconSparkles className="size-3.5" />
-                            <span>Hitung & Petakan AC</span>
-                          </Button>
+                          {activeMepTab === "ac" ? (
+                            <Button
+                              size="sm"
+                              className="h-7 text-[11px] font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-xs gap-1.5 cursor-pointer"
+                              onClick={handleOpenAcConfirm}
+                              disabled={!customClosed || customPts.length < 3 || isCalculating}
+                            >
+                              {isCalculating ? (
+                                <>
+                                  <IconRefresh className="size-3.5 animate-spin" />
+                                  <span>Menghitung Layout AC...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <IconSparkles className="size-3.5" />
+                                  <span>Hitung & Petakan AC</span>
+                                </>
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="h-7 text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-xs gap-1.5 cursor-pointer"
+                              onClick={handleOpenLightingConfirm}
+                              disabled={!customClosed || customPts.length < 3}
+                            >
+                              <IconBulb className="size-3.5" />
+                              <span>{isLightCalculated ? "Hitung Ulang & Simulasikan Lampu" : "Hitung & Simulasikan Lampu"}</span>
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -9350,18 +9497,18 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                                 }}
                                 className="h-7 text-[10px] font-semibold rounded-md border border-input bg-background px-2 py-0.5"
                               >
-                                <option value="SOLID">🧱 Dinding Solid</option>
-                                <option value="GLASS_DOOR">🚪 Pintu / Kaca (Bebas)</option>
-                                <option value="DOOR_MAIN">🚪 Pintu Utama (1.8m)</option>
-                                <option value="DOOR_P1">🚪 Pintu P1 (1.0m)</option>
-                                <option value="CASHIER">🛒 Kasir</option>
-                                <option value="CHILLER">🧊 Chiller</option>
+                                <option value="SOLID">Dinding Solid</option>
+                                <option value="GLASS_DOOR">Pintu / Kaca (Bebas)</option>
+                                <option value="DOOR_MAIN">Pintu Utama (1.8m)</option>
+                                <option value="DOOR_P1">Pintu P1 (1.0m)</option>
+                                <option value="CASHIER">Kasir</option>
+                                <option value="CHILLER">Chiller</option>
                               </select>
                             </div>
 
                             {currentType === "SOLID" && (typeof len === "number" || typeof len === "string") && (parseFloat(String(len)) || 0) > 0 && (parseFloat(String(len)) || 0) < AC_INDOOR_WIDTH_M && (
                               <div className="text-[9.5px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 pt-0.5">
-                                <span>⚠️ Sempit (&lt; 1.05m, tidak muat AC 2 PK)</span>
+                                <span>Sempit (&lt; 1.05m, tidak muat AC 2 PK)</span>
                               </div>
                             )}
                           </div>
@@ -9394,7 +9541,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                     {/* Action Hitung & Petakan AC */}
                     <Button
                       size="lg"
-                      onClick={calculateAndPlaceUnits}
+                      onClick={handleOpenAcConfirm}
                       disabled={customPts.length < 3 || !customClosed || isCalculating}
                       className="w-full h-11 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm rounded-xl cursor-pointer"
                     >
@@ -9412,34 +9559,28 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                 ) : (
                   <>
                     {/* Ringkasan Parameter Sistem Pencahayaan */}
-                    <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-2 text-xs">
-                      <div className="flex items-center justify-between font-bold text-amber-900 dark:text-amber-200">
+                    <div className="p-3 rounded-xl border border-border/70 bg-muted/20 shadow-xs space-y-2 text-xs">
+                      <div className="flex items-center justify-between font-bold text-foreground">
                         <span className="flex items-center gap-1.5">
                           <IconBulb className="size-4 text-amber-500" />
-                          Simulasi Sistem Pencahayaan
+                          <span>Simulasi Sistem Pencahayaan</span>
                         </span>
-                        <Badge variant="outline" className="border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold text-[10px]">
+                        <Badge variant="outline" className="border-border/80 bg-background/80 text-muted-foreground font-semibold text-[10px]">
                           Target 4–5 W/m² (Standar Retail)
                         </Badge>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                        <div className="p-2 rounded-lg bg-background/80 border border-amber-500/20 flex flex-col">
-                          <span className="text-[9.5px] text-muted-foreground font-medium">Tipe Lampu</span>
-                          <span className="font-bold text-foreground mt-0.5">LED Tube T8 ({lampWatt}W)</span>
-                        </div>
-                        <div className="p-2 rounded-lg bg-background/80 border border-amber-500/20 flex flex-col">
-                          <span className="text-[9.5px] text-muted-foreground font-medium">Luas Bersih Sales</span>
-                          <span className="font-bold text-amber-600 dark:text-amber-400 font-mono mt-0.5">
-                            {netSalesArea} m²
-                          </span>
-                        </div>
+                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/40">
+                        <span className="text-muted-foreground font-medium">Luas Bersih Sales:</span>
+                        <span className="font-bold text-foreground font-mono text-xs">
+                          {netSalesArea} m²
+                        </span>
                       </div>
                     </div>
 
                     {/* Action Hitung & Simulasikan Lampu */}
                     <Button
                       size="lg"
-                      onClick={calculateAndPlaceLamps}
+                      onClick={handleOpenLightingConfirm}
                       disabled={customPts.length < 3 || !customClosed}
                       className="w-full h-11 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white gap-2 shadow-sm rounded-xl cursor-pointer"
                     >
@@ -9667,21 +9808,6 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                         </div>
                       </div>
 
-                      {/* Notifikasi Catatan Standar Toleransi jika ada */}
-                      {lightingCalculation.standardEval.isToleransi && lightingCalculation.standardEval.issues.length > 0 && (
-                        <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-300 space-y-1.5">
-                          <div className="font-bold flex items-center gap-1.5">
-                            <IconInfoCircle className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                            <span>Catatan Standar Toleransi:</span>
-                          </div>
-                          <ul className="list-disc list-inside text-[11px] space-y-1 pl-1 leading-relaxed">
-                            {lightingCalculation.standardEval.issues.map((iss, i) => (
-                              <li key={i}>{iss}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
                       {/* Notifikasi Titik di Luar Area Bersih Sales */}
                       {lightingCalculation.blockedLampsCount > 0 && (
                         <div className="p-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-xs flex items-center justify-between text-sky-900 dark:text-sky-300">
@@ -9712,19 +9838,14 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                         </div>
                       </div>
 
-                      {/* Spesifikasi Lampu & Panduan Interaktif */}
+                      {/* Penyesuaian Titik Lampu Kanvas */}
                       <div className="bg-muted/20 rounded-xl p-3 border border-border/60 text-xs space-y-2">
-                        <div className="font-bold flex items-center justify-between text-foreground">
-                          <span className="flex items-center gap-1.5">
-                            <IconBulb className="size-3.5 text-sky-500" />
-                            Spesifikasi Lampu
-                          </span>
-                          <span className="text-[10px] text-muted-foreground font-mono font-normal">
-                            TL LED 1.22m ({lampWatt}W)
-                          </span>
+                        <div className="font-bold flex items-center gap-1.5 text-foreground">
+                          <IconBulb className="size-3.5 text-sky-500" />
+                          <span>Penyesuaian Titik Lampu</span>
                         </div>
                         <p className="text-[11px] text-muted-foreground leading-relaxed">
-                          Grid lampu dihitung otomatis dengan sebaran simetris yang merata ({lightingCalculation.energyRatio} W/m²). Anda dapat mengeklik titik lampu pada kanvas secara langsung untuk menonaktifkan atau mengaktifkan lampu tertentu.
+                          Klik titik lampu pada kanvas untuk menonaktifkan atau mengaktifkan lampu tertentu. Jumlah lampu aktif dikunci pada batas minimum standar retail ({lightingCalculation.minLamps} Titik).
                         </p>
 
                         {irregDisabledLamps.size > 0 && (
@@ -9876,8 +9997,9 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                       <polygon points="160,58 157,53 163,53" fill="#059669" />
                       <text x="169" y="40" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#059669" transform="rotate(90, 169, 40)">Panjang Sayap (PS)</text>
                     </svg>
-                    <div className="text-[9.5px] text-muted-foreground text-center mt-1">
-                      💡 <b>LT & PT</b> adalah dimensi luar total. <b>LS & PS</b> adalah dimensi potongan badan sayap (LS &lt; LT, PS &lt; PT).
+                    <div className="text-[9.5px] text-muted-foreground text-center mt-1 flex items-center justify-center gap-1">
+                      <IconInfoCircle className="size-3 text-sky-500 shrink-0" />
+                      <span><b>LT & PT</b> adalah dimensi luar total. <b>LS & PS</b> adalah dimensi potongan badan sayap (LS &lt; LT, PS &lt; PT).</span>
                     </div>
                   </div>
 
@@ -9998,6 +10120,146 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
             setActiveCadMetadata(cadData)
           }}
         />
+
+        {/* Modal Konfirmasi Parameter Perhitungan */}
+        <Dialog open={isConfirmCalcOpen} onOpenChange={setIsConfirmCalcOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                {confirmCalcType === "ac" ? (
+                  <>
+                    <IconCalculator className="size-5 text-sky-600" />
+                    <span>Konfirmasi Parameter Perhitungan AC</span>
+                  </>
+                ) : (
+                  <>
+                    <IconBulb className="size-5 text-amber-500" />
+                    <span>Konfirmasi Parameter Simulasi Lampu</span>
+                  </>
+                )}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                {confirmCalcType === "ac"
+                  ? "Pastikan data toko, luasan denah, dan catatan penempatan outdoor sudah sesuai sebelum sistem memetakan unit AC."
+                  : "Pastikan parameter denah toko dan spesifikasi lampu sudah sesuai sebelum sistem membentuk grid pencahayaan."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-xs">
+              <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5 space-y-2.5">
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Status Toko</span>
+                  <span className="font-semibold text-foreground">
+                    {storeMode === "existing" ? "Toko Terdaftar" : "Toko Baru / Denah Bebas"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Nama Toko</span>
+                  <span className="font-semibold text-foreground text-right">
+                    {storeMode === "existing" ? selectedStore?.name : newStoreName || "-"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Cabang</span>
+                  <span className="font-semibold text-foreground">
+                    {storeMode === "existing" ? selectedStore?.branch || "-" : newStoreBranch || "-"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start border-t border-border/50 pt-2">
+                  <span className="text-muted-foreground font-medium">Luas Bruto Denah</span>
+                  <span className="font-semibold text-foreground font-mono">
+                    {formatDim(polygonAreaM2)} m²
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Luas Bersih Sales</span>
+                  <span className="font-bold text-sky-600 dark:text-sky-400 font-mono">
+                    {netSalesArea} m²
+                  </span>
+                </div>
+
+                {confirmCalcType === "ac" ? (
+                  <>
+                    <div className="flex justify-between items-start border-t border-border/50 pt-2">
+                      <span className="text-muted-foreground font-medium">Target Beban Pendinginan</span>
+                      <span className="font-semibold text-foreground">
+                        {targetBtuPerM2} BTU/m²
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-muted-foreground font-medium">Titik Koordinat Toko</span>
+                      <span className="font-mono text-muted-foreground text-[11px]">
+                        {coordInput || "-6.200000, 106.816666"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-muted-foreground font-medium">Catatan Outdoor</span>
+                      <span className="text-foreground font-medium text-right max-w-[200px] truncate" title={outdoorNotes}>
+                        {outdoorNotes}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-start border-t border-border/50 pt-2">
+                      <span className="text-muted-foreground font-medium">Tipe & Daya Lampu</span>
+                      <span className="font-semibold text-foreground">
+                        LED Tube T8 ({lampWatt}W)
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-muted-foreground font-medium">Target Kepadatan Daya</span>
+                      <span className="font-semibold text-foreground">
+                        4–5 W/m² (Standar Retail)
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-muted-foreground font-medium">Jarak Antar Titik</span>
+                      <span className="font-semibold text-foreground font-mono">
+                        {lampSpasi} m
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-muted-foreground font-medium">Estimasi Kebutuhan</span>
+                      <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">
+                        ~{lightingCalculation.targetLampCount} Titik Lampu
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsConfirmCalcOpen(false)}
+                className="h-9 text-xs"
+              >
+                Periksa Kembali
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setIsConfirmCalcOpen(false)
+                  if (confirmCalcType === "ac") {
+                    calculateAndPlaceUnits()
+                  } else {
+                    calculateAndPlaceLamps()
+                  }
+                }}
+                className={`h-9 text-xs font-semibold text-white cursor-pointer ${
+                  confirmCalcType === "ac"
+                    ? "bg-sky-600 hover:bg-sky-700"
+                    : "bg-amber-600 hover:bg-amber-700"
+                }`}
+              >
+                {confirmCalcType === "ac" ? "Ya, Lanjutkan Hitung AC" : "Ya, Lanjutkan Simulasi Lampu"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Hidden Standarized Result Card for Image Capture (Sama Persis Kalkulator Lampu & AC) */}
         {exportCardData && (

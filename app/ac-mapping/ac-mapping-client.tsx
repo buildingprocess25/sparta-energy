@@ -33,6 +33,8 @@ import {
   IconZoomReset,
   IconHandMove,
   IconFocusCentered,
+  IconInfoCircle,
+  IconCalculator,
 } from "@tabler/icons-react"
 import { useTheme } from "next-themes"
 import { Header } from "@/components/header"
@@ -1285,6 +1287,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
   const [cadModalOpen, setCadModalOpen] = useState(false)
   const [activeCadMetadata, setActiveCadMetadata] = useState<ParsedCadStoreData | null>(null)
 
+  // Confirmation Modal Before Calculating
+  const [isConfirmCalcOpen, setIsConfirmCalcOpen] = useState<boolean>(false)
+
   // ─── 2C. State Kolom / Pilar Struktur ────────────────────────────────────
   const [pillars, setPillars] = useState<StorePillar[]>([])
   const [selectedPillarId, setSelectedPillarId] = useState<string | null>(null)
@@ -1399,8 +1404,11 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     if (activeDragAcId !== null || activeDragIdx !== null || activeDragPillarId !== null || activeDragSegmentIdx !== null) {
       return "cursor-grabbing"
     }
+    if (isCalculated) {
+      return "cursor-default"
+    }
     return "cursor-crosshair"
-  }, [isPanMode, isSpacePressed, activeDragAcId, activeDragIdx, activeDragPillarId, activeDragSegmentIdx])
+  }, [isPanMode, isSpacePressed, activeDragAcId, activeDragIdx, activeDragPillarId, activeDragSegmentIdx, isCalculated])
 
   // ─── 4. Hitung Luas Denah Poligon & Segmen Dinding ───────────────────────
   const polygonAreaM2 = useMemo(() => {
@@ -2145,6 +2153,32 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     toast.success(`Berhasil menghitung (${maxTemp}°C / ${clusterBtu} BTU/m²) & memetakan ${n} Unit AC 2 PK dengan cakupan optimal & estetika seimbang!`)
   }
 
+  // ─── 10C. Handler Buka Dialog Konfirmasi Parameter Perhitungan ────────────
+  const handleOpenAcConfirm = () => {
+    if (customPts.length < 3 || !customClosed) {
+      toast.error("Tutup denah poligon toko terlebih dahulu sebelum menghitung.")
+      return
+    }
+
+    if (!outdoorNotes.trim()) {
+      toast.error("Harap isi Keterangan Penempatan Outdoor AC terlebih dahulu sebagai instruksi untuk vendor.")
+      const el = document.getElementById("outdoor-notes-input")
+      if (el) {
+        el.focus()
+        el.scrollIntoView({ behavior: "smooth", block: "center" })
+      }
+      return
+    }
+
+    const validWalls = wallSegments.filter((w) => w.type === "SOLID")
+    if (validWalls.length === 0) {
+      toast.error("Semua dinding ditandai sebagai area terlarang. Sisakan minimal 1 dinding solid.")
+      return
+    }
+
+    setIsConfirmCalcOpen(true)
+  }
+
   // ─── 11. Canvas Pointer Interactions (Drag, Snap & 2-Click Zone Marking) ───
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -2173,36 +2207,38 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
     const offX = W / 2 + (baseOffX - W / 2) * zoom + panOffset.x
     const offY = H / 2 + (baseOffY - H / 2) * zoom + panOffset.y
 
-    // 1. PRIORITAS: Cek jika klik pada Unit AC Terpasang (Bisa langsung digeser)
-    if (isCalculated && placedUnits.length > 0) {
-      for (let i = 0; i < placedUnits.length; i++) {
-        const u = placedUnits[i]
-        const wall = wallSegments.find((w) => w.index === u.wallIndex)
-        if (wall) {
-          const acX = wall.p1.x + (wall.p2.x - wall.p1.x) * u.ratio
-          const acY = wall.p1.y + (wall.p2.y - wall.p1.y) * u.ratio
-          const cAcX = offX + acX * scale
-          const cAcY = offY + acY * scale
-          if (Math.hypot(cx - cAcX, cy - cAcY) <= 18) {
-            pushCurrentToHistory()
-            setActiveDragAcId(u.id)
-            try {
-              ; (e.target as HTMLElement).setPointerCapture(e.pointerId)
-            } catch { }
-            return
+    // 1. PRIORITAS: INTERAKSI DALAM MODE HASIL AC / DENAH TERKUNCI
+    if (isCalculated) {
+      // 1A. Cek jika klik pada Unit AC Terpasang (Bisa langsung digeser untuk fine-tune)
+      if (placedUnits.length > 0) {
+        for (let i = 0; i < placedUnits.length; i++) {
+          const u = placedUnits[i]
+          const wall = wallSegments.find((w) => w.index === u.wallIndex)
+          if (wall) {
+            const acX = wall.p1.x + (wall.p2.x - wall.p1.x) * u.ratio
+            const acY = wall.p1.y + (wall.p2.y - wall.p1.y) * u.ratio
+            const cAcX = offX + acX * scale
+            const cAcY = offY + acY * scale
+            if (Math.hypot(cx - cAcX, cy - cAcY) <= 18) {
+              pushCurrentToHistory()
+              setActiveDragAcId(u.id)
+              try {
+                ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+              } catch {}
+              return
+            }
           }
         }
       }
 
-
-      // JIKA HASIL AC AKTIF & KLIK DI LUAR UNIT AC -> DENAH TERKUNCI!
+      // 1B. JIKA HASIL AC AKTIF & KLIK DI LUAR UNIT AC -> DENAH TERKUNCI!
       const spts = customPts.map((pt) => ({
         cx: offX + pt.x * scale,
         cy: offY + pt.y * scale,
       }))
       for (let i = 0; i < spts.length; i++) {
         if (Math.hypot(cx - spts[i].cx, cy - spts[i].cy) <= 18) {
-          toast.info("🔒 Denah terkunci dalam mode Hasil AC. Klik tombol 'Edit Denah' di toolbar jika ingin mengubah ukuran/sudut toko.")
+          toast.info("Denah terkunci dalam mode Hasil AC. Klik tombol 'Edit Denah' di toolbar jika ingin mengubah ukuran atau sudut toko.")
           return
         }
       }
@@ -2504,7 +2540,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           clickPt = { x: mX, y: mY }
         }
 
-        const toolLabel = activeTool === "DOOR" ? "Pintu/Kaca 🚪" : "Kasir 🛒"
+        const toolLabel = activeTool === "DOOR" ? "Pintu/Kaca" : "Kasir"
 
         // LANGKAH 1: Klik Titik Awal
         if (!pendingZoneStart || pendingZoneStart.tool !== activeTool) {
@@ -3363,6 +3399,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
     // Hover detection untuk Pen Tool & Penanda Zona pada garis / sudut
     if (customPts.length >= 2) {
+      if (isCalculated) {
+        setHoverEdge(null)
+        return
+      }
       const spts = customPts.map((pt) => ({
         cx: offX + pt.x * scale,
         cy: offY + pt.y * scale,
@@ -5619,7 +5659,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ptsChain.length >= 3
             ? `${formatDim(Math.hypot(ptsChain[0].x - ptsChain[1].x, ptsChain[0].y - ptsChain[1].y))}m × ${formatDim(Math.hypot(ptsChain[2].x - ptsChain[1].x, ptsChain[2].y - ptsChain[1].y))}m`
             : `${formatDim(lengthM)}m × ${formatDim(depthM)}m`
-        const label1 = `🛒 AREA KASIR: ${dimText}`
+        const label1 = `AREA KASIR: ${dimText}`
         ctx.strokeText(label1, midX, midY - 6)
         ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
         ctx.fillText(label1, midX, midY - 6)
@@ -5834,8 +5874,8 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
           ctx.lineWidth = 3
           ctx.lineJoin = "round"
           const label1 = isCorner2
-            ? `🛒 KASIR SUDUT: ${formatDim(l1)}m × ${formatDim(l2)}m`
-            : `🛒 KASIR 3-SISI: ${formatDim(pathResult.totalLengthM)}m`
+            ? `KASIR SUDUT: ${formatDim(l1)}m × ${formatDim(l2)}m`
+            : `KASIR 3-SISI: ${formatDim(pathResult.totalLengthM)}m`
           ctx.strokeText(label1, midX, midY - 6)
           ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
           ctx.fillText(label1, midX, midY - 6)
@@ -7298,21 +7338,21 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                     }
                   >
                     {isCalculated
-                      ? "🔒 Denah terkunci. Geser unit AC di dinding untuk fine-tune jarak."
+                      ? "Denah terkunci. Geser unit AC di dinding untuk fine-tune jarak."
                       : activeTool === "DOOR"
-                        ? "🚪 Mode Pintu / Kaca Bebas (2-Klik): Klik titik awal & akhir."
+                        ? "Mode Pintu / Kaca Bebas (2-Klik): Klik titik awal & akhir."
                         : activeTool === "DOOR_MAIN"
-                          ? "🚪 Mode Pintu Utama (1.8m): Klik dinding untuk memasang."
+                          ? "Mode Pintu Utama (1.8m): Klik dinding untuk memasang."
                           : activeTool === "DOOR_P1"
-                            ? "🚪 Mode Pintu P1 (1.0m): Klik dinding untuk memasang."
+                            ? "Mode Pintu P1 (1.0m): Klik dinding untuk memasang."
                             : activeTool === "CASHIER"
                               ? pendingCashierDepth
-                                ? "🛒 Tarik kedalaman kasir, lalu klik titik ke-3 untuk kunci."
+                                ? "Tarik kedalaman kasir, lalu klik titik ke-3 untuk kunci."
                                 : pendingZoneStart
-                                  ? "🛒 Klik titik ke-2 di dinding untuk tentukan panjang."
-                                  : "🛒 Mode Kasir (3-Klik): Klik titik awal pada dinding."
+                                  ? "Klik titik ke-2 di dinding untuk tentukan panjang."
+                                  : "Mode Kasir (3-Klik): Klik titik awal pada dinding."
                               : activeTool === "CHILLER"
-                                ? `🧊 Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m × 0.8m): Klik dinding untuk pasang.`
+                                ? `Mode Chiller (${chillerUnits} Unit - ${formatDim(chillerUnits * 1.2)}m × 0.8m): Klik dinding untuk pasang.`
                                 : activeTool === "DRAW"
                                   ? "Klik kanvas untuk menambah sudut, klik T1 untuk menutup."
                                   : "Pilih alat gambar atau pasang fixture interior."}
@@ -7722,13 +7762,13 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       <button
                         type="button"
                         onClick={() => setShowZoneLabels((v) => !v)}
-                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${showZoneLabels
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1.5 transition-all border cursor-pointer ${showZoneLabels
                             ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 shadow-xs"
                             : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
                           }`}
                         title="Tampilkan / Sembunyikan Nama Area (Kasir, Chiller, Pintu, Kolom)"
                       >
-                        <span>🏷️</span>
+                        <IconBuildingStore className="size-3 text-amber-500" />
                         <span>Nama Area</span>
                         <span className="text-[9px] opacity-80">{showZoneLabels ? "ON" : "OFF"}</span>
                       </button>
@@ -7736,13 +7776,13 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       <button
                         type="button"
                         onClick={() => setShowWallDimensions((v) => !v)}
-                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${showWallDimensions
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1.5 transition-all border cursor-pointer ${showWallDimensions
                             ? "bg-sky-500/15 border-sky-500/40 text-sky-700 dark:text-sky-300 shadow-xs"
                             : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
                           }`}
                         title="Tampilkan / Sembunyikan Garis Ukuran Dinding & Jarak As AC"
                       >
-                        <span>📐</span>
+                        <IconRuler className="size-3 text-sky-500" />
                         <span>Ukuran Dinding</span>
                         <span className="text-[9px] opacity-80">{showWallDimensions ? "ON" : "OFF"}</span>
                       </button>
@@ -7750,19 +7790,19 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       <button
                         type="button"
                         onClick={() => setShowTotalDimensions((v) => !v)}
-                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border cursor-pointer ${showTotalDimensions
+                        className={`h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1.5 transition-all border cursor-pointer ${showTotalDimensions
                             ? "bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300 shadow-xs"
                             : "bg-muted/40 border-border/60 text-muted-foreground/70 hover:text-foreground"
                           }`}
                         title="Tampilkan / Sembunyikan Garis Dimensi Luar Panjang Total (PT) & Lebar Total (LT)"
                       >
-                        <span>📏</span>
+                        <IconRuler className="size-3 text-purple-500" />
                         <span>Dimensi Total (PT/LT)</span>
                         <span className="text-[9px] opacity-80">{showTotalDimensions ? "ON" : "OFF"}</span>
                       </button>
                     </div>
 
-                    {/* Quick Clean & Fullscreen Toggles */}
+                    {/* Quick Clean Toggle */}
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -7775,16 +7815,6 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                         className="text-[10px] text-muted-foreground hover:text-foreground underline decoration-dotted cursor-pointer shrink-0"
                       >
                         {showZoneLabels && showWallDimensions && showTotalDimensions ? "Sembunyikan Semua" : "Tampilkan Semua"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleToggleFullscreen(true)}
-                        className="h-6 px-2 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300 hover:bg-sky-500/20 shadow-xs cursor-pointer"
-                        title="Buka kanvas dalam tampilan layar penuh / popup besar"
-                      >
-                        <IconMaximize className="size-3" />
-                        <span>Layar Penuh</span>
                       </button>
                     </div>
                   </div>
@@ -7919,32 +7949,35 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                               <button
                                 type="button"
                                 onClick={() => setShowZoneLabels((v) => !v)}
-                                className={`h-7 px-2 rounded-md text-[10px] font-semibold border cursor-pointer ${showZoneLabels
+                                className={`h-7 px-2 rounded-md text-[10px] font-semibold flex items-center gap-1 border cursor-pointer ${showZoneLabels
                                   ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300"
                                   : "bg-muted/40 border-border/60 text-muted-foreground"
                                   }`}
                               >
-                                🏷️ Area {showZoneLabels ? "ON" : "OFF"}
+                                <IconBuildingStore className="size-3 text-amber-500" />
+                                <span>Area {showZoneLabels ? "ON" : "OFF"}</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setShowWallDimensions((v) => !v)}
-                                className={`h-7 px-2 rounded-md text-[10px] font-semibold border cursor-pointer ${showWallDimensions
+                                className={`h-7 px-2 rounded-md text-[10px] font-semibold flex items-center gap-1 border cursor-pointer ${showWallDimensions
                                   ? "bg-sky-500/15 border-sky-500/40 text-sky-700 dark:text-sky-300"
                                   : "bg-muted/40 border-border/60 text-muted-foreground"
                                   }`}
                               >
-                                📐 Dinding {showWallDimensions ? "ON" : "OFF"}
+                                <IconRuler className="size-3 text-sky-500" />
+                                <span>Dinding {showWallDimensions ? "ON" : "OFF"}</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setShowTotalDimensions((v) => !v)}
-                                className={`h-7 px-2 rounded-md text-[10px] font-semibold border cursor-pointer ${showTotalDimensions
+                                className={`h-7 px-2 rounded-md text-[10px] font-semibold flex items-center gap-1 border cursor-pointer ${showTotalDimensions
                                   ? "bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300"
                                   : "bg-muted/40 border-border/60 text-muted-foreground"
                                   }`}
                               >
-                                📏 Dimensi PT/LT {showTotalDimensions ? "ON" : "OFF"}
+                                <IconRuler className="size-3 text-purple-500" />
+                                <span>Dimensi PT/LT {showTotalDimensions ? "ON" : "OFF"}</span>
                               </button>
                             </>
                           )}
@@ -8216,7 +8249,10 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
 
                         {/* Floating Instruction Tip */}
                         <div className="absolute bottom-3 left-3 z-10 bg-background/85 backdrop-blur-sm border border-border/60 rounded-lg px-2.5 py-1 text-[10.5px] text-muted-foreground shadow-xs pointer-events-none flex items-center gap-2">
-                          <span>💡 <b>Scroll</b> untuk Zoom ({Math.round(zoom * 100)}%)</span>
+                          <span className="flex items-center gap-1">
+                            <IconInfoCircle className="size-3 text-sky-500" />
+                            <span><b>Scroll</b> untuk Zoom ({Math.round(zoom * 100)}%)</span>
+                          </span>
                           <span>·</span>
                           <span><b>Tahan Spasi / Klik Tengah</b> untuk Geser (Pan)</span>
                           <span>·</span>
@@ -8313,7 +8349,7 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                           <Button
                             size="sm"
                             className="h-7 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1 cursor-pointer"
-                            onClick={calculateAndPlaceUnits}
+                            onClick={handleOpenAcConfirm}
                             disabled={!customClosed || customPts.length < 3}
                           >
                             <IconSparkles className="size-3.5" />
@@ -8515,18 +8551,18 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                                 }}
                                 className="h-7 text-[10px] font-semibold rounded-md border border-input bg-background px-2 py-0.5"
                               >
-                                <option value="SOLID">🧱 Dinding Solid</option>
-                                <option value="GLASS_DOOR">🚪 Pintu / Kaca (Bebas)</option>
-                                <option value="DOOR_MAIN">🚪 Pintu Utama (1.8m)</option>
-                                <option value="DOOR_P1">🚪 Pintu P1 (1.0m)</option>
-                                <option value="CASHIER">🛒 Kasir</option>
-                                <option value="CHILLER">🧊 Chiller</option>
+                                <option value="SOLID">Dinding Solid</option>
+                                <option value="GLASS_DOOR">Pintu / Kaca (Bebas)</option>
+                                <option value="DOOR_MAIN">Pintu Utama (1.8m)</option>
+                                <option value="DOOR_P1">Pintu P1 (1.0m)</option>
+                                <option value="CASHIER">Kasir</option>
+                                <option value="CHILLER">Chiller</option>
                               </select>
                             </div>
 
                             {currentType === "SOLID" && (typeof len === "number" || typeof len === "string") && (parseFloat(String(len)) || 0) > 0 && (parseFloat(String(len)) || 0) < AC_INDOOR_WIDTH_M && (
                               <div className="text-[9.5px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 pt-0.5">
-                                <span>⚠️ Sempit (&lt; 1.05m, tidak muat AC 2 PK)</span>
+                                <span>Sempit (&lt; 1.05m, tidak muat AC 2 PK)</span>
                               </div>
                             )}
                           </div>
@@ -8556,9 +8592,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                 {/* Action Hitung & Petakan AC */}
                 <Button
                   size="lg"
-                  onClick={calculateAndPlaceUnits}
+                  onClick={handleOpenAcConfirm}
                   disabled={customPts.length < 3 || !customClosed || isCalculating}
-                  className="w-full h-11 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm rounded-xl"
+                  className="w-full h-11 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm rounded-xl cursor-pointer"
                 >
                   {isCalculating ? (
                     <>
@@ -8805,8 +8841,9 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
                       <polygon points="160,58 157,53 163,53" fill="#059669" />
                       <text x="169" y="40" textAnchor="middle" fontSize="7.5" fontWeight="bold" fill="#059669" transform="rotate(90, 169, 40)">Panjang Sayap (PS)</text>
                     </svg>
-                    <div className="text-[9.5px] text-muted-foreground text-center mt-1">
-                      💡 <b>LT & PT</b> adalah dimensi luar total. <b>LS & PS</b> adalah dimensi potongan badan sayap (LS &lt; LT, PS &lt; PT).
+                    <div className="text-[9.5px] text-muted-foreground text-center mt-1 flex items-center justify-center gap-1">
+                      <IconInfoCircle className="size-3 text-sky-500 shrink-0" />
+                      <span><b>LT & PT</b> adalah dimensi luar total. <b>LS & PS</b> adalah dimensi potongan badan sayap (LS &lt; LT, PS &lt; PT).</span>
                     </div>
                   </div>
 
@@ -8926,6 +8963,95 @@ export function AcMappingClient({ stores }: AcMappingClientProps) {
             setActiveCadMetadata(cadData)
           }}
         />
+
+        {/* Modal Konfirmasi Parameter Perhitungan */}
+        <Dialog open={isConfirmCalcOpen} onOpenChange={setIsConfirmCalcOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                <IconCalculator className="size-5 text-sky-600" />
+                <span>Konfirmasi Parameter Perhitungan AC</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                Pastikan data toko, luasan denah, dan catatan penempatan outdoor sudah sesuai sebelum sistem memetakan unit AC.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-xs">
+              <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5 space-y-2.5">
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Status Toko</span>
+                  <span className="font-semibold text-foreground">
+                    {storeMode === "existing" ? "Toko Terdaftar" : "Toko Baru / Denah Bebas"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Nama Toko</span>
+                  <span className="font-semibold text-foreground text-right">
+                    {storeMode === "existing" ? selectedStore?.name : newStoreName || "-"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Cabang</span>
+                  <span className="font-semibold text-foreground">
+                    {storeMode === "existing" ? selectedStore?.branch || "-" : newStoreBranch || "-"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start border-t border-border/50 pt-2">
+                  <span className="text-muted-foreground font-medium">Luas Bruto Denah</span>
+                  <span className="font-semibold text-foreground font-mono">
+                    {formatDim(polygonAreaM2)} m²
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Luas Area Efektif AC</span>
+                  <span className="font-bold text-sky-600 dark:text-sky-400 font-mono">
+                    {effectiveArea} m²
+                  </span>
+                </div>
+                <div className="flex justify-between items-start border-t border-border/50 pt-2">
+                  <span className="text-muted-foreground font-medium">Target Beban Pendinginan</span>
+                  <span className="font-semibold text-foreground">
+                    {targetBtuPerM2} BTU/m²
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Titik Koordinat Toko</span>
+                  <span className="font-mono text-muted-foreground text-[11px]">
+                    {coordInput || "-6.200000, 106.816666"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground font-medium">Catatan Outdoor</span>
+                  <span className="text-foreground font-medium text-right max-w-[200px] truncate" title={outdoorNotes}>
+                    {outdoorNotes}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsConfirmCalcOpen(false)}
+                className="h-9 text-xs"
+              >
+                Periksa Kembali
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setIsConfirmCalcOpen(false)
+                  calculateAndPlaceUnits()
+                }}
+                className="h-9 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 cursor-pointer"
+              >
+                Ya, Lanjutkan Hitung AC
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Hidden Standarized Result Card for Image Capture (Sama Persis Kalkulator Lampu & AC) */}
         {exportCardData && (

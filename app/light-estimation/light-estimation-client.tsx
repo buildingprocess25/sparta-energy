@@ -306,8 +306,18 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
   const handleSimLampToggle = (idx: number) => {
     setSimDisabledLamps(prev => {
       if (prev.includes(idx)) {
+        toast.success(`Lampu #${idx + 1} diaktifkan kembali`)
         return prev.filter(i => i !== idx)
       } else {
+        const currentActive = simPositions.length - prev.filter(i => i < simPositions.length).length
+        const limitMin = simResult ? simResult.minLamps : 0
+        if (limitMin > 0 && currentActive <= limitMin) {
+          toast.warning(
+            `Batas minimum tercapai (${limitMin} Titik). Lampu tidak dapat dinonaktifkan lagi agar tetap memenuhi standar retail minimal 4 W/m².`
+          )
+          return prev
+        }
+        toast.info(`Lampu #${idx + 1} dinonaktifkan`)
         return [...prev, idx]
       }
     })
@@ -2286,13 +2296,23 @@ export function LightEstimationClient({ stores }: LightEstimationClientProps) {
     if (closestIdx !== -1) {
       setIrregDisabledLamps(prev => {
         if (prev.includes(closestIdx)) {
+          toast.success(`Lampu #${closestIdx + 1} diaktifkan kembali`)
           return prev.filter(i => i !== closestIdx)
         } else {
+          const currentActive = lamps.length - prev.filter(i => i < lamps.length).length
+          const limitMin = stats.nmin || 0
+          if (limitMin > 0 && currentActive <= limitMin) {
+            toast.warning(
+              `Batas minimum tercapai (${limitMin} Titik). Lampu tidak dapat dinonaktifkan lagi agar tetap memenuhi standar retail minimal 4 W/m².`
+            )
+            return prev
+          }
+          toast.info(`Lampu #${closestIdx + 1} dinonaktifkan`)
           return [...prev, closestIdx]
         }
       })
     }
-  }, [isCalculated, calcResult, shape, parsedP, adjustedPts, customClosed, lampLen, irregOverrideBaris, irregOverrideLpb])
+  }, [isCalculated, calcResult, shape, parsedP, adjustedPts, customClosed, lampLen, irregOverrideBaris, irregOverrideLpb, stats.nmin])
 
   const handleShapeChange = (s: string) => {
     setShape(s)

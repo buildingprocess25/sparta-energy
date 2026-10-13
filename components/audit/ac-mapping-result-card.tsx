@@ -259,7 +259,7 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
                   letterSpacing: "0.04em",
                 }}
               >
-                📐 Visual Denah Tata Letak AC Ruang Sales
+                Visual Denah Tata Letak AC Ruang Sales
               </span>
               <span
                 style={{
@@ -401,7 +401,7 @@ export function AcMappingResultCard({ cardRef, data }: Props) {
                       marginBottom: "4px",
                     }}
                   >
-                    📍 Penempatan Outdoor AC
+                    Penempatan Outdoor AC
                   </div>
                   <div
                     style={{
