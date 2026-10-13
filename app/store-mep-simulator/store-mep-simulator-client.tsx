@@ -1672,6 +1672,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         luas: 0,
         minLamps: 0,
         maxLamps: 0,
+        targetLampCount: 0,
         totalCalculatedLamps: 0,
         activeLamps: 0,
         blockedLampsCount: 0,
@@ -1738,6 +1739,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
       luas: Number(luas.toFixed(1)),
       minLamps: range.minLamps,
       maxLamps: range.maxLamps,
+      targetLampCount: range.minLamps,
       totalCalculatedLamps: validCleanLamps.length,
       activeLamps,
       blockedLampsCount: blockedCount,
@@ -10222,7 +10224,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                     <div className="flex justify-between items-start">
                       <span className="text-muted-foreground font-medium">Estimasi Kebutuhan</span>
                       <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">
-                        ~{lightingCalculation.targetLampCount} Titik Lampu
+                        {lightingCalculation.minLamps} – {lightingCalculation.maxLamps} Titik Lampu
                       </span>
                     </div>
                   </>
