@@ -16,7 +16,10 @@ import {
   IconSnowflake,
   IconFridge,
   IconCpu,
+  IconArrowLeft,
+  IconArrowRight,
 } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 const CATEGORY_ICONS: Record<
   string,
@@ -143,6 +146,7 @@ type EquipmentRowProps = {
   item: EquipmentItem
   photoToDisplay?: string | null
   fallbackIcon: React.ComponentType<{ className?: string }>
+  isCustom?: boolean
   onConfigure: () => void
   onDelete: () => void
 }
@@ -151,6 +155,7 @@ function EquipmentRow({
   item,
   photoToDisplay,
   fallbackIcon: FallbackIcon,
+  isCustom = false,
   onConfigure,
   onDelete,
 }: EquipmentRowProps) {
@@ -199,6 +204,11 @@ function EquipmentRow({
             >
               {item.name} {item.brandName ? `(${item.brandName})` : ""}
             </h3>
+            {isCustom && (
+              <span className="inline-flex items-center rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                Kustom
+              </span>
+            )}
             {item.notes ? (
               <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                 📝 {item.notes}
@@ -436,11 +446,88 @@ export function AuditStep2Detail({
   const [isConfigOpen, setIsConfigOpen] = React.useState(false)
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [addSearch, setAddSearch] = React.useState("")
+  const [isCustomMode, setIsCustomMode] = React.useState(false)
+  const [customName, setCustomName] = React.useState("")
+  const [customWatt, setCustomWatt] = React.useState("")
+  const [customBrand, setCustomBrand] = React.useState("")
+  const [customNotes, setCustomNotes] = React.useState("")
 
-  // Reset search when drawer closes
+  // Reset search & custom form when drawer closes
   React.useEffect(() => {
-    if (!isAddOpen) setAddSearch("")
+    if (!isAddOpen) {
+      setAddSearch("")
+      setIsCustomMode(false)
+      setCustomName("")
+      setCustomWatt("")
+      setCustomBrand("")
+      setCustomNotes("")
+    }
   }, [isAddOpen])
+
+  const handleCreateCustomEquipment = React.useCallback(() => {
+    const wattVal = parseFloat(customWatt) || 0
+    if (!customName.trim() || wattVal <= 0) {
+      toast.error("Nama peralatan dan daya (Watt) harus diisi dengan benar.")
+      return
+    }
+
+    const kwVal = wattVal / 1000
+    const uid = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const defaultStart = storeIs24Hours ? "00:00" : storeOpenTime
+    const defaultEnd = storeIs24Hours ? "23:59" : storeCloseTime
+
+    const newItem: EquipmentItem = {
+      uid,
+      name: customName.trim(),
+      brandName: customBrand.trim(),
+      brandNames: [customBrand.trim()],
+      brandIds: [undefined],
+      detail: `Daya: ${formatKw(kwVal)} kW (${wattVal} W)`,
+      kw: kwVal,
+      kws: [kwVal],
+      quantity: 1,
+      startTimes: [defaultStart],
+      endTimes: [defaultEnd],
+      selected: true,
+      isConfigured: true,
+      calcMethod: "STANDARD",
+      calcDuration: 0,
+      usages: [0],
+      runningKws: [kwVal],
+      standbyKws: [kwVal * 0.05],
+      notes: customNotes.trim() || undefined,
+    }
+
+    setItems((prev) => [...prev, newItem])
+    setIsAddOpen(false)
+    setIsCustomMode(false)
+    setAddSearch("")
+    setCustomName("")
+    setCustomWatt("")
+    setCustomBrand("")
+    setCustomNotes("")
+
+    toast.success(`Alat kustom "${newItem.name}" berhasil ditambahkan`)
+    setTimeout(() => {
+      setActiveEquipmentUid(newItem.uid ?? newItem.name)
+      setQuantity(1)
+      setStartTimes([defaultStart])
+      setEndTimes([defaultEnd])
+      setBrandNames([customBrand.trim()])
+      setRunningKws([kwVal])
+      setStandbyKws([kwVal * 0.05])
+      setNotes(customNotes.trim())
+      setIsConfigOpen(true)
+    }, 150)
+  }, [
+    customName,
+    customWatt,
+    customBrand,
+    customNotes,
+    storeIs24Hours,
+    storeOpenTime,
+    storeCloseTime,
+  ])
   const [activeEquipmentUid, setActiveEquipmentUid] = React.useState(
     defaultEquipment?.uid ?? defaultEquipment?.name ?? ""
   )
@@ -703,6 +790,7 @@ export function AuditStep2Detail({
                       )}
                       {(() => {
                         const activeMaster = masterItems.find((m) => m.name === item.name)
+                        const isCustom = !activeMaster
                         const currentBrandName = item.brandName || ""
                         const matchedBrand = activeMaster?.brands?.find(
                           (b) => b.name.toLowerCase() === currentBrandName.toLowerCase().trim()
@@ -719,6 +807,7 @@ export function AuditStep2Detail({
                             item={item}
                             photoToDisplay={photoToDisplay}
                             fallbackIcon={FallbackIcon}
+                            isCustom={isCustom}
                             onConfigure={() => handleConfigure(item)}
                             onDelete={() =>
                               setItems((prev) =>
@@ -751,98 +840,264 @@ export function AuditStep2Detail({
       </main>
 
       <Drawer open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DrawerContent className="flex max-h-[80dvh] flex-col">
-          <DrawerHeader className="shrink-0 border-b border-border/40 px-4 pt-4 pb-0 text-left">
-            <DrawerTitle className="font-extrabold tracking-tight text-primary">
-              Tambah Equipment
-            </DrawerTitle>
-            <div className="flex items-center gap-2 py-3">
-              <IconSearch className="size-4 shrink-0 text-muted-foreground" />
-              <input
-                autoComplete="off"
-                value={addSearch}
-                onChange={(e) => setAddSearch(e.target.value)}
-                placeholder="Cari nama equipment..."
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-          </DrawerHeader>
-          <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
-            {filteredMasterItems
-              .filter((m) =>
-                addSearch.trim() === ""
-                  ? true
-                  : m.name
-                      .toLowerCase()
-                      .includes(addSearch.toLowerCase().trim())
-              )
-              .map((availEq) => (
-                <button
-                  key={availEq.name}
+        <DrawerContent className="flex max-h-[85dvh] flex-col">
+          {isCustomMode ? (
+            <>
+              <DrawerHeader className="shrink-0 border-b border-border/40 px-4 pt-4 pb-3 text-left">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="rounded-full"
+                    onClick={() => setIsCustomMode(false)}
+                  >
+                    <IconArrowLeft className="size-4" />
+                  </Button>
+                  <div>
+                    <DrawerTitle className="font-extrabold tracking-tight text-primary">
+                      Tambah Alat Kustom
+                    </DrawerTitle>
+                    <p className="text-xs text-muted-foreground">
+                      Khusus audit toko ini (tidak merubah master data)
+                    </p>
+                  </div>
+                </div>
+              </DrawerHeader>
+
+              <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="custom-eq-name" className="text-xs font-semibold">
+                    Nama Peralatan *
+                  </Label>
+                  <Input
+                    id="custom-eq-name"
+                    placeholder="Contoh: Oven Listrik, Cup Sealer, Pompa Tambahan"
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    className="h-10 text-xs"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="custom-eq-watt" className="text-xs font-semibold">
+                      Daya Listrik (Watt) *
+                    </Label>
+                    {(parseFloat(customWatt) || 0) > 0 && (
+                      <span className="text-xs font-semibold text-primary">
+                        = {formatKw((parseFloat(customWatt) || 0) / 1000)} kW
+                      </span>
+                    )}
+                  </div>
+                  <Input
+                    id="custom-eq-watt"
+                    type="number"
+                    min={1}
+                    placeholder="Contoh: 450 (masukkan angka Watt)"
+                    value={customWatt}
+                    onChange={(e) => setCustomWatt(e.target.value)}
+                    className="h-10 text-xs"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Lihat angka Watt pada nameplate/stiker alat (misal: 350 W, 800 W).
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="custom-eq-brand" className="text-xs font-semibold">
+                    Merek / Model (Opsional)
+                  </Label>
+                  <Input
+                    id="custom-eq-brand"
+                    placeholder="Contoh: Kirin, Panasonic, Cosmos"
+                    value={customBrand}
+                    onChange={(e) => setCustomBrand(e.target.value)}
+                    className="h-10 text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="custom-eq-notes" className="text-xs font-semibold">
+                    Catatan Tambahan (Opsional)
+                  </Label>
+                  <Input
+                    id="custom-eq-notes"
+                    placeholder="Contoh: Hanya dipakai saat promo weekend"
+                    value={customNotes}
+                    onChange={(e) => setCustomNotes(e.target.value)}
+                    className="h-10 text-xs"
+                  />
+                </div>
+              </div>
+
+              <DrawerFooter className="shrink-0 flex flex-row gap-2 border-t border-border/40 px-4 pt-3 pb-8">
+                <Button
                   type="button"
-                  className="flex w-full items-center justify-between rounded-xl border border-border/40 bg-background p-4 text-left transition-colors hover:border-primary/50 active:bg-muted/50"
+                  variant="outline"
+                  className="h-11 flex-1"
+                  onClick={() => setIsCustomMode(false)}
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="button"
+                  className="h-11 flex-2"
+                  disabled={!customName.trim() || !(parseFloat(customWatt) > 0)}
+                  onClick={handleCreateCustomEquipment}
+                >
+                  Tambahkan ke Audit
+                </Button>
+              </DrawerFooter>
+            </>
+          ) : (
+            <>
+              <DrawerHeader className="shrink-0 border-b border-border/40 px-4 pt-4 pb-0 text-left">
+                <DrawerTitle className="font-extrabold tracking-tight text-primary">
+                  Tambah Equipment
+                </DrawerTitle>
+                <div className="flex items-center gap-2 py-3">
+                  <IconSearch className="size-4 shrink-0 text-muted-foreground" />
+                  <input
+                    autoComplete="off"
+                    value={addSearch}
+                    onChange={(e) => setAddSearch(e.target.value)}
+                    placeholder="Cari nama equipment..."
+                    className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
+              </DrawerHeader>
+              <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
+                {/* Custom equipment creation button */}
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3.5 text-left transition-colors hover:bg-primary/10 active:scale-[0.99]"
                   onClick={() => {
-                    const kwVal = availEq.defaultKw
-                    const uid = `${availEq.name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-                    const newItem = {
-                      uid,
-                      name: availEq.name,
-                      detail: `Daya: ${formatKw(kwVal)} kW`,
-                      kw: kwVal,
-                      quantity: 1,
-                      startTimes: ["08:00"],
-                      endTimes: ["22:00"],
-                      selected: true,
-                      isConfigured: false,
-                      calcMethod: availEq.calcMethod,
-                      calcDuration: availEq.calcDuration ?? undefined,
-                      usages: [availEq.calcMethod === "TRANSACTION" ? 50 : availEq.calcMethod === "BATCH" ? 6 : 0],
-                    }
-                    setItems((prev) => [...prev, newItem])
-                    setIsAddOpen(false)
-                    setTimeout(() => handleConfigure(newItem as EquipmentItem), 150)
+                    setIsCustomMode(true)
+                    setCustomName(addSearch.trim())
+                    setCustomWatt("")
+                    setCustomBrand("")
+                    setCustomNotes("")
                   }}
                 >
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">
-                      {availEq.name}
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                      <IconPlus className="size-4" />
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      Daya: {formatKw(availEq.defaultKw)} kW
+                    <div>
+                      <div className="text-xs font-bold text-primary">
+                        + Tambah Alat Kustom / Non-Master
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Alat tidak terdaftar di katalog? Masukkan manual di sini
+                      </div>
                     </div>
                   </div>
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <IconPlus className="size-4" />
-                  </div>
+                  <IconArrowRight className="size-4 shrink-0 text-primary" />
                 </button>
-              ))}
 
-            {filteredMasterItems.filter((m) =>
-              addSearch.trim() === ""
-                ? true
-                : m.name.toLowerCase().includes(addSearch.toLowerCase().trim())
-            ).length === 0 && (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                Tidak ada peralatan yang cocok.
+                {filteredMasterItems
+                  .filter((m) =>
+                    addSearch.trim() === ""
+                      ? true
+                      : m.name
+                          .toLowerCase()
+                          .includes(addSearch.toLowerCase().trim())
+                  )
+                  .map((availEq) => (
+                    <button
+                      key={availEq.name}
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-xl border border-border/40 bg-background p-4 text-left transition-colors hover:border-primary/50 active:bg-muted/50"
+                      onClick={() => {
+                        const kwVal = availEq.defaultKw
+                        const uid = `${availEq.name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+                        const newItem = {
+                          uid,
+                          name: availEq.name,
+                          detail: `Daya: ${formatKw(kwVal)} kW`,
+                          kw: kwVal,
+                          quantity: 1,
+                          startTimes: ["08:00"],
+                          endTimes: ["22:00"],
+                          selected: true,
+                          isConfigured: false,
+                          calcMethod: availEq.calcMethod,
+                          calcDuration: availEq.calcDuration ?? undefined,
+                          usages: [availEq.calcMethod === "TRANSACTION" ? 50 : availEq.calcMethod === "BATCH" ? 6 : 0],
+                        }
+                        setItems((prev) => [...prev, newItem])
+                        setIsAddOpen(false)
+                        setTimeout(() => handleConfigure(newItem as EquipmentItem), 150)
+                      }}
+                    >
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">
+                          {availEq.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Daya: {formatKw(availEq.defaultKw)} kW
+                        </div>
+                      </div>
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <IconPlus className="size-4" />
+                      </div>
+                    </button>
+                  ))}
+
+                {filteredMasterItems.filter((m) =>
+                  addSearch.trim() === ""
+                    ? true
+                    : m.name.toLowerCase().includes(addSearch.toLowerCase().trim())
+                ).length === 0 && (
+                  <div className="py-6 text-center space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Tidak ada peralatan master yang cocok dengan &quot;{addSearch}&quot;.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-xl text-xs"
+                      onClick={() => {
+                        setIsCustomMode(true)
+                        setCustomName(addSearch.trim())
+                        setCustomWatt("")
+                        setCustomBrand("")
+                        setCustomNotes("")
+                      }}
+                    >
+                      <IconPlus className="size-3.5" />
+                      Buat &quot;{addSearch}&quot; Sebagai Alat Kustom
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          <DrawerFooter className="shrink-0 px-4 pt-4 pb-8">
-            <DrawerClose asChild>
-              <Button variant="outline" className="h-11 w-full">
-                Batal
-              </Button>
-            </DrawerClose>
-          </DrawerFooter>
+              <DrawerFooter className="shrink-0 px-4 pt-4 pb-8">
+                <DrawerClose asChild>
+                  <Button variant="outline" className="h-11 w-full">
+                    Batal
+                  </Button>
+                </DrawerClose>
+              </DrawerFooter>
+            </>
+          )}
         </DrawerContent>
       </Drawer>
 
       <Drawer open={isConfigOpen} onOpenChange={setIsConfigOpen}>
         <DrawerContent className="flex max-h-[90dvh] flex-col">
           <DrawerHeader className="shrink-0 px-4 pt-4 pb-5 text-left">
-            <DrawerTitle className="font-extrabold tracking-tight text-primary">
-              {activeEquipment.name}
-            </DrawerTitle>
+            <div className="flex items-center gap-2">
+              <DrawerTitle className="font-extrabold tracking-tight text-primary">
+                {activeEquipment.name}
+              </DrawerTitle>
+              {!activeMaster && (
+                <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                  Kustom
+                </span>
+              )}
+            </div>
           </DrawerHeader>
 
           <div className="flex-1 overflow-y-auto px-4 pb-4">
@@ -963,55 +1218,114 @@ export function AuditStep2Detail({
                       const FallbackIcon = CATEGORY_ICONS[deviceCategory] || IconCpu
 
                       return (
-                        <div className="flex gap-4 items-start">
-                          {/* Visual Thumbnail */}
-                          <div className="size-16 shrink-0 rounded-2xl border border-border bg-muted/40 flex items-center justify-center overflow-hidden">
-                            {photoToDisplay ? (
-                              <img
-                                src={photoToDisplay}
-                                alt={currentBrandName || activeEquipment.name}
-                                className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                        <>
+                          <div className="flex gap-4 items-start">
+                            {/* Visual Thumbnail */}
+                            <div className="size-16 shrink-0 rounded-2xl border border-border bg-muted/40 flex items-center justify-center overflow-hidden">
+                              {photoToDisplay ? (
+                                <img
+                                  src={photoToDisplay}
+                                  alt={currentBrandName || activeEquipment.name}
+                                  className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                                />
+                              ) : (
+                                <FallbackIcon className="size-7 text-primary/70" />
+                              )}
+                            </div>
+
+                            {/* Brand Selector */}
+                            <div className="flex-1 space-y-1.5">
+                              <Label className="text-xs">
+                                Merek / Brand (Opsional)
+                              </Label>
+                              {activeMaster ? (
+                                <BrandCombobox
+                                  brands={activeMaster?.brands || []}
+                                  value={brandNames[idx] || ""}
+                                  onChange={(val) => {
+                                    const matchedBrand = activeMaster?.brands?.find(
+                                      (b) => b.name.toLowerCase() === val.toLowerCase().trim()
+                                    )
+                                    const nextKw = matchedBrand ? matchedBrand.baseKw : (activeMaster?.defaultKw ?? activeEquipment.kw ?? 0)
+                                    const nextRunning = matchedBrand ? (matchedBrand.runningKw ?? nextKw) : nextKw
+                                    const nextStandby = matchedBrand ? (matchedBrand.standbyKw ?? nextKw * 0.05) : nextKw * 0.05
+
+                                    setBrandNames((prev) => {
+                                      const next = [...prev]
+                                      next[idx] = val
+                                      return next
+                                    })
+                                    setRunningKws((prev) => {
+                                      const next = [...prev]
+                                      next[idx] = nextRunning
+                                      return next
+                                    })
+                                    setStandbyKws((prev) => {
+                                      const next = [...prev]
+                                      next[idx] = nextStandby
+                                      return next
+                                    })
+                                  }}
+                                />
+                              ) : (
+                                <Input
+                                  placeholder="Contoh: Kirin, Panasonic, Cosmos"
+                                  value={brandNames[idx] || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value
+                                    setBrandNames((prev) => {
+                                      const next = [...prev]
+                                      next[idx] = val
+                                      return next
+                                    })
+                                  }}
+                                  className="h-10 text-xs"
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Daya editor for custom equipment */}
+                          {!activeMaster && (
+                            <div className="rounded-xl border border-border/40 bg-muted/20 p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs font-semibold">
+                                  Daya Listrik (Watt)
+                                </Label>
+                                <span className="text-xs font-semibold text-primary">
+                                  = {formatKw(runningKws[idx] ?? activeEquipment.kw ?? 0)} kW
+                                </span>
+                              </div>
+                              <Input
+                                type="number"
+                                min={1}
+                                placeholder="Masukkan daya dalam Watt..."
+                                value={
+                                  runningKws[idx] != null
+                                    ? Math.round(runningKws[idx] * 1000)
+                                    : activeEquipment.kw != null
+                                      ? Math.round(activeEquipment.kw * 1000)
+                                      : ""
+                                }
+                                onChange={(e) => {
+                                  const wattVal = parseFloat(e.target.value) || 0
+                                  const kwVal = wattVal / 1000
+                                  setRunningKws((prev) => {
+                                    const next = [...prev]
+                                    next[idx] = kwVal
+                                    return next
+                                  })
+                                  setStandbyKws((prev) => {
+                                    const next = [...prev]
+                                    next[idx] = kwVal * 0.05
+                                    return next
+                                  })
+                                }}
+                                className="h-10 text-xs"
                               />
-                            ) : (
-                              <FallbackIcon className="size-7 text-primary/70" />
-                            )}
-                          </div>
-
-                          {/* Brand Selector */}
-                          <div className="flex-1 space-y-1.5">
-                            <Label className="text-xs">
-                              Merek / Brand (Opsional)
-                            </Label>
-                            <BrandCombobox
-                              brands={activeMaster?.brands || []}
-                              value={brandNames[idx] || ""}
-                              onChange={(val) => {
-                                const matchedBrand = activeMaster?.brands?.find(
-                                  (b) => b.name.toLowerCase() === val.toLowerCase().trim()
-                                )
-                                const nextKw = matchedBrand ? matchedBrand.baseKw : (activeMaster?.defaultKw ?? activeEquipment.kw ?? 0)
-                                const nextRunning = matchedBrand ? (matchedBrand.runningKw ?? nextKw) : nextKw
-                                const nextStandby = matchedBrand ? (matchedBrand.standbyKw ?? nextKw * 0.05) : nextKw * 0.05
-
-                                setBrandNames((prev) => {
-                                  const next = [...prev]
-                                  next[idx] = val
-                                  return next
-                                })
-                                setRunningKws((prev) => {
-                                  const next = [...prev]
-                                  next[idx] = nextRunning
-                                  return next
-                                })
-                                setStandbyKws((prev) => {
-                                  const next = [...prev]
-                                  next[idx] = nextStandby
-                                  return next
-                                })
-                              }}
-                            />
-                          </div>
-                        </div>
+                            </div>
+                          )}
+                        </>
                       )
                     })()}
 
@@ -1239,6 +1553,7 @@ export function AuditStep2Detail({
                         brandIds: finalBrandIds,
                         kw: finalKws[0] ?? eq.kw ?? 0,
                         kws: finalKws,
+                        detail: !activeMaster ? `Daya: ${formatKw(finalRunningKws[0] ?? eq.kw ?? 0)} kW` : eq.detail,
                         quantity,
                         startTimes,
                         endTimes,

@@ -10,6 +10,7 @@ import { Header } from "@/components/header"
 import { AuditStepIndicator } from "@/components/audit/step-indicator"
 import { StoreCombobox } from "@/components/audit/store-combobox"
 import { TimeRangeCards } from "@/components/audit/time-range-cards"
+import { ExitAuditDialog } from "@/components/audit/exit-audit-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -46,6 +47,8 @@ export function AuditStep1({
 }: Props) {
   const router = useRouter()
   const [isSavingDraft, setIsSavingDraft] = React.useState(false)
+  const [showExitDialog, setShowExitDialog] = React.useState(false)
+  const isExitingRef = React.useRef(false)
 
   const {
     auditId,
@@ -55,6 +58,9 @@ export function AuditStep1({
     closeTime,
     plnPowerVa,
     areas,
+    equipments,
+    savedAreas,
+    plnHistory,
     setStoreIdentity,
     setStoreAreas,
   } = useAuditStore()
@@ -84,7 +90,7 @@ export function AuditStep1({
     onNavigate("step-2")
   }, [isStep1Valid, onNavigate])
 
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = React.useCallback(async () => {
     if (!selectedStore) return
     setIsSavingDraft(true)
     try {
@@ -97,16 +103,20 @@ export function AuditStep1({
         closeTime: closeTime,
         plnPowerVa: plnPowerVa,
         areas: areas,
+        equipments: equipments,
+        savedAreas: savedAreas,
+        plnHistory: plnHistory,
       })
 
       if ("error" in result && result.error) {
         toast.error(result.error.message)
         setIsSavingDraft(false)
+        isExitingRef.current = false
         return
       }
 
       toast.success("Draf audit berhasil disimpan!")
-      
+
       // Reset the Zustand store
       useAuditStore.setState({
         auditId: null,
@@ -118,12 +128,90 @@ export function AuditStep1({
         demoAuditResult: null,
       })
 
-      router.push("/dashboard")
+      router.push(backHref)
     } catch (e) {
       toast.error("Gagal menyimpan draf.")
       setIsSavingDraft(false)
+      isExitingRef.current = false
     }
-  }
+  }, [
+    selectedStore,
+    auditId,
+    storeType,
+    is24Hours,
+    openTime,
+    closeTime,
+    plnPowerVa,
+    areas,
+    equipments,
+    savedAreas,
+    plnHistory,
+    router,
+    backHref,
+  ])
+
+  const handleBackClick = React.useCallback(() => {
+    if (selectedStore) {
+      setShowExitDialog(true)
+    } else {
+      router.push(backHref)
+    }
+  }, [selectedStore, router, backHref])
+
+  const handleExitWithoutSave = React.useCallback(() => {
+    isExitingRef.current = true
+    setShowExitDialog(false)
+    useAuditStore.setState({
+      auditId: null,
+      storeCode: "",
+      storeName: "",
+      equipments: [],
+      plnHistory: [],
+      savedAreas: [],
+      demoAuditResult: null,
+    })
+    router.push(backHref)
+  }, [router, backHref])
+
+  const handleSaveAndExit = React.useCallback(async () => {
+    isExitingRef.current = true
+    await handleSaveDraft()
+  }, [handleSaveDraft])
+
+  // Guard browser reload or tab close
+  React.useEffect(() => {
+    if (!selectedStore) return
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isExitingRef.current) return
+      e.preventDefault()
+      e.returnValue = ""
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+    }
+  }, [selectedStore])
+
+  // Guard browser back / mobile swipe back
+  React.useEffect(() => {
+    if (!selectedStore) return
+
+    window.history.pushState({ auditStep1Guard: true }, "", window.location.href)
+
+    const handlePopState = () => {
+      if (isExitingRef.current) return
+      // Re-push state so user remains on this page until they confirm
+      window.history.pushState({ auditStep1Guard: true }, "", window.location.href)
+      setShowExitDialog(true)
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [selectedStore])
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-4xl lg:max-w-5xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-32">
@@ -131,8 +219,22 @@ export function AuditStep1({
         variant="dashboard-back"
         title="Mulai Audit Baru"
         backHref={backHref}
+        onBack={handleBackClick}
         className="px-0"
       />
+
+      {selectedStore && (
+        <ExitAuditDialog
+          open={showExitDialog}
+          onOpenChange={setShowExitDialog}
+          storeName={selectedStore.name}
+          storeCode={selectedStore.code}
+          isSaving={isSavingDraft}
+          onSaveAndExit={handleSaveAndExit}
+          onExitWithoutSave={handleExitWithoutSave}
+          onCancel={() => setShowExitDialog(false)}
+        />
+      )}
 
       <main className="flex flex-col gap-8">
         {showSkeleton ? (
