@@ -10,6 +10,7 @@ import {
 } from "@tabler/icons-react"
 
 import { AdminMetricCard } from "@/components/admin/admin-metric-card"
+import { getAuditGapFilterWhereSql } from "@/lib/audit-gap-filter"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -292,6 +293,7 @@ function getLatestAuditSql(auditDateWhere: string) {
       INNER JOIN store_scope ss ON ss.id = a.store_id
       INNER JOIN stores s ON s.id = a.store_id
       WHERE a.status = 'COMPLETED'
+        ${getAuditGapFilterWhereSql("a") ? `AND ${getAuditGapFilterWhereSql("a")}` : ""}
         AND ${auditDateWhere}
       ORDER BY a.store_id, a.audit_date DESC, a.created_at DESC
     )

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { getAuditGapFilterWhereSql } from "@/lib/audit-gap-filter"
 
 export type AdminReportType =
   | "store-data"
@@ -142,7 +143,10 @@ function addCommonWhere({
     `(${activeStoreWhereSql.replaceAll("s.", `${storeAlias}.`)})`,
   ]
 
-
+  const gapClause = getAuditGapFilterWhereSql(auditAlias)
+  if (gapClause) {
+    clauses.push(gapClause)
+  }
 
   const dateRange = getDateRange(filters)
 

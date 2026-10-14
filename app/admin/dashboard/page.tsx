@@ -7,6 +7,7 @@ import {
   IconTrendingUp,
 } from "@tabler/icons-react"
 import type { Prisma } from "@prisma/client"
+import { isAuditGapAllowed } from "@/lib/audit-gap-filter"
 
 import { ConsumptionTrendChart } from "@/components/admin/admin-dashboard-charts"
 import { AdminMetricCard } from "@/components/admin/admin-metric-card"
@@ -363,7 +364,12 @@ export default async function AdminDashboardPage({
     }),
   ])
 
-  const completedAudits = completedAuditsRaw
+  const completedAudits = completedAuditsRaw.filter((audit) =>
+    isAuditGapAllowed(
+      audit.avgActualPlnKwhPerMonth ? Number(audit.avgActualPlnKwhPerMonth) : null,
+      audit.totalEstimatedKwhPerMonth ? Number(audit.totalEstimatedKwhPerMonth) : null
+    )
+  )
 
   const latestAudits = getLatestAuditByStore(completedAudits)
   const auditedStores = latestAudits.length

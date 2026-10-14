@@ -2,6 +2,7 @@ import type { Prisma, RecommendationType } from "@prisma/client"
 
 import { getAdminAuditDateWhere } from "@/lib/admin-audit-date-filter"
 import { prisma } from "@/lib/prisma"
+import { getAuditGapFilterWhereSql } from "@/lib/audit-gap-filter"
 
 export type AdminAuditStatus = "hemat" | "boros"
 export type AdminAuditRecommendation = RecommendationType
@@ -245,7 +246,10 @@ function getDateRange(filters: AdminAuditFilters) {
 function getAuditRowsWhereSql(filters: AdminAuditFilters, values: unknown[]) {
   const clauses = ["a.status = 'COMPLETED'", `(${activeStoreWhereSql})`]
 
-
+  const gapClause = getAuditGapFilterWhereSql("a")
+  if (gapClause) {
+    clauses.push(gapClause)
+  }
 
   if (filters.q) {
     values.push(`%${filters.q.toLowerCase()}%`)

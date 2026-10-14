@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { getAuditGapFilterWhereSql } from "@/lib/audit-gap-filter"
 
 export type StoreStatus = "hemat" | "boros" | "not-audited"
 export type AdminStoreSortKey =
@@ -135,7 +136,7 @@ function latestAuditCte() {
           ) AS rn
         FROM audits a
         WHERE a.status = 'COMPLETED'
-
+          ${getAuditGapFilterWhereSql("a") ? `AND ${getAuditGapFilterWhereSql("a")}` : ""}
       ) ranked
       WHERE ranked.rn = 1
     )
