@@ -23,12 +23,6 @@ export default async function StoreMepSimulatorPage() {
       })
     : null
 
-  const isAdmin = dbUser?.role === "ADMIN"
-
-  // Proteksi rute: Hanya role ADMIN yang diizinkan mengakses halaman selama fase BETA / DEV
-  if (!isAdmin) {
-    redirect("/dashboard")
-  }
 
   const canAccessAll = dbUser ? hasFullBranchAccess(dbUser) : false
   const branches =

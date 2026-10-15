@@ -99,44 +99,25 @@ export function CalculatorGrid({ isAdmin }: CalculatorGridProps) {
         )}
 
         {/* Store MEP Simulator (NEW Unified Studio) */}
-        {isAdmin ? (
-          <Link
-            href="/store-mep-simulator"
-            className="group relative flex flex-col items-center justify-center p-2.5 sm:flex-row sm:items-center sm:justify-start sm:gap-3 sm:p-3 rounded-2xl bg-card border-2 border-indigo-500/40 bg-indigo-500/5 shadow-[0_2px_12px_rgba(99,102,241,0.08)] hover:shadow-lg hover:border-indigo-500/70 hover:bg-indigo-500/10 transition-all duration-200 active:scale-95 text-center sm:text-left"
-          >
-            <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 px-1.5 py-0.2 rounded-full text-[7.5px] sm:text-[8px] font-extrabold bg-linear-to-r from-indigo-500 to-purple-600 text-white tracking-wider shadow-xs animate-pulse">
-              BETA
-            </span>
-            <div className="size-10 rounded-xl bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/25 group-hover:scale-105 transition-transform duration-200 shrink-0">
-              <IconLayoutGrid className="size-5" />
-            </div>
-            <div className="mt-1.5 sm:mt-0 flex flex-col items-center sm:items-start min-w-0 flex-1 w-full sm:w-auto">
-              <span className="text-[11.5px] sm:text-xs font-bold text-foreground/90 leading-tight tracking-tight">
-                Store MEP Simulator
-              </span>
-              <span className="text-[9px] sm:text-[10.5px] text-indigo-600 dark:text-indigo-400 font-medium truncate w-full mt-0.5">
-                AC & Lampu Terpadu
-              </span>
-            </div>
-          </Link>
-        ) : (
-          <div className="relative flex flex-col items-center justify-center p-2.5 sm:flex-row sm:items-center sm:justify-start sm:gap-3 sm:p-3 rounded-2xl bg-muted/20 border border-border/40 shadow-xs opacity-60 cursor-not-allowed select-none text-center sm:text-left">
-            <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 px-1.5 py-0.2 rounded-full text-[7.5px] sm:text-[8px] font-bold bg-muted-foreground/20 text-muted-foreground tracking-wider">
-              SOON
-            </span>
-            <div className="size-10 rounded-xl bg-muted-foreground/15 flex items-center justify-center text-muted-foreground shrink-0">
-              <IconLayoutGrid className="size-5" />
-            </div>
-            <div className="mt-1.5 sm:mt-0 flex flex-col items-center sm:items-start min-w-0 flex-1 w-full sm:w-auto">
-              <span className="text-[11.5px] sm:text-xs font-bold text-muted-foreground leading-tight tracking-tight">
-                Store MEP Simulator
-              </span>
-              <span className="text-[9px] sm:text-[10.5px] text-muted-foreground/80 truncate w-full mt-0.5">
-                Segera hadir
-              </span>
-            </div>
+        <Link
+          href="/store-mep-simulator"
+          className="group relative flex flex-col items-center justify-center p-2.5 sm:flex-row sm:items-center sm:justify-start sm:gap-3 sm:p-3 rounded-2xl bg-card border-2 border-indigo-500/40 bg-indigo-500/5 shadow-[0_2px_12px_rgba(99,102,241,0.08)] hover:shadow-lg hover:border-indigo-500/70 hover:bg-indigo-500/10 transition-all duration-200 active:scale-95 text-center sm:text-left"
+        >
+          <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 px-1.5 py-0.2 rounded-full text-[7.5px] sm:text-[8px] font-extrabold bg-linear-to-r from-indigo-500 to-purple-600 text-white tracking-wider shadow-xs animate-pulse">
+            BETA
+          </span>
+          <div className="size-10 rounded-xl bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/25 group-hover:scale-105 transition-transform duration-200 shrink-0">
+            <IconLayoutGrid className="size-5" />
           </div>
-        )}
+          <div className="mt-1.5 sm:mt-0 flex flex-col items-center sm:items-start min-w-0 flex-1 w-full sm:w-auto">
+            <span className="text-[11.5px] sm:text-xs font-bold text-foreground/90 leading-tight tracking-tight">
+              Store MEP Simulator
+            </span>
+            <span className="text-[9px] sm:text-[10.5px] text-indigo-600 dark:text-indigo-400 font-medium truncate w-full mt-0.5">
+              AC & Lampu Terpadu
+            </span>
+          </div>
+        </Link>
       </div>
     </div>
   )
