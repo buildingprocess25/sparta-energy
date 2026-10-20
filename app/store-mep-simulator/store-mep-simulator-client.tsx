@@ -325,7 +325,7 @@ export const getStoreScaleInfo = (
   // 1. Perhitungkan batas luar fixture Chiller yang terpasang di LUAR garis denah
   if (wallSegments && wallSegments.length > 0 && pts.length >= 3) {
     wallSegments.forEach((w) => {
-      if (w.type === "CHILLER" && (w.chillerSide === "OUTSIDE" || !w.chillerSide)) {
+      if (w.type === "CHILLER" && w.chillerSide === "OUTSIDE") {
         const inNorm = getWallInwardNormal(w.p1, w.p2, pts)
         const depthM = CHILLER_DEPTH_M
         allPts.push({ x: w.p1.x - inNorm.nx * depthM, y: w.p1.y - inNorm.ny * depthM })
@@ -1448,7 +1448,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
 
   // Stepper Unit Chiller (1 - 8 Unit @ 1.2m) & Posisi (OUTSIDE = R. Chiller / Standar Sales, INSIDE = Showcase Dalam)
   const [chillerUnits, setChillerUnits] = useState<number>(1)
-  const [chillerPlacement, setChillerPlacement] = useState<"OUTSIDE" | "INSIDE">("OUTSIDE")
+  const [chillerPlacement, setChillerPlacement] = useState<"OUTSIDE" | "INSIDE">("INSIDE")
   const [chillerAlignments, setChillerAlignments] = useState<Record<number, "OUTSIDE" | "INSIDE">>({})
 
   // Dragging Seluruh Blok Segmen Sekaligus (Pintu P1 dan Chiller)
@@ -1651,7 +1651,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         p2,
         lengthM,
         type,
-        chillerSide: type === "CHILLER" ? (chillerAlignments[i] || "OUTSIDE") : undefined,
+        chillerSide: type === "CHILLER" ? (chillerAlignments[i] || "INSIDE") : undefined,
       })
     }
     return segs
@@ -1714,7 +1714,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     if (activeCadMetadata) return 0
     let area = 0
     wallSegments.forEach((w) => {
-      if (w.type === "CHILLER" && (w.chillerSide === "OUTSIDE" || !w.chillerSide)) {
+      if (w.type === "CHILLER" && w.chillerSide === "OUTSIDE") {
         area += w.lengthM * CHILLER_DEPTH_M
       }
     })
@@ -4608,7 +4608,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     if (chillerWalls.length > 0) {
       chillerWalls.forEach((wall) => {
         const inNorm = getWallInwardNormal(wall.p1, wall.p2, customPts)
-        const isOutside = (wall.chillerSide || chillerAlignments[wall.index] || "OUTSIDE") === "OUTSIDE"
+        const isOutside = (wall.chillerSide || chillerAlignments[wall.index] || "INSIDE") === "OUTSIDE"
         const normDir = isOutside ? { nx: -inNorm.nx, ny: -inNorm.ny } : inNorm
         const depthM = CHILLER_DEPTH_M
         const p1 = wall.p1
@@ -8533,8 +8533,19 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                                 </button>
                               </div>
 
-                              {/* Toggle Posisi Ringkas: Luar / Dalam */}
+                              {/* Toggle Posisi Ringkas: Dalam / Luar */}
                               <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-lg p-0.5 text-[11px] font-bold">
+                                <button
+                                  type="button"
+                                  onClick={() => setChillerPlacement("INSIDE")}
+                                  className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${chillerPlacement === "INSIDE"
+                                    ? "bg-cyan-500 text-white shadow-xs"
+                                    : "text-cyan-800 dark:text-cyan-200 hover:bg-cyan-500/20"
+                                    }`}
+                                  title="Posisi Dalam: Open showcase di dalam garis sales area (Default)"
+                                >
+                                  Dalam
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => setChillerPlacement("OUTSIDE")}
@@ -8545,17 +8556,6 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                                   title="Posisi Luar: Ruang Chiller di luar garis sales area (Standar Retail)"
                                 >
                                   Luar
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setChillerPlacement("INSIDE")}
-                                  className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${chillerPlacement === "INSIDE"
-                                    ? "bg-cyan-500 text-white shadow-xs"
-                                    : "text-cyan-800 dark:text-cyan-200 hover:bg-cyan-500/20"
-                                    }`}
-                                  title="Posisi Dalam: Open showcase di dalam garis sales area"
-                                >
-                                  Dalam
                                 </button>
                               </div>
                             </div>
@@ -9226,6 +9226,17 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                                   <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-md p-0.5 text-[10px] font-bold">
                                     <button
                                       type="button"
+                                      onClick={() => setChillerPlacement("INSIDE")}
+                                      className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${chillerPlacement === "INSIDE"
+                                        ? "bg-cyan-500 text-white shadow-xs"
+                                        : "text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
+                                        }`}
+                                      title="Dalam: Showcase di dalam area sales (Default)"
+                                    >
+                                      Dalam
+                                    </button>
+                                    <button
+                                      type="button"
                                       onClick={() => setChillerPlacement("OUTSIDE")}
                                       className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${chillerPlacement === "OUTSIDE"
                                         ? "bg-cyan-500 text-white shadow-xs"
@@ -9234,17 +9245,6 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                                       title="Luar: R. Chiller di luar garis sales"
                                     >
                                       Luar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setChillerPlacement("INSIDE")}
-                                      className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${chillerPlacement === "INSIDE"
-                                        ? "bg-cyan-500 text-white shadow-xs"
-                                        : "text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
-                                        }`}
-                                      title="Dalam: Showcase di dalam area sales"
-                                    >
-                                      Dalam
                                     </button>
                                   </div>
                                 </div>
@@ -9697,29 +9697,29 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                                     type="button"
                                     onClick={() => {
                                       pushCurrentToHistory()
+                                      setChillerAlignments((prev) => ({ ...prev, [idx]: "INSIDE" }))
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${(chillerAlignments[idx] || "INSIDE") === "INSIDE"
+                                      ? "bg-cyan-500 text-white shadow-xs"
+                                      : "text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
+                                      }`}
+                                    title="Showcase di dalam garis sales area (Default)"
+                                  >
+                                    Dalam
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      pushCurrentToHistory()
                                       setChillerAlignments((prev) => ({ ...prev, [idx]: "OUTSIDE" }))
                                     }}
-                                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${(chillerAlignments[idx] || "OUTSIDE") === "OUTSIDE"
+                                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${(chillerAlignments[idx] || "INSIDE") === "OUTSIDE"
                                       ? "bg-cyan-500 text-white shadow-xs"
                                       : "text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
                                       }`}
                                     title="Ruang Chiller di luar garis sales area"
                                   >
                                     Luar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      pushCurrentToHistory()
-                                      setChillerAlignments((prev) => ({ ...prev, [idx]: "INSIDE" }))
-                                    }}
-                                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${(chillerAlignments[idx] || "OUTSIDE") === "INSIDE"
-                                      ? "bg-cyan-500 text-white shadow-xs"
-                                      : "text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
-                                      }`}
-                                    title="Showcase di dalam garis sales area"
-                                  >
-                                    Dalam
                                   </button>
                                 </div>
                               </div>
