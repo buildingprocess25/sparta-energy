@@ -119,41 +119,7 @@ export interface StoreScaleInfo {
   rH: number
 }
 
-// Helper Auto-Fit Scale Dinamis: Memperbesar gambar denah agar mengisi canvas secara optimal & konsisten
-const getStoreScaleInfo = (pts: Point[], canvasW: number, canvasH: number): StoreScaleInfo => {
-  if (!pts || !pts.length) {
-    return { scale: 20, offX: 34, offY: 24, minX: 0, minY: 0, maxX: 10, maxY: 10, rW: 10, rH: 10 }
-  }
-  const xs = pts.map((p) => p.x)
-  const ys = pts.map((p) => p.y)
-  const minX = Math.min(...xs), maxX = Math.max(...xs)
-  const minY = Math.min(...ys), maxY = Math.max(...ys)
-  const rW = maxX - minX || 1
-  const rH = maxY - minY || 1
 
-  // Margin yang pas & proporsional:
-  // - Sisakan margin 34px di kiri & bawah untuk garis dimensi ukur (PT & LT) serta teks label
-  // - Sisakan margin 22px di kanan & atas untuk nomor titik node / label dinding
-  const padLeft = 34
-  const padRight = 22
-  const padTop = 22
-  const padBottom = 34
-  const availW = Math.max(60, canvasW - padLeft - padRight)
-  const availH = Math.max(60, canvasH - padTop - padBottom)
-
-  const s = Math.min(availW / rW, availH / rH)
-  return {
-    scale: s,
-    offX: padLeft + (availW - rW * s) / 2 - minX * s,
-    offY: padTop + (availH - rH * s) / 2 - minY * s,
-    minX,
-    minY,
-    maxX,
-    maxY,
-    rW,
-    rH,
-  }
-}
 
 const FIXED_SCALE = 24 // Scale in drawing mode (px/m)
 const FIXED_OX = 30    // Offset X
@@ -167,6 +133,7 @@ interface HistorySnapshot {
   closed: boolean
   overrides: Record<number, WallType>
   cashierDepths?: Record<number, number>
+  chillerAlignments?: Record<number, "OUTSIDE" | "INSIDE">
   placedUnits: PlacedAcUnit[]
   isCalculated: boolean
   pillars?: StorePillar[]
@@ -189,6 +156,7 @@ export interface WallSegment {
   p2: Point
   lengthM: number
   type: WallType
+  chillerSide?: "OUTSIDE" | "INSIDE"
 }
 
 export interface PlacedAcUnit {
@@ -338,6 +306,76 @@ export function getWallInwardNormal(p1: Point, p2: Point, polygon: Point[]): { n
 }
 
 /**
+ * Helper Auto-Fit Scale Dinamis: Memperbesar gambar denah agar mengisi canvas secara optimal,
+ * memberikan ruang ekstra (space) agar Chiller luar dan garis dimensi ukur tidak terpotong (fit sempurna)
+ */
+export const getStoreScaleInfo = (
+  pts: Point[],
+  canvasW: number,
+  canvasH: number,
+  wallSegments?: WallSegment[],
+  isOutsideChillerActive?: boolean
+): StoreScaleInfo => {
+  if (!pts || !pts.length) {
+    return { scale: 20, offX: 52, offY: 52, minX: 0, minY: 0, maxX: 10, maxY: 10, rW: 10, rH: 10 }
+  }
+
+  const allPts: Point[] = pts.map((p) => ({ ...p }))
+
+  // 1. Perhitungkan batas luar fixture Chiller yang terpasang di LUAR garis denah
+  if (wallSegments && wallSegments.length > 0 && pts.length >= 3) {
+    wallSegments.forEach((w) => {
+      if (w.type === "CHILLER" && (w.chillerSide === "OUTSIDE" || !w.chillerSide)) {
+        const inNorm = getWallInwardNormal(w.p1, w.p2, pts)
+        const depthM = CHILLER_DEPTH_M
+        allPts.push({ x: w.p1.x - inNorm.nx * depthM, y: w.p1.y - inNorm.ny * depthM })
+        allPts.push({ x: w.p2.x - inNorm.nx * depthM, y: w.p2.y - inNorm.ny * depthM })
+      }
+    })
+  }
+
+  // 2. Jika tool Chiller Luar sedang aktif (hover / pasang), tambahkan ruang aman 0.8m di sekeliling denah
+  if (isOutsideChillerActive) {
+    const rawXs = pts.map((p) => p.x)
+    const rawYs = pts.map((p) => p.y)
+    const rawMinX = Math.min(...rawXs), rawMaxX = Math.max(...rawXs)
+    const rawMinY = Math.min(...rawYs), rawMaxY = Math.max(...rawYs)
+    allPts.push({ x: rawMinX - CHILLER_DEPTH_M, y: rawMinY - CHILLER_DEPTH_M })
+    allPts.push({ x: rawMaxX + CHILLER_DEPTH_M, y: rawMaxY + CHILLER_DEPTH_M })
+  }
+
+  const xs = allPts.map((p) => p.x)
+  const ys = allPts.map((p) => p.y)
+  const minX = Math.min(...xs), maxX = Math.max(...xs)
+  const minY = Math.min(...ys), maxY = Math.max(...ys)
+  const rW = maxX - minX || 1
+  const rH = maxY - minY || 1
+
+  // Margin lega & proporsional:
+  // - Sisakan margin 54px di kiri & 52px di bawah untuk garis dimensi ukur (PT & LT) serta teks label
+  // - Sisakan margin 54px di atas & 45px di kanan untuk bodi chiller luar & label tanpa terpotong
+  const padLeft = 54
+  const padRight = 45
+  const padTop = 54
+  const padBottom = 52
+  const availW = Math.max(60, canvasW - padLeft - padRight)
+  const availH = Math.max(60, canvasH - padTop - padBottom)
+
+  const s = Math.min(availW / rW, availH / rH)
+  return {
+    scale: s,
+    offX: padLeft + (availW - rW * s) / 2 - minX * s,
+    offY: padTop + (availH - rH * s) / 2 - minY * s,
+    minX,
+    minY,
+    maxX,
+    maxY,
+    rW,
+    rH,
+  }
+}
+
+/**
  * Deteksi apakah lampu bersinggungan / bertabrakan dengan Pilar atau berada di zona rintangan (Kasir / Chiller)
  */
 export function checkLampObstacle(
@@ -375,20 +413,23 @@ export function checkLampObstacle(
 
   for (const wall of wallSegments) {
     if (wall.type === "CHILLER") {
-      const inNorm = getWallInwardNormal(wall.p1, wall.p2, polygon)
-      const chillerDepth = CHILLER_DEPTH_M
-      const chillerPoly = [
-        wall.p1,
-        wall.p2,
-        { x: wall.p2.x + inNorm.nx * chillerDepth, y: wall.p2.y + inNorm.ny * chillerDepth },
-        { x: wall.p1.x + inNorm.nx * chillerDepth, y: wall.p1.y + inNorm.ny * chillerDepth },
-      ]
-      if (
-        isPointInsidePolygon(ptCenter, chillerPoly) ||
-        isPointInsidePolygon(ptStart, chillerPoly) ||
-        isPointInsidePolygon(ptEnd, chillerPoly)
-      ) {
-        return { isBlocked: true, reason: "Berada di atas Chiller" }
+      // Jika Chiller berada di luar garis (R. Chiller), lampu di dalam toko tidak terhalang
+      if (wall.chillerSide === "INSIDE") {
+        const inNorm = getWallInwardNormal(wall.p1, wall.p2, polygon)
+        const chillerDepth = CHILLER_DEPTH_M
+        const chillerPoly = [
+          wall.p1,
+          wall.p2,
+          { x: wall.p2.x + inNorm.nx * chillerDepth, y: wall.p2.y + inNorm.ny * chillerDepth },
+          { x: wall.p1.x + inNorm.nx * chillerDepth, y: wall.p1.y + inNorm.ny * chillerDepth },
+        ]
+        if (
+          isPointInsidePolygon(ptCenter, chillerPoly) ||
+          isPointInsidePolygon(ptStart, chillerPoly) ||
+          isPointInsidePolygon(ptEnd, chillerPoly)
+        ) {
+          return { isBlocked: true, reason: "Berada di atas Chiller" }
+        }
       }
     } else if (wall.type === "CASHIER") {
       const inNorm = getWallInwardNormal(wall.p1, wall.p2, polygon)
@@ -1405,8 +1446,10 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
   // Tools Penanda Zona (Denah Utama, Pintu/Kaca, Pintu P1, Kasir, Chiller)
   const [activeTool, setActiveTool] = useState<ActiveTool>("DRAW")
 
-  // Stepper Unit Chiller (1 - 8 Unit @ 1.2m)
+  // Stepper Unit Chiller (1 - 8 Unit @ 1.2m) & Posisi (OUTSIDE = R. Chiller / Standar Sales, INSIDE = Showcase Dalam)
   const [chillerUnits, setChillerUnits] = useState<number>(1)
+  const [chillerPlacement, setChillerPlacement] = useState<"OUTSIDE" | "INSIDE">("OUTSIDE")
+  const [chillerAlignments, setChillerAlignments] = useState<Record<number, "OUTSIDE" | "INSIDE">>({})
 
   // Dragging Seluruh Blok Segmen Sekaligus (Pintu P1 dan Chiller)
   const [activeDragSegmentIdx, setActiveDragSegmentIdx] = useState<number | null>(null)
@@ -1608,10 +1651,11 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         p2,
         lengthM,
         type,
+        chillerSide: type === "CHILLER" ? (chillerAlignments[i] || "OUTSIDE") : undefined,
       })
     }
     return segs
-  }, [customPts, customClosed, segmentOverrides])
+  }, [customPts, customClosed, segmentOverrides, chillerAlignments])
 
   // Target BTU/m² dari Suhu Open-Meteo
   const targetBtuPerM2 = useMemo(() => {
@@ -1635,7 +1679,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     return 0
   }, [activeCadMetadata, customPts, customClosed, polygonAreaM2, storeMode, selectedStore, newStoreArea])
 
-  // Total Luas Bersih (Setelah dikurangi footprint fixture Chiller, Kasir & Pilar)
+  // Total Luas Bersih (Setelah dikurangi footprint fixture Chiller (jika di dalam), Kasir & Pilar)
   const netSalesArea = useMemo(() => {
     if (activeCadMetadata) {
       return activeCadMetadata.metrics.netSalesArea
@@ -1644,7 +1688,10 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
       let fixtureArea = 0
       wallSegments.forEach((w) => {
         if (w.type === "CHILLER") {
-          fixtureArea += w.lengthM * CHILLER_DEPTH_M
+          // Hanya kurangi jika chiller berada di DALAM garis area sales
+          if (w.chillerSide === "INSIDE") {
+            fixtureArea += w.lengthM * CHILLER_DEPTH_M
+          }
         } else if (w.type === "CASHIER") {
           const depth = cashierDepths[w.index] !== undefined ? cashierDepths[w.index] : CASHIER_DEPTH_M
           fixtureArea += w.lengthM * depth
@@ -1661,6 +1708,18 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     }
     return 0
   }, [activeCadMetadata, customPts, customClosed, polygonAreaM2, wallSegments, cashierDepths, totalPillarAreaM2, storeMode, selectedStore, newStoreArea])
+
+  // Luas Tambahan Ruang Chiller di Luar Garis Poligon Sales
+  const outsideChillerAreaM2 = useMemo(() => {
+    if (activeCadMetadata) return 0
+    let area = 0
+    wallSegments.forEach((w) => {
+      if (w.type === "CHILLER" && (w.chillerSide === "OUTSIDE" || !w.chillerSide)) {
+        area += w.lengthM * CHILLER_DEPTH_M
+      }
+    })
+    return Number(area.toFixed(1))
+  }, [activeCadMetadata, wallSegments])
 
   // Backward compatibility alias: effectiveArea menggunakan Luas Kotor untuk AC
   const effectiveArea = grossCalculationArea
@@ -1875,13 +1934,14 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         closed: customClosed,
         overrides: { ...segmentOverrides },
         cashierDepths: { ...cashierDepths },
+        chillerAlignments: { ...chillerAlignments },
         placedUnits: [...placedUnits],
         isCalculated,
         pillars: [...pillars],
       },
     ])
     setHistoryFuture([])
-  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated, pillars])
+  }, [customPts, customClosed, segmentOverrides, cashierDepths, chillerAlignments, placedUnits, isCalculated, pillars])
 
   const handleUndo = useCallback(() => {
     setHistoryPast((prevPast) => {
@@ -1898,6 +1958,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
           closed: customClosed,
           overrides: { ...segmentOverrides },
           cashierDepths: { ...cashierDepths },
+          chillerAlignments: { ...chillerAlignments },
           placedUnits: [...placedUnits],
           isCalculated,
           pillars: [...pillars],
@@ -1908,6 +1969,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
       setCustomClosed(last.closed)
       setSegmentOverrides(last.overrides || {})
       if (last.cashierDepths) setCashierDepths(last.cashierDepths)
+      if (last.chillerAlignments) setChillerAlignments(last.chillerAlignments)
       if (last.placedUnits) setPlacedUnits(last.placedUnits)
       if (last.isCalculated !== undefined) setIsCalculated(last.isCalculated)
       if (last.pillars) setPillars(last.pillars)
@@ -1917,7 +1979,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     setPendingCashierDepth(null)
     setSelectedPillarId(null)
     toast.info("Perubahan denah dibatalkan (Undo)")
-  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated, pillars])
+  }, [customPts, customClosed, segmentOverrides, cashierDepths, chillerAlignments, placedUnits, isCalculated, pillars])
 
   const handleRedo = useCallback(() => {
     setHistoryFuture((prevFuture) => {
@@ -1935,6 +1997,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
           closed: customClosed,
           overrides: { ...segmentOverrides },
           cashierDepths: { ...cashierDepths },
+          chillerAlignments: { ...chillerAlignments },
           placedUnits: [...placedUnits],
           isCalculated,
           pillars: [...pillars],
@@ -1944,6 +2007,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
       setCustomClosed(next.closed)
       setSegmentOverrides(next.overrides || {})
       if (next.cashierDepths) setCashierDepths(next.cashierDepths)
+      if (next.chillerAlignments) setChillerAlignments(next.chillerAlignments)
       if (next.placedUnits) setPlacedUnits(next.placedUnits)
       if (next.isCalculated !== undefined) setIsCalculated(next.isCalculated)
       if (next.pillars) setPillars(next.pillars)
@@ -1953,7 +2017,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     setPendingCashierDepth(null)
     setSelectedPillarId(null)
     toast.info("Perubahan denah dipulihkan (Redo)")
-  }, [customPts, customClosed, segmentOverrides, cashierDepths, placedUnits, isCalculated, pillars])
+  }, [customPts, customClosed, segmentOverrides, cashierDepths, chillerAlignments, placedUnits, isCalculated, pillars])
 
   const selectedPillar = useMemo(() => {
     return pillars.find((p) => p.id === selectedPillarId) || null
@@ -2138,6 +2202,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     setSelectedNodeIdx(null)
     setSegmentOverrides({})
     setCashierDepths({})
+    setChillerAlignments({})
     setPillars([])
     setSelectedPillarId(null)
     setActiveDragPillarId(null)
@@ -2188,6 +2253,15 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         else if (k > idx) newDepths[k - 1] = val
       })
       return newDepths
+    })
+    setChillerAlignments((prev) => {
+      const newAligns: Record<number, "OUTSIDE" | "INSIDE"> = {}
+      Object.entries(prev).forEach(([kStr, val]) => {
+        const k = parseInt(kStr, 10)
+        if (k < idx) newAligns[k] = val
+        else if (k > idx) newAligns[k - 1] = val
+      })
+      return newAligns
     })
     setSelectedNodeIdx(null)
     setPendingZoneStart(null)
@@ -2503,7 +2577,8 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
 
     const W = canvas.offsetWidth || 340
     const H = canvas.offsetHeight || CANVAS_H
-    const sc = customClosed && customPts.length >= 3 ? getStoreScaleInfo(customPts, W, H) : null
+    const isOutsideChillerActive = activeTool === "CHILLER" && chillerPlacement === "OUTSIDE"
+    const sc = customClosed && customPts.length >= 3 ? getStoreScaleInfo(customPts, W, H, wallSegments, isOutsideChillerActive) : null
     const baseScale = sc ? sc.scale : FIXED_SCALE
     const baseOffX = sc ? sc.offX : FIXED_OX
     const baseOffY = sc ? sc.offY : FIXED_OY
@@ -2721,7 +2796,9 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         } else if (activeTool === "CHILLER") {
           targetLengthM = chillerUnits * CHILLER_UNIT_WIDTH_M
           targetType = "CHILLER"
-          toolLabel = `Chiller (${chillerUnits} Unit - ${formatDim(targetLengthM)}m × ${CHILLER_DEPTH_M}m)`
+          toolLabel = chillerPlacement === "OUTSIDE"
+            ? `R. Chiller (${chillerUnits} Unit - ${formatDim(targetLengthM)}m)`
+            : `Chiller (${chillerUnits} Unit - ${formatDim(targetLengthM)}m)`
         }
 
         const wallLen = segWall.lengthM
@@ -2778,33 +2855,51 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         let insertedCount = 0
         const newOverrides: Record<number, WallType> = {}
         const newDepths: Record<number, number> = {}
+        const newAlignments: Record<number, "OUTSIDE" | "INSIDE"> = {}
 
         Object.entries(segmentOverrides).forEach(([kStr, val]) => {
           const k = parseInt(kStr, 10)
           if (k < bestSegIdx) {
             newOverrides[k] = val
             if (cashierDepths[k] !== undefined) newDepths[k] = cashierDepths[k]
+            if (chillerAlignments[k] !== undefined) newAlignments[k] = chillerAlignments[k]
           }
         })
 
         if (insertP1 && insertP2) {
           newPts.splice(bestSegIdx + 1, 0, ptA, ptB)
           insertedCount = 2
-          if (oldSegmentOverride !== "SOLID") newOverrides[bestSegIdx] = oldSegmentOverride
+          if (oldSegmentOverride !== "SOLID") {
+            newOverrides[bestSegIdx] = oldSegmentOverride
+            if (chillerAlignments[bestSegIdx] !== undefined) newAlignments[bestSegIdx] = chillerAlignments[bestSegIdx]
+          }
           newOverrides[bestSegIdx + 1] = targetType
-          if (oldSegmentOverride !== "SOLID") newOverrides[bestSegIdx + 2] = oldSegmentOverride
+          if (targetType === "CHILLER") newAlignments[bestSegIdx + 1] = chillerPlacement
+          if (oldSegmentOverride !== "SOLID") {
+            newOverrides[bestSegIdx + 2] = oldSegmentOverride
+            if (chillerAlignments[bestSegIdx] !== undefined) newAlignments[bestSegIdx + 2] = chillerAlignments[bestSegIdx]
+          }
         } else if (insertP1 && !insertP2) {
           newPts.splice(bestSegIdx + 1, 0, ptA)
           insertedCount = 1
-          if (oldSegmentOverride !== "SOLID") newOverrides[bestSegIdx] = oldSegmentOverride
+          if (oldSegmentOverride !== "SOLID") {
+            newOverrides[bestSegIdx] = oldSegmentOverride
+            if (chillerAlignments[bestSegIdx] !== undefined) newAlignments[bestSegIdx] = chillerAlignments[bestSegIdx]
+          }
           newOverrides[bestSegIdx + 1] = targetType
+          if (targetType === "CHILLER") newAlignments[bestSegIdx + 1] = chillerPlacement
         } else if (!insertP1 && insertP2) {
           newPts.splice(bestSegIdx + 1, 0, ptB)
           insertedCount = 1
           newOverrides[bestSegIdx] = targetType
-          if (oldSegmentOverride !== "SOLID") newOverrides[bestSegIdx + 1] = oldSegmentOverride
+          if (targetType === "CHILLER") newAlignments[bestSegIdx] = chillerPlacement
+          if (oldSegmentOverride !== "SOLID") {
+            newOverrides[bestSegIdx + 1] = oldSegmentOverride
+            if (chillerAlignments[bestSegIdx] !== undefined) newAlignments[bestSegIdx + 1] = chillerAlignments[bestSegIdx]
+          }
         } else {
           newOverrides[bestSegIdx] = targetType
+          if (targetType === "CHILLER") newAlignments[bestSegIdx] = chillerPlacement
         }
 
         Object.entries(segmentOverrides).forEach(([kStr, val]) => {
@@ -2812,6 +2907,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
           if (k > bestSegIdx) {
             newOverrides[k + insertedCount] = val
             if (cashierDepths[k] !== undefined) newDepths[k + insertedCount] = cashierDepths[k]
+            if (chillerAlignments[k] !== undefined) newAlignments[k + insertedCount] = chillerAlignments[k]
           }
         })
 
@@ -2820,6 +2916,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         setCustomPts(newPts)
         setSegmentOverrides(newOverrides)
         setCashierDepths(newDepths)
+        setChillerAlignments(newAlignments)
         toast.success(`${toolLabel} berhasil dipasang pada dinding!`)
         return
       }
@@ -3228,19 +3325,23 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         const newPts = [...customPts]
         newPts.splice(insertIdx, 0, { x: mX, y: mY })
 
-        // Update segmentOverrides & cashierDepths:
+        // Update segmentOverrides & cashierDepths & chillerAlignments:
         const oldOverride = segmentOverrides[bestSegIdx]
         const oldDepth = cashierDepths[bestSegIdx]
+        const oldAlign = chillerAlignments[bestSegIdx]
         const newOverrides: Record<number, WallType> = {}
         const newDepths: Record<number, number> = {}
+        const newAligns: Record<number, "OUTSIDE" | "INSIDE"> = {}
         Object.entries(segmentOverrides).forEach(([kStr, val]) => {
           const k = parseInt(kStr, 10)
           if (k < bestSegIdx) {
             newOverrides[k] = val
             if (cashierDepths[k] !== undefined) newDepths[k] = cashierDepths[k]
+            if (chillerAlignments[k] !== undefined) newAligns[k] = chillerAlignments[k]
           } else if (k > bestSegIdx) {
             newOverrides[k + 1] = val
             if (cashierDepths[k] !== undefined) newDepths[k + 1] = cashierDepths[k]
+            if (chillerAlignments[k] !== undefined) newAligns[k + 1] = chillerAlignments[k]
           }
         })
         if (oldOverride && oldOverride !== "SOLID") {
@@ -3251,6 +3352,10 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
           newDepths[bestSegIdx] = oldDepth
           newDepths[bestSegIdx + 1] = oldDepth
         }
+        if (oldAlign !== undefined) {
+          newAligns[bestSegIdx] = oldAlign
+          newAligns[bestSegIdx + 1] = oldAlign
+        }
 
         setIsCalculated(false)
         setIsLightCalculated(false)
@@ -3259,6 +3364,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         setCustomPts(newPts)
         setSegmentOverrides(newOverrides)
         setCashierDepths(newDepths)
+        setChillerAlignments(newAligns)
         setSelectedNodeIdx(insertIdx)
         setActiveDragIdx(insertIdx)
         try {
@@ -3335,7 +3441,8 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
 
     const W = canvas.offsetWidth || 340
     const H = canvas.offsetHeight || CANVAS_H
-    const sc = customClosed && customPts.length >= 3 ? getStoreScaleInfo(customPts, W, H) : null
+    const isOutsideChillerActive = activeTool === "CHILLER" && chillerPlacement === "OUTSIDE"
+    const sc = customClosed && customPts.length >= 3 ? getStoreScaleInfo(customPts, W, H, wallSegments, isOutsideChillerActive) : null
     const baseScale = sc ? sc.scale : FIXED_SCALE
     const baseOffX = sc ? sc.offX : FIXED_OX
     const baseOffY = sc ? sc.offY : FIXED_OY
@@ -4274,7 +4381,8 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     }
 
     // B. MODE CLOSED: AUTO-CENTER DENGAN GETSTORESCALEINFO (Auto-Fit Optimal & Konsisten)
-    const baseSc = getStoreScaleInfo(customPts, W, H)
+    const isOutsideChillerActive = activeTool === "CHILLER" && chillerPlacement === "OUTSIDE"
+    const baseSc = getStoreScaleInfo(customPts, W, H, wallSegments, isOutsideChillerActive)
     const effectiveScale = baseSc.scale * effectiveZoom
     const effectiveOffX = W / 2 + (baseSc.offX - W / 2) * effectiveZoom + effectivePanX
     const effectiveOffY = H / 2 + (baseSc.offY - H / 2) * effectiveZoom + effectivePanY
@@ -4500,11 +4608,13 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     if (chillerWalls.length > 0) {
       chillerWalls.forEach((wall) => {
         const inNorm = getWallInwardNormal(wall.p1, wall.p2, customPts)
+        const isOutside = (wall.chillerSide || chillerAlignments[wall.index] || "OUTSIDE") === "OUTSIDE"
+        const normDir = isOutside ? { nx: -inNorm.nx, ny: -inNorm.ny } : inNorm
         const depthM = CHILLER_DEPTH_M
         const p1 = wall.p1
         const p2 = wall.p2
-        const p3 = { x: p2.x + depthM * inNorm.nx, y: p2.y + depthM * inNorm.ny }
-        const p4 = { x: p1.x + depthM * inNorm.nx, y: p1.y + depthM * inNorm.ny }
+        const p3 = { x: p2.x + depthM * normDir.nx, y: p2.y + depthM * normDir.ny }
+        const p4 = { x: p1.x + depthM * normDir.nx, y: p1.y + depthM * normDir.ny }
 
         const cp1 = toC(p1)
         const cp2 = toC(p2)
@@ -4555,7 +4665,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
           const divDist = u * 1.2
           if (divDist < len) {
             const divP1 = { x: p1.x + divDist * ux, y: p1.y + divDist * uy }
-            const divP2 = { x: divP1.x + depthM * inNorm.nx, y: divP1.y + depthM * inNorm.ny }
+            const divP2 = { x: divP1.x + depthM * normDir.nx, y: divP1.y + depthM * normDir.ny }
             const cDiv1 = toC(divP1)
             const cDiv2 = toC(divP2)
             ctx.beginPath()
@@ -4575,10 +4685,12 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         ctx.lineWidth = 1.8
         ctx.stroke()
 
-        const frontMidX = (cp3.cx + cp4.cx) / 2 + inNorm.nx * 11
-        const frontMidY = (cp3.cy + cp4.cy) / 2 + inNorm.ny * 11
+        const frontMidX = (cp3.cx + cp4.cx) / 2 + normDir.nx * 11
+        const frontMidY = (cp3.cy + cp4.cy) / 2 + normDir.ny * 11
 
-        const chillerLabel = `CHILLER ${uCount} UNIT (${formatDim(wall.lengthM)}m × ${depthM}m)`
+        const chillerLabel = isOutside
+          ? `R. CHILLER ${uCount}U (${formatDim(wall.lengthM)}m)`
+          : `CHILLER ${uCount}U (${formatDim(wall.lengthM)}m)`
         const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
 
         // Rotasi teks mengikuti kemiringan dinding chiller agar presisi dan tidak menabrak
@@ -5372,7 +5484,9 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         } else if (activeTool === "CHILLER") {
           targetLen = chillerUnits * CHILLER_UNIT_WIDTH_M
           toolColor = "#06b6d4"
-          toolLabel = `CHILLER (${chillerUnits} UNIT - ${formatDim(targetLen)}m × ${CHILLER_DEPTH_M}m)`
+          toolLabel = chillerPlacement === "OUTSIDE"
+            ? `R. CHILLER (${chillerUnits}U - ${formatDim(targetLen)}m)`
+            : `CHILLER (${chillerUnits}U - ${formatDim(targetLen)}m)`
         }
 
         const wallLen = seg.lengthM
@@ -5409,16 +5523,18 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
           }
 
           const inNorm = getWallInwardNormal(ptA, ptB, customPts)
+          const isOutside = chillerPlacement === "OUTSIDE"
+          const normDir = isOutside ? { nx: -inNorm.nx, ny: -inNorm.ny } : inNorm
           const cpA = toC(ptA)
           const cpB = toC(ptB)
 
           ctx.save()
 
-          // 1. JIKA CHILLER: TAMPILKAN LANGSUNG KOTAK 2D BERVOLUME 0.8M KE DALAM RUANGAN + ANSI37 HATCH + DIVIDER
+          // 1. JIKA CHILLER: TAMPILKAN LANGSUNG KOTAK 2D BERVOLUME 0.8M (LUAR / DALAM) + ANSI37 HATCH + DIVIDER
           if (activeTool === "CHILLER") {
             const depthM = CHILLER_DEPTH_M
-            const pt3: Point = { x: ptB.x + depthM * inNorm.nx, y: ptB.y + depthM * inNorm.ny }
-            const pt4: Point = { x: ptA.x + depthM * inNorm.nx, y: ptA.y + depthM * inNorm.ny }
+            const pt3: Point = { x: ptB.x + depthM * normDir.nx, y: ptB.y + depthM * normDir.ny }
+            const pt4: Point = { x: ptA.x + depthM * normDir.nx, y: ptA.y + depthM * normDir.ny }
             const cp3 = toC(pt3)
             const cp4 = toC(pt4)
 
@@ -5466,7 +5582,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
               const divDist = u * 1.2
               if (divDist < lenW) {
                 const divP1 = { x: ptA.x + divDist * ux, y: ptA.y + divDist * uy }
-                const divP2 = { x: divP1.x + depthM * inNorm.nx, y: divP1.y + depthM * inNorm.ny }
+                const divP2 = { x: divP1.x + depthM * normDir.nx, y: divP1.y + depthM * normDir.ny }
                 const cDiv1 = toC(divP1)
                 const cDiv2 = toC(divP2)
                 ctx.beginPath()
@@ -5646,10 +5762,14 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
             textAngle += Math.PI
           }
 
-          // Offset normal ke dalam ruangan
-          const dimOffset = Math.max(22, 0.45 * sc.scale)
-          const normX = inNorm.nx
-          const normY = inNorm.ny
+          // Offset normal: jika Chiller di luar garis, proyeksikan dimensi rantai ke LUAR (di atas/luar bodi chiller),
+          // sehingga tidak ada elemen preview yang tumpah ke dalam ruangan sales!
+          const isChillerOutside = activeTool === "CHILLER" && chillerPlacement === "OUTSIDE"
+          const dimOffset = isChillerOutside
+            ? (CHILLER_DEPTH_M + 0.35) * sc.scale
+            : Math.max(22, 0.45 * sc.scale)
+          const normX = isChillerOutside ? -inNorm.nx : inNorm.nx
+          const normY = isChillerOutside ? -inNorm.ny : inNorm.ny
 
           // 4 Titik Rantai: [p1, fixture_start, fixture_end, p2]
           const chainPoints = [
@@ -5717,7 +5837,14 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
               ctx.rotate(textAngle)
 
               const isMiddleFixture = k === 1
-              const dText = isMiddleFixture ? `${formatDim(segDistM)}m (${toolLabel.split(" ")[0]})` : `${formatDim(segDistM)}m`
+              const fixtureTag = activeTool === "CHILLER"
+                ? (chillerPlacement === "OUTSIDE" ? "R. Chiller" : "Chiller")
+                : activeTool === "DOOR_MAIN"
+                ? "Pintu"
+                : activeTool === "DOOR_P1"
+                ? "P1"
+                : toolLabel.split(" ")[0]
+              const dText = isMiddleFixture ? `${formatDim(segDistM)}m (${fixtureTag})` : `${formatDim(segDistM)}m`
 
               ctx.font = isMiddleFixture ? "bold 8.5px sans-serif" : "bold 8px sans-serif"
               ctx.textAlign = "center"
@@ -6755,7 +6882,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
       ctx.textBaseline = "middle"
       ctx.fillText(activeTool === "DRAW" ? "+" : "●", hoverEdge.cx, hoverEdge.cy)
 
-      if (activeTool !== "DRAW") {
+      if (activeTool === "DOOR" || activeTool === "CASHIER") {
         let hoverLabel = "Klik titik awal"
         if (hoverEdge.t <= 0.03) hoverLabel = "Snap Pojok Awal (0m)"
         else if (hoverEdge.t >= 0.97) hoverLabel = "Snap Pojok Ujung Dinding"
@@ -6765,7 +6892,6 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
         ctx.fillText(hoverLabel, hoverEdge.cx, hoverEdge.cy - 12)
 
         // ── CONTINUOUS CAD DIMENSION CHAIN UNTUK DOOR & CASHIER (Sesuai Rotasi Dinding) ──
-        if (activeTool === "DOOR" || activeTool === "CASHIER") {
           const seg = wallSegments.find((w) => w.index === hoverEdge.segmentIdx)
           if (seg) {
             const p1C = toC(seg.p1)
@@ -6869,7 +6995,6 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
             ctx.restore()
           }
         }
-      }
       ctx.restore()
     }
 
@@ -7681,7 +7806,7 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
 
       ctx.restore()
     }
-  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, isLightCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions, pillars, selectedPillarId, activeDragPillarId, pillarSizeM, pillarWidthInput, pillarLengthInput, pillarDistXInput, pillarDistYInput, magneticSnapFeedback, zoom, panOffset, isFullscreenCanvas, activeMepTab, lampWatt, lampLen, lampOrient, lampSpasi, irregDisabledLamps, showLightingDimensions, showLightingGlow, lightingCalculation])
+  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, isLightCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, chillerPlacement, chillerAlignments, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions, pillars, selectedPillarId, activeDragPillarId, pillarSizeM, pillarWidthInput, pillarLengthInput, pillarDistXInput, pillarDistYInput, magneticSnapFeedback, zoom, panOffset, isFullscreenCanvas, activeMepTab, lampWatt, lampLen, lampOrient, lampSpasi, irregDisabledLamps, showLightingDimensions, showLightingGlow, lightingCalculation])
 
   useEffect(() => {
     drawCanvas()
@@ -8383,28 +8508,56 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                           </Button>
 
                           {activeTool === "CHILLER" && (
-                            <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-lg p-0.5 animate-in fade-in zoom-in-95">
-                              <button
-                                type="button"
-                                disabled={chillerUnits <= 1}
-                                onClick={() => setChillerUnits((prev) => Math.max(1, prev - 1))}
-                                className="size-6 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs cursor-pointer"
-                                title="Kurangi unit chiller (-1.2m)"
-                              >
-                                -
-                              </button>
-                              <span className="text-[11px] font-bold text-cyan-900 dark:text-cyan-100 px-1.5 font-mono whitespace-nowrap">
-                                {chillerUnits} Unit ({formatDim(chillerUnits * 1.2)}m)
-                              </span>
-                              <button
-                                type="button"
-                                disabled={chillerUnits >= maxChillerUnits}
-                                onClick={() => setChillerUnits((prev) => Math.min(maxChillerUnits, prev + 1))}
-                                className="size-6 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs cursor-pointer"
-                                title={`Tambah unit chiller (+1.2m, Maks: ${maxChillerUnits} Unit / ${formatDim(maxChillerUnits * 1.2)}m)`}
-                              >
-                                +
-                              </button>
+                            <div className="flex items-center gap-1 animate-in fade-in zoom-in-95">
+                              <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-lg p-0.5">
+                                <button
+                                  type="button"
+                                  disabled={chillerUnits <= 1}
+                                  onClick={() => setChillerUnits((prev) => Math.max(1, prev - 1))}
+                                  className="size-6 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs cursor-pointer"
+                                  title="Kurangi unit chiller (-1.2m)"
+                                >
+                                  -
+                                </button>
+                                <span className="text-[11px] font-bold text-cyan-900 dark:text-cyan-100 px-1.5 font-mono whitespace-nowrap">
+                                  {chillerUnits} Unit ({formatDim(chillerUnits * 1.2)}m)
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={chillerUnits >= maxChillerUnits}
+                                  onClick={() => setChillerUnits((prev) => Math.min(maxChillerUnits, prev + 1))}
+                                  className="size-6 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 disabled:hover:bg-transparent font-bold text-xs cursor-pointer"
+                                  title={`Tambah unit chiller (+1.2m, Maks: ${maxChillerUnits} Unit / ${formatDim(maxChillerUnits * 1.2)}m)`}
+                                >
+                                  +
+                                </button>
+                              </div>
+
+                              {/* Toggle Posisi Ringkas: Luar / Dalam */}
+                              <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-lg p-0.5 text-[11px] font-bold">
+                                <button
+                                  type="button"
+                                  onClick={() => setChillerPlacement("OUTSIDE")}
+                                  className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${chillerPlacement === "OUTSIDE"
+                                    ? "bg-cyan-500 text-white shadow-xs"
+                                    : "text-cyan-800 dark:text-cyan-200 hover:bg-cyan-500/20"
+                                    }`}
+                                  title="Posisi Luar: Ruang Chiller di luar garis sales area (Standar Retail)"
+                                >
+                                  Luar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setChillerPlacement("INSIDE")}
+                                  className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${chillerPlacement === "INSIDE"
+                                    ? "bg-cyan-500 text-white shadow-xs"
+                                    : "text-cyan-800 dark:text-cyan-200 hover:bg-cyan-500/20"
+                                    }`}
+                                  title="Posisi Dalam: Open showcase di dalam garis sales area"
+                                >
+                                  Dalam
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -9046,26 +9199,54 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                               </Button>
 
                               {activeTool === "CHILLER" && (
-                                <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-md p-0.5 animate-in fade-in">
-                                  <button
-                                    type="button"
-                                    disabled={chillerUnits <= 1}
-                                    onClick={() => setChillerUnits((prev) => Math.max(1, prev - 1))}
-                                    className="size-5 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 font-bold text-xs cursor-pointer"
-                                  >
-                                    -
-                                  </button>
-                                  <span className="text-[10px] font-bold text-cyan-900 dark:text-cyan-100 px-1 font-mono whitespace-nowrap">
-                                    {chillerUnits} ({formatDim(chillerUnits * 1.2)}m)
-                                  </span>
-                                  <button
-                                    type="button"
-                                    disabled={chillerUnits >= maxChillerUnits}
-                                    onClick={() => setChillerUnits((prev) => Math.min(maxChillerUnits, prev + 1))}
-                                    className="size-5 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 font-bold text-xs cursor-pointer"
-                                  >
-                                    +
-                                  </button>
+                                <div className="flex items-center gap-1 animate-in fade-in">
+                                  <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-md p-0.5">
+                                    <button
+                                      type="button"
+                                      disabled={chillerUnits <= 1}
+                                      onClick={() => setChillerUnits((prev) => Math.max(1, prev - 1))}
+                                      className="size-5 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 font-bold text-xs cursor-pointer"
+                                    >
+                                      -
+                                    </button>
+                                    <span className="text-[10px] font-bold text-cyan-900 dark:text-cyan-100 px-1 font-mono whitespace-nowrap">
+                                      {chillerUnits} ({formatDim(chillerUnits * 1.2)}m)
+                                    </span>
+                                    <button
+                                      type="button"
+                                      disabled={chillerUnits >= maxChillerUnits}
+                                      onClick={() => setChillerUnits((prev) => Math.min(maxChillerUnits, prev + 1))}
+                                      className="size-5 rounded flex items-center justify-center text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-30 font-bold text-xs cursor-pointer"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+
+                                  {/* Toggle Posisi Luar / Dalam Ringkas */}
+                                  <div className="flex items-center bg-cyan-500/15 border border-cyan-500/40 rounded-md p-0.5 text-[10px] font-bold">
+                                    <button
+                                      type="button"
+                                      onClick={() => setChillerPlacement("OUTSIDE")}
+                                      className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${chillerPlacement === "OUTSIDE"
+                                        ? "bg-cyan-500 text-white shadow-xs"
+                                        : "text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
+                                        }`}
+                                      title="Luar: R. Chiller di luar garis sales"
+                                    >
+                                      Luar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setChillerPlacement("INSIDE")}
+                                      className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${chillerPlacement === "INSIDE"
+                                        ? "bg-cyan-500 text-white shadow-xs"
+                                        : "text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
+                                        }`}
+                                      title="Dalam: Showcase di dalam area sales"
+                                    >
+                                      Dalam
+                                    </button>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -9508,6 +9689,42 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                               </select>
                             </div>
 
+                            {currentType === "CHILLER" && (
+                              <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10px]">
+                                <span className="text-muted-foreground font-medium">Posisi:</span>
+                                <div className="flex items-center rounded border border-cyan-500/40 p-0.5 bg-cyan-500/10 text-[9.5px] font-bold">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      pushCurrentToHistory()
+                                      setChillerAlignments((prev) => ({ ...prev, [idx]: "OUTSIDE" }))
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${(chillerAlignments[idx] || "OUTSIDE") === "OUTSIDE"
+                                      ? "bg-cyan-500 text-white shadow-xs"
+                                      : "text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
+                                      }`}
+                                    title="Ruang Chiller di luar garis sales area"
+                                  >
+                                    Luar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      pushCurrentToHistory()
+                                      setChillerAlignments((prev) => ({ ...prev, [idx]: "INSIDE" }))
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${(chillerAlignments[idx] || "OUTSIDE") === "INSIDE"
+                                      ? "bg-cyan-500 text-white shadow-xs"
+                                      : "text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
+                                      }`}
+                                    title="Showcase di dalam garis sales area"
+                                  >
+                                    Dalam
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
                             {currentType === "SOLID" && (typeof len === "number" || typeof len === "string") && (parseFloat(String(len)) || 0) > 0 && (parseFloat(String(len)) || 0) < AC_INDOOR_WIDTH_M && (
                               <div className="text-[9.5px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 pt-0.5">
                                 <span>Sempit (&lt; 1.05m, tidak muat AC 2 PK)</span>
@@ -9577,6 +9794,11 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                           {netSalesArea} m²
                         </span>
                       </div>
+                      {outsideChillerAreaM2 > 0 && (
+                        <div className="flex items-center justify-between text-[10px] text-cyan-700 dark:text-cyan-400 font-mono">
+                          <span>R. Chiller (Luar): +{outsideChillerAreaM2} m²</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Action Hitung & Simulasikan Lampu */}
@@ -9689,6 +9911,12 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
                       <span className="text-muted-foreground">Luas Sales Total: <strong className="text-foreground font-mono">{grossCalculationArea} m²</strong></span>
                       <span className="text-emerald-700 dark:text-emerald-400 font-bold font-mono">Luas Bersih: {netSalesArea} m²</span>
                     </div>
+                    {outsideChillerAreaM2 > 0 && (
+                      <div className="flex items-center justify-between text-[10px] text-cyan-700 dark:text-cyan-400 font-mono">
+                        <span>R. Chiller (Luar): +{outsideChillerAreaM2} m²</span>
+                        <span className="text-muted-foreground font-medium">Total Toko: {Number((grossCalculationArea + outsideChillerAreaM2).toFixed(1))} m²</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Box Info Suhu & Klaster Setelah Hitung */}
