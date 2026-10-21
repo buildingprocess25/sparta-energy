@@ -40,6 +40,11 @@ import {
   IconLayersLinked,
   IconLayoutGrid,
   IconCalculator,
+  IconDeviceFloppy,
+  IconFolder,
+  IconHistory,
+  IconClock,
+  IconSearch,
 } from "@tabler/icons-react"
 import { useTheme } from "next-themes"
 import { Header } from "@/components/header"
@@ -54,6 +59,11 @@ import { StoreCombobox } from "@/components/audit/store-combobox"
 import { toast } from "sonner"
 import { generateCalculationFilename } from "@/lib/utils"
 import { getTemperature } from "@/app/actions/get-temperature"
+import {
+  saveMepSimulationLog,
+  getMepSimulationList,
+  getLatestStoreMepSimulation,
+} from "@/app/actions/mep-simulation-actions"
 import { calcPolygonArea, type Point } from "@/lib/polygon-utils"
 import { AcMappingResultCard, type AcMappingResultCardData } from "@/components/audit/ac-mapping-result-card"
 import { LightEstimationResultCard, type LightEstimationResultCardData } from "@/components/audit/light-estimation-result-card"
@@ -77,6 +87,7 @@ import { optimizeAcPlacements } from "@/lib/ac-placement-optimizer"
 
 interface StoreMepSimulatorClientProps {
   stores: StoreData[]
+  initialLoadedLog?: any
 }
 
 export interface StorePillar {
@@ -1358,12 +1369,22 @@ export function checkStandards(rasio: number, jarakSamping: number, jarakBaris: 
   }
 }
 
-export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps) {
+export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSimulatorClientProps) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === "dark"
 
   // ─── 0. Active MEP Sub-System Tab (AC vs Lighting) ────────────────────────
   const [activeMepTab, setActiveMepTab] = useState<"ac" | "lighting">("ac")
+
+  // ─── 0C. State Simpan & Buka Rancangan (MEP Activity Log) ──────────────────
+  const [activeLogId, setActiveLogId] = useState<string | null>(initialLoadedLog?.id || null)
+  const [isSavingLog, setIsSavingLog] = useState<boolean>(false)
+  const [savedLayoutModalOpen, setSavedLayoutModalOpen] = useState<boolean>(false)
+  const [savedLogsList, setSavedLogsList] = useState<any[]>([])
+  const [isLoadingSavedLogs, setIsLoadingSavedLogs] = useState<boolean>(false)
+  const [savedLogSearch, setSavedLogSearch] = useState<string>("")
+  const [detectedLatestLog, setDetectedLatestLog] = useState<any | null>(null)
+  const lastSaveTimeRef = useRef<number>(0)
 
   // ─── 0B. State Sistem Pencahayaan (Lampu) ─────────────────────────────────
   const [lampWatt, setLampWatt] = useState<number>(LAMP_WATT)
@@ -1843,6 +1864,10 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     } else {
       toast.success(`Berhasil menghitung & memetakan grid lampu untuk ${netSalesArea} m² Luas Bersih!`)
     }
+    // Auto-log latar belakang saat hitung lampu
+    setTimeout(() => {
+      triggerSaveMepLog(false)
+    }, 150)
   }, [customPts.length, customClosed, netSalesArea, lightingCalculation.blockedLampsCount])
 
   const totalBtuRequired = useMemo(() => {
@@ -2048,6 +2073,194 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
       setPillarDistYInput("")
     }
   }, [selectedPillar, selectedPillarDistances])
+
+  // ─── 7B. Handler Terapkan & Simpan Rancangan Tersimpan (MEP Log) ───────────
+  const handleApplySavedLayout = useCallback((log: any) => {
+    if (!log) return
+    const layout = log.layoutData
+    if (!layout) return
+
+    pushCurrentToHistory()
+
+    if (log.id) {
+      setActiveLogId(log.id)
+    }
+
+    if (Array.isArray(layout.customPts) && layout.customPts.length >= 3) {
+      setCustomPts(layout.customPts)
+    }
+    setCustomClosed(Boolean(layout.customClosed))
+    if (layout.segmentOverrides) setSegmentOverrides(layout.segmentOverrides)
+    if (layout.cashierDepths) setCashierDepths(layout.cashierDepths)
+    if (layout.chillerAlignments) setChillerAlignments(layout.chillerAlignments)
+    if (Array.isArray(layout.placedUnits)) {
+      setPlacedUnits(layout.placedUnits)
+      setIsCalculated(layout.placedUnits.length > 0 || (log.installedUnits && log.installedUnits > 0))
+    } else if (log.installedUnits && log.installedUnits > 0) {
+      setIsCalculated(true)
+    }
+    if (Array.isArray(layout.pillars)) setPillars(layout.pillars)
+
+    if (layout.lighting) {
+      if (layout.lighting.lampWatt) setLampWatt(Number(layout.lighting.lampWatt))
+      if (layout.lighting.targetLux) setTargetLux(Number(layout.lighting.targetLux))
+      if (layout.lighting.lampOrient) setLampOrient(layout.lighting.lampOrient)
+      if (layout.lighting.lampSpasi !== undefined) setLampSpasi(Number(layout.lighting.lampSpasi))
+      if (Array.isArray(layout.lighting.irregDisabledLamps)) {
+        setIrregDisabledLamps(new Set(layout.lighting.irregDisabledLamps))
+      }
+      setIsLightCalculated(true)
+    } else if (log.lampCount && log.lampCount > 0) {
+      setIsLightCalculated(true)
+    }
+
+    if (log.maxTemp) setCalculatedTemp(log.maxTemp)
+    if (log.clusterBtu) setCalculatedBtuPerM2(log.clusterBtu)
+    if (log.outdoorNotes) setOutdoorNotes(log.outdoorNotes)
+
+    if (log.storeMode === "NEW") {
+      setStoreMode("new")
+      setNewStoreName(log.storeName || "")
+      setNewStoreCode(log.storeCode || "")
+      setNewStoreBranch(log.branch || "")
+    } else {
+      setStoreMode("existing")
+      if (log.storeCode && stores?.length) {
+        const found = stores.find((s) => s.code === log.storeCode)
+        if (found) {
+          setSelectedStore(found)
+        }
+      }
+    }
+
+    setSavedLayoutModalOpen(false)
+    setDetectedLatestLog(null)
+    toast.success(`Rancangan denah ${log.storeName || "toko"} berhasil dimuat ke kanvas!`)
+  }, [pushCurrentToHistory, stores])
+
+  // Muat initial log jika ada dari URL searchParams
+  useEffect(() => {
+    if (initialLoadedLog) {
+      handleApplySavedLayout(initialLoadedLog)
+    }
+  }, [initialLoadedLog, handleApplySavedLayout])
+
+  // Fungsi Simpan / Auto-Log ke Database
+  const triggerSaveMepLog = useCallback(async (
+    isManual = false,
+    overrides?: {
+      placedUnits?: PlacedAcUnit[]
+      installedUnits?: number
+      maxTemp?: number
+      clusterBtu?: number
+      totalBtu?: number
+      recommendedUnits?: number
+    }
+  ) => {
+    if (customPts.length < 3 || !customClosed) {
+      if (isManual) {
+        toast.error("Denah poligon belum ditutup atau belum ada area untuk disimpan.")
+      }
+      return
+    }
+
+    // Cooldown check for automatic logging: minimal 5 detik antar auto-save
+    const now = Date.now()
+    if (!isManual && now - lastSaveTimeRef.current < 5000) {
+      return
+    }
+    lastSaveTimeRef.current = now
+
+    setIsSavingLog(true)
+    try {
+      const storeCodeVal = storeMode === "existing" ? selectedStore?.code : newStoreCode
+      const storeNameVal = storeMode === "existing" ? selectedStore?.name : newStoreName
+      const branchVal = storeMode === "existing" ? selectedStore?.branch : newStoreBranch
+
+      const unitsToSave = overrides?.placedUnits ?? placedUnits
+      const installedUnitsVal = overrides?.installedUnits ?? unitsToSave.length
+
+      const payload = {
+        logId: activeLogId,
+        storeMode,
+        storeCode: storeCodeVal || null,
+        storeName: storeNameVal || "Toko Denah Simulator",
+        branch: branchVal || null,
+        salesArea: netSalesArea,
+        maxTemp: overrides?.maxTemp ?? calculatedTemp ?? 31.4,
+        clusterBtu: overrides?.clusterBtu ?? calculatedBtuPerM2 ?? 600,
+        totalBtu: overrides?.totalBtu ?? totalBtuRequired ?? 0,
+        recommendedUnits: overrides?.recommendedUnits ?? recommendedUnitCount ?? 0,
+        installedUnits: installedUnitsVal,
+        outdoorNotes: outdoorNotes || null,
+        lampWatt: lampWatt || 16,
+        targetLux: targetLux || 400,
+        lampCount: lightingCalculation.placedLampsList.filter((_, i) => !irregDisabledLamps.has(i.toString())).length,
+        estimatedLux: Math.round(targetLux) || 400,
+        layoutData: {
+          customPts,
+          customClosed,
+          segmentOverrides,
+          cashierDepths,
+          chillerAlignments,
+          placedUnits: unitsToSave,
+          pillars,
+          lampLen,
+          lampOrient,
+          lampSpasi,
+          irregDisabledLamps: Array.from(irregDisabledLamps),
+        },
+      }
+
+      const res = await saveMepSimulationLog(payload)
+      if (res.success) {
+        if (res.logId) {
+          setActiveLogId(res.logId)
+        }
+        if (isManual) {
+          toast.success("Rancangan simulasi toko berhasil disimpan!")
+        }
+      } else {
+        if (isManual) {
+          toast.error("Gagal menyimpan simulasi: " + res.error)
+        }
+      }
+    } catch (err) {
+      console.error("[triggerSaveMepLog] Error:", err)
+      if (isManual) {
+        toast.error("Terjadi kesalahan saat menyimpan rancangan.")
+      }
+    } finally {
+      setIsSavingLog(false)
+    }
+  }, [
+    activeLogId,
+    customPts,
+    customClosed,
+    storeMode,
+    selectedStore,
+    newStoreCode,
+    newStoreName,
+    newStoreBranch,
+    netSalesArea,
+    calculatedTemp,
+    calculatedBtuPerM2,
+    totalBtuRequired,
+    recommendedUnitCount,
+    placedUnits,
+    outdoorNotes,
+    lampWatt,
+    targetLux,
+    lightingCalculation.placedLampsList,
+    irregDisabledLamps,
+    segmentOverrides,
+    cashierDepths,
+    chillerAlignments,
+    pillars,
+    lampLen,
+    lampOrient,
+    lampSpasi,
+  ])
 
   // Helper Hapus & Ubah Ukuran / Posisi Pilar
   const handleDeletePillar = useCallback((id: string) => {
@@ -2384,7 +2597,19 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     setIsCalculated(false)
     setIsLightCalculated(false)
     setCalculatedTemp(null)
+    setDetectedLatestLog(null)
+
     if (store) {
+      if (store.code) {
+        getLatestStoreMepSimulation(store.code)
+          .then((latest) => {
+            if (latest) {
+              setDetectedLatestLog(latest)
+            }
+          })
+          .catch(() => {})
+      }
+
       if (store.salesAreaM2) {
         const side = Math.sqrt(store.salesAreaM2)
         const p = Math.round(side * 1.3)
@@ -2518,6 +2743,18 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
     setPendingZoneStart(null)
     setPendingCashierDepth(null)
     toast.success(`Berhasil menghitung (${maxTemp}°C / ${clusterBtu} BTU/m²) & memetakan ${n} Unit AC 2 PK dengan cakupan optimal & estetika seimbang!`)
+
+    // Auto-log latar belakang saat hitung AC dengan data unit terbaru
+    setTimeout(() => {
+      triggerSaveMepLog(false, {
+        placedUnits: newUnits,
+        installedUnits: newUnits.length,
+        maxTemp,
+        clusterBtu,
+        totalBtu,
+        recommendedUnits: n,
+      })
+    }, 150)
   }
 
   // ─── 10C. Handler Buka Dialog Konfirmasi Parameter Perhitungan ────────────
@@ -8115,7 +8352,70 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
               <IconBuildingStore className="size-4 text-emerald-600 dark:text-emerald-400" />
               <Label className="text-xs font-bold text-foreground">Identitas Toko</Label>
             </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsLoadingSavedLogs(true)
+                  setSavedLayoutModalOpen(true)
+                  getMepSimulationList({ branch: selectedStore?.branch || undefined, pageSize: 30 })
+                    .then((res) => setSavedLogsList(res.logs))
+                    .finally(() => setIsLoadingSavedLogs(false))
+                }}
+                className="h-8 text-xs gap-1.5 border-border/80 bg-background hover:bg-muted font-semibold"
+              >
+                <IconFolder className="size-3.5 text-amber-500" />
+                Buka Rancangan
+              </Button>
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                disabled={isSavingLog || customPts.length < 3 || !customClosed}
+                onClick={() => triggerSaveMepLog(true)}
+                className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+              >
+                <IconDeviceFloppy className="size-3.5" />
+                {isSavingLog ? "Menyimpan..." : "Simpan Rancangan"}
+              </Button>
+            </div>
           </div>
+
+          {detectedLatestLog && (
+            <div className="flex items-center justify-between p-3 rounded-xl border border-sky-500/30 bg-sky-500/10 text-xs">
+              <div className="flex items-center gap-2">
+                <IconHistory className="size-4 text-sky-600 dark:text-sky-400 shrink-0" />
+                <div>
+                  <span className="font-bold text-foreground">Ditemukan rancangan tersimpan terakhir untuk toko ini</span>
+                  <span className="text-muted-foreground ml-1 font-mono">
+                    ({new Date(detectedLatestLog.updatedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })})
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleApplySavedLayout(detectedLatestLog)}
+                  className="h-7 text-xs bg-sky-600 hover:bg-sky-700 text-white font-semibold"
+                >
+                  Muat Denah Ini
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDetectedLatestLog(null)}
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Abaikan
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Toggle Toko Terdaftar vs Toko Baru */}
           <div className="flex rounded-lg bg-muted/60 p-0.5 border border-border/40">
@@ -10301,6 +10601,118 @@ export function StoreMepSimulatorClient({ stores }: StoreMepSimulatorClientProps
               </Button>
               <Button size="sm" onClick={handleApplyPreset} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
                 Terapkan Denah
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal Buka Rancangan Denah Tersimpan */}
+        <Dialog open={savedLayoutModalOpen} onOpenChange={setSavedLayoutModalOpen}>
+          <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-6">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold">
+                <IconFolder className="size-5 text-amber-500" />
+                Buka Rancangan Denah Tersimpan
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Pilih rancangan simulasi MEP toko yang pernah disimpan sebelumnya untuk dimuat kembali ke kanvas.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="relative my-2">
+              <IconSearch className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Cari berdasarkan nama toko, kode, cabang..."
+                value={savedLogSearch}
+                onChange={(e) => {
+                  setSavedLogSearch(e.target.value)
+                  setIsLoadingSavedLogs(true)
+                  getMepSimulationList({ q: e.target.value, pageSize: 30 })
+                    .then((res) => setSavedLogsList(res.logs))
+                    .finally(() => setIsLoadingSavedLogs(false))
+                }}
+                className="h-9 pl-9 text-xs"
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar min-h-[240px]">
+              {isLoadingSavedLogs ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground text-xs">
+                  <IconClock className="size-6 animate-spin mb-2 text-primary" />
+                  <span>Memuat daftar rancangan...</span>
+                </div>
+              ) : savedLogsList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground text-xs">
+                  <IconFolder className="size-8 opacity-40 mb-2" />
+                  <span>Belum ada rancangan tersimpan yang ditemukan.</span>
+                </div>
+              ) : (
+                savedLogsList.map((logItem) => (
+                  <div
+                    key={logItem.id}
+                    className="flex items-center justify-between p-3 rounded-xl border border-border/70 hover:border-primary/50 hover:bg-muted/30 transition-all text-xs"
+                  >
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-foreground truncate">{logItem.storeName}</span>
+                        {logItem.storeCode && (
+                          <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 h-4">
+                            {logItem.storeCode}
+                          </Badge>
+                        )}
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                          {logItem.branch || "Cabang -"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                        <span>Luas: <b>{logItem.salesArea} m²</b></span>
+                        <span>•</span>
+                        <span>AC: <b>{logItem.installedUnits || logItem.recommendedUnits} Unit</b></span>
+                        <span>•</span>
+                        <span>Lampu: <b>{logItem.lampCount} Titik ({logItem.lampWatt}W)</b></span>
+                        <span>•</span>
+                        <span className="font-mono">
+                          {new Date(logItem.updatedAt).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={async () => {
+                        const { getMepSimulationDetail } = await import("@/app/actions/mep-simulation-actions")
+                        const fullLog = await getMepSimulationDetail(logItem.id)
+                        if (fullLog) {
+                          handleApplySavedLayout(fullLog)
+                        } else {
+                          toast.error("Gagal memuat detail denah.")
+                        }
+                      }}
+                      className="h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shrink-0 ml-3"
+                    >
+                      Muat Denah
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <DialogFooter className="border-t border-border/50 pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSavedLayoutModalOpen(false)}
+                className="h-8 text-xs"
+              >
+                Tutup
               </Button>
             </DialogFooter>
           </DialogContent>

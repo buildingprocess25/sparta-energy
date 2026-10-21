@@ -15,7 +15,19 @@ import {
   IconCalendar,
   IconMapPin,
   IconFileSpreadsheet,
+  IconLayersLinked,
+  IconExternalLink,
+  IconEye,
+  IconCheck,
 } from "@tabler/icons-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,7 +55,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { toast } from "sonner"
-import type { AcLogItem, LightLogItem } from "@/lib/admin-calculator-queries"
+import type { AcLogItem, LightLogItem, MepLogItem } from "@/lib/admin-calculator-queries"
 
 type CalculatorLogsClientProps = {
   acLogs: {
@@ -60,8 +72,15 @@ type CalculatorLogsClientProps = {
     pageSize: number
     totalPages: number
   }
+  mepLogs: {
+    data: MepLogItem[]
+    totalCount: number
+    page: number
+    pageSize: number
+    totalPages: number
+  }
   branches: string[]
-  currentTab: "ac" | "light"
+  currentTab: "ac" | "light" | "mep"
   filters: {
     q: string
     branch: string
@@ -108,6 +127,7 @@ function formatDateIndo(dateStr: string) {
 export function CalculatorLogsClient({
   acLogs,
   lightLogs,
+  mepLogs,
   branches,
   currentTab: initialTab,
   filters,
@@ -116,7 +136,7 @@ export function CalculatorLogsClient({
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
 
-  const [activeTab, setActiveTab] = useState<"ac" | "light">(initialTab || "ac")
+  const [activeTab, setActiveTab] = useState<"ac" | "light" | "mep">(initialTab || "ac")
   const [searchQuery, setSearchQuery] = useState(filters.q || "")
   
   // Multi-select Branches state
@@ -136,6 +156,8 @@ export function CalculatorLogsClient({
 
   const [selectedStoreMode, setSelectedStoreMode] = useState(filters.storeMode || "all")
   const [selectedYear, setSelectedYear] = useState(filters.year || "all")
+  const [selectedPreviewMep, setSelectedPreviewMep] = useState<MepLogItem | null>(null)
+  const [previewTab, setPreviewTab] = useState<"ac" | "lighting">("ac")
 
   // Generate Year options (current year down to 2 years ago)
   const currentYearNum = new Date().getFullYear()
@@ -182,7 +204,7 @@ export function CalculatorLogsClient({
   }
 
   const handleTabChange = (val: string) => {
-    const nextTab = val as "ac" | "light"
+    const nextTab = val as "ac" | "light" | "mep"
     setActiveTab(nextTab)
     applyFilters({ tab: nextTab, page: 1 })
   }
@@ -366,7 +388,7 @@ export function CalculatorLogsClient({
         XLSX.utils.book_append_sheet(wb, ws, "Log Kalkulator AC")
         XLSX.writeFile(wb, `Log_Kalkulator_AC_${periodLabel}_${nowStr}.xlsx`)
         toast.success(`File Excel Log AC berhasil diunduh (${rows.length} baris ${isFilteredExport ? "sesuai filter" : ""})!`)
-      } else {
+      } else if (activeTab === "light") {
         const sourceData = lightLogs.data
         if (sourceData.length === 0) {
           toast.error("Tidak ada data log Lampu untuk diekspor.")
@@ -440,6 +462,56 @@ export function CalculatorLogsClient({
         XLSX.utils.book_append_sheet(wb, ws, "Log Kalkulator Lampu")
         XLSX.writeFile(wb, `Log_Kalkulator_Lampu_${periodLabel}_${nowStr}.xlsx`)
         toast.success(`File Excel Log Lampu berhasil diunduh (${rows.length} baris ${isFilteredExport ? "sesuai filter" : ""})!`)
+      } else {
+        const sourceData = mepLogs.data
+        if (sourceData.length === 0) {
+          toast.error("Tidak ada data log MEP Simulator untuk diekspor.")
+          return
+        }
+
+        const headers = [
+          "Waktu (WIB)",
+          "User / Auditor",
+          "Status Toko",
+          "Kode Toko",
+          "Nama Toko",
+          "Cabang",
+          "Luas Sales (m²)",
+          "Suhu Max (°C)",
+          "Cluster BTU",
+          "Total BTU",
+          "AC Rekomendasi (Unit)",
+          "AC Terpasang (Unit)",
+          "Watt Lampu (W)",
+          "Target Lux",
+          "Titik Lampu (Unit)",
+          "Catatan Outdoor",
+        ]
+
+        const rows = sourceData.map((item) => [
+          formatDateIndo(item.createdAt),
+          item.userName ? `${item.userName} (${item.userEmail || "-"})` : item.userEmail || "-",
+          item.storeMode === "NEW" ? "Toko Baru" : "Toko Terdaftar",
+          item.storeCode || "-",
+          item.storeName || "-",
+          item.branch || "-",
+          item.salesArea,
+          item.maxTemp,
+          item.clusterBtu,
+          item.totalBtu,
+          item.recommendedUnits,
+          item.installedUnits,
+          item.lampWatt,
+          item.targetLux,
+          item.lampCount,
+          item.outdoorNotes || "-",
+        ])
+
+        const wb = XLSX.utils.book_new()
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+        XLSX.utils.book_append_sheet(wb, ws, "Log MEP Simulator")
+        XLSX.writeFile(wb, `Log_MEP_Simulator_${periodLabel}_${nowStr}.xlsx`)
+        toast.success(`File Excel Log MEP berhasil diunduh (${rows.length} baris ${isFilteredExport ? "sesuai filter" : ""})!`)
       }
     } catch (err) {
       console.error("[handleExportExcel] Error:", err)
@@ -448,7 +520,7 @@ export function CalculatorLogsClient({
   }
 
   // Summary counts
-  const currentLogs = activeTab === "ac" ? acLogs : lightLogs
+  const currentLogs = activeTab === "ac" ? acLogs : activeTab === "light" ? lightLogs : mepLogs
   const newStoreCount = useMemo(() => {
     return currentLogs.data.filter((d) => d.storeMode === "NEW").length
   }, [currentLogs.data])
@@ -549,13 +621,15 @@ export function CalculatorLogsClient({
             <div className="flex size-11 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400">
               {activeTab === "ac" ? (
                 <IconAirConditioning className="size-6" />
-              ) : (
+              ) : activeTab === "light" ? (
                 <IconBulb className="size-6" />
+              ) : (
+                <IconLayersLinked className="size-6" />
               )}
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground">
-                Total Riwayat ({activeTab === "ac" ? "Kalkulator AC" : "Kalkulator Lampu"})
+                Total Riwayat ({activeTab === "ac" ? "Kalkulator AC" : activeTab === "light" ? "Kalkulator Lampu" : "MEP Simulator"})
               </p>
               <p className="text-2xl font-bold text-foreground">
                 {currentLogs.totalCount.toLocaleString("id-ID")}
@@ -600,20 +674,27 @@ export function CalculatorLogsClient({
       {/* Main Tabs Container */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList className="grid h-10 w-full grid-cols-2 bg-muted/60 p-1 sm:w-80">
+          <TabsList className="grid h-10 w-full grid-cols-3 bg-muted/60 p-1 sm:w-96">
             <TabsTrigger
               value="ac"
               className="gap-2 text-xs font-medium data-[state=active]:bg-background data-[state=active]:shadow-xs"
             >
               <IconAirConditioning className="size-4" />
-              Kalkulator AC ❄️
+              Kalkulator AC
             </TabsTrigger>
             <TabsTrigger
               value="light"
               className="gap-2 text-xs font-medium data-[state=active]:bg-background data-[state=active]:shadow-xs"
             >
               <IconBulb className="size-4" />
-              Kalkulator Lampu 💡
+              Kalkulator Lampu
+            </TabsTrigger>
+            <TabsTrigger
+              value="mep"
+              className="gap-2 text-xs font-medium data-[state=active]:bg-background data-[state=active]:shadow-xs"
+            >
+              <IconLayersLinked className="size-4" />
+              MEP Simulator
             </TabsTrigger>
           </TabsList>
         </div>
@@ -1137,7 +1218,552 @@ export function CalculatorLogsClient({
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* MEP Simulator Logs Tab */}
+        <TabsContent value="mep" className="mt-4 space-y-4">
+          <Card className="border-border/60 shadow-xs overflow-hidden">
+            <CardHeader className="p-4 border-b border-border/60 bg-muted/10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-bold text-foreground">
+                    Daftar Riwayat MEP Simulator
+                  </CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                    Menampilkan {mepLogs.data.length} dari total {mepLogs.totalCount} simulasi denah dan utilitas.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead className="bg-muted/40 text-[11px] font-bold text-muted-foreground uppercase border-b border-border/60">
+                    <tr>
+                      <th className="px-4 py-3">Waktu & Auditor</th>
+                      <th className="px-4 py-3">Toko & Cabang</th>
+                      <th className="px-4 py-3">Luas Sales</th>
+                      <th className="px-4 py-3 text-center">Sistem AC</th>
+                      <th className="px-4 py-3 text-center">Sistem Lampu</th>
+                      <th className="px-4 py-3 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {mepLogs.data.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground text-xs">
+                          Tidak ada data log MEP Simulator yang sesuai dengan filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      mepLogs.data.map((row) => (
+                        <tr key={row.id} className="hover:bg-muted/30 transition-colors">
+                          {/* Waktu & User */}
+                          <td className="px-4 py-3 align-top">
+                            <div className="font-semibold text-foreground">
+                              {formatDateIndo(row.createdAt)}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground truncate max-w-[160px] mt-0.5" title={row.userEmail || ""}>
+                              {row.userName || row.userEmail || "Tamu / Belum Login"}
+                            </div>
+                          </td>
+
+                          {/* Toko & Cabang */}
+                          <td className="px-4 py-3 align-top">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-foreground text-sm">
+                                {row.storeName || "Toko Tanpa Nama"}
+                              </span>
+                              {row.storeMode === "NEW" ? (
+                                <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400 text-[10px] px-1.5 py-0 h-4">
+                                  Toko Baru
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-200 dark:border-blue-900/50 dark:text-blue-300 text-[10px] px-1.5 py-0 h-4">
+                                  Terdaftar
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                              {row.storeCode && <span className="font-mono">{row.storeCode}</span>}
+                              {row.storeCode && row.branch && <span>•</span>}
+                              {row.branch && <span>{row.branch}</span>}
+                            </div>
+                          </td>
+
+                          {/* Luas Sales */}
+                          <td className="px-4 py-3 align-top">
+                            <div className="font-bold text-foreground font-mono text-sm">
+                              {row.salesArea.toLocaleString("id-ID")} m²
+                            </div>
+                            <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                              {row.maxTemp}°C ({row.clusterBtu} BTU/m²)
+                            </div>
+                          </td>
+
+                          {/* AC */}
+                          <td className="px-4 py-3 text-center align-top">
+                            <span className="inline-flex items-center justify-center rounded-lg bg-sky-500/15 border border-sky-500/25 px-2.5 py-1 font-extrabold text-sky-700 dark:text-sky-300 text-xs">
+                              {row.installedUnits || row.recommendedUnits} Unit AC
+                            </span>
+                            <div className="text-[10.5px] text-muted-foreground font-mono mt-1">
+                              Rek: {row.recommendedUnits} Unit ({row.totalBtu.toLocaleString("id-ID")} BTU)
+                            </div>
+                          </td>
+
+                          {/* Lampu */}
+                          <td className="px-4 py-3 text-center align-top">
+                            {(() => {
+                              const watt = row.lampWatt || 16
+                              const minLamps = Math.ceil((row.salesArea * 4.0) / watt)
+                              const maxLamps = Math.floor((row.salesArea * 5.0) / watt)
+                              return (
+                                <>
+                                  <span className="inline-flex items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/25 px-2.5 py-1 font-extrabold text-amber-700 dark:text-amber-300 text-xs">
+                                    {row.lampCount} Titik Terpasang
+                                  </span>
+                                  <div className="text-[10.5px] text-muted-foreground font-mono mt-1">
+                                    Rentang: {minLamps} - {maxLamps} Titik ({watt}W)
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground font-mono">
+                                    Target {row.targetLux} Lux
+                                  </div>
+                                </>
+                              )
+                            })()}
+                          </td>
+
+                          {/* Aksi */}
+                          <td className="px-4 py-3 text-right align-top">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedPreviewMep(row)
+                                  setPreviewTab("ac")
+                                }}
+                                className="h-8 gap-1 text-xs border-border/80 hover:bg-muted font-medium cursor-pointer"
+                              >
+                                <IconEye className="size-3.5 text-muted-foreground" />
+                                Lihat Denah
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => {
+                                  router.push(`/store-mep-simulator?loadMepLogId=${row.id}`)
+                                }}
+                                className="h-8 gap-1 text-xs bg-sky-600 hover:bg-sky-700 text-white font-semibold cursor-pointer"
+                              >
+                                <IconExternalLink className="size-3.5" />
+                                Simulator
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Modal Preview Visual Denah MEP */}
+      <Dialog
+        open={Boolean(selectedPreviewMep)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPreviewMep(null)
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+          {selectedPreviewMep && (
+            <div className="space-y-5">
+              <DialogHeader>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <DialogTitle className="text-lg font-bold text-foreground">
+                        {selectedPreviewMep.storeName || "Toko Tanpa Nama"}
+                      </DialogTitle>
+                      {selectedPreviewMep.storeMode === "NEW" ? (
+                        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 text-xs">
+                          Toko Baru
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-300 text-xs">
+                          Terdaftar
+                        </Badge>
+                      )}
+                    </div>
+                    <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                      {selectedPreviewMep.storeCode || "-"} • {selectedPreviewMep.branch || "Pusat"} • Disimpan: {formatDateIndo(selectedPreviewMep.updatedAt || selectedPreviewMep.createdAt)}
+                    </DialogDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        router.push(`/store-mep-simulator?loadMepLogId=${selectedPreviewMep.id}`)
+                      }}
+                      className="gap-1.5 text-xs bg-sky-600 hover:bg-sky-700 text-white font-semibold cursor-pointer"
+                    >
+                      <IconExternalLink className="size-3.5" />
+                      Buka di Simulator
+                    </Button>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              {/* Metric Highlights */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 rounded-lg border border-border/60 bg-muted/20">
+                  <div className="text-[11px] text-muted-foreground font-medium">Luas Bersih Sales</div>
+                  <div className="text-base font-extrabold text-foreground font-mono mt-0.5">
+                    {selectedPreviewMep.salesArea.toLocaleString("id-ID")} m²
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg border border-border/60 bg-muted/20">
+                  <div className="text-[11px] text-muted-foreground font-medium">Sistem AC (2 PK)</div>
+                  <div className="text-base font-extrabold text-sky-600 dark:text-sky-400 font-mono mt-0.5">
+                    {selectedPreviewMep.installedUnits || selectedPreviewMep.recommendedUnits} Unit
+                  </div>
+                  <div className="text-[10px] text-muted-foreground font-mono">
+                    Rek: {selectedPreviewMep.recommendedUnits} ({selectedPreviewMep.clusterBtu} BTU/m²)
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg border border-border/60 bg-muted/20">
+                  <div className="text-[11px] text-muted-foreground font-medium">Sistem Lampu</div>
+                  <div className="text-base font-extrabold text-amber-600 dark:text-amber-400 font-mono mt-0.5">
+                    {selectedPreviewMep.lampCount} Titik
+                  </div>
+                  <div className="text-[10px] text-muted-foreground font-mono">
+                    Rentang: {Math.ceil((selectedPreviewMep.salesArea * 4.0) / (selectedPreviewMep.lampWatt || 16))} - {Math.floor((selectedPreviewMep.salesArea * 5.0) / (selectedPreviewMep.lampWatt || 16))} Titik
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg border border-border/60 bg-muted/20">
+                  <div className="text-[11px] text-muted-foreground font-medium">Spesifikasi Lampu</div>
+                  <div className="text-base font-extrabold text-foreground font-mono mt-0.5">
+                    {selectedPreviewMep.lampWatt}W
+                  </div>
+                  <div className="text-[10px] text-muted-foreground font-mono">
+                    Target: {selectedPreviewMep.targetLux} Lux
+                  </div>
+                </div>
+              </div>
+
+              {/* Sub-tab AC vs Lampu */}
+              <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={previewTab === "ac" ? "default" : "outline"}
+                    onClick={() => setPreviewTab("ac")}
+                    className={`h-8 gap-1.5 text-xs font-semibold cursor-pointer ${
+                      previewTab === "ac" ? "bg-sky-600 hover:bg-sky-700 text-white" : ""
+                    }`}
+                  >
+                    <IconAirConditioning className="size-3.5" />
+                    Penempatan AC & Hembusan
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={previewTab === "lighting" ? "default" : "outline"}
+                    onClick={() => setPreviewTab("lighting")}
+                    className={`h-8 gap-1.5 text-xs font-semibold cursor-pointer ${
+                      previewTab === "lighting" ? "bg-amber-600 hover:bg-amber-700 text-white" : ""
+                    }`}
+                  >
+                    <IconBulb className="size-3.5" />
+                    Distribusi Grid Lampu
+                  </Button>
+                </div>
+                <span className="text-[11px] text-muted-foreground">
+                  Mode Visualisasi Denah 2D
+                </span>
+              </div>
+
+              {/* SVG Denah Preview */}
+              <div className="w-full bg-slate-900 rounded-xl p-4 flex flex-col items-center justify-center border border-slate-800 shadow-inner overflow-hidden">
+                <MepLayoutSvgPreview log={selectedPreviewMep} activeTab={previewTab} />
+              </div>
+
+              {selectedPreviewMep.outdoorNotes && (
+                <div className="p-3 rounded-lg border border-sky-500/20 bg-sky-500/5 text-xs">
+                  <span className="font-bold text-sky-700 dark:text-sky-300">Catatan Outdoor AC: </span>
+                  <span className="text-foreground">{selectedPreviewMep.outdoorNotes}</span>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="mt-4 border-t border-border/60 pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedPreviewMep(null)}
+              className="cursor-pointer"
+            >
+              Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+
+function MepLayoutSvgPreview({ log, activeTab }: { log: MepLogItem; activeTab: "ac" | "lighting" }) {
+  const layout = log.layoutData || {}
+  const pts = Array.isArray(layout.customPts) ? layout.customPts : []
+  const placedUnits = Array.isArray(layout.placedUnits) ? layout.placedUnits : []
+  const pillars = Array.isArray(layout.pillars) ? layout.pillars : []
+  const overrides = layout.segmentOverrides || {}
+  const cashierDepths = layout.cashierDepths || {}
+
+  if (pts.length < 3) {
+    return (
+      <div className="py-16 text-slate-400 text-xs text-center">
+        Data titik poligon denah tidak tersedia untuk simulasi ini.
+      </div>
+    )
+  }
+
+  // Hitung bounding box
+  const xs = pts.map((p: any) => p.x)
+  const ys = pts.map((p: any) => p.y)
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  const w = maxX - minX || 10
+  const h = maxY - minY || 10
+
+  const pad = Math.max(w, h) * 0.12
+  const vbX = minX - pad
+  const vbY = minY - pad
+  const vbW = w + pad * 2
+  const vbH = h + pad * 2
+
+  // Segments
+  const n = pts.length
+  const segments = pts.map((p1: any, i: number) => {
+    const p2 = pts[(i + 1) % n]
+    const type = overrides[i]?.type || "SOLID"
+    return { p1, p2, type, index: i }
+  })
+
+  // Points string for SVG polygon
+  const polyPoints = pts.map((p: any) => `${p.x},${p.y}`).join(" ")
+
+  return (
+    <svg
+      viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
+      className="w-full max-h-[460px] select-none"
+      style={{ filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
+    >
+      <defs>
+        {/* Cold air cone gradient */}
+        <radialGradient id="acColdGrad" cx="0%" cy="50%" r="100%">
+          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.5" />
+          <stop offset="60%" stopColor="#0284c7" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#0369a1" stopOpacity="0" />
+        </radialGradient>
+        {/* Lamp glow gradient */}
+        <radialGradient id="lampGlowGrad">
+          <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.8" />
+          <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#d97706" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* Grid Background */}
+      <rect x={vbX} y={vbY} width={vbW} height={vbH} fill="#0b1120" />
+
+      {/* Store polygon floor fill */}
+      <polygon points={polyPoints} fill="#1e293b" stroke="#334155" strokeWidth="0.08" />
+
+      {/* Render Cashier Depth Zones */}
+      {segments.map((seg: any) => {
+        if (seg.type !== "CASHIER") return null
+        const depthM = cashierDepths[seg.index] || 1.8
+        const dx = seg.p2.x - seg.p1.x
+        const dy = seg.p2.y - seg.p1.y
+        const len = Math.hypot(dx, dy) || 1
+        const nx = -dy / len
+        const ny = dx / len
+        // Inward offset
+        const c1 = `${seg.p1.x},${seg.p1.y}`
+        const c2 = `${seg.p2.x},${seg.p2.y}`
+        const c3 = `${seg.p2.x + nx * depthM},${seg.p2.y + ny * depthM}`
+        const c4 = `${seg.p1.x + nx * depthM},${seg.p1.y + ny * depthM}`
+        return (
+          <polygon
+            key={`cashier-${seg.index}`}
+            points={`${c1} ${c2} ${c3} ${c4}`}
+            fill="#d97706"
+            fillOpacity="0.25"
+            stroke="#f59e0b"
+            strokeWidth="0.06"
+            strokeDasharray="0.2,0.15"
+          />
+        )
+      })}
+
+      {/* Lighting grid distribution (if Lighting Tab active) */}
+      {activeTab === "lighting" && (() => {
+        const rows = 4
+        const cols = 5
+        const stepX = w / (cols + 1)
+        const stepY = h / (rows + 1)
+        const lamps = []
+        for (let r = 1; r <= rows; r++) {
+          for (let c = 1; c <= cols; c++) {
+            lamps.push({ x: minX + c * stepX, y: minY + r * stepY })
+          }
+        }
+        return (
+          <g>
+            {lamps.map((lamp, idx) => (
+              <g key={`lamp-${idx}`}>
+                <circle cx={lamp.x} cy={lamp.y} r={0.75} fill="url(#lampGlowGrad)" />
+                <rect
+                  x={lamp.x - 0.45}
+                  y={lamp.y - 0.08}
+                  width={0.9}
+                  height={0.16}
+                  rx={0.06}
+                  fill="#fef08a"
+                  stroke="#eab308"
+                  strokeWidth="0.03"
+                />
+              </g>
+            ))}
+          </g>
+        )
+      })()}
+
+      {/* AC Cones & Units (if AC Tab active) */}
+      {activeTab === "ac" && (
+        <g>
+          {placedUnits.map((unit: any, idx: number) => {
+            const seg = segments.find((s: any) => s.index === unit.wallIndex)
+            if (!seg) return null
+            const uX = seg.p1.x + (seg.p2.x - seg.p1.x) * unit.ratio
+            const uY = seg.p1.y + (seg.p2.y - seg.p1.y) * unit.ratio
+            const dx = seg.p2.x - seg.p1.x
+            const dy = seg.p2.y - seg.p1.y
+            const len = Math.hypot(dx, dy) || 1
+            const nx = -dy / len
+            const ny = dx / len
+            const throwM = 4.2
+
+            const pStart = `${uX + (-dx / len) * 0.45},${uY + (-dy / len) * 0.45}`
+            const pEnd = `${uX + (dx / len) * 0.45},${uY + (dy / len) * 0.45}`
+            const pApex1 = `${uX + nx * throwM - (dx / len) * 2.2},${uY + ny * throwM - (dy / len) * 2.2}`
+            const pApex2 = `${uX + nx * throwM + (dx / len) * 2.2},${uY + ny * throwM + (dy / len) * 2.2}`
+
+            return (
+              <g key={`ac-cone-${unit.id || idx}`}>
+                {/* Cold air throw fan plume */}
+                <polygon
+                  points={`${pStart} ${pEnd} ${pApex2} ${pApex1}`}
+                  fill="url(#acColdGrad)"
+                />
+                {/* AC Indoor Body */}
+                <rect
+                  x={uX - 0.52}
+                  y={uY - 0.16}
+                  width={1.05}
+                  height={0.32}
+                  rx={0.08}
+                  fill="#0284c7"
+                  stroke="#38bdf8"
+                  strokeWidth="0.04"
+                />
+                <circle cx={uX + 0.38} cy={uY} r={0.05} fill="#10b981" />
+                <text
+                  x={uX}
+                  y={uY + 0.05}
+                  fill="#ffffff"
+                  fontSize="0.22"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                >
+                  AC{idx + 1}
+                </text>
+              </g>
+            )
+          })}
+        </g>
+      )}
+
+      {/* Wall Segments */}
+      {segments.map((seg: any) => {
+        let strokeColor = "#64748b"
+        let strokeWidth = "0.14"
+        let dashArray = ""
+
+        if (seg.type === "DOOR") {
+          strokeColor = "#06b6d4"
+          dashArray = "0.2,0.1"
+          strokeWidth = "0.1"
+        } else if (seg.type === "CHILLER") {
+          strokeColor = "#3b82f6"
+          strokeWidth = "0.18"
+        } else if (seg.type === "CASHIER") {
+          strokeColor = "#f59e0b"
+          strokeWidth = "0.18"
+        } else if (seg.type === "SOLID") {
+          strokeColor = "#94a3b8"
+          strokeWidth = "0.16"
+        }
+
+        return (
+          <line
+            key={`wall-${seg.index}`}
+            x1={seg.p1.x}
+            y1={seg.p1.y}
+            x2={seg.p2.x}
+            y2={seg.p2.y}
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            strokeDasharray={dashArray}
+            strokeLinecap="round"
+          />
+        )
+      })}
+
+      {/* Pillars */}
+      {pillars.map((pillar: any, pIdx: number) => {
+        const wP = pillar.widthM || 0.4
+        const lP = pillar.lengthM || 0.4
+        return (
+          <rect
+            key={`pillar-${pillar.id || pIdx}`}
+            x={pillar.x - wP / 2}
+            y={pillar.y - lP / 2}
+            width={wP}
+            height={lP}
+            rx={0.04}
+            fill="#475569"
+            stroke="#94a3b8"
+            strokeWidth="0.04"
+          />
+        )
+      })}
+
+      {/* Wall Corner Nodes */}
+      {pts.map((pt: any, i: number) => (
+        <circle key={`node-${i}`} cx={pt.x} cy={pt.y} r={0.12} fill="#38bdf8" />
+      ))}
+    </svg>
+  )
+}
+

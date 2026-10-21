@@ -65,6 +65,41 @@ export type LightLogItem = {
   createdAt: string
 }
 
+export type MepLogFilters = {
+  q?: string
+  branch?: string
+  storeMode?: CalculatorStoreModeFilter
+  year?: string
+  month?: string
+  page?: number
+  pageSize?: number
+}
+
+export type MepLogItem = {
+  id: string
+  userEmail: string | null
+  userName?: string | null
+  storeMode: "EXISTING" | "NEW"
+  storeCode: string | null
+  storeName: string | null
+  branch: string | null
+  salesArea: number
+  maxTemp: number
+  clusterBtu: number
+  totalBtu: number
+  recommendedUnits: number
+  installedUnits: number
+  outdoorNotes: string | null
+  lampWatt: number
+  targetLux: number
+  lampCount: number
+  estimatedLux: number | null
+  notes: string | null
+  layoutData?: any
+  createdAt: string
+  updatedAt: string
+}
+
 function applyDateFilter(where: any, year?: string, month?: string) {
   let monthList: number[] = []
   if (month && month !== "all" && month.trim() !== "") {
@@ -330,9 +365,103 @@ export async function getLightCalculatorLogs(filters: LightLogFilters = {}) {
   }
 }
 
+export async function getMepCalculatorLogs(filters: MepLogFilters = {}) {
+  const {
+    q = "",
+    branch = "all",
+    storeMode = "all",
+    year = "all",
+    month = "all",
+    page = 1,
+    pageSize = 50,
+  } = filters
+
+  const where: any = {}
+
+  if (storeMode !== "all") {
+    where.storeMode = storeMode
+  }
+
+  applyBranchFilter(where, branch)
+  applyDateFilter(where, year, month)
+  applySearchFilter(where, q)
+
+  try {
+    const mepModel = (prisma as any).mepSimulationLog
+    if (!mepModel) {
+      console.warn("[getMepCalculatorLogs] Model mepSimulationLog belum tersedia di Prisma Client. Jalankan 'npx prisma generate'.")
+      return {
+        data: [],
+        totalCount: 0,
+        page: 1,
+        pageSize,
+        totalPages: 0,
+      }
+    }
+
+    const totalCount = await mepModel.count({ where })
+    const rows = await mepModel.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        user: {
+          select: {
+            fullName: true,
+            email: true,
+          },
+        },
+      },
+    })
+
+    const data: MepLogItem[] = rows.map((row: any) => ({
+      id: row.id,
+      userEmail: row.userEmail || row.user?.email || null,
+      userName: row.user?.fullName || null,
+      storeMode: row.storeMode,
+      storeCode: row.storeCode,
+      storeName: row.storeName,
+      branch: row.branch,
+      salesArea: Number(row.salesArea),
+      maxTemp: Number(row.maxTemp),
+      clusterBtu: row.clusterBtu,
+      totalBtu: row.totalBtu,
+      recommendedUnits: row.recommendedUnits,
+      installedUnits: row.installedUnits,
+      outdoorNotes: row.outdoorNotes,
+      lampWatt: Number(row.lampWatt),
+      targetLux: row.targetLux,
+      lampCount: row.lampCount,
+      estimatedLux: row.estimatedLux,
+      notes: row.notes,
+      layoutData: row.layoutData,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }))
+
+    return {
+      data,
+      totalCount,
+      page,
+      pageSize,
+      totalPages: Math.ceil(totalCount / pageSize),
+    }
+  } catch (error) {
+    console.error("[getMepCalculatorLogs] Error:", error)
+    return {
+      data: [],
+      totalCount: 0,
+      page: 1,
+      pageSize,
+      totalPages: 0,
+    }
+  }
+}
+
 export async function getDistinctCalculatorBranches(): Promise<string[]> {
   try {
-    const [acBranches, lightBranches, storeBranches] = await Promise.all([
+    const [acBranches, lightBranches, mepBranches, storeBranches] = await Promise.all([
       (prisma as any).acCalculatorLog
         .findMany({
           select: { branch: true },
@@ -347,6 +476,13 @@ export async function getDistinctCalculatorBranches(): Promise<string[]> {
           where: { branch: { not: null } },
         })
         .catch(() => []),
+      (prisma as any).mepSimulationLog
+        ?.findMany({
+          select: { branch: true },
+          distinct: ["branch"],
+          where: { branch: { not: null } },
+        })
+        .catch(() => []) ?? [],
       prisma.store
         .findMany({
           select: { branch: true },
@@ -359,6 +495,7 @@ export async function getDistinctCalculatorBranches(): Promise<string[]> {
     const set = new Set<string>()
     acBranches.forEach((b: any) => b.branch && set.add(b.branch.trim()))
     lightBranches.forEach((b: any) => b.branch && set.add(b.branch.trim()))
+    mepBranches.forEach((b: any) => b.branch && set.add(b.branch.trim()))
     storeBranches.forEach((b: any) => b.branch && set.add(b.branch.trim()))
 
     return Array.from(set).sort()
@@ -366,3 +503,4 @@ export async function getDistinctCalculatorBranches(): Promise<string[]> {
     return []
   }
 }
+

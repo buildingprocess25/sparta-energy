@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { hasFullBranchAccess } from "@/lib/permissions"
 import { StoreMepSimulatorClient } from "./store-mep-simulator-client"
+import { getMepSimulationDetail } from "@/app/actions/mep-simulation-actions"
 
 const excludedBranchNames = [
   "DEMO",
@@ -14,7 +15,15 @@ const excludedBranchNames = [
   "head office",
 ]
 
-export default async function StoreMepSimulatorPage() {
+type SearchParams = Promise<{
+  loadMepLogId?: string
+}>
+
+export default async function StoreMepSimulatorPage({
+  searchParams,
+}: {
+  searchParams?: SearchParams
+}) {
   const session = await auth.api.getSession({ headers: await headers() })
   const dbUser = session?.user
     ? await prisma.user.findUnique({
@@ -23,6 +32,10 @@ export default async function StoreMepSimulatorPage() {
       })
     : null
 
+  const resolvedParams = searchParams ? await searchParams : {}
+  const initialLoadedLog = resolvedParams.loadMepLogId
+    ? await getMepSimulationDetail(resolvedParams.loadMepLogId)
+    : null
 
   const canAccessAll = dbUser ? hasFullBranchAccess(dbUser) : false
   const branches =
@@ -78,6 +91,8 @@ export default async function StoreMepSimulatorPage() {
         latitude: s.latitude ? Number(s.latitude) : null,
         longitude: s.longitude ? Number(s.longitude) : null,
       }))}
+      initialLoadedLog={initialLoadedLog}
     />
   )
 }
+

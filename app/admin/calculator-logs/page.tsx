@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/admin-auth"
 import {
   getAcCalculatorLogs,
   getLightCalculatorLogs,
+  getMepCalculatorLogs,
   getDistinctCalculatorBranches,
   type CalculatorStoreModeFilter,
 } from "@/lib/admin-calculator-queries"
@@ -18,8 +19,8 @@ type SearchParams = Promise<{
 }>
 
 export const metadata = {
-  title: "Log Aktivitas Kalkulator | Admin Sparta Energy",
-  description: "Riwayat kalkulasi AC dan Lampu, filter data, dan unduh laporan.",
+  title: "Log Aktivitas Kalkulator & Simulator MEP | Admin Sparta Energy",
+  description: "Riwayat kalkulasi AC, Lampu, dan Simulator Denah MEP.",
 }
 
 export default async function CalculatorLogsPage({
@@ -30,7 +31,8 @@ export default async function CalculatorLogsPage({
   await requireAdmin()
 
   const params = await searchParams
-  const activeTab = params.tab === "light" ? "light" : "ac"
+  const activeTab =
+    params.tab === "light" ? "light" : params.tab === "mep" ? "mep" : "ac"
   const q = params.q?.trim() || ""
   const branch = params.branch?.trim() || "all"
   const storeMode = (params.storeMode?.trim() || "all") as CalculatorStoreModeFilter
@@ -38,7 +40,7 @@ export default async function CalculatorLogsPage({
   const month = params.month?.trim() || "all"
   const page = parseInt(params.page || "1", 10) || 1
 
-  const [acLogs, lightLogs, branches] = await Promise.all([
+  const [acLogs, lightLogs, mepLogs, branches] = await Promise.all([
     getAcCalculatorLogs({
       q,
       branch,
@@ -57,6 +59,15 @@ export default async function CalculatorLogsPage({
       page,
       pageSize: 100,
     }),
+    getMepCalculatorLogs({
+      q,
+      branch,
+      storeMode,
+      year,
+      month,
+      page,
+      pageSize: 100,
+    }),
     getDistinctCalculatorBranches(),
   ])
 
@@ -65,6 +76,7 @@ export default async function CalculatorLogsPage({
       <CalculatorLogsClient
         acLogs={acLogs}
         lightLogs={lightLogs}
+        mepLogs={mepLogs}
         branches={branches}
         currentTab={activeTab}
         filters={{
@@ -79,3 +91,4 @@ export default async function CalculatorLogsPage({
     </div>
   )
 }
+
