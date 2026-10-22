@@ -78,24 +78,6 @@ export async function saveAuditDraft(input: SaveDraftInput) {
 
     const storeId = store.id
 
-    // 2. Update store data if parameters are provided (from Step 1)
-    if (input.storeType !== undefined) {
-      await prisma.store.update({
-        where: { id: storeId },
-        data: {
-          type: input.storeType,
-          is24Hours: input.is24Hours,
-          openTime: input.is24Hours ? null : input.openTime,
-          closeTime: input.is24Hours ? null : input.closeTime,
-          plnPowerVa: input.plnPowerVa,
-          salesAreaM2: input.areas?.sales,
-          parkingAreaM2: input.areas?.parkir,
-          terraceAreaM2: input.areas?.teras,
-          warehouseAreaM2: input.areas?.gudang,
-        },
-      })
-    }
-
     // 3. Create or update Audit record
     let audit
     if (input.auditId) {

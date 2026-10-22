@@ -1,7 +1,7 @@
 # Graph Report - sparta-energy  (2026-10-22)
 
 ## Corpus Check
-- 337 files · ~489,010 words
+- 337 files · ~488,998 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 15 file(s) not represented in the graph (top: (none) 9, .ico 2, .css 1)
 

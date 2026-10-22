@@ -492,9 +492,9 @@
     "semantic_hash": "32a78a7ac22e21ab71a0aabd8e6b28af"
   },
   "app/settings/page.tsx": {
-    "mtime": 1792655853.885826,
-    "seen": 1792656062.9771614,
-    "ast_hash": "a39784f651e3225a75068c7bf0f19274",
+    "mtime": 1792656072.950849,
+    "seen": 1792656263.0917993,
+    "ast_hash": "8271383b179ecc097790e0f0631ad665",
     "semantic_hash": ""
   },
   "app/store-mep-simulator/page.tsx": {

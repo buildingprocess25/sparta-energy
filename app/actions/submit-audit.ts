@@ -193,21 +193,8 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
 
     const storeId = store.id
 
-    // ── 3. Update Store data from Step 1 input ──────────────────────────────────
-    await prisma.store.update({
-      where: { id: storeId },
-      data: {
-        type: input.storeType,
-        is24Hours: input.is24Hours,
-        openTime: input.is24Hours ? null : input.openTime,
-        closeTime: input.is24Hours ? null : input.closeTime,
-        plnPowerVa: input.plnPowerVa,
-        salesAreaM2: input.areas.sales,
-        parkingAreaM2: input.areas.parkir,
-        terraceAreaM2: input.areas.teras,
-        warehouseAreaM2: input.areas.gudang,
-      },
-    })
+    // Store technical data is admin-owned now: it is snapshotted on the audit
+    // below and only copied back to the store when an admin validates.
 
     // ── 4. Run calculation ──────────────────────────────────────────────────────
     const calc = calculateAudit(input.equipments, input.plnHistory, {
