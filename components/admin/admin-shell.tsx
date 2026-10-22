@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
-  IconBolt,
+  IconArrowsExchange,
   IconBuildingStore,
   IconCalculator,
   IconCheck,
@@ -135,12 +135,6 @@ const navGroups: AdminNavGroup[] = [
         label: "Log Kalkulator",
         href: "/admin/calculator-logs",
         icon: IconCalculator,
-      },
-      {
-        label: "Smart Energy Meter",
-        href: "https://energy-meter-un89.onrender.com/",
-        icon: IconBolt,
-        external: true,
       },
     ],
   },
@@ -361,6 +355,12 @@ function AdminSidebar({ user }: { user: AdminUser }) {
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuItem asChild>
+                    <Link href="/admin-entry">
+                      <IconArrowsExchange />
+                      Ganti Peran
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
                     <Link href="/dashboard">
                       <IconClipboardList />
                       Pindah ke Mode Auditor
@@ -464,6 +464,12 @@ function HeaderProfileMenu({ user }: { user: AdminUser }) {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          <DropdownMenuItem asChild>
+            <Link href="/admin-entry">
+              <IconArrowsExchange />
+              Ganti Peran
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/dashboard">
               <IconClipboardList />
