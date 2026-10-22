@@ -1,4 +1,4 @@
-# AI Context - SPARTA Energy
+w# AI Context - SPARTA Energy
 
 ## Project Overview
 
@@ -186,3 +186,40 @@ Aturan wajib yang harus diikuti oleh semua AI agent saat mengerjakan project ini
 - Komponen shadcn sudah memiliki spacing bawaan yang telah dikalibrasi — menambah spacing manual akan merusak konsistensi visual.
 - Ini berlaku untuk: `Card`, `CardHeader`, `CardContent`, `CardFooter`, `Button`, `Input`, `Dialog`, `Sheet`, dll.
 - Jika butuh jarak antar elemen, gunakan layout wrapper (misal `flex flex-col gap-4`) hanya pada elemen container, bukan pada komponen shadcn itu sendiri.
+
+## Pembaruan Implementasi (sinkron dengan kode per 2026-10-22)
+
+Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbedaan, bagian ini yang mengikuti kode.
+
+### Kalkulasi Aktual (`lib/audit-kalkulator.ts` → `calculateAudit()`)
+
+- Estimasi Bulanan = Estimasi Harian × **30** (angka tetap, bukan jumlah hari operasional).
+- Metode hitung per equipment (`calcMethod`):
+  - `STANDARD`: kW × jam operasional.
+  - `TRANSACTION` / `BATCH`: jam running = (usage × durasi) / 3600, dibatasi jam operasional; sisa jam dihitung sebagai standby (default 5% dari kW running).
+- Rata-rata PLN hanya dihitung dari bulan yang kWh-nya > 0.
+- Status **Boros** jika rata-rata aktual PLN > Estimasi Bulanan × **1.05** (toleransi 5%). Selain itu **Hemat**.
+- Tipe rekomendasi:
+  - Hemat → `MAINTENANCE`.
+  - Boros + ada AC menyala ≥ jam buka toko + 2 jam (toko non-24 jam) → `TRAINING`.
+  - Boros tanpa indikasi di atas → `REPAIR`.
+
+### Filter Gap ±20% (`lib/audit-gap-filter.ts`)
+
+- Gap = (aktual PLN − estimasi) / estimasi.
+- Saat `AUDIT_GAP_FILTER.enabled = true`, audit dengan gap di luar ±20% **disembunyikan** dari tampilan admin (dashboard, branches, stores, audits, reports) sebagai penyaring outlier.
+- Filter ini **tidak mengubah** status Hemat/Boros yang tersimpan, dan bersifat sementara (bisa dimatikan lewat flag).
+
+### Tambahan Routes (belum tercantum di Codebase Map)
+
+- `/admin` beserta `/admin/dashboard`, `/admin/audits`, `/admin/audits/[id]`, `/admin/stores`, `/admin/stores/[id]`, `/admin/branches`, `/admin/equipment`, `/admin/master-data`, `/admin/users`, `/admin/reports`, `/admin/calculator-logs`
+- `/admin-entry`
+- `/ac-mapping`: mapping posisi AC di denah toko
+- `/light-estimation`: kalkulator lampu
+- `/store-mep-simulator`: simulator MEP toko (BETA)
+- Catatan: `/reports` (route user) tidak ditemukan lagi di kode; laporan kini ada di `/admin/reports`.
+
+### Tambahan Server Actions & API Routes
+
+- Server actions: `create-user`, `update-user`, `delete-user`, `import-users`, `get-rab-data`, `save-draft`, `save-ac-estimation-log`, `save-light-estimation-log`, `store-actions`
+- API routes: `api/cron/sync-stores` (sync toko dari Google Sheet), `api/auth/sso/callback`, `api/auth/redirect-path`, `api/webhook/sso/email`, `api/uploadthing`, `api/map-tiles/[...slug]`, `api/dev-login`, `api/admin/users`
