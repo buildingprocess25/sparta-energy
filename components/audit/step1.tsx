@@ -283,6 +283,24 @@ export function AuditStep1({
                             </span>
                           )}
                         </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                            Jam Operasional
+                          </span>
+                          {selectedStore.is24Hours ? (
+                            <span className="text-xs font-semibold text-foreground">
+                              24 jam
+                            </span>
+                          ) : selectedStore.openTime && selectedStore.closeTime ? (
+                            <span className="text-xs font-semibold text-foreground tabular-nums">
+                              {selectedStore.openTime} sampai {selectedStore.closeTime}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              Belum diisi admin
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
