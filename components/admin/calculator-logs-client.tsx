@@ -1053,8 +1053,10 @@ export function CalculatorLogsClient({
                               )}
                             </div>
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
-                              {row.storeCode && <span className="font-mono">{row.storeCode}</span>}
-                              {row.storeCode && row.branch && <span>•</span>}
+                              {row.storeCode && row.storeCode !== "-" && row.storeCode !== row.storeName && (
+                                <span className="font-mono">{row.storeCode}</span>
+                              )}
+                              {row.storeCode && row.storeCode !== "-" && row.storeCode !== row.storeName && row.branch && <span>•</span>}
                               {row.branch && <span>{row.branch}</span>}
                             </div>
                           </td>
@@ -1156,8 +1158,10 @@ export function CalculatorLogsClient({
                               )}
                             </div>
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
-                              {row.storeCode && <span className="font-mono">{row.storeCode}</span>}
-                              {row.storeCode && row.branch && <span>•</span>}
+                              {row.storeCode && row.storeCode !== "-" && row.storeCode !== row.storeName && (
+                                <span className="font-mono">{row.storeCode}</span>
+                              )}
+                              {row.storeCode && row.storeCode !== "-" && row.storeCode !== row.storeName && row.branch && <span>•</span>}
                               {row.branch && <span>{row.branch}</span>}
                             </div>
                           </td>
@@ -1184,11 +1188,11 @@ export function CalculatorLogsClient({
 
                           {/* Titik Lampu */}
                           <td className="px-4 py-3 text-center align-top">
-                            <span className="inline-flex items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/25 px-3 py-1 font-extrabold text-amber-700 dark:text-amber-300 text-sm shadow-2xs">
-                              {row.installedUnits} Unit
+                            <span className="inline-flex items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/25 px-3 py-1 font-extrabold text-amber-700 dark:text-amber-300 text-xs shadow-2xs">
+                              {row.minUnits} - {row.maxUnits} Unit
                             </span>
                             <div className="text-[10.5px] text-muted-foreground font-mono mt-1">
-                              Rentang: {row.minUnits} - {row.maxUnits} Unit
+                              Terpasang: <span className="font-semibold text-foreground">{row.installedUnits} Unit</span>
                             </div>
                           </td>
 
@@ -1288,8 +1292,10 @@ export function CalculatorLogsClient({
                               )}
                             </div>
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
-                              {row.storeCode && <span className="font-mono">{row.storeCode}</span>}
-                              {row.storeCode && row.branch && <span>•</span>}
+                              {row.storeCode && row.storeCode !== "-" && row.storeCode !== row.storeName && (
+                                <span className="font-mono">{row.storeCode}</span>
+                              )}
+                              {row.storeCode && row.storeCode !== "-" && row.storeCode !== row.storeName && row.branch && <span>•</span>}
                               {row.branch && <span>{row.branch}</span>}
                             </div>
                           </td>
@@ -1300,7 +1306,7 @@ export function CalculatorLogsClient({
                               {row.salesArea.toLocaleString("id-ID")} m²
                             </div>
                             <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
-                              {row.maxTemp}°C ({row.clusterBtu} BTU/m²)
+                              {row.maxTemp}°C
                             </div>
                           </td>
 
@@ -1310,7 +1316,7 @@ export function CalculatorLogsClient({
                               {row.installedUnits || row.recommendedUnits} Unit AC
                             </span>
                             <div className="text-[10.5px] text-muted-foreground font-mono mt-1">
-                              Rek: {row.recommendedUnits} Unit ({row.totalBtu.toLocaleString("id-ID")} BTU)
+                              Rek: {row.recommendedUnits} Unit
                             </div>
                           </td>
 
@@ -1323,13 +1329,10 @@ export function CalculatorLogsClient({
                               return (
                                 <>
                                   <span className="inline-flex items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/25 px-2.5 py-1 font-extrabold text-amber-700 dark:text-amber-300 text-xs">
-                                    {row.lampCount} Titik Terpasang
+                                    {minLamps} - {maxLamps} Titik
                                   </span>
                                   <div className="text-[10.5px] text-muted-foreground font-mono mt-1">
-                                    Rentang: {minLamps} - {maxLamps} Titik ({watt}W)
-                                  </div>
-                                  <div className="text-[10px] text-muted-foreground font-mono">
-                                    Target {row.targetLux} Lux
+                                    Terpasang: <span className="font-semibold text-foreground">{row.lampCount} Titik</span>
                                   </div>
                                 </>
                               )
@@ -1583,22 +1586,22 @@ export function CalculatorLogsClient({
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                      <div className="p-2 rounded-lg bg-background/80 border border-amber-500/20">
-                        <div className="text-[10px] text-muted-foreground font-medium">Titik Terpasang</div>
+                      <div className="p-2 rounded-lg bg-background/80 border border-amber-500/30 shadow-2xs">
+                        <div className="text-[10px] text-amber-800 dark:text-amber-300 font-semibold">Rentang Baku Retail (Prioritas)</div>
                         <div className="text-base font-extrabold text-amber-600 dark:text-amber-400 font-mono mt-0.5">
-                          {selectedPreviewMep.lampCount} Titik
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
-                          Spesifikasi: {selectedPreviewMep.lampWatt}W LED
-                        </div>
-                      </div>
-                      <div className="p-2 rounded-lg bg-background/80 border border-amber-500/20">
-                        <div className="text-[10px] text-muted-foreground font-medium">Rentang Baku Retail</div>
-                        <div className="text-sm font-bold text-foreground font-mono mt-0.5">
                           {Math.ceil((selectedPreviewMep.salesArea * 4.0) / (selectedPreviewMep.lampWatt || 16))} - {Math.floor((selectedPreviewMep.salesArea * 5.0) / (selectedPreviewMep.lampWatt || 16))} Titik
                         </div>
                         <div className="text-[10px] text-muted-foreground font-mono">
-                          Standar: 4.0 - 5.0 W/m²
+                          Standar: 4.0 - 5.0 W/m² ({selectedPreviewMep.lampWatt || 16}W)
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-background/80 border border-border/50">
+                        <div className="text-[10px] text-muted-foreground font-medium">Titik Terpasang</div>
+                        <div className="text-base font-extrabold text-foreground font-mono mt-0.5">
+                          {selectedPreviewMep.lampCount} Titik
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          Spesifikasi: {selectedPreviewMep.lampWatt || 16}W LED
                         </div>
                       </div>
                     </div>
