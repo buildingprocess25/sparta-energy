@@ -25,7 +25,7 @@ type ValidationDetailProps = {
 const steps: Record<ValidationStep, { label: string; description: string; next?: string }> = {
   1: {
     label: "Step 1: Validasi Inputan Toko",
-    description: "Cek hasil audit dan alat yang diinput anak toko.",
+    description: "Cek hasil identifikasi dan alat yang diinput anak toko.",
     next: "Lanjut ke Data Toko",
   },
   2: {
@@ -59,7 +59,7 @@ export function ValidationDetail({
     <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-5xl lg:max-w-7xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-36">
       <Header
         variant="dashboard-back"
-        title="Validasi Audit"
+        title="Validasi Kalkulasi"
         subtitle={`${audit.store.name} · ${audit.store.code}`}
         backHref="/audit/validation"
         backLabel="Kembali ke daftar validasi"

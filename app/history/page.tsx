@@ -76,7 +76,7 @@ function EmptyState({ hasFilter }: { hasFilter: boolean }) {
         <IconFilterOff className="size-6 text-muted-foreground" />
         <p className="text-sm font-medium text-foreground">Tidak ditemukan</p>
         <p className="text-xs text-muted-foreground">
-          Tidak ada audit yang sesuai dengan filter yang dipilih.
+          Tidak ada kalkulasi yang sesuai dengan filter yang dipilih.
         </p>
       </div>
     )
@@ -88,9 +88,9 @@ function EmptyState({ hasFilter }: { hasFilter: boolean }) {
         <IconClipboardList className="size-6 text-primary" />
       </div>
       <div>
-        <p className="text-sm font-medium text-foreground">Belum ada audit</p>
+        <p className="text-sm font-medium text-foreground">Belum ada kalkulasi</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Mulai audit pertama Anda untuk melihat riwayat di sini
+          Mulai kalkulasi pertama Anda untuk melihat riwayat di sini
         </p>
       </div>
     </div>
@@ -327,7 +327,7 @@ export default function HistoryPage() {
         </div>
       )}
 
-      <Header variant="title-only" title="Riwayat Audit" />
+      <Header variant="title-only" title="Riwayat Kalkulasi" />
 
       {isDemoUser ? (
         <section className="flex flex-1 flex-col items-center justify-center gap-4 py-20 text-center">
@@ -339,7 +339,7 @@ export default function HistoryPage() {
               Mode Demo
             </h2>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              Riwayat audit tidak tersimpan dalam mode demo.
+              Riwayat kalkulasi tidak tersimpan dalam mode demo.
               <br />
               Login dengan akun resmi untuk melihat riwayat.
             </p>
@@ -495,10 +495,10 @@ export default function HistoryPage() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>
-              Hapus audit {deleteTarget?.storeName} ({deleteTarget?.period})?
+              Hapus kalkulasi {deleteTarget?.storeName} ({deleteTarget?.period})?
             </DialogTitle>
             <DialogDescription>
-              Daftar alat, riwayat PLN, dan rekomendasi audit ini ikut terhapus
+              Daftar alat, riwayat PLN, dan rekomendasi kalkulasi ini ikut terhapus
               permanen. Data toko tidak ikut terhapus. Tindakan ini tidak bisa
               dibatalkan.
             </DialogDescription>
@@ -518,7 +518,7 @@ export default function HistoryPage() {
               onClick={handleConfirmDelete}
               disabled={isDeleting}
             >
-              {isDeleting ? "Menghapus..." : "Hapus Audit"}
+              {isDeleting ? "Menghapus..." : "Hapus Kalkulasi"}
             </Button>
           </DialogFooter>
         </DialogContent>

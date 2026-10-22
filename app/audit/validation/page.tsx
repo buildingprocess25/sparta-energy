@@ -46,13 +46,13 @@ export default async function AuditValidationPage({ searchParams }: Props) {
     ? "Tidak ada toko boros yang menunggu validasi."
     : hasFilters
       ? "Tidak ada toko yang cocok dengan filter ini."
-      : "Belum ada audit toko yang selesai."
+      : "Belum ada kalkulasi toko yang selesai."
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-3xl flex-col bg-background px-4 md:px-6 pb-32">
       <Header
         variant="dashboard-back"
-        title="Validasi Audit Toko"
+        title="Validasi Kalkulator Konsumsi Energi Toko"
         subtitle={
           isTop
             ? `${rows.length} toko boros dengan selisih PLN terbesar`
@@ -65,7 +65,7 @@ export default async function AuditValidationPage({ searchParams }: Props) {
       <main className="flex flex-col gap-3">
         <p className="px-1 text-xs text-muted-foreground">
           Buka toko, cocokkan alat dengan kondisi di lapangan, lalu validasi.
-          Status hemat atau boros tetap sampai audit berikutnya.
+          Status hemat atau boros tetap sampai kalkulasi berikutnya.
         </p>
 
         <ValidationFilters filters={filters} topLimit={TOP_BOROS_LIMIT} />

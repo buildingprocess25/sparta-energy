@@ -7,7 +7,7 @@ export default function AuditValidationLoading() {
     <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-3xl flex-col bg-background px-4 md:px-6 pb-32">
       <Header
         variant="dashboard-back"
-        title="Validasi Audit Toko"
+        title="Validasi Kalkulator Konsumsi Energi Toko"
         subtitle="Memuat daftar toko..."
         backHref="/dashboard"
       />

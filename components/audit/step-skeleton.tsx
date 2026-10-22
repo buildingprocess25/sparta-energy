@@ -15,7 +15,7 @@ const skeletonLabels: Record<AuditStepSkeletonVariant, string> = {
   "step-1": "Memuat input toko",
   "step-2": "Memuat input equipment",
   "step-2-detail": "Memuat detail area",
-  "step-3": "Memuat data operasional",
+  "step-3": "Memuat data history konsumsi energi",
 }
 
 function StepIndicatorSkeleton({ step }: { step: 1 | 2 | 3 }) {

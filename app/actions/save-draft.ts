@@ -258,7 +258,7 @@ export async function getAuditDraft(auditId: string) {
       return {
         error: {
           type: "validation",
-          message: "Draf audit tidak ditemukan.",
+          message: "Draf kalkulasi tidak ditemukan.",
         },
       }
     }
@@ -486,7 +486,7 @@ export async function deleteAuditDraft(auditId: string) {
       return {
         error: {
           type: "validation",
-          message: "Draf audit tidak ditemukan.",
+          message: "Draf kalkulasi tidak ditemukan.",
         },
       }
     }

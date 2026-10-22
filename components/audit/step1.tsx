@@ -88,7 +88,7 @@ export function AuditStep1({
         return
       }
 
-      toast.success("Draf audit berhasil disimpan!")
+      toast.success("Draf kalkulasi berhasil disimpan!")
 
       // Reset the Zustand store
       useAuditStore.setState({
@@ -190,7 +190,7 @@ export function AuditStep1({
     <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-4xl lg:max-w-5xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-32">
       <Header
         variant="dashboard-back"
-        title="Mulai Audit Baru"
+        title="Mulai Kalkulasi Baru"
         backHref={backHref}
         onBack={handleBackClick}
         className="px-0"

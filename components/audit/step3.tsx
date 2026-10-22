@@ -448,7 +448,7 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name}${eq.notes ? ` 
         return
       }
 
-      toast.success("Draf audit berhasil disimpan!")
+      toast.success("Draf kalkulasi berhasil disimpan!")
 
       // Reset the Zustand store
       useAuditStore.setState({
@@ -486,7 +486,7 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name}${eq.notes ? ` 
             <section className="mb-6">
               <AuditStepIndicator
                 currentStep={3}
-                label="Step 3: Data Operasional"
+                label="Step 3: Data History Konsumsi Energi Berdasarkan PLN"
               />
             </section>
 
@@ -524,7 +524,7 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name}${eq.notes ? ` 
                               "w-[45%]"
                             )}
                           >
-                            Konsumsi (kWh)
+                            Konsumsi Listrik (kWh)
                           </TableHead>
                         </TableRow>
                       </TableHeader>

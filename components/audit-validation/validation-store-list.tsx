@@ -54,8 +54,8 @@ export function ValidationStoreList({
                   {row.branch ? ` · ${row.branch}` : ""}
                 </ItemDescription>
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  Aktual {formatKwh(row.actualKwhPerMonth)} · Baseline{" "}
-                  {formatKwh(row.baselineKwhPerMonth)}
+                  Aktual PLN {formatKwh(row.actualKwhPerMonth)} · Standar{" "}
+                  konsumsi energi {formatKwh(row.baselineKwhPerMonth)}
                 </p>
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   <Badge
@@ -84,7 +84,7 @@ export function ValidationStoreList({
                     {formatGap(row.gapPercent)}
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    dari baseline
+                    dari standar
                   </span>
                 </ItemActions>
               )}

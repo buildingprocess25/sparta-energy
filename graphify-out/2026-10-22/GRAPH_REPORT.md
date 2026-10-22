@@ -1,7 +1,7 @@
 # Graph Report - sparta-energy  (2026-10-22)
 
 ## Corpus Check
-- 337 files · ~488,425 words
+- 337 files · ~488,476 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 15 file(s) not represented in the graph (top: (none) 9, .ico 2, .css 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `26c85699`
+- Built from commit: `b937d9ff`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -714,7 +714,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `Master Data Queries` be split into smaller, more focused modules?**
   _Cohesion score 0.06202435312024353 - nodes in this community are weakly interconnected._
 - **Why does `cn()` connect `cn` to `Master Data Queries`, `CardContent`, `Input`, `Equipment Admin Queries`, `Header`, `admin-master-equipment-table.tsx`, `Leaflet Map Wrapper`, `AdminUserFilters`, `ac-estimation-client.tsx`, `sheet.tsx`, `filters.tsx`, `Admin Shell Layout`, `Dashboard Charts`, `admin-users-table.tsx`, `admin-audits-table.tsx`, `utils.ts`, `Button`, `Admin Audit Detail Page`, `Admin Store Detail Page`, `Audit Result & Metric Cards`, `place-autocomplete.tsx`, `Root Layout & Theme`, `MapDrawControl`, `store-combobox.tsx`, `step3.tsx`, `admin-stores-table.tsx`, `result-db.tsx`, `Map Picker`, `step-technical.tsx`, `react`, `audit-validation-queries.ts`, `AuditResultDB`, `filters.tsx`?**
-  _High betweenness centrality (0.113) - this node is a cross-community bridge._
+  _High betweenness centrality (0.112) - this node is a cross-community bridge._
 - **Should `prisma.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.07346938775510205 - nodes in this community are weakly interconnected._
 

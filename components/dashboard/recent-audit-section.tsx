@@ -32,9 +32,9 @@ function RecentAuditSection({
     <section className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold">Riwayat Audit</h2>
+          <h2 className="text-sm font-semibold">Riwayat Kalkulasi</h2>
           <p className="text-[11px] text-muted-foreground">
-            3 audit terakhir toko Anda
+            3 kalkulasi terakhir toko Anda
           </p>
         </div>
 
@@ -76,10 +76,10 @@ function RecentAuditSection({
           </div>
           <div>
             <p className="text-sm font-medium text-foreground">
-              Belum ada audit
+              Belum ada kalkulasi
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Mulai audit pertama Anda untuk melihat riwayat di sini
+              Mulai kalkulasi pertama Anda untuk melihat riwayat di sini
             </p>
           </div>
         </div>

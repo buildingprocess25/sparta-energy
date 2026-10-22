@@ -54,7 +54,7 @@ export function DraftListSection({ drafts }: DraftListSectionProps) {
         router.push("/audit/start?step=1")
       }
     } catch (error) {
-      toast.error("Gagal memuat draf audit.")
+      toast.error("Gagal memuat draf kalkulasi.")
       setLoadingId(null)
     }
   }
@@ -80,9 +80,9 @@ export function DraftListSection({ drafts }: DraftListSectionProps) {
   return (
     <section className="flex flex-col gap-3">
       <div>
-        <h2 className="text-sm font-semibold">Draf Audit Aktif</h2>
+        <h2 className="text-sm font-semibold">Draf Kalkulasi Aktif</h2>
         <p className="text-[11px] text-muted-foreground">
-          Lanjutkan pengisian audit Anda yang belum selesai
+          Lanjutkan pengisian kalkulasi Anda yang belum selesai
         </p>
       </div>
 
@@ -150,7 +150,7 @@ export function DraftListSection({ drafts }: DraftListSectionProps) {
                           Hapus Draf?
                         </DialogTitle>
                         <DialogDescription className="text-center text-xs">
-                          Draf audit toko <strong>{draft.storeName}</strong> akan dihapus permanen.
+                          Draf kalkulasi toko <strong>{draft.storeName}</strong> akan dihapus permanen.
                         </DialogDescription>
                       </DialogHeader>
                       <DialogFooter className="mt-4 flex flex-row gap-2 sm:justify-center">

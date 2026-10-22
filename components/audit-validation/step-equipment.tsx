@@ -166,7 +166,7 @@ export function StepEquipment({
 
   const isLocked = audit.isValidated
   const previousLabel = audit.previousAudit
-    ? `Audit ${monthFormat.format(new Date(audit.previousAudit.auditDate))}`
+    ? `Kalkulasi ${monthFormat.format(new Date(audit.previousAudit.auditDate))}`
     : null
   const { regular, beanspot, others } = useMemo(
     () => buildRows(activeArea, audit, equipmentMaster),
@@ -193,7 +193,7 @@ export function StepEquipment({
         toast.error(result.message)
         return
       }
-      toast.success(`${target.name} dihapus dari audit.`)
+      toast.success(`${target.name} dihapus dari kalkulasi.`)
       setRemoving(null)
       router.refresh()
     })
@@ -224,7 +224,7 @@ export function StepEquipment({
             <span className="block text-xs text-muted-foreground tabular-nums">
               {isPresent
                 ? `${totalQty(row.items)} unit${row.type ? "" : " · di luar master alat"}`
-                : "Belum dicatat di audit ini"}
+                : "Belum dicatat di kalkulasi ini"}
               {previousLabel && row.previousQty !== null && (
                 <span
                   className={cn(
@@ -268,7 +268,8 @@ export function StepEquipment({
         <CardHeader>
           <CardTitle className="text-sm">Semua Alat di Toko</CardTitle>
           <CardDescription>
-            Daftar dari master alat. Alat yang diinput anak toko sudah tercentang.
+            Daftar dari master alat. Alat yang diinput anak toko sudah
+            tercentang.
           </CardDescription>
           <CardAction>
             <Badge variant="secondary" className="tabular-nums">
@@ -397,9 +398,9 @@ export function StepEquipment({
             <DialogTitle>{removing?.name} tidak ada di toko?</DialogTitle>
             <DialogDescription>
               {removing && removing.items.length > 1
-                ? `${removing.items.length} baris alat ini dihapus dari audit`
-                : "Alat ini dihapus dari audit"}{" "}
-              dan estimasi kWh toko dihitung ulang.
+                ? `${removing.items.length} baris alat ini dihapus dari kalkulasi`
+                : "Alat ini dihapus dari kalkulasi"}{" "}
+              dan standar konsumsi energi toko dihitung ulang.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -417,7 +418,7 @@ export function StepEquipment({
               onClick={handleRemove}
               disabled={isPending}
             >
-              {isPending ? "Menghapus..." : "Hapus dari Audit"}
+              {isPending ? "Menghapus..." : "Hapus dari Kalkulasi"}
             </Button>
           </DialogFooter>
         </DialogContent>

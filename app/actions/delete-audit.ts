@@ -26,7 +26,7 @@ export async function deleteAudit(auditId: string): Promise<ActionResult> {
       select: { role: true },
     })
     if (user?.role !== "ADMIN") {
-      return { success: false, message: "Hanya admin yang bisa menghapus audit." }
+      return { success: false, message: "Hanya admin yang bisa menghapus kalkulasi." }
     }
 
     const audit = await prisma.audit.findUnique({
@@ -34,7 +34,7 @@ export async function deleteAudit(auditId: string): Promise<ActionResult> {
       select: { store: { select: { name: true } } },
     })
     if (!audit) {
-      return { success: false, message: "Audit tidak ditemukan." }
+      return { success: false, message: "Kalkulasi tidak ditemukan." }
     }
 
     // audit_items has no cascade on the audit relation; PLN history and
@@ -50,10 +50,10 @@ export async function deleteAudit(auditId: string): Promise<ActionResult> {
 
     return {
       success: true,
-      message: `Audit ${audit.store.name} sudah dihapus.`,
+      message: `Kalkulasi ${audit.store.name} sudah dihapus.`,
     }
   } catch (error) {
     console.error("[Delete Audit] Failed to delete audit:", error)
-    return { success: false, message: "Gagal menghapus audit. Coba lagi." }
+    return { success: false, message: "Gagal menghapus kalkulasi. Coba lagi." }
   }
 }

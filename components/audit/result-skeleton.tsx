@@ -7,7 +7,7 @@ export function AuditResultSkeleton() {
     <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-36">
       <Header
         variant="title-only"
-        title="Hasil Audit Energi"
+        title="Hasil Identifikasi Energi"
         className="px-0"
       />
       <main className="space-y-4">

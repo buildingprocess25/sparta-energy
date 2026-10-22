@@ -113,7 +113,7 @@ export function StepInput({ audit, equipmentMaster, defaultHours }: StepInputPro
               </Badge>
               <div>
                 <p className="text-[11px] font-semibold tracking-[0.14em] uppercase">
-                  Hasil audit anak toko
+                  Hasil identifikasi anak toko
                 </p>
                 <h2 className="flex items-center gap-2 text-3xl font-black tracking-tight">
                   <StatusIcon aria-hidden="true" className="size-8" />
@@ -124,13 +124,13 @@ export function StepInput({ audit, equipmentMaster, defaultHours }: StepInputPro
                 <div>
                   <p className="text-xl font-black">{formatKwh(audit.actualKwhPerMonth)}</p>
                   <p className="text-[11px] font-semibold tracking-wider uppercase">
-                    Aktual rata-rata
+                    Aktual PLN
                   </p>
                 </div>
                 <div>
                   <p className="text-xl font-black">{formatKwh(audit.baselineKwhPerMonth)}</p>
                   <p className="text-[11px] font-semibold tracking-wider uppercase">
-                    Baseline
+                    Standar Konsumsi Energi
                   </p>
                 </div>
               </div>
@@ -142,12 +142,12 @@ export function StepInput({ audit, equipmentMaster, defaultHours }: StepInputPro
               <IconCircleCheck />
               <AlertTitle>Sudah divalidasi</AlertTitle>
               <AlertDescription>
-                {audit.validatedBy ?? "Admin"} memvalidasi audit ini
+                {audit.validatedBy ?? "Admin"} memvalidasi kalkulasi ini
                 {audit.validatedAt
                   ? ` pada ${dateFormat.format(new Date(audit.validatedAt))}`
                   : ""}
                 . Data tidak bisa diubah lagi. Status toko dinilai ulang dari
-                audit berikutnya.
+                kalkulasi berikutnya.
               </AlertDescription>
             </Alert>
           )}
@@ -158,7 +158,7 @@ export function StepInput({ audit, equipmentMaster, defaultHours }: StepInputPro
             </CardHeader>
             <CardContent className="flex flex-col gap-2 tabular-nums">
               <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3">
-                <span className="text-sm">Baseline</span>
+                <span className="text-sm">Standar Konsumsi Energi</span>
                 <span className="font-bold">{formatKwh(audit.baselineKwhPerMonth)}</span>
               </div>
               <div
@@ -167,7 +167,7 @@ export function StepInput({ audit, equipmentMaster, defaultHours }: StepInputPro
                   audit.isBoros ? "bg-[#c54b45]" : "bg-[#2c7a57]"
                 )}
               >
-                <span className="text-sm">Aktual rata-rata</span>
+                <span className="text-sm">Aktual PLN</span>
                 <span className="font-bold">{formatKwh(audit.actualKwhPerMonth)}</span>
               </div>
               <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3">
@@ -193,7 +193,7 @@ export function StepInput({ audit, equipmentMaster, defaultHours }: StepInputPro
                 </span>
               </div>
               <p className="px-1 text-xs text-muted-foreground">
-                Diaudit oleh {audit.auditor} pada{" "}
+                Diinput oleh {audit.auditor} pada{" "}
                 {dateFormat.format(new Date(audit.auditDate))}.
               </p>
             </CardContent>
@@ -322,7 +322,8 @@ export function StepInput({ audit, equipmentMaster, defaultHours }: StepInputPro
           <DialogHeader>
             <DialogTitle>Hapus {deleting?.name}?</DialogTitle>
             <DialogDescription>
-              Alat ini dihapus dari audit dan estimasi kWh toko dihitung ulang.
+              Alat ini dihapus dari kalkulasi dan standar konsumsi energi toko
+              dihitung ulang.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

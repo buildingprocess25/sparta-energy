@@ -234,11 +234,11 @@ export default async function AdminEntryPage() {
             iconClassName="bg-primary text-primary-foreground"
             title="Mode Auditor"
             badge="Mobile"
-            description="Audit energi langsung di toko lewat HP."
+            description="Hitung konsumsi energi langsung di toko lewat HP."
             items={[
-              "Mulai audit energi toko",
+              "Kalkulator konsumsi energi toko",
               "Kalkulator AC, lampu, dan Store MEP Simulator",
-              "Validasi audit toko",
+              "Validasi kalkulator konsumsi energi toko",
             ]}
             cta="Buka Mode Auditor"
           />

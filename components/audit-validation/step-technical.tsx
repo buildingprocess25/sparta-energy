@@ -61,7 +61,7 @@ export function StepTechnical({ audit, backHref }: StepTechnicalProps) {
   const isLocked = audit.isValidated
   const copyNote = audit.isLatest
     ? "Disalin ke data toko setelah divalidasi."
-    : "Ini bukan audit terbaru toko ini, jadi tidak disalin ke data toko."
+    : "Ini bukan kalkulasi terbaru toko ini, jadi tidak disalin ke data toko."
 
   const [storeType, setStoreType] = useState(technical.storeType ?? "")
   const [plnPowerVa, setPlnPowerVa] = useState(toInput(technical.plnPowerVa))
@@ -159,7 +159,7 @@ export function StepTechnical({ audit, backHref }: StepTechnicalProps) {
           <CardHeader>
             <CardTitle className="text-sm">Teknis Toko</CardTitle>
             <CardDescription>
-              Nilai yang diisi anak toko saat audit. {copyNote}
+              Nilai yang tercatat saat kalkulasi. {copyNote}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -247,7 +247,8 @@ export function StepTechnical({ audit, backHref }: StepTechnicalProps) {
               />
             )}
             <FieldDescription>
-              Mengubah jam operasional tidak menghitung ulang baseline.
+              Mengubah jam operasional tidak menghitung ulang standar konsumsi
+              energi.
             </FieldDescription>
           </CardContent>
         </Card>
@@ -298,8 +299,8 @@ export function StepTechnical({ audit, backHref }: StepTechnicalProps) {
             <DialogTitle>Validasi {audit.store.name}?</DialogTitle>
             <DialogDescription>
               Pastikan alat, jumlah, dan teknis toko sudah sesuai kondisi di
-              toko. Setelah divalidasi, audit ini tidak bisa diubah lagi sampai
-              ada audit berikutnya.
+              toko. Setelah divalidasi, kalkulasi ini tidak bisa diubah lagi
+              sampai ada kalkulasi berikutnya.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

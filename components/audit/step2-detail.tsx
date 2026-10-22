@@ -859,7 +859,7 @@ export function AuditStep2Detail({
                       Tambah Alat Kustom
                     </DrawerTitle>
                     <p className="text-xs text-muted-foreground">
-                      Khusus audit toko ini (tidak merubah master data)
+                      Khusus kalkulasi toko ini (tidak mengubah master data)
                     </p>
                   </div>
                 </div>
@@ -947,7 +947,7 @@ export function AuditStep2Detail({
                   disabled={!customName.trim() || !(parseFloat(customWatt) > 0)}
                   onClick={handleCreateCustomEquipment}
                 >
-                  Tambahkan ke Audit
+                  Tambahkan ke Kalkulasi
                 </Button>
               </DrawerFooter>
             </>

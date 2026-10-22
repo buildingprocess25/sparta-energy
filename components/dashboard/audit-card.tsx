@@ -140,7 +140,7 @@ export function AuditCard({
           variant="ghost"
           size="icon"
           className="relative z-10 size-11 text-destructive hover:text-destructive"
-          aria-label={`Hapus audit ${storeName} ${period}`}
+          aria-label={`Hapus kalkulasi ${storeName} ${period}`}
           onClick={onDelete}
         >
           <IconTrash />

@@ -21,12 +21,12 @@ function ValidationCard({ pendingCount }: ValidationCardProps) {
     <Card className="bg-linear-to-br from-primary/16 via-background to-background">
       <CardHeader>
         <CardTitle className="text-2xl leading-tight">
-          Validasi Audit Toko
+          Validasi Kalkulator Konsumsi Energi Toko
         </CardTitle>
         <CardDescription>
           {pendingCount > 0
-            ? "Cek alat dan jumlahnya sebelum hasil audit toko dipakai."
-            : "Semua audit toko sudah divalidasi."}
+            ? "Cek alat dan jumlahnya sebelum hasil identifikasi toko dipakai."
+            : "Semua kalkulasi toko sudah divalidasi."}
         </CardDescription>
         {pendingCount > 0 && (
           <CardAction>

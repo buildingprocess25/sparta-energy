@@ -768,9 +768,9 @@
     "semantic_hash": "9897f5e45cc6a5bae81e702322420ccd"
   },
   "components/audit/step1.tsx": {
-    "mtime": 1792656728.7185163,
-    "seen": 1792657002.996677,
-    "ast_hash": "af284a359f6e816476cb399cb6c8d2e0",
+    "mtime": 1792657480.433702,
+    "seen": 1792657714.7736971,
+    "ast_hash": "fabc88597cac0959486db9ea0faa3dfe",
     "semantic_hash": ""
   },
   "components/audit/step2-detail.tsx": {
@@ -780,10 +780,10 @@
     "semantic_hash": "7c5c5ae6a56314eca6f6ec64a257027a"
   },
   "components/audit/step2.tsx": {
-    "mtime": 1790057425.9141116,
-    "seen": 1792635430.1310863,
-    "ast_hash": "a751f40558a03f1524af5670e6bdd284",
-    "semantic_hash": "a751f40558a03f1524af5670e6bdd284"
+    "mtime": 1792658106.4560862,
+    "seen": 1792658359.6812794,
+    "ast_hash": "1c37074a44e13b830a2e9f667a589932",
+    "semantic_hash": ""
   },
   "components/audit/step3.tsx": {
     "mtime": 1790057425.9141116,

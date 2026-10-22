@@ -115,10 +115,10 @@ async function getEditableAudit(tx: Prisma.TransactionClient, auditId: string) {
   })
 
   if (!audit || audit.status !== "COMPLETED") {
-    throw new ValidationError("Audit tidak ditemukan.")
+    throw new ValidationError("Kalkulasi tidak ditemukan.")
   }
   if (audit.validationStatus === "VALIDATED") {
-    throw new ValidationError("Audit ini sudah divalidasi dan tidak bisa diubah.")
+    throw new ValidationError("Kalkulasi ini sudah divalidasi dan tidak bisa diubah.")
   }
   return audit
 }
@@ -177,7 +177,7 @@ async function runAction(
     if (!validator) {
       return {
         success: false,
-        message: "Anda tidak punya akses untuk memvalidasi audit.",
+        message: "Anda tidak punya akses untuk memvalidasi kalkulasi.",
       }
     }
 
@@ -328,7 +328,7 @@ export async function deleteAuditItem(itemId: string) {
 
     return {
       auditId: item.auditId,
-      message: `${item.customName ?? "Alat"} dihapus dari audit.`,
+      message: `${item.customName ?? "Alat"} dihapus dari kalkulasi.`,
     }
   })
 }
@@ -349,7 +349,7 @@ export async function deleteAuditItems(auditId: string, itemIds: string[]) {
       )
     })
 
-    return { auditId, message: "Alat dihapus dari audit." }
+    return { auditId, message: "Alat dihapus dari kalkulasi." }
   })
 }
 
@@ -374,7 +374,7 @@ export async function validateAudit(
   auditId: string,
   technical: AuditTechnicalInput
 ) {
-  return runAction("Gagal memvalidasi audit. Coba lagi.", async (validatorId) => {
+  return runAction("Gagal memvalidasi kalkulasi. Coba lagi.", async (validatorId) => {
     checkTechnical(technical)
     const technicalData = toTechnicalData(technical)
 

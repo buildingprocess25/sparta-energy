@@ -98,7 +98,7 @@ export function ValidationFilters({ filters, topLimit }: ValidationFiltersProps)
               applyFilters({ result: value as ValidationListFilters["result"] })
             }
           >
-            <SelectTrigger className="w-full data-[size=default]:h-11 sm:w-36" aria-label="Filter hasil audit">
+            <SelectTrigger className="w-full data-[size=default]:h-11 sm:w-36" aria-label="Filter hasil identifikasi">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

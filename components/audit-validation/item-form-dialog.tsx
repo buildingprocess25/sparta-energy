@@ -211,8 +211,8 @@ export function ItemFormDialog({
                   : "Tambah Alat"}
             </DialogTitle>
             <DialogDescription>
-              Area {areaLabels[area]}. Estimasi kWh toko dihitung ulang setelah
-              disimpan.
+              Area {areaLabels[area]}. Standar konsumsi energi toko dihitung
+              ulang setelah disimpan.
             </DialogDescription>
           </DialogHeader>
 
@@ -360,7 +360,7 @@ export function ItemFormDialog({
                 ? "Menyimpan..."
                 : isEdit
                   ? "Simpan Perubahan"
-                  : "Tambah ke Audit"}
+                  : "Tambah ke Kalkulasi"}
             </Button>
           </DialogFooter>
         </form>

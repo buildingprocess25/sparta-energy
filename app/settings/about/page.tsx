@@ -55,8 +55,8 @@ export default function AboutPage() {
           </div>
           <div className="text-center">
             <p className="mt-1 max-w-72 text-sm text-muted-foreground">
-              Sistem audit energi untuk memantau efisiensi toko, menemukan
-              pemborosan, dan menghasilkan insight.
+              Kalkulator konsumsi energi untuk memantau efisiensi toko dan
+              menemukan pemborosan listrik.
             </p>
           </div>
         </div>
@@ -75,7 +75,7 @@ export default function AboutPage() {
             {[
               {
                 icon: IconBuildingStore,
-                text: "Audit kondisi energi toko Alfamart",
+                text: "Hitung konsumsi energi toko Alfamart",
               },
               {
                 icon: Thermometer,
