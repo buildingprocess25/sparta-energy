@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { calculateAudit, getHoursBetween } from "@/lib/audit-kalkulator"
+import { calculateGapPercent } from "@/lib/audit-recalculate"
 import type { EquipmentState, PlnRowState } from "@/store/use-audit-store"
 import type { AreaTarget, RecommendationType } from "@prisma/client"
 import { generateRecommendationWithFallback } from "@/lib/ai-recommendation"
@@ -222,6 +223,11 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
       plnPowerVa: input.plnPowerVa,
     })
 
+    const gapPercent = calculateGapPercent(
+      calc.avgActualPlnKwhPerMonth,
+      calc.equipmentEstimateKwhPerMonth
+    )
+
     // ── 5. Create or Update Audit record ─────────────────────────────────────────
     let audit
     if (input.auditId) {
@@ -239,6 +245,10 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
           isBoros: calc.isBoros,
           totalEstimatedKwhPerMonth: calc.equipmentEstimateKwhPerMonth,
           avgActualPlnKwhPerMonth: calc.avgActualPlnKwhPerMonth,
+          gapPercent,
+          validationStatus: "PENDING",
+          validatedAt: null,
+          validatedById: null,
           auditDate: new Date(),
         },
       })
@@ -251,6 +261,7 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
           isBoros: calc.isBoros,
           totalEstimatedKwhPerMonth: calc.equipmentEstimateKwhPerMonth,
           avgActualPlnKwhPerMonth: calc.avgActualPlnKwhPerMonth,
+          gapPercent,
           auditDate: new Date(),
         },
       })

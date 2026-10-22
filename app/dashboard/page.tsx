@@ -13,6 +13,9 @@ import { AcEstimationUnavailableNotice } from "@/components/dashboard/ac-estimat
 import { HeroCard } from "@/components/dashboard/hero-card"
 import { CalculatorGrid } from "@/components/dashboard/calculator-grid"
 import { DraftListSection } from "@/components/dashboard/draft-list-section"
+import { ValidationCard } from "@/components/dashboard/validation-card"
+import { canValidateAudit } from "@/lib/audit-validation-access"
+import { getPendingValidationCount } from "@/lib/audit-validation-queries"
 
 
 export default async function DashboardPage() {
@@ -51,6 +54,10 @@ export default async function DashboardPage() {
 
   if (!dbUser) redirect("/forbidden")
   const isAdmin = dbUser.role === "ADMIN"
+  const canValidate = canValidateAudit(dbUser.role)
+  const pendingValidationCount = canValidate
+    ? await getPendingValidationCount()
+    : 0
 
   // Fetch draft audits for this user
   const draftAudits = await prisma.audit.findMany({
@@ -114,6 +121,7 @@ export default async function DashboardPage() {
       id: true,
       auditDate: true,
       isBoros: true,
+      validationStatus: true,
       totalEstimatedKwhPerMonth: true,
       avgActualPlnKwhPerMonth: true,
       store: {
@@ -154,6 +162,7 @@ export default async function DashboardPage() {
       standardAverage: Math.round(est * 10) / 10,
       actualAverage: Math.round(actual * 10) / 10,
       efficiency,
+      isValidated: a.validationStatus === "VALIDATED",
     }
   })
 
@@ -172,6 +181,7 @@ export default async function DashboardPage() {
         {/* Left Column (lg:col-span-8): Hero Card + Calculator Tools + Drafts */}
         <div className="lg:col-span-8 space-y-6">
           <HeroCard />
+          {canValidate && <ValidationCard pendingCount={pendingValidationCount} />}
           <CalculatorGrid isAdmin={isAdmin} />
           <DraftListSection drafts={drafts} />
         </div>

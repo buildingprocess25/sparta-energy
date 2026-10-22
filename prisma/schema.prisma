@@ -17,7 +17,8 @@ model User {
   image         String?
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
-  audits        Audit[]
+  audits          Audit[]   @relation("AuditAuditor")
+  validatedAudits Audit[]   @relation("AuditValidator")
   sessions      Session[]
   accounts      Account[]
   acCalculatorLogs    AcCalculatorLog[]
@@ -127,14 +128,21 @@ model Audit {
   isBoros                   Boolean?              @map("is_boros")
   totalEstimatedKwhPerMonth Decimal?              @map("total_estimated_kwh_per_month")
   avgActualPlnKwhPerMonth   Decimal?              @map("avg_actual_pln_kwh_per_month")
+  // (aktual - estimasi) / estimasi * 100, dipakai untuk mengurutkan toko paling boros
+  gapPercent                Decimal?              @map("gap_percent")
+  validationStatus          AuditValidationStatus @default(PENDING) @map("validation_status")
+  validatedAt               DateTime?             @map("validated_at")
+  validatedById             String?               @map("validated_by_id") @db.Uuid
   createdAt                 DateTime              @default(now()) @map("created_at")
   updatedAt                 DateTime              @updatedAt @map("updated_at")
   items                     AuditItem[]
   plnHistory                AuditPlnStdHistory[]
   recommendations           AuditRecommendation[]
-  auditor                   User                  @relation(fields: [auditorId], references: [id])
+  auditor                   User                  @relation("AuditAuditor", fields: [auditorId], references: [id])
+  validatedBy               User?                 @relation("AuditValidator", fields: [validatedById], references: [id], onDelete: SetNull)
   store                     Store                 @relation(fields: [storeId], references: [id])
 
+  @@index([validationStatus, gapPercent])
   @@map("audits")
 }
 
@@ -191,6 +199,11 @@ enum Role {
 enum AuditStatus {
   DRAFT
   COMPLETED
+}
+
+enum AuditValidationStatus {
+  PENDING
+  VALIDATED
 }
 
 enum AreaTarget {

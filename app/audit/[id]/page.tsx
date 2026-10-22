@@ -11,6 +11,7 @@ export default async function AuditResultPage({ params }: Props) {
 
   const audit = await prisma.audit.findUnique({
     where: { id },
+    omit: { gapPercent: true },
     include: {
       store: true,
       items: true,
@@ -18,6 +19,7 @@ export default async function AuditResultPage({ params }: Props) {
         orderBy: { monthIdx: "asc" },
       },
       recommendations: true,
+      validatedBy: { select: { fullName: true, email: true } },
     },
   })
 
@@ -32,8 +34,7 @@ export default async function AuditResultPage({ params }: Props) {
           : null,
         avgActualPlnKwhPerMonth: audit.avgActualPlnKwhPerMonth
           ? Number(audit.avgActualPlnKwhPerMonth)
-          : null,
-        store: {
+          : null,        store: {
           ...audit.store,
           salesAreaM2: Number(audit.store.salesAreaM2),
           parkingAreaM2: Number(audit.store.parkingAreaM2),
@@ -52,6 +53,15 @@ export default async function AuditResultPage({ params }: Props) {
           salesTransactionPerDay: Number(row.salesTransactionPerDay),
         })),
       }}
+      validation={
+        audit.validationStatus === "VALIDATED" && audit.validatedAt
+          ? {
+              validatedBy:
+                audit.validatedBy?.fullName ?? audit.validatedBy?.email ?? "Admin",
+              validatedAt: audit.validatedAt.toISOString(),
+            }
+          : null
+      }
       dashboardHref="/dashboard"
       dashboardLabel="Kembali ke Dashboard"
     />

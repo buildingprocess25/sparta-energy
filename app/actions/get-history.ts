@@ -16,11 +16,13 @@ export type HistoryItem = {
   standardAverage: number
   actualAverage: number
   efficiency: number
+  isValidated: boolean
 }
 
 export type HistoryResponse = {
   items: HistoryItem[]
   hasMore: boolean
+  canDelete?: boolean
   error?: ActionError
 }
 
@@ -33,6 +35,7 @@ type AuditHistoryRow = {
   id: string
   auditDate: Date
   isBoros: boolean | null
+  validationStatus: string
   totalEstimatedKwhPerMonth: unknown
   avgActualPlnKwhPerMonth: unknown
   store: {
@@ -110,6 +113,7 @@ export async function getAuditHistory(
         id: true,
         auditDate: true,
         isBoros: true,
+        validationStatus: true,
         totalEstimatedKwhPerMonth: true,
         avgActualPlnKwhPerMonth: true,
         store: {
@@ -152,12 +156,19 @@ export async function getAuditHistory(
         standardAverage: Math.round(est * 10) / 10,
         actualAverage: Math.round(actual * 10) / 10,
         efficiency,
+        isValidated: a.validationStatus === "VALIDATED",
       }
+    })
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
     })
 
     return {
       items,
       hasMore,
+      canDelete: user?.role === "ADMIN",
     }
   } catch (error) {
     return {

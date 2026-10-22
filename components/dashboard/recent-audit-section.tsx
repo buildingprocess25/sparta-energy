@@ -14,6 +14,7 @@ type RecentAuditItem = {
   standardAverage: number
   actualAverage: number
   efficiency: number
+  isValidated?: boolean
 }
 
 type RecentAuditSectionProps = {
@@ -64,6 +65,7 @@ function RecentAuditSection({
               standardAverage={item.standardAverage}
               actualAverage={item.actualAverage}
               efficiency={item.efficiency}
+              isValidated={item.isValidated}
             />
           ))}
         </div>

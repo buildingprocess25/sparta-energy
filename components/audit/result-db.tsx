@@ -11,6 +11,7 @@ import {
   IconBulb,
   IconArrowLeft,
   IconSparkles,
+  IconCircleCheck,
 } from "@tabler/icons-react"
 import {
   Bar,
@@ -26,6 +27,7 @@ import { Label, Pie, PieChart } from "recharts"
 import Link from "next/link"
 
 import { Header } from "@/components/header"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -108,12 +110,23 @@ function getAreaLabel(area: string) {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
+type AuditValidationInfo = {
+  validatedBy: string
+  validatedAt: string
+}
+
+const validationDateFormat = new Intl.DateTimeFormat("id-ID", {
+  dateStyle: "long",
+})
+
 export function AuditResultDB({
   audit,
+  validation = null,
   dashboardHref = "/dashboard",
   dashboardLabel = "Kembali ke Dashboard",
 }: {
   audit: AuditDB
+  validation?: AuditValidationInfo | null
   dashboardHref?: string
   dashboardLabel?: string
 }) {
@@ -261,6 +274,17 @@ export function AuditResultDB({
             </div>
           </CardContent>
         </Card>
+
+        {validation && (
+          <Alert>
+            <IconCircleCheck className="text-primary" />
+            <AlertTitle>Sudah divalidasi</AlertTitle>
+            <AlertDescription>
+              Data alat sudah dicek oleh {validation.validatedBy} pada{" "}
+              {validationDateFormat.format(new Date(validation.validatedAt))}.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* ── 2. Rekomendasi ── */}
         {recommendation && (

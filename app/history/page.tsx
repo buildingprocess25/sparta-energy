@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useTransition } from "react"
 import {
   IconSearch,
   IconRefresh,
@@ -16,6 +16,15 @@ import { toast } from "sonner"
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { Header } from "@/components/header"
 import { AuditCard } from "@/components/dashboard/audit-card"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -25,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+import { deleteAudit } from "@/app/actions/delete-audit"
 import {
   getAuditHistory,
   getAvailableYears,
@@ -45,12 +55,14 @@ const cache: {
   hasMore: boolean
   page: number
   initialized: boolean
+  canDelete: boolean
 } = {
   items: [],
   availableYears: [],
   hasMore: false,
   page: 1,
   initialized: false,
+  canDelete: false,
 }
 
 // ─── Pull-to-refresh threshold (px) ──────────────────────────────────────────
@@ -106,6 +118,10 @@ export default function HistoryPage() {
   const [hasMore, setHasMore] = useState(cache.hasMore)
   const [loading, setLoading] = useState(!cache.initialized)
 
+  const [canDelete, setCanDelete] = useState(cache.canDelete)
+  const [deleteTarget, setDeleteTarget] = useState<HistoryItem | null>(null)
+  const [isDeleting, startDelete] = useTransition()
+
   // Pull-to-refresh state
   const [pullY, setPullY] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -155,6 +171,8 @@ export default function HistoryPage() {
         }
 
         setHasMore(response.hasMore)
+        setCanDelete(response.canDelete === true)
+        cache.canDelete = response.canDelete === true
         if (isDefaultFilter) {
           cache.hasMore = response.hasMore
           cache.page = targetPage
@@ -268,6 +286,22 @@ export default function HistoryPage() {
   }, [pullY, isRefreshing, fetchHistory])
 
   const pullProgress = Math.min(pullY / PULL_THRESHOLD, 1)
+
+  function handleConfirmDelete() {
+    if (!deleteTarget) return
+    const target = deleteTarget
+    startDelete(async () => {
+      const result = await deleteAudit(target.id)
+      if (!result.success) {
+        toast.error(result.message)
+        return
+      }
+      toast.success(result.message)
+      setItems((prev) => prev.filter((item) => item.id !== target.id))
+      cache.items = cache.items.filter((item) => item.id !== target.id)
+      setDeleteTarget(null)
+    })
+  }
 
   return (
     <main
@@ -407,6 +441,8 @@ export default function HistoryPage() {
                         standardAverage={item.standardAverage}
                         actualAverage={item.actualAverage}
                         efficiency={item.efficiency}
+                        isValidated={item.isValidated}
+                        onDelete={canDelete ? () => setDeleteTarget(item) : undefined}
                       />
                     </div>
                   )
@@ -421,6 +457,8 @@ export default function HistoryPage() {
                       standardAverage={item.standardAverage}
                       actualAverage={item.actualAverage}
                       efficiency={item.efficiency}
+                      isValidated={item.isValidated}
+                      onDelete={canDelete ? () => setDeleteTarget(item) : undefined}
                     />
                   )
                 }
@@ -447,6 +485,44 @@ export default function HistoryPage() {
           </div>
         </section>
       )}
+
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) setDeleteTarget(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              Hapus audit {deleteTarget?.storeName} ({deleteTarget?.period})?
+            </DialogTitle>
+            <DialogDescription>
+              Daftar alat, riwayat PLN, dan rekomendasi audit ini ikut terhapus
+              permanen. Data toko tidak ikut terhapus. Tindakan ini tidak bisa
+              dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={isDeleting}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Menghapus..." : "Hapus Audit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <BottomNavigation />
     </main>
