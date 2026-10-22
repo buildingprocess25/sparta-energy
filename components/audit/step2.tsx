@@ -55,9 +55,9 @@ type AuditStep2Props = {
 }
 
 const areaItems = [
-  { id: "SALES", name: "Sales" },
   { id: "PARKING", name: "Parkiran" },
   { id: "TERRACE", name: "Teras" },
+  { id: "SALES", name: "Sales" },
   { id: "WAREHOUSE", name: "Gudang, Toilet & Selasar" },
 ]
 
