@@ -29,6 +29,7 @@ export type SaveMepSimulationPayload = {
   // Data Denah
   layoutData: Record<string, unknown>
   notes?: string | null
+  isDraft?: boolean
 }
 
 export type SaveMepSimulationResult =
@@ -125,6 +126,7 @@ export async function saveMepSimulationLog(
           estimatedLux: payload.estimatedLux ?? null,
           layoutData: cleanLayoutData,
           notes: payload.notes?.trim() || existingLog.notes,
+          isDraft: payload.isDraft !== undefined ? payload.isDraft : existingLog.isDraft,
           updatedAt: new Date(),
         },
       })
@@ -159,6 +161,7 @@ export async function saveMepSimulationLog(
         estimatedLux: payload.estimatedLux ?? null,
         layoutData: cleanLayoutData,
         notes: payload.notes?.trim() || null,
+        isDraft: Boolean(payload.isDraft),
       },
     })
 
@@ -187,8 +190,18 @@ export type MepSimulationListFilter = {
 }
 
 // Mengambil list riwayat simulasi dengan LAZY LOAD (layoutData dikecualikan untuk menghemat bandwidth & query DB)
+// 100% Terisolasi per akun: hanya memuat draft/rancangan milik pengguna yang sedang login
 export async function getMepSimulationList(filters: MepSimulationListFilter = {}) {
   try {
+    const session = await auth.api.getSession({ headers: await headers() })
+    const userId = session?.user?.id ?? null
+    const userEmail = session?.user?.email ?? null
+
+    // Jika pengguna belum login sama sekali, kembalikan daftar kosong demi privasi data
+    if (!userId && !userEmail) {
+      return { logs: [], total: 0, totalPages: 0 }
+    }
+
     const page = Math.max(1, filters.page || 1)
     const pageSize = Math.min(100, Math.max(1, filters.pageSize || 20))
     const skip = (page - 1) * pageSize
@@ -198,7 +211,15 @@ export async function getMepSimulationList(filters: MepSimulationListFilter = {}
       return { logs: [], total: 0, totalPages: 0 }
     }
 
-    const where: any = {}
+    // Filter isolasi kepemilikan akun aktif & hanya rancangan yang disimpan sengaja (isDraft: true)
+    const userOwnershipCondition: any = []
+    if (userId) userOwnershipCondition.push({ userId })
+    if (userEmail) userOwnershipCondition.push({ userEmail })
+
+    const where: any = {
+      isDraft: true,
+      OR: userOwnershipCondition,
+    }
 
     if (filters.branch && filters.branch !== "all") {
       where.branch = { equals: filters.branch, mode: "insensitive" }
@@ -210,11 +231,14 @@ export async function getMepSimulationList(filters: MepSimulationListFilter = {}
 
     if (filters.q) {
       const q = filters.q.trim()
-      where.OR = [
-        { storeCode: { contains: q, mode: "insensitive" } },
-        { storeName: { contains: q, mode: "insensitive" } },
-        { userEmail: { contains: q, mode: "insensitive" } },
-        { branch: { contains: q, mode: "insensitive" } },
+      where.AND = [
+        {
+          OR: [
+            { storeCode: { contains: q, mode: "insensitive" } },
+            { storeName: { contains: q, mode: "insensitive" } },
+            { branch: { contains: q, mode: "insensitive" } },
+          ],
+        },
       ]
     }
 
@@ -316,5 +340,52 @@ export async function getLatestStoreMepSimulation(storeCode: string) {
   } catch (error) {
     console.error("[getLatestStoreMepSimulation] Error:", error)
     return null
+  }
+}
+
+// Menghapus rancangan simulasi denah MEP berdasarkan ID (Terisolasi per akun atau Admin)
+export async function deleteMepSimulationLog(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!id?.trim()) {
+      return { success: false, error: "ID rancangan tidak valid" }
+    }
+
+    const session = await auth.api.getSession({ headers: await headers() })
+    const userId = session?.user?.id ?? null
+    const userEmail = session?.user?.email ?? null
+
+    const mepModel = (prisma as any).mepSimulationLog
+    if (!mepModel) {
+      return { success: false, error: "Model database belum tersedia" }
+    }
+
+    const existing = await mepModel.findUnique({
+      where: { id },
+      select: { id: true, userId: true, userEmail: true },
+    })
+
+    if (!existing) {
+      return { success: false, error: "Rancangan tidak ditemukan" }
+    }
+
+    // Cek apakah user yang login adalah pemilik rancangan atau akun Admin
+    const isOwner = (userId && existing.userId === userId) || (userEmail && existing.userEmail === userEmail)
+    const isAdmin = (session?.user as any)?.role === "ADMIN"
+
+    if (!isOwner && !isAdmin) {
+      return { success: false, error: "Anda tidak memiliki izin untuk menghapus rancangan ini" }
+    }
+
+    await mepModel.delete({
+      where: { id },
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error("[deleteMepSimulationLog] Error:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Gagal menghapus rancangan",
+    }
   }
 }

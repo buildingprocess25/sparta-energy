@@ -285,6 +285,7 @@ model MepSimulationLog {
   
   layoutData       Json      @map("layout_data")
   notes            String?
+  isDraft          Boolean   @default(false) @map("is_draft")
   
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")

@@ -19,7 +19,9 @@ import {
   IconExternalLink,
   IconEye,
   IconCheck,
+  IconTrash,
 } from "@tabler/icons-react"
+import { MepFloorPlanCanvasPreview } from "@/components/admin/mep-layout-canvas-preview"
 import {
   Dialog,
   DialogContent,
@@ -158,6 +160,8 @@ export function CalculatorLogsClient({
   const [selectedYear, setSelectedYear] = useState(filters.year || "all")
   const [selectedPreviewMep, setSelectedPreviewMep] = useState<MepLogItem | null>(null)
   const [previewTab, setPreviewTab] = useState<"ac" | "lighting">("ac")
+  const [deletingMepLog, setDeletingMepLog] = useState<MepLogItem | null>(null)
+  const [isDeletingMepLog, setIsDeletingMepLog] = useState<boolean>(false)
 
   // Generate Year options (current year down to 2 years ago)
   const currentYearNum = new Date().getFullYear()
@@ -1359,6 +1363,16 @@ export function CalculatorLogsClient({
                                 <IconExternalLink className="size-3.5" />
                                 Simulator
                               </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setDeletingMepLog(row)}
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                                title="Hapus Log"
+                              >
+                                <IconTrash className="size-3.5" />
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -1379,14 +1393,18 @@ export function CalculatorLogsClient({
           if (!open) setSelectedPreviewMep(null)
         }}
       >
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+        <DialogContent
+          style={{ width: "96vw", maxWidth: "min(96vw, 1480px)", height: "92vh" }}
+          className="w-[96vw] !max-w-[min(96vw,1480px)] sm:max-w-[min(96vw,1480px)] md:max-w-[min(96vw,1480px)] lg:max-w-[1480px] h-[92vh] max-h-[94vh] p-0 flex flex-col overflow-hidden gap-0 rounded-2xl border-border/80 shadow-2xl"
+        >
           {selectedPreviewMep && (
-            <div className="space-y-5">
-              <DialogHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+            <div className="flex flex-col h-full overflow-hidden">
+              {/* Modal Top Header */}
+              <DialogHeader className="p-4 sm:p-5 border-b border-border/60 shrink-0 bg-background/95 backdrop-blur-sm pr-12">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <DialogTitle className="text-lg font-bold text-foreground">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <DialogTitle className="text-base sm:text-lg font-bold text-foreground">
                         {selectedPreviewMep.storeName || "Toko Tanpa Nama"}
                       </DialogTitle>
                       {selectedPreviewMep.storeMode === "NEW" ? (
@@ -1403,14 +1421,43 @@ export function CalculatorLogsClient({
                       {selectedPreviewMep.storeCode || "-"} • {selectedPreviewMep.branch || "Pusat"} • Disimpan: {formatDateIndo(selectedPreviewMep.updatedAt || selectedPreviewMep.createdAt)}
                     </DialogDescription>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  {/* Mode Tab Switcher & Action in Header */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1.5 bg-muted/50 p-1 rounded-lg border border-border/60">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={previewTab === "ac" ? "default" : "ghost"}
+                        onClick={() => setPreviewTab("ac")}
+                        className={`h-7 px-2.5 text-xs font-semibold cursor-pointer ${
+                          previewTab === "ac" ? "bg-sky-600 hover:bg-sky-700 text-white shadow-sm" : ""
+                        }`}
+                      >
+                        <IconAirConditioning className="size-3.5 mr-1" />
+                        Sistem AC & Hembusan
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={previewTab === "lighting" ? "default" : "ghost"}
+                        onClick={() => setPreviewTab("lighting")}
+                        className={`h-7 px-2.5 text-xs font-semibold cursor-pointer ${
+                          previewTab === "lighting" ? "bg-amber-600 hover:bg-amber-700 text-white shadow-sm" : ""
+                        }`}
+                      >
+                        <IconBulb className="size-3.5 mr-1" />
+                        Grid Lampu
+                      </Button>
+                    </div>
+
                     <Button
                       type="button"
                       size="sm"
                       onClick={() => {
                         router.push(`/store-mep-simulator?loadMepLogId=${selectedPreviewMep.id}`)
                       }}
-                      className="gap-1.5 text-xs bg-sky-600 hover:bg-sky-700 text-white font-semibold cursor-pointer"
+                      className="gap-1.5 text-xs bg-sky-600 hover:bg-sky-700 text-white font-semibold cursor-pointer shrink-0"
                     >
                       <IconExternalLink className="size-3.5" />
                       Buka di Simulator
@@ -1419,98 +1466,264 @@ export function CalculatorLogsClient({
                 </div>
               </DialogHeader>
 
-              {/* Metric Highlights */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3 rounded-lg border border-border/60 bg-muted/20">
-                  <div className="text-[11px] text-muted-foreground font-medium">Luas Bersih Sales</div>
-                  <div className="text-base font-extrabold text-foreground font-mono mt-0.5">
-                    {selectedPreviewMep.salesArea.toLocaleString("id-ID")} m²
+              {/* Main Review Body: 2-Column Spacious Suite on Desktop */}
+              <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden p-4 sm:p-5 flex flex-col lg:grid lg:grid-cols-12 gap-5">
+                {/* Left Area (Canvas Denah Luas & Real) */}
+                <div className="lg:col-span-8 flex flex-col h-full min-h-[460px] lg:min-h-0 min-w-0 overflow-hidden">
+                  <div className="flex-1 w-full h-full min-h-0 bg-slate-950 rounded-2xl p-2.5 sm:p-3 flex items-center justify-center border border-slate-800 shadow-2xl relative overflow-hidden">
+                    {/* Top Overlay Badge */}
+                    <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
+                      <Badge className="bg-slate-900/90 text-slate-200 border-slate-700/80 backdrop-blur-sm text-[11px] font-mono shadow-sm">
+                        Denah Lantai Toko 2D • Skala Presisi
+                      </Badge>
+                    </div>
+
+                    <MepFloorPlanCanvasPreview log={selectedPreviewMep} activeTab={previewTab} />
+
+                    {/* Bottom Overlay Legend Bar */}
+                    <div className="absolute bottom-2.5 inset-x-3 z-10 flex items-center justify-between text-[11px] text-slate-300 bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800/80 pointer-events-none">
+                      {previewTab === "ac" ? (
+                        <span>
+                          Daikin 2 PK (18.000 BTU) • Jangkauan Maks 6.5m (Sudut Hembusan 60°) • Airflow Terkunci di Ruang Sales
+                        </span>
+                      ) : (
+                        <span>
+                          Tabung LED T8 (1.2m) • Target 400 Lux • Grid Distribusi Bersih Terhindar dari Rintangan
+                        </span>
+                      )}
+                      <span className="font-mono text-slate-400">
+                        {previewTab === "ac" ? "Mode AC Aktif" : "Mode Lampu Aktif"}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div className="p-3 rounded-lg border border-border/60 bg-muted/20">
-                  <div className="text-[11px] text-muted-foreground font-medium">Sistem AC (2 PK)</div>
-                  <div className="text-base font-extrabold text-sky-600 dark:text-sky-400 font-mono mt-0.5">
-                    {selectedPreviewMep.installedUnits || selectedPreviewMep.recommendedUnits} Unit
+
+                {/* Right Area (Panel Detail Audit Lengkap - Tidak Perlu Pindah Halaman) */}
+                <div className="lg:col-span-4 flex flex-col h-full lg:overflow-y-auto overflow-x-hidden min-w-0 space-y-3.5 pr-1">
+                  {/* Card 1: Metrik Ruang & Bangunan */}
+                  <div className="p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-sm space-y-2">
+                    <div className="text-xs font-bold text-foreground flex items-center justify-between">
+                      <span>Spesifikasi Ruang Sales</span>
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        {selectedPreviewMep.storeMode === "NEW" ? "Toko Baru" : "Terdaftar"}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                      <div className="p-2 rounded-lg bg-muted/40 border border-border/40">
+                        <div className="text-[10px] text-muted-foreground font-medium">Luas Bersih Sales</div>
+                        <div className="text-base font-extrabold text-foreground font-mono mt-0.5">
+                          {selectedPreviewMep.salesArea.toLocaleString("id-ID")} m²
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-muted/40 border border-border/40">
+                        <div className="text-[10px] text-muted-foreground font-medium">Beban Termal Suhu</div>
+                        <div className="text-base font-extrabold text-foreground font-mono mt-0.5">
+                          {selectedPreviewMep.clusterBtu} BTU/m²
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          Maks: {selectedPreviewMep.maxTemp}°C
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[10px] text-muted-foreground font-mono">
-                    Rek: {selectedPreviewMep.recommendedUnits} ({selectedPreviewMep.clusterBtu} BTU/m²)
+
+                  {/* Card 2: Analisis Audit Sistem AC */}
+                  <div className="p-3.5 rounded-xl border border-sky-500/25 bg-sky-500/5 shadow-sm space-y-2">
+                    <div className="text-xs font-bold text-sky-800 dark:text-sky-300 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <IconAirConditioning className="size-3.5" />
+                        Sistem AC (Daikin 2 PK)
+                      </span>
+                      <Badge className="bg-sky-500/20 text-sky-700 dark:text-sky-300 text-[10px]">
+                        18.000 BTU/Unit
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                      <div className="p-2 rounded-lg bg-background/80 border border-sky-500/20">
+                        <div className="text-[10px] text-muted-foreground font-medium">Unit Terpasang</div>
+                        <div className="text-base font-extrabold text-sky-600 dark:text-sky-400 font-mono mt-0.5">
+                          {selectedPreviewMep.installedUnits || selectedPreviewMep.recommendedUnits} Unit
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          Total: {((selectedPreviewMep.installedUnits || selectedPreviewMep.recommendedUnits) * 18000).toLocaleString("id-ID")} BTU/h
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-background/80 border border-sky-500/20">
+                        <div className="text-[10px] text-muted-foreground font-medium">Rekomendasi Termal</div>
+                        <div className="text-base font-extrabold text-foreground font-mono mt-0.5">
+                          {selectedPreviewMep.recommendedUnits} Unit
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          Kebutuhan: {selectedPreviewMep.totalBtu.toLocaleString("id-ID")} BTU/h
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedPreviewMep.outdoorNotes && (
+                      <div className="p-2.5 rounded-lg border border-sky-500/20 bg-background/90 text-xs mt-2">
+                        <div className="text-[10px] font-bold text-sky-700 dark:text-sky-300">Catatan Outdoor AC:</div>
+                        <div className="text-foreground mt-0.5 text-[11px] leading-relaxed">
+                          {selectedPreviewMep.outdoorNotes}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="p-3 rounded-lg border border-border/60 bg-muted/20">
-                  <div className="text-[11px] text-muted-foreground font-medium">Sistem Lampu</div>
-                  <div className="text-base font-extrabold text-amber-600 dark:text-amber-400 font-mono mt-0.5">
-                    {selectedPreviewMep.lampCount} Titik
+
+                  {/* Card 3: Analisis Audit Sistem Lampu */}
+                  <div className="p-3.5 rounded-xl border border-amber-500/25 bg-amber-500/5 shadow-sm space-y-2">
+                    <div className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <IconBulb className="size-3.5" />
+                        Sistem Lampu Retail
+                      </span>
+                      <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px]">
+                        Target {selectedPreviewMep.targetLux} Lux
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                      <div className="p-2 rounded-lg bg-background/80 border border-amber-500/20">
+                        <div className="text-[10px] text-muted-foreground font-medium">Titik Terpasang</div>
+                        <div className="text-base font-extrabold text-amber-600 dark:text-amber-400 font-mono mt-0.5">
+                          {selectedPreviewMep.lampCount} Titik
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          Spesifikasi: {selectedPreviewMep.lampWatt}W LED
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-background/80 border border-amber-500/20">
+                        <div className="text-[10px] text-muted-foreground font-medium">Rentang Baku Retail</div>
+                        <div className="text-sm font-bold text-foreground font-mono mt-0.5">
+                          {Math.ceil((selectedPreviewMep.salesArea * 4.0) / (selectedPreviewMep.lampWatt || 16))} - {Math.floor((selectedPreviewMep.salesArea * 5.0) / (selectedPreviewMep.lampWatt || 16))} Titik
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          Standar: 4.0 - 5.0 W/m²
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-background/80 border border-amber-500/20 text-[11px] flex items-center justify-between font-mono">
+                      <span className="text-muted-foreground">Rasio Daya Listrik:</span>
+                      <span className="font-bold text-foreground">
+                        {((selectedPreviewMep.lampCount * (selectedPreviewMep.lampWatt || 16)) / (selectedPreviewMep.salesArea || 1)).toFixed(2)} W/m²
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-[10px] text-muted-foreground font-mono">
-                    Rentang: {Math.ceil((selectedPreviewMep.salesArea * 4.0) / (selectedPreviewMep.lampWatt || 16))} - {Math.floor((selectedPreviewMep.salesArea * 5.0) / (selectedPreviewMep.lampWatt || 16))} Titik
-                  </div>
-                </div>
-                <div className="p-3 rounded-lg border border-border/60 bg-muted/20">
-                  <div className="text-[11px] text-muted-foreground font-medium">Spesifikasi Lampu</div>
-                  <div className="text-base font-extrabold text-foreground font-mono mt-0.5">
-                    {selectedPreviewMep.lampWatt}W
-                  </div>
-                  <div className="text-[10px] text-muted-foreground font-mono">
-                    Target: {selectedPreviewMep.targetLux} Lux
+
+                  {/* Card 4: Quick Action Button */}
+                  <div className="pt-1">
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        router.push(`/store-mep-simulator?loadMepLogId=${selectedPreviewMep.id}`)
+                      }}
+                      className="w-full gap-2 text-xs bg-sky-600 hover:bg-sky-700 text-white font-semibold cursor-pointer shadow-sm"
+                    >
+                      <IconExternalLink className="size-4" />
+                      Buka di Simulator untuk Edit Denah
+                    </Button>
                   </div>
                 </div>
               </div>
 
-              {/* Sub-tab AC vs Lampu */}
-              <div className="flex items-center justify-between border-b border-border/60 pb-2">
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={previewTab === "ac" ? "default" : "outline"}
-                    onClick={() => setPreviewTab("ac")}
-                    className={`h-8 gap-1.5 text-xs font-semibold cursor-pointer ${
-                      previewTab === "ac" ? "bg-sky-600 hover:bg-sky-700 text-white" : ""
-                    }`}
-                  >
-                    <IconAirConditioning className="size-3.5" />
-                    Penempatan AC & Hembusan
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={previewTab === "lighting" ? "default" : "outline"}
-                    onClick={() => setPreviewTab("lighting")}
-                    className={`h-8 gap-1.5 text-xs font-semibold cursor-pointer ${
-                      previewTab === "lighting" ? "bg-amber-600 hover:bg-amber-700 text-white" : ""
-                    }`}
-                  >
-                    <IconBulb className="size-3.5" />
-                    Distribusi Grid Lampu
-                  </Button>
-                </div>
-                <span className="text-[11px] text-muted-foreground">
-                  Mode Visualisasi Denah 2D
+              {/* Fixed Bottom Footer */}
+              <DialogFooter className="p-3 sm:p-4 border-t border-border/60 shrink-0 bg-muted/20 flex flex-row items-center justify-between">
+                <span className="text-xs text-muted-foreground hidden sm:inline-block">
+                  Review Denah Simulator MEP • Sparta Energy
                 </span>
-              </div>
-
-              {/* SVG Denah Preview */}
-              <div className="w-full bg-slate-900 rounded-xl p-4 flex flex-col items-center justify-center border border-slate-800 shadow-inner overflow-hidden">
-                <MepLayoutSvgPreview log={selectedPreviewMep} activeTab={previewTab} />
-              </div>
-
-              {selectedPreviewMep.outdoorNotes && (
-                <div className="p-3 rounded-lg border border-sky-500/20 bg-sky-500/5 text-xs">
-                  <span className="font-bold text-sky-700 dark:text-sky-300">Catatan Outdoor AC: </span>
-                  <span className="text-foreground">{selectedPreviewMep.outdoorNotes}</span>
-                </div>
-              )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedPreviewMep(null)}
+                  className="cursor-pointer"
+                >
+                  Tutup Review
+                </Button>
+              </DialogFooter>
             </div>
           )}
-          <DialogFooter className="mt-4 border-t border-border/60 pt-3">
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Konfirmasi Hapus Log MEP Admin */}
+      <Dialog open={Boolean(deletingMepLog)} onOpenChange={(open) => !open && setDeletingMepLog(null)}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-destructive/10 text-destructive shrink-0">
+                <IconTrash className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-foreground">
+                  Hapus Log Simulasi MEP?
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Tindakan ini permanen dan akan menghapus rekaman riwayat simulasi toko ini dari database.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {deletingMepLog && (
+            <div className="p-3.5 rounded-xl border border-border/70 bg-muted/30 text-xs space-y-1.5 my-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-foreground text-sm">{deletingMepLog.storeName || "Toko Tanpa Nama"}</span>
+                {deletingMepLog.storeCode && (
+                  <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 h-4">
+                    {deletingMepLog.storeCode}
+                  </Badge>
+                )}
+              </div>
+              <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                <span>Cabang: {deletingMepLog.branch || "-"}</span>
+                <span>•</span>
+                <span>Luas: {deletingMepLog.salesArea} m²</span>
+                <span>•</span>
+                <span>AC: {deletingMepLog.installedUnits || deletingMepLog.recommendedUnits} Unit</span>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0 mt-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setSelectedPreviewMep(null)}
+              disabled={isDeletingMepLog}
+              onClick={() => setDeletingMepLog(null)}
               className="cursor-pointer"
             >
-              Tutup
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={isDeletingMepLog}
+              onClick={async () => {
+                if (!deletingMepLog) return
+                setIsDeletingMepLog(true)
+                try {
+                  const { deleteMepSimulationLog } = await import("@/app/actions/mep-simulation-actions")
+                  const res = await deleteMepSimulationLog(deletingMepLog.id)
+                  if (res.success) {
+                    toast.success("Log simulasi berhasil dihapus.")
+                    setDeletingMepLog(null)
+                    router.refresh()
+                  } else {
+                    toast.error(res.error || "Gagal menghapus log simulasi.")
+                  }
+                } catch (err) {
+                  toast.error("Terjadi kesalahan saat menghapus log simulasi.")
+                } finally {
+                  setIsDeletingMepLog(false)
+                }
+              }}
+              className="cursor-pointer font-semibold"
+            >
+              {isDeletingMepLog ? "Menghapus..." : "Ya, Hapus Log"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1519,251 +1732,4 @@ export function CalculatorLogsClient({
   )
 }
 
-function MepLayoutSvgPreview({ log, activeTab }: { log: MepLogItem; activeTab: "ac" | "lighting" }) {
-  const layout = log.layoutData || {}
-  const pts = Array.isArray(layout.customPts) ? layout.customPts : []
-  const placedUnits = Array.isArray(layout.placedUnits) ? layout.placedUnits : []
-  const pillars = Array.isArray(layout.pillars) ? layout.pillars : []
-  const overrides = layout.segmentOverrides || {}
-  const cashierDepths = layout.cashierDepths || {}
-
-  if (pts.length < 3) {
-    return (
-      <div className="py-16 text-slate-400 text-xs text-center">
-        Data titik poligon denah tidak tersedia untuk simulasi ini.
-      </div>
-    )
-  }
-
-  // Hitung bounding box
-  const xs = pts.map((p: any) => p.x)
-  const ys = pts.map((p: any) => p.y)
-  const minX = Math.min(...xs)
-  const maxX = Math.max(...xs)
-  const minY = Math.min(...ys)
-  const maxY = Math.max(...ys)
-  const w = maxX - minX || 10
-  const h = maxY - minY || 10
-
-  const pad = Math.max(w, h) * 0.12
-  const vbX = minX - pad
-  const vbY = minY - pad
-  const vbW = w + pad * 2
-  const vbH = h + pad * 2
-
-  // Segments
-  const n = pts.length
-  const segments = pts.map((p1: any, i: number) => {
-    const p2 = pts[(i + 1) % n]
-    const type = overrides[i]?.type || "SOLID"
-    return { p1, p2, type, index: i }
-  })
-
-  // Points string for SVG polygon
-  const polyPoints = pts.map((p: any) => `${p.x},${p.y}`).join(" ")
-
-  return (
-    <svg
-      viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
-      className="w-full max-h-[460px] select-none"
-      style={{ filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}
-    >
-      <defs>
-        {/* Cold air cone gradient */}
-        <radialGradient id="acColdGrad" cx="0%" cy="50%" r="100%">
-          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.5" />
-          <stop offset="60%" stopColor="#0284c7" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#0369a1" stopOpacity="0" />
-        </radialGradient>
-        {/* Lamp glow gradient */}
-        <radialGradient id="lampGlowGrad">
-          <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.8" />
-          <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#d97706" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-
-      {/* Grid Background */}
-      <rect x={vbX} y={vbY} width={vbW} height={vbH} fill="#0b1120" />
-
-      {/* Store polygon floor fill */}
-      <polygon points={polyPoints} fill="#1e293b" stroke="#334155" strokeWidth="0.08" />
-
-      {/* Render Cashier Depth Zones */}
-      {segments.map((seg: any) => {
-        if (seg.type !== "CASHIER") return null
-        const depthM = cashierDepths[seg.index] || 1.8
-        const dx = seg.p2.x - seg.p1.x
-        const dy = seg.p2.y - seg.p1.y
-        const len = Math.hypot(dx, dy) || 1
-        const nx = -dy / len
-        const ny = dx / len
-        // Inward offset
-        const c1 = `${seg.p1.x},${seg.p1.y}`
-        const c2 = `${seg.p2.x},${seg.p2.y}`
-        const c3 = `${seg.p2.x + nx * depthM},${seg.p2.y + ny * depthM}`
-        const c4 = `${seg.p1.x + nx * depthM},${seg.p1.y + ny * depthM}`
-        return (
-          <polygon
-            key={`cashier-${seg.index}`}
-            points={`${c1} ${c2} ${c3} ${c4}`}
-            fill="#d97706"
-            fillOpacity="0.25"
-            stroke="#f59e0b"
-            strokeWidth="0.06"
-            strokeDasharray="0.2,0.15"
-          />
-        )
-      })}
-
-      {/* Lighting grid distribution (if Lighting Tab active) */}
-      {activeTab === "lighting" && (() => {
-        const rows = 4
-        const cols = 5
-        const stepX = w / (cols + 1)
-        const stepY = h / (rows + 1)
-        const lamps = []
-        for (let r = 1; r <= rows; r++) {
-          for (let c = 1; c <= cols; c++) {
-            lamps.push({ x: minX + c * stepX, y: minY + r * stepY })
-          }
-        }
-        return (
-          <g>
-            {lamps.map((lamp, idx) => (
-              <g key={`lamp-${idx}`}>
-                <circle cx={lamp.x} cy={lamp.y} r={0.75} fill="url(#lampGlowGrad)" />
-                <rect
-                  x={lamp.x - 0.45}
-                  y={lamp.y - 0.08}
-                  width={0.9}
-                  height={0.16}
-                  rx={0.06}
-                  fill="#fef08a"
-                  stroke="#eab308"
-                  strokeWidth="0.03"
-                />
-              </g>
-            ))}
-          </g>
-        )
-      })()}
-
-      {/* AC Cones & Units (if AC Tab active) */}
-      {activeTab === "ac" && (
-        <g>
-          {placedUnits.map((unit: any, idx: number) => {
-            const seg = segments.find((s: any) => s.index === unit.wallIndex)
-            if (!seg) return null
-            const uX = seg.p1.x + (seg.p2.x - seg.p1.x) * unit.ratio
-            const uY = seg.p1.y + (seg.p2.y - seg.p1.y) * unit.ratio
-            const dx = seg.p2.x - seg.p1.x
-            const dy = seg.p2.y - seg.p1.y
-            const len = Math.hypot(dx, dy) || 1
-            const nx = -dy / len
-            const ny = dx / len
-            const throwM = 4.2
-
-            const pStart = `${uX + (-dx / len) * 0.45},${uY + (-dy / len) * 0.45}`
-            const pEnd = `${uX + (dx / len) * 0.45},${uY + (dy / len) * 0.45}`
-            const pApex1 = `${uX + nx * throwM - (dx / len) * 2.2},${uY + ny * throwM - (dy / len) * 2.2}`
-            const pApex2 = `${uX + nx * throwM + (dx / len) * 2.2},${uY + ny * throwM + (dy / len) * 2.2}`
-
-            return (
-              <g key={`ac-cone-${unit.id || idx}`}>
-                {/* Cold air throw fan plume */}
-                <polygon
-                  points={`${pStart} ${pEnd} ${pApex2} ${pApex1}`}
-                  fill="url(#acColdGrad)"
-                />
-                {/* AC Indoor Body */}
-                <rect
-                  x={uX - 0.52}
-                  y={uY - 0.16}
-                  width={1.05}
-                  height={0.32}
-                  rx={0.08}
-                  fill="#0284c7"
-                  stroke="#38bdf8"
-                  strokeWidth="0.04"
-                />
-                <circle cx={uX + 0.38} cy={uY} r={0.05} fill="#10b981" />
-                <text
-                  x={uX}
-                  y={uY + 0.05}
-                  fill="#ffffff"
-                  fontSize="0.22"
-                  fontWeight="bold"
-                  textAnchor="middle"
-                >
-                  AC{idx + 1}
-                </text>
-              </g>
-            )
-          })}
-        </g>
-      )}
-
-      {/* Wall Segments */}
-      {segments.map((seg: any) => {
-        let strokeColor = "#64748b"
-        let strokeWidth = "0.14"
-        let dashArray = ""
-
-        if (seg.type === "DOOR") {
-          strokeColor = "#06b6d4"
-          dashArray = "0.2,0.1"
-          strokeWidth = "0.1"
-        } else if (seg.type === "CHILLER") {
-          strokeColor = "#3b82f6"
-          strokeWidth = "0.18"
-        } else if (seg.type === "CASHIER") {
-          strokeColor = "#f59e0b"
-          strokeWidth = "0.18"
-        } else if (seg.type === "SOLID") {
-          strokeColor = "#94a3b8"
-          strokeWidth = "0.16"
-        }
-
-        return (
-          <line
-            key={`wall-${seg.index}`}
-            x1={seg.p1.x}
-            y1={seg.p1.y}
-            x2={seg.p2.x}
-            y2={seg.p2.y}
-            stroke={strokeColor}
-            strokeWidth={strokeWidth}
-            strokeDasharray={dashArray}
-            strokeLinecap="round"
-          />
-        )
-      })}
-
-      {/* Pillars */}
-      {pillars.map((pillar: any, pIdx: number) => {
-        const wP = pillar.widthM || 0.4
-        const lP = pillar.lengthM || 0.4
-        return (
-          <rect
-            key={`pillar-${pillar.id || pIdx}`}
-            x={pillar.x - wP / 2}
-            y={pillar.y - lP / 2}
-            width={wP}
-            height={lP}
-            rx={0.04}
-            fill="#475569"
-            stroke="#94a3b8"
-            strokeWidth="0.04"
-          />
-        )
-      })}
-
-      {/* Wall Corner Nodes */}
-      {pts.map((pt: any, i: number) => (
-        <circle key={`node-${i}`} cx={pt.x} cy={pt.y} r={0.12} fill="#38bdf8" />
-      ))}
-    </svg>
-  )
-}
 

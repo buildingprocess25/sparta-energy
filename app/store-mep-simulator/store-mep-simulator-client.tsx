@@ -62,7 +62,9 @@ import { getTemperature } from "@/app/actions/get-temperature"
 import {
   saveMepSimulationLog,
   getMepSimulationList,
+  getMepSimulationDetail,
   getLatestStoreMepSimulation,
+  deleteMepSimulationLog,
 } from "@/app/actions/mep-simulation-actions"
 import { calcPolygonArea, type Point } from "@/lib/polygon-utils"
 import { AcMappingResultCard, type AcMappingResultCardData } from "@/components/audit/ac-mapping-result-card"
@@ -1384,7 +1386,10 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
   const [isLoadingSavedLogs, setIsLoadingSavedLogs] = useState<boolean>(false)
   const [savedLogSearch, setSavedLogSearch] = useState<string>("")
   const [detectedLatestLog, setDetectedLatestLog] = useState<any | null>(null)
+  const [deletingLogItem, setDeletingLogItem] = useState<any | null>(null)
+  const [isDeletingLog, setIsDeletingLog] = useState<boolean>(false)
   const lastSaveTimeRef = useRef<number>(0)
+  const triggerSaveMepLogRef = useRef<any>(null)
 
   // ─── 0B. State Sistem Pencahayaan (Lampu) ─────────────────────────────────
   const [lampWatt, setLampWatt] = useState<number>(LAMP_WATT)
@@ -1851,6 +1856,21 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
 
   // ─── 10B. Perhitungan Simulasi Lampu Otomatis ──────────────────────────────
   const calculateAndPlaceLamps = useCallback(() => {
+    // Validasi Wajib Identitas Toko
+    if (storeMode === "existing" && !selectedStore) {
+      toast.error("Pilih toko terdaftar terlebih dahulu.")
+      const el = document.getElementById("store-identity-card")
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
+      return
+    }
+
+    if (storeMode === "new" && (!newStoreName.trim() || !newStoreBranch.trim())) {
+      toast.error("Mohon lengkapi Nama Toko dan Cabang terlebih dahulu.")
+      const el = document.getElementById("store-identity-card")
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
+      return
+    }
+
     if (customPts.length < 3 || !customClosed) {
       toast.error("Tutup denah poligon toko terlebih dahulu sebelum menghitung.")
       return
@@ -1864,11 +1884,21 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
     } else {
       toast.success(`Berhasil menghitung & memetakan grid lampu untuk ${netSalesArea} m² Luas Bersih!`)
     }
-    // Auto-log latar belakang saat hitung lampu
+
+    // Catat ke Activity Log Admin (isDraft: false)
     setTimeout(() => {
-      triggerSaveMepLog(false)
-    }, 150)
-  }, [customPts.length, customClosed, netSalesArea, lightingCalculation.blockedLampsCount])
+      triggerSaveMepLogRef.current?.(false)
+    }, 200)
+  }, [
+    storeMode,
+    selectedStore,
+    newStoreName,
+    newStoreBranch,
+    customPts.length,
+    customClosed,
+    netSalesArea,
+    lightingCalculation.blockedLampsCount,
+  ])
 
   const totalBtuRequired = useMemo(() => {
     return Math.round(grossCalculationArea * targetBtuPerM2)
@@ -2164,6 +2194,23 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
       return
     }
 
+    // Validasi Wajib Identitas Toko saat Simpan Manual
+    if (isManual) {
+      if (storeMode === "existing" && !selectedStore) {
+        toast.error("Pilih toko terdaftar terlebih dahulu.")
+        const el = document.getElementById("store-identity-card")
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
+        return
+      }
+
+      if (storeMode === "new" && (!newStoreName.trim() || !newStoreBranch.trim())) {
+        toast.error("Mohon lengkapi Nama Toko dan Cabang terlebih dahulu.")
+        const el = document.getElementById("store-identity-card")
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
+        return
+      }
+    }
+
     // Cooldown check for automatic logging: minimal 5 detik antar auto-save
     const now = Date.now()
     if (!isManual && now - lastSaveTimeRef.current < 5000) {
@@ -2181,7 +2228,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
       const installedUnitsVal = overrides?.installedUnits ?? unitsToSave.length
 
       const payload = {
-        logId: activeLogId,
+        logId: isManual ? activeLogId : null,
         storeMode,
         storeCode: storeCodeVal || null,
         storeName: storeNameVal || "Toko Denah Simulator",
@@ -2210,11 +2257,12 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
           lampSpasi,
           irregDisabledLamps: Array.from(irregDisabledLamps),
         },
+        isDraft: isManual,
       }
 
       const res = await saveMepSimulationLog(payload)
       if (res.success) {
-        if (res.logId) {
+        if (isManual && res.logId) {
           setActiveLogId(res.logId)
         }
         if (isManual) {
@@ -2261,6 +2309,11 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
     lampOrient,
     lampSpasi,
   ])
+
+  // Sync ref untuk pemanggilan aman di callback sebelumnya
+  useEffect(() => {
+    triggerSaveMepLogRef.current = triggerSaveMepLog
+  }, [triggerSaveMepLog])
 
   // Helper Hapus & Ubah Ukuran / Posisi Pilar
   const handleDeletePillar = useCallback((id: string) => {
@@ -2744,7 +2797,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
     setPendingCashierDepth(null)
     toast.success(`Berhasil menghitung (${maxTemp}°C / ${clusterBtu} BTU/m²) & memetakan ${n} Unit AC 2 PK dengan cakupan optimal & estetika seimbang!`)
 
-    // Auto-log latar belakang saat hitung AC dengan data unit terbaru
+    // Catat ke Activity Log Admin (isDraft: false)
     setTimeout(() => {
       triggerSaveMepLog(false, {
         placedUnits: newUnits,
@@ -2754,11 +2807,26 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
         totalBtu,
         recommendedUnits: n,
       })
-    }, 150)
+    }, 200)
   }
 
   // ─── 10C. Handler Buka Dialog Konfirmasi Parameter Perhitungan ────────────
   const handleOpenAcConfirm = () => {
+    // Validasi Wajib Identitas Toko
+    if (storeMode === "existing" && !selectedStore) {
+      toast.error("Pilih toko terdaftar terlebih dahulu.")
+      const el = document.getElementById("store-identity-card")
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
+      return
+    }
+
+    if (storeMode === "new" && (!newStoreName.trim() || !newStoreBranch.trim())) {
+      toast.error("Mohon lengkapi Nama Toko dan Cabang terlebih dahulu.")
+      const el = document.getElementById("store-identity-card")
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
+      return
+    }
+
     if (customPts.length < 3 || !customClosed) {
       toast.error("Tutup denah poligon toko terlebih dahulu sebelum menghitung.")
       return
@@ -8346,11 +8414,11 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
 
       <main className="mt-2 space-y-6">
         {/* ─── CARD 1: IDENTITAS TOKO & DATA LOKASI (Identik dengan Kalkulator Lampu & AC) ─── */}
-        <div className="flex flex-col gap-3 bg-muted/30 border border-border/50 rounded-2xl p-4 shadow-xs">
+        <div id="store-identity-card" className="flex flex-col gap-3 bg-muted/30 border border-border/50 rounded-2xl p-4 shadow-xs scroll-mt-20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <IconBuildingStore className="size-4 text-emerald-600 dark:text-emerald-400" />
-              <Label className="text-xs font-bold text-foreground">Identitas Toko</Label>
+              <Label className="text-xs font-bold text-foreground">Identitas Toko <span className="text-destructive">*</span></Label>
             </div>
 
             <div className="flex items-center gap-2">
@@ -8445,7 +8513,9 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
             <div className="flex flex-col gap-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="flex flex-col gap-1">
-                  <Label className="text-[10px] font-semibold">Cari & Pilih Toko</Label>
+                  <Label className="text-[10px] font-semibold">
+                    Cari & Pilih Toko <span className="text-destructive">*</span>
+                  </Label>
                   <StoreCombobox
                     stores={stores}
                     value={selectedStore}
@@ -8489,7 +8559,9 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
             <div className="flex flex-col gap-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div className="flex flex-col gap-1">
-                  <Label htmlFor="new_store_name" className="text-[10px] font-semibold">Nama Toko</Label>
+                  <Label htmlFor="new_store_name" className="text-[10px] font-semibold">
+                    Nama Toko <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="new_store_name"
                     placeholder="Contoh: Supratman 2"
@@ -8499,7 +8571,9 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <Label htmlFor="new_store_branch" className="text-[10px] font-semibold">Cabang</Label>
+                  <Label htmlFor="new_store_branch" className="text-[10px] font-semibold">
+                    Cabang <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="new_store_branch"
                     placeholder="Contoh: Cikokol"
@@ -10683,22 +10757,33 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                       </div>
                     </div>
 
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={async () => {
-                        const { getMepSimulationDetail } = await import("@/app/actions/mep-simulation-actions")
-                        const fullLog = await getMepSimulationDetail(logItem.id)
-                        if (fullLog) {
-                          handleApplySavedLayout(fullLog)
-                        } else {
-                          toast.error("Gagal memuat detail denah.")
-                        }
-                      }}
-                      className="h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shrink-0 ml-3"
-                    >
-                      Muat Denah
-                    </Button>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeletingLogItem(logItem)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                        title="Hapus Rancangan"
+                      >
+                        <IconTrash className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={async () => {
+                          const fullLog = await getMepSimulationDetail(logItem.id)
+                          if (fullLog) {
+                            handleApplySavedLayout(fullLog)
+                          } else {
+                            toast.error("Gagal memuat detail denah.")
+                          }
+                        }}
+                        className="h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold cursor-pointer"
+                      >
+                        Muat Denah
+                      </Button>
+                    </div>
                   </div>
                 ))
               )}
@@ -10710,9 +10795,91 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                 variant="outline"
                 size="sm"
                 onClick={() => setSavedLayoutModalOpen(false)}
-                className="h-8 text-xs"
+                className="h-8 text-xs cursor-pointer"
               >
                 Tutup
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal Konfirmasi Hapus Rancangan Denah */}
+        <Dialog open={Boolean(deletingLogItem)} onOpenChange={(open) => !open && setDeletingLogItem(null)}>
+          <DialogContent className="max-w-md p-6">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-full bg-destructive/10 text-destructive shrink-0">
+                  <IconTrash className="size-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-foreground">
+                    Hapus Rancangan Denah?
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                    Tindakan ini permanen dan akan menghapus data simulasi denah toko dari sistem.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            {deletingLogItem && (
+              <div className="p-3.5 rounded-xl border border-border/70 bg-muted/30 text-xs space-y-1.5 my-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-foreground text-sm">{deletingLogItem.storeName}</span>
+                  {deletingLogItem.storeCode && (
+                    <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 h-4">
+                      {deletingLogItem.storeCode}
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                  <span>Cabang: {deletingLogItem.branch || "-"}</span>
+                  <span>•</span>
+                  <span>Luas: {deletingLogItem.salesArea} m²</span>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 sm:gap-0 mt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isDeletingLog}
+                onClick={() => setDeletingLogItem(null)}
+                className="cursor-pointer"
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={isDeletingLog}
+                onClick={async () => {
+                  if (!deletingLogItem) return
+                  setIsDeletingLog(true)
+                  try {
+                    const res = await deleteMepSimulationLog(deletingLogItem.id)
+                    if (res.success) {
+                      setSavedLogsList((prev) => prev.filter((item) => item.id !== deletingLogItem.id))
+                      if (activeLogId === deletingLogItem.id) {
+                        setActiveLogId(null)
+                      }
+                      toast.success("Rancangan berhasil dihapus.")
+                      setDeletingLogItem(null)
+                    } else {
+                      toast.error(res.error || "Gagal menghapus rancangan.")
+                    }
+                  } catch (err) {
+                    toast.error("Terjadi kesalahan saat menghapus rancangan.")
+                  } finally {
+                    setIsDeletingLog(false)
+                  }
+                }}
+                className="cursor-pointer font-semibold"
+              >
+                {isDeletingLog ? "Menghapus..." : "Ya, Hapus Rancangan"}
               </Button>
             </DialogFooter>
           </DialogContent>
