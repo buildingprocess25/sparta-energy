@@ -174,6 +174,7 @@ export async function getValidationAudit(id: string) {
     where: { id },
     select: {
       id: true,
+      storeId: true,
       status: true,
       isBoros: true,
       auditDate: true,
@@ -182,10 +183,32 @@ export async function getValidationAudit(id: string) {
       gapPercent: true,
       validationStatus: true,
       validatedAt: true,
+      storeType: true,
+      plnPowerVa: true,
+      salesAreaM2: true,
+      parkingAreaM2: true,
+      terraceAreaM2: true,
+      warehouseAreaM2: true,
+      is24Hours: true,
+      openTime: true,
+      closeTime: true,
       validatedBy: { select: { fullName: true, email: true } },
       auditor: { select: { fullName: true, email: true } },
       store: {
-        select: { code: true, name: true, branch: true, type: true },
+        select: {
+          code: true,
+          name: true,
+          branch: true,
+          type: true,
+          plnPowerVa: true,
+          salesAreaM2: true,
+          parkingAreaM2: true,
+          terraceAreaM2: true,
+          warehouseAreaM2: true,
+          is24Hours: true,
+          openTime: true,
+          closeTime: true,
+        },
       },
       items: {
         orderBy: [{ areaTarget: "asc" }, { customName: "asc" }],
@@ -211,8 +234,47 @@ export async function getValidationAudit(id: string) {
 
   if (!audit || audit.status !== "COMPLETED") return null
 
+  const [latest, previous] = await Promise.all([
+    prisma.audit.findFirst({
+      where: { storeId: audit.storeId, status: "COMPLETED" },
+      orderBy: { auditDate: "desc" },
+      select: { id: true },
+    }),
+    prisma.audit.findFirst({
+      where: {
+        storeId: audit.storeId,
+        status: "COMPLETED",
+        auditDate: { lt: audit.auditDate },
+      },
+      orderBy: { auditDate: "desc" },
+      select: {
+        auditDate: true,
+        items: {
+          select: {
+            areaTarget: true,
+            customName: true,
+            equipmentTypeId: true,
+            qty: true,
+          },
+        },
+      },
+    }),
+  ])
+
   return {
     id: audit.id,
+    isLatest: latest?.id === audit.id,
+    previousAudit: previous
+      ? {
+          auditDate: previous.auditDate.toISOString(),
+          items: previous.items.map((item) => ({
+            areaTarget: item.areaTarget,
+            name: (item.customName ?? "").replace(/\s*\[NOTE:.*?\]$/, ""),
+            equipmentTypeId: item.equipmentTypeId,
+            qty: item.qty,
+          })),
+        }
+      : null,
     isBoros: audit.isBoros === true,
     auditDate: audit.auditDate.toISOString(),
     actualKwhPerMonth: Number(audit.avgActualPlnKwhPerMonth ?? 0),
@@ -224,7 +286,25 @@ export async function getValidationAudit(id: string) {
     validatedBy:
       audit.validatedBy?.fullName ?? audit.validatedBy?.email ?? null,
     auditor: audit.auditor.fullName ?? audit.auditor.email,
-    store: audit.store,
+    store: {
+      code: audit.store.code,
+      name: audit.store.name,
+      branch: audit.store.branch,
+    },
+    // Audits saved before the technical columns existed fall back to the store row.
+    technical: {
+      storeType: audit.storeType ?? (audit.store.type || null),
+      plnPowerVa: audit.plnPowerVa ?? audit.store.plnPowerVa,
+      areas: {
+        sales: Number(audit.salesAreaM2 ?? audit.store.salesAreaM2),
+        parkir: Number(audit.parkingAreaM2 ?? audit.store.parkingAreaM2),
+        teras: Number(audit.terraceAreaM2 ?? audit.store.terraceAreaM2),
+        gudang: Number(audit.warehouseAreaM2 ?? audit.store.warehouseAreaM2),
+      },
+      is24Hours: audit.is24Hours ?? audit.store.is24Hours,
+      openTime: audit.openTime ?? audit.store.openTime,
+      closeTime: audit.closeTime ?? audit.store.closeTime,
+    },
     items: audit.items.map((item) => ({
       id: item.id,
       areaTarget: item.areaTarget,
@@ -248,3 +328,4 @@ export type ValidationAudit = NonNullable<
   Awaited<ReturnType<typeof getValidationAudit>>
 >
 export type ValidationAuditItem = ValidationAudit["items"][number]
+export type ValidationTechnical = ValidationAudit["technical"]

@@ -46,6 +46,14 @@ type ItemFormDialogProps = {
   area: AreaKey
   item: ValidationAuditItem | null
   equipmentMaster: EquipmentMasterItem[]
+  presetType?: EquipmentMasterItem | null
+  defaultHours?: number
+}
+
+function defaultUsage(calcMethod: string | undefined) {
+  if (calcMethod === "TRANSACTION") return "50"
+  if (calcMethod === "BATCH") return "6"
+  return ""
 }
 
 type FormErrors = Partial<Record<"name" | "qty" | "hours" | "kw" | "usage", string>>
@@ -61,18 +69,28 @@ export function ItemFormDialog({
   area,
   item,
   equipmentMaster,
+  presetType = null,
+  defaultHours,
 }: ItemFormDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const isEdit = item !== null
 
-  const [typeId, setTypeId] = useState(item?.equipmentTypeId ?? CUSTOM_TYPE)
-  const [name, setName] = useState(item?.name ?? "")
+  const [typeId, setTypeId] = useState(
+    item?.equipmentTypeId ?? presetType?.id ?? CUSTOM_TYPE
+  )
+  const [name, setName] = useState(item?.name ?? presetType?.name ?? "")
   const [brandName, setBrandName] = useState(item?.brandName ?? "")
   const [qty, setQty] = useState(String(item?.qty ?? 1))
-  const [hours, setHours] = useState(String(item?.operationalHours ?? ""))
-  const [kw, setKw] = useState(String(item?.baseKw ?? ""))
-  const [usage, setUsage] = useState(String(item?.usageCount ?? ""))
+  const [hours, setHours] = useState(
+    String(item?.operationalHours ?? defaultHours ?? "")
+  )
+  const [kw, setKw] = useState(String(item?.baseKw ?? presetType?.defaultKw ?? ""))
+  const [usage, setUsage] = useState(
+    item?.usageCount != null
+      ? String(item.usageCount)
+      : defaultUsage(presetType?.calcMethod)
+  )
   const [errors, setErrors] = useState<FormErrors>({})
 
   const typesByCategory = useMemo(() => {
@@ -186,7 +204,11 @@ export function ItemFormDialog({
         <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
           <DialogHeader>
             <DialogTitle>
-              {isEdit ? `Ubah ${item.name}` : "Tambah Alat"}
+              {isEdit
+                ? `Ubah ${item.name}`
+                : presetType
+                  ? `Tambah ${presetType.name}`
+                  : "Tambah Alat"}
             </DialogTitle>
             <DialogDescription>
               Area {areaLabels[area]}. Estimasi kWh toko dihitung ulang setelah
@@ -195,7 +217,7 @@ export function ItemFormDialog({
           </DialogHeader>
 
           <FieldGroup className="gap-4">
-            {!isEdit && (
+            {!isEdit && !presetType && (
               <>
                 <Field>
                   <FieldLabel htmlFor="item-type">Jenis alat</FieldLabel>

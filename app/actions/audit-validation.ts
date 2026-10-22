@@ -9,6 +9,7 @@ import {
   summarizeAuditItems,
 } from "@/lib/audit-recalculate"
 import { prisma } from "@/lib/prisma"
+import { STORE_TYPES } from "@/lib/store-types"
 
 type ActionResult = {
   success: boolean
@@ -34,9 +35,56 @@ export type UpdateAuditItemInput = ItemFields & {
   itemId: string
 }
 
+export type AuditTechnicalInput = {
+  storeType: string
+  plnPowerVa: number
+  areas: { sales: number; parkir: number; teras: number; gudang: number }
+  is24Hours: boolean
+  openTime: string | null
+  closeTime: string | null
+}
+
 const areaTargets: AreaTarget[] = ["PARKING", "TERRACE", "SALES", "WAREHOUSE"]
+const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/
 
 class ValidationError extends Error {}
+
+function checkTechnical(input: AuditTechnicalInput) {
+  if (!(STORE_TYPES as readonly string[]).includes(input.storeType)) {
+    throw new ValidationError("Pilih tipe toko terlebih dahulu.")
+  }
+  if (!Number.isInteger(input.plnPowerVa) || input.plnPowerVa < 1) {
+    throw new ValidationError("Daya PLN harus angka bulat lebih dari 0 VA.")
+  }
+  const areas = Object.values(input.areas)
+  if (areas.some((value) => !Number.isFinite(value) || value < 0)) {
+    throw new ValidationError("Luas area tidak boleh kosong atau negatif.")
+  }
+  if (!(input.areas.sales > 0)) {
+    throw new ValidationError("Luas sales area harus lebih dari 0 m².")
+  }
+  if (
+    !input.is24Hours &&
+    (!timePattern.test(input.openTime ?? "") ||
+      !timePattern.test(input.closeTime ?? ""))
+  ) {
+    throw new ValidationError("Isi jam buka dan jam tutup toko.")
+  }
+}
+
+function toTechnicalData(input: AuditTechnicalInput) {
+  return {
+    storeType: input.storeType,
+    plnPowerVa: input.plnPowerVa,
+    salesAreaM2: input.areas.sales,
+    parkingAreaM2: input.areas.parkir,
+    terraceAreaM2: input.areas.teras,
+    warehouseAreaM2: input.areas.gudang,
+    is24Hours: input.is24Hours,
+    openTime: input.is24Hours ? null : input.openTime,
+    closeTime: input.is24Hours ? null : input.closeTime,
+  }
+}
 
 function checkItemFields(fields: ItemFields) {
   if (!Number.isInteger(fields.qty) || fields.qty < 1 || fields.qty > 999) {
@@ -59,6 +107,7 @@ async function getEditableAudit(tx: Prisma.TransactionClient, auditId: string) {
     where: { id: auditId },
     select: {
       id: true,
+      storeId: true,
       status: true,
       validationStatus: true,
       avgActualPlnKwhPerMonth: true,
@@ -284,19 +333,78 @@ export async function deleteAuditItem(itemId: string) {
   })
 }
 
-export async function validateAudit(auditId: string) {
-  return runAction("Gagal memvalidasi audit. Coba lagi.", async (validatorId) => {
-    const storeName = await prisma.$transaction(async (tx) => {
+export async function deleteAuditItems(auditId: string, itemIds: string[]) {
+  return runAction("Gagal menghapus alat. Coba lagi.", async () => {
+    if (itemIds.length === 0) throw new ValidationError("Tidak ada alat yang dipilih.")
+
+    await prisma.$transaction(async (tx) => {
+      const audit = await getEditableAudit(tx, auditId)
+      await tx.auditItem.deleteMany({
+        where: { auditId, id: { in: itemIds } },
+      })
+      await recalculateAuditTotals(
+        tx,
+        audit.id,
+        Number(audit.avgActualPlnKwhPerMonth ?? 0)
+      )
+    })
+
+    return { auditId, message: "Alat dihapus dari audit." }
+  })
+}
+
+export async function saveAuditTechnical(
+  auditId: string,
+  technical: AuditTechnicalInput
+) {
+  return runAction("Gagal menyimpan teknis toko. Coba lagi.", async () => {
+    checkTechnical(technical)
+    await prisma.$transaction(async (tx) => {
       await getEditableAudit(tx, auditId)
+      await tx.audit.update({
+        where: { id: auditId },
+        data: toTechnicalData(technical),
+      })
+    })
+    return { auditId, message: "Teknis toko disimpan." }
+  })
+}
+
+export async function validateAudit(
+  auditId: string,
+  technical: AuditTechnicalInput
+) {
+  return runAction("Gagal memvalidasi audit. Coba lagi.", async (validatorId) => {
+    checkTechnical(technical)
+    const technicalData = toTechnicalData(technical)
+
+    const storeName = await prisma.$transaction(async (tx) => {
+      const audit = await getEditableAudit(tx, auditId)
       const updated = await tx.audit.update({
         where: { id: auditId },
         data: {
+          ...technicalData,
           validationStatus: "VALIDATED",
           validatedAt: new Date(),
           validatedById: validatorId,
         },
         select: { store: { select: { name: true } } },
       })
+
+      // An older audit must not overwrite technical data from a newer one.
+      const latest = await tx.audit.findFirst({
+        where: { storeId: audit.storeId, status: "COMPLETED" },
+        orderBy: { auditDate: "desc" },
+        select: { id: true },
+      })
+      if (latest?.id === auditId) {
+        const { storeType, ...storeTechnical } = technicalData
+        await tx.store.update({
+          where: { id: audit.storeId },
+          data: { ...storeTechnical, type: storeType },
+        })
+      }
+
       return updated.store.name
     })
 

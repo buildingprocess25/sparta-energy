@@ -227,6 +227,17 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
       calc.avgActualPlnKwhPerMonth,
       calc.equipmentEstimateKwhPerMonth
     )
+    const storeTechnical = {
+      storeType: input.storeType || null,
+      plnPowerVa: input.plnPowerVa,
+      salesAreaM2: input.areas.sales,
+      parkingAreaM2: input.areas.parkir,
+      terraceAreaM2: input.areas.teras,
+      warehouseAreaM2: input.areas.gudang,
+      is24Hours: input.is24Hours,
+      openTime: input.is24Hours ? null : input.openTime,
+      closeTime: input.is24Hours ? null : input.closeTime,
+    }
 
     // ── 5. Create or Update Audit record ─────────────────────────────────────────
     let audit
@@ -246,6 +257,7 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
           totalEstimatedKwhPerMonth: calc.equipmentEstimateKwhPerMonth,
           avgActualPlnKwhPerMonth: calc.avgActualPlnKwhPerMonth,
           gapPercent,
+          ...storeTechnical,
           validationStatus: "PENDING",
           validatedAt: null,
           validatedById: null,
@@ -262,6 +274,7 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
           totalEstimatedKwhPerMonth: calc.equipmentEstimateKwhPerMonth,
           avgActualPlnKwhPerMonth: calc.avgActualPlnKwhPerMonth,
           gapPercent,
+          ...storeTechnical,
           auditDate: new Date(),
         },
       })

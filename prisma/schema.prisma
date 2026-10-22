@@ -133,6 +133,16 @@ model Audit {
   validationStatus          AuditValidationStatus @default(PENDING) @map("validation_status")
   validatedAt               DateTime?             @map("validated_at")
   validatedById             String?               @map("validated_by_id") @db.Uuid
+  // Store technical data as entered for this audit, so history keeps its own values
+  storeType                 String?               @map("store_type")
+  plnPowerVa                Int?                  @map("pln_power_va")
+  parkingAreaM2             Decimal?              @map("parking_area_m2")
+  terraceAreaM2             Decimal?              @map("terrace_area_m2")
+  salesAreaM2               Decimal?              @map("sales_area_m2")
+  warehouseAreaM2           Decimal?              @map("warehouse_area_m2")
+  is24Hours                 Boolean?              @map("is_24_hours")
+  openTime                  String?               @map("open_time")
+  closeTime                 String?               @map("close_time")
   createdAt                 DateTime              @default(now()) @map("created_at")
   updatedAt                 DateTime              @updatedAt @map("updated_at")
   items                     AuditItem[]

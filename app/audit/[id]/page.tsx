@@ -25,21 +25,32 @@ export default async function AuditResultPage({ params }: Props) {
 
   if (!audit) notFound()
 
+  // Decimal columns cannot cross to the client component, so they are pulled
+  // out here; areas recorded on the audit win over the current store row.
+  const {
+    salesAreaM2,
+    parkingAreaM2,
+    terraceAreaM2,
+    warehouseAreaM2,
+    ...auditFields
+  } = audit
+
   return (
     <AuditResultDB
       audit={{
-        ...audit,
+        ...auditFields,
         totalEstimatedKwhPerMonth: audit.totalEstimatedKwhPerMonth
           ? Number(audit.totalEstimatedKwhPerMonth)
           : null,
         avgActualPlnKwhPerMonth: audit.avgActualPlnKwhPerMonth
           ? Number(audit.avgActualPlnKwhPerMonth)
-          : null,        store: {
+          : null,
+        store: {
           ...audit.store,
-          salesAreaM2: Number(audit.store.salesAreaM2),
-          parkingAreaM2: Number(audit.store.parkingAreaM2),
-          terraceAreaM2: Number(audit.store.terraceAreaM2),
-          warehouseAreaM2: Number(audit.store.warehouseAreaM2),
+          salesAreaM2: Number(salesAreaM2 ?? audit.store.salesAreaM2),
+          parkingAreaM2: Number(parkingAreaM2 ?? audit.store.parkingAreaM2),
+          terraceAreaM2: Number(terraceAreaM2 ?? audit.store.terraceAreaM2),
+          warehouseAreaM2: Number(warehouseAreaM2 ?? audit.store.warehouseAreaM2),
         },
         items: audit.items.map((item) => ({
           ...item,

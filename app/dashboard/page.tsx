@@ -122,6 +122,10 @@ export default async function DashboardPage() {
       auditDate: true,
       isBoros: true,
       validationStatus: true,
+      salesAreaM2: true,
+      parkingAreaM2: true,
+      terraceAreaM2: true,
+      warehouseAreaM2: true,
       totalEstimatedKwhPerMonth: true,
       avgActualPlnKwhPerMonth: true,
       store: {
@@ -140,10 +144,10 @@ export default async function DashboardPage() {
   // Map to RecentAuditItem shape
   const auditItems: RecentAuditItem[] = recentAudits.map((a) => {
     const totalAreaM2 =
-      Number(a.store.salesAreaM2) +
-        Number(a.store.parkingAreaM2) +
-        Number(a.store.terraceAreaM2) +
-        Number(a.store.warehouseAreaM2) || 1
+      Number(a.salesAreaM2 ?? a.store.salesAreaM2) +
+        Number(a.parkingAreaM2 ?? a.store.parkingAreaM2) +
+        Number(a.terraceAreaM2 ?? a.store.terraceAreaM2) +
+        Number(a.warehouseAreaM2 ?? a.store.warehouseAreaM2) || 1
 
     const est = Number(a.totalEstimatedKwhPerMonth ?? 0) / totalAreaM2
     const actual = Number(a.avgActualPlnKwhPerMonth ?? 0) / totalAreaM2
