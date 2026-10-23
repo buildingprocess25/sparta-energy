@@ -1,5 +1,10 @@
 import Link from "next/link"
-import { IconChevronRight, IconClipboardCheck } from "@tabler/icons-react"
+import {
+  IconChevronRight,
+  IconCircleCheck,
+  IconClipboardCheck,
+  IconClock,
+} from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
 import {
@@ -66,7 +71,19 @@ export function ValidationStoreList({
                   >
                     {row.isBoros ? "Boros" : "Hemat"}
                   </Badge>
-                  <Badge variant={row.isValidated ? "secondary" : "outline"}>
+                  <Badge
+                    className={cn(
+                      "border-transparent",
+                      row.isValidated
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
+                        : "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
+                    )}
+                  >
+                    {row.isValidated ? (
+                      <IconCircleCheck data-icon="inline-start" aria-hidden="true" />
+                    ) : (
+                      <IconClock data-icon="inline-start" aria-hidden="true" />
+                    )}
                     {row.isValidated ? "Sudah divalidasi" : "Menunggu validasi"}
                   </Badge>
                 </div>

@@ -69,7 +69,7 @@ export function parseValidationFilters(
 
 // Each store is represented by its latest completed audit, so a validated
 // store only needs checking again once a newer audit comes in.
-const latestAuditPerStore = Prisma.sql`
+export const latestAuditPerStore = Prisma.sql`
   WITH latest AS (
     SELECT DISTINCT ON (a.store_id)
       a.id, a.store_id, a.audit_date, a.is_boros, a.validation_status,
@@ -81,7 +81,7 @@ const latestAuditPerStore = Prisma.sql`
 `
 
 // DEMO stores stay visible in development so the flow can be tested on them.
-const activeStoreSql =
+export const activeStoreSql =
   process.env.NODE_ENV === "production"
     ? Prisma.sql`(s.branch IS NULL OR lower(s.branch) NOT IN ('demo', 'head office'))`
     : Prisma.sql`(s.branch IS NULL OR lower(s.branch) <> 'head office')`

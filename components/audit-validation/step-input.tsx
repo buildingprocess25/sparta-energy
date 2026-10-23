@@ -139,7 +139,7 @@ export function StepInput({ audit, equipmentMaster, defaultHours }: StepInputPro
 
           {isLocked && (
             <Alert>
-              <IconCircleCheck />
+              <IconCircleCheck className="text-primary" />
               <AlertTitle>Sudah divalidasi</AlertTitle>
               <AlertDescription>
                 {audit.validatedBy ?? "Admin"} memvalidasi kalkulasi ini

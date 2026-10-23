@@ -24,6 +24,7 @@ model User {
   acCalculatorLogs    AcCalculatorLog[]
   lightCalculatorLogs LightCalculatorLog[]
   mepSimulationLogs   MepSimulationLog[]
+  energyAudits        EnergyAudit[]
 
   @@map("users")
 }
@@ -78,9 +79,11 @@ model Store {
   warehouseAreaM2 Decimal   @map("warehouse_area_m2")
   latitude        Float?    @map("latitude")
   longitude       Float?    @map("longitude")
+  address         String?   @map("address")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   audits          Audit[]
+  energyAudits    EnergyAudit[]
 
   @@map("stores")
 }
@@ -149,6 +152,7 @@ model Audit {
   items                     AuditItem[]
   plnHistory                AuditPlnStdHistory[]
   recommendations           AuditRecommendation[]
+  energyAudits              EnergyAudit[]
   auditor                   User                  @relation("AuditAuditor", fields: [auditorId], references: [id])
   validatedBy               User?                 @relation("AuditValidator", fields: [validatedById], references: [id], onDelete: SetNull)
   store                     Store                 @relation(fields: [storeId], references: [id])
@@ -215,6 +219,46 @@ enum AuditStatus {
 enum AuditValidationStatus {
   PENDING
   VALIDATED
+}
+
+enum EnergyAuditCategory {
+  TATA_CAHAYA
+  TATA_UDARA_VENTILASI
+  REFRIGERASI
+  SELUBUNG_BANGUNAN
+  KELISTRIKAN
+  BEBAN_PASIF_STOPKONTAK
+  BEANSPOT
+}
+
+enum EnergyAuditStatus {
+  DRAFT
+  COMPLETED
+}
+
+// Field audit per category. `data` holds the category-specific form, so new
+// categories need no new table; summary columns stay queryable for reports.
+model EnergyAudit {
+  id            String              @id @default(uuid()) @db.Uuid
+  storeId       String              @map("store_id") @db.Uuid
+  sourceAuditId String?             @map("source_audit_id") @db.Uuid
+  category      EnergyAuditCategory
+  status        EnergyAuditStatus   @default(DRAFT)
+  auditorId     String              @map("auditor_id") @db.Uuid
+  auditDate     DateTime            @default(now()) @map("audit_date")
+  summaryStatus String?             @map("summary_status")
+  data          Json
+  completedAt   DateTime?           @map("completed_at")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  store       Store  @relation(fields: [storeId], references: [id])
+  sourceAudit Audit? @relation(fields: [sourceAuditId], references: [id], onDelete: SetNull)
+  auditor     User   @relation(fields: [auditorId], references: [id])
+
+  @@unique([sourceAuditId, category])
+  @@index([category, status])
+  @@map("energy_audits")
 }
 
 enum AreaTarget {

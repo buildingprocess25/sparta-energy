@@ -14,6 +14,8 @@ import { HeroCard } from "@/components/dashboard/hero-card"
 import { CalculatorGrid } from "@/components/dashboard/calculator-grid"
 import { DraftListSection } from "@/components/dashboard/draft-list-section"
 import { ValidationCard } from "@/components/dashboard/validation-card"
+import { EnergyAuditCard } from "@/components/dashboard/energy-audit-card"
+import { getEnergyAuditPendingCount } from "@/lib/energy-audit-queries"
 import { canValidateAudit } from "@/lib/audit-validation-access"
 import { getPendingValidationCount } from "@/lib/audit-validation-queries"
 
@@ -55,9 +57,12 @@ export default async function DashboardPage() {
   if (!dbUser) redirect("/forbidden")
   const isAdmin = dbUser.role === "ADMIN"
   const canValidate = canValidateAudit(dbUser.role)
-  const pendingValidationCount = canValidate
-    ? await getPendingValidationCount()
-    : 0
+  const [pendingValidationCount, energyAuditReadyCount] = canValidate
+    ? await Promise.all([
+        getPendingValidationCount(),
+        getEnergyAuditPendingCount(),
+      ])
+    : [0, 0]
 
   // Fetch draft audits for this user
   const draftAudits = await prisma.audit.findMany({
@@ -186,6 +191,7 @@ export default async function DashboardPage() {
         <div className="lg:col-span-8 space-y-6">
           <HeroCard />
           {canValidate && <ValidationCard pendingCount={pendingValidationCount} />}
+          {canValidate && <EnergyAuditCard readyCount={energyAuditReadyCount} />}
           <CalculatorGrid isAdmin={isAdmin} />
           <DraftListSection drafts={drafts} />
         </div>
