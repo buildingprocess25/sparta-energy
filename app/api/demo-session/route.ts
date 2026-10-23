@@ -7,6 +7,14 @@ const DEMO_PASSWORD = "demo-sparta-2025"
 const DEMO_SESSION_HOURS = 1
 
 export async function POST() {
+  // Security guard: strictly prohibit demo session outside development
+  if (process.env.NODE_ENV !== "development") {
+    return NextResponse.json(
+      { error: "Demo session hanya diizinkan pada environment development lokal." },
+      { status: 403 }
+    )
+  }
+
   try {
     // Use better-auth's sign-in to issue a real session cookie for the demo user
     const response = await auth.api.signInEmail({

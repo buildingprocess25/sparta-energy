@@ -14,6 +14,11 @@ export function DemoLoginButton() {
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Security guard: never render demo login button in production
+  if (process.env.NODE_ENV !== "development") {
+    return null
+  }
+
   async function handleDemo() {
     setError(null)
     setIsPending(true)
