@@ -57,3 +57,15 @@ Sistem terdiri dari 3 repositori/proyek independen dengan peran dan domain fungs
    - Digunakan oleh `smart-energy-meter-vps` saat auditor/teknisi mengasosiasikan device IoT dengan toko yang sedang diaudit.
 2. **Single Sign-On (SSO):**
    - Tabel `users`, `sessions`, dan `accounts` di `sparta_energy` menjadi basis autentikasi terpusat yang juga digunakan oleh `smart-energy-monitoring`.
+
+---
+
+## 🔗 4. Kontrak DB 1 antar-repo (dicek 23 Oktober 2026)
+
+1. **Nama database:** nama sebenarnya DB 1 adalah `energy`. Sebutan `sparta_energy` di dokumen ini merujuk ke database yang sama.
+2. **Migrasi:** skema DB 1 hanya diubah lewat migrasi Prisma di `sparta-energy` (`npx prisma migrate deploy`). `smart-energy-monitoring` hanya membaca DB 1 lewat `SPARTA_DATABASE_URL` dan tidak pernah menjalankan migrasi atau menulis data.
+3. **View yang menjadi kontrak:** nama kolomnya dipakai repo lain. Menambah kolom aman, tetapi mengubah atau menghapus kolom harus dikoordinasikan dulu.
+
+   | View | Dipakai oleh | Rincian |
+   |---|---|---|
+   | `v_toko_sangat_boros` | `smart-energy-monitoring` (Prioritas Pasang IoT, baseline grafik kWh) dan label "Sangat Boros" di admin `sparta-energy` | `docs/integrasi-sangat-boros-monitoring.md` |

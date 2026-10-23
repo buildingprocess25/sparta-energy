@@ -88,23 +88,14 @@ export const activeStoreSql =
     ? Prisma.sql`(s.branch IS NULL OR lower(s.branch) NOT IN ('demo', 'head office'))`
     : Prisma.sql`(s.branch IS NULL OR lower(s.branch) <> 'head office')`
 
-// "Sangat boros": the boros stores with the largest gap, regardless of
-// validation status, so the flag stays put after a store is validated.
-// Needs the `latest` CTE from latestAuditPerStore in the same query.
-export const sangatBorosIdsSql = Prisma.sql`
-  SELECT t.id
-  FROM latest t
-  JOIN stores s ON s.id = t.store_id
-  WHERE ${activeStoreSql} AND t.is_boros = true AND t.gap_percent IS NOT NULL
-  ORDER BY t.gap_percent DESC
-  LIMIT ${TOP_BOROS_LIMIT}
-`
+// "Sangat boros" comes from the v_toko_sangat_boros view, the same source the
+// smart-energy-monitoring portal reads, so both apps flag the same stores.
+export const sangatBorosIdsSql = Prisma.sql`SELECT audit_id FROM v_toko_sangat_boros`
 
 export async function isSangatBorosAudit(auditId: string) {
   const rows = await prisma.$queryRaw<{ flag: boolean }[]>`
-    ${latestAuditPerStore}
     SELECT EXISTS (
-      SELECT 1 FROM (${sangatBorosIdsSql}) top_boros WHERE top_boros.id = ${auditId}::uuid
+      SELECT 1 FROM v_toko_sangat_boros WHERE audit_id = ${auditId}::uuid
     ) AS flag
   `
   return rows[0]?.flag === true

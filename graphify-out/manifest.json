@@ -1734,10 +1734,10 @@
     "semantic_hash": ""
   },
   "ARCHITECTURE_PLAN.md": {
-    "mtime": 1790057425.8352215,
-    "seen": 1792635430.1320927,
-    "ast_hash": "4d4294efc2215f94da4c5b9607f99f85",
-    "semantic_hash": "4d4294efc2215f94da4c5b9607f99f85"
+    "mtime": 1792750896.9435837,
+    "seen": 1792751049.82588,
+    "ast_hash": "5d2f2770817070055e4b0d5c8064d7e8",
+    "semantic_hash": ""
   },
   "CLAUDE.md": {
     "mtime": 1792720065.3721173,
@@ -2016,9 +2016,9 @@
     "semantic_hash": ""
   },
   "lib/audit-validation-queries.ts": {
-    "mtime": 1792728175.1615307,
-    "seen": 1792728432.7365413,
-    "ast_hash": "7f945dca16d836dad9cf6e4117fb464b",
+    "mtime": 1792750656.5877962,
+    "seen": 1792751049.809805,
+    "ast_hash": "daddad835d70e0c9babec49bfa01bd2d",
     "semantic_hash": ""
   },
   ".claude/skills/antislop-code/SKILL.md": {
@@ -2235,6 +2235,12 @@
     "mtime": 1792728192.812508,
     "seen": 1792728432.6954114,
     "ast_hash": "d906e2979e5f911f517ebcae7c9c05e2",
+    "semantic_hash": ""
+  },
+  "docs/integrasi-sangat-boros-monitoring.md": {
+    "mtime": 1792750885.630708,
+    "seen": 1792751049.82788,
+    "ast_hash": "6d38b43a079c866ee11b7bb6b619cf17",
     "semantic_hash": ""
   }
 }
