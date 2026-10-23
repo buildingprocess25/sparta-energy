@@ -11,6 +11,7 @@ import {
   IconBulb,
   IconArrowLeft,
   IconSparkles,
+  IconCircleCheck,
 } from "@tabler/icons-react"
 import {
   Bar,
@@ -26,6 +27,7 @@ import { Label, Pie, PieChart } from "recharts"
 import Link from "next/link"
 
 import { Header } from "@/components/header"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -91,8 +93,8 @@ const areaChartConfig = {
 } satisfies ChartConfig
 
 const trendChartConfig = {
-  actual: { label: "Actual", color: "var(--chart-3)" },
-  standard: { label: "Estimasi Eq", color: "var(--muted-foreground)" },
+  actual: { label: "Aktual PLN", color: "var(--chart-3)" },
+  standard: { label: "Standar Konsumsi Energi", color: "var(--muted-foreground)" },
 } satisfies ChartConfig
 
 const numberFormat = new Intl.NumberFormat("id-ID")
@@ -108,12 +110,23 @@ function getAreaLabel(area: string) {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
+type AuditValidationInfo = {
+  validatedBy: string
+  validatedAt: string
+}
+
+const validationDateFormat = new Intl.DateTimeFormat("id-ID", {
+  dateStyle: "long",
+})
+
 export function AuditResultDB({
   audit,
+  validation = null,
   dashboardHref = "/dashboard",
   dashboardLabel = "Kembali ke Dashboard",
 }: {
   audit: AuditDB
+  validation?: AuditValidationInfo | null
   dashboardHref?: string
   dashboardLabel?: string
 }) {
@@ -186,7 +199,7 @@ export function AuditResultDB({
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-5xl lg:max-w-7xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-36">
-      <Header variant="title-only" title="Hasil Audit Energi" />
+      <Header variant="title-only" title="Hasil Identifikasi Energi" />
 
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Status Card, PLN Trend Chart, Area Pie Chart (lg:col-span-6) */}
@@ -207,7 +220,7 @@ export function AuditResultDB({
             </Badge>
             <div>
               <p className="text-[10px] tracking-[0.18em] text-white/80 uppercase">
-                Hasil Audit:
+                Hasil Identifikasi:
               </p>
               <div className="flex items-center gap-2">
                 <StatusIcon className="size-8" />
@@ -226,7 +239,7 @@ export function AuditResultDB({
                 </p>
                 <div className="flex items-center gap-1">
                   <p className="text-[10px] font-semibold tracking-wider text-white/80 uppercase">
-                    Aktual Rata-rata
+                    Aktual PLN
                   </p>
                   <div className="group relative">
                     <IconInfoCircle className="size-3 cursor-help text-white/60" />
@@ -246,13 +259,13 @@ export function AuditResultDB({
                 </p>
                 <div className="flex items-center gap-1">
                   <p className="text-[10px] font-semibold tracking-wider text-white/80 uppercase">
-                    Baseline
+                    Standar Konsumsi Energi
                   </p>
                   <div className="group relative">
                     <IconInfoCircle className="size-3 cursor-help text-white/60" />
                     <div className="pointer-events-none absolute right-0 bottom-full z-50 mb-2 w-52 rounded-xl bg-black/85 px-3 py-2.5 text-[11px] leading-relaxed tracking-normal text-white normal-case opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
                       Perkiraan penggunaan listrik wajar berdasarkan semua
-                      peralatan yang terdata di audit ini. Angka ini menjadi
+                      peralatan yang terdata di kalkulasi ini. Angka ini menjadi
                       patokan apakah toko boros atau hemat.
                     </div>
                   </div>
@@ -261,6 +274,17 @@ export function AuditResultDB({
             </div>
           </CardContent>
         </Card>
+
+        {validation && (
+          <Alert>
+            <IconCircleCheck className="text-primary" />
+            <AlertTitle>Sudah divalidasi</AlertTitle>
+            <AlertDescription>
+              Data alat sudah dicek oleh {validation.validatedBy} pada{" "}
+              {validationDateFormat.format(new Date(validation.validatedAt))}.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* ── 2. Rekomendasi ── */}
         {recommendation && (
@@ -363,7 +387,7 @@ export function AuditResultDB({
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3">
-              <span className="text-sm">Baseline</span>
+              <span className="text-sm">Standar Konsumsi Energi</span>
               <span className="font-bold">
                 {numberFormat.format(Math.round(totalEst))} kWh
               </span>
@@ -374,7 +398,7 @@ export function AuditResultDB({
                 isBoros ? "bg-[#d85a53]" : "bg-primary"
               )}
             >
-              <span className="text-sm">Aktual Rata-rata</span>
+              <span className="text-sm">Aktual PLN</span>
               <span className="font-bold">
                 {numberFormat.format(Math.round(avgActual))} kWh
               </span>
@@ -400,7 +424,7 @@ export function AuditResultDB({
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">
-                Tren Efisiensi (Aktual vs Baseline)
+                Tren Efisiensi (Aktual PLN vs Standar Konsumsi Energi)
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -442,7 +466,7 @@ export function AuditResultDB({
                     strokeDasharray="4 3"
                     strokeWidth={1.5}
                     label={{
-                      value: "Baseline",
+                      value: "Standar",
                       position: "insideTopRight",
                       fontSize: 9,
                       fill: "var(--muted-foreground)",
@@ -450,7 +474,7 @@ export function AuditResultDB({
                   />
                   <Bar
                     dataKey="actual"
-                    name="Aktual"
+                    name="Aktual PLN"
                     radius={[4, 4, 0, 0]}
                     maxBarSize={32}
                   >

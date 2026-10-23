@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { calculateAudit, getHoursBetween } from "@/lib/audit-kalkulator"
+import { calculateGapPercent } from "@/lib/audit-recalculate"
 import type { EquipmentState, PlnRowState } from "@/store/use-audit-store"
 import type { AreaTarget, RecommendationType } from "@prisma/client"
 import { generateRecommendationWithFallback } from "@/lib/ai-recommendation"
@@ -192,21 +193,8 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
 
     const storeId = store.id
 
-    // ── 3. Update Store data from Step 1 input ──────────────────────────────────
-    await prisma.store.update({
-      where: { id: storeId },
-      data: {
-        type: input.storeType,
-        is24Hours: input.is24Hours,
-        openTime: input.is24Hours ? null : input.openTime,
-        closeTime: input.is24Hours ? null : input.closeTime,
-        plnPowerVa: input.plnPowerVa,
-        salesAreaM2: input.areas.sales,
-        parkingAreaM2: input.areas.parkir,
-        terraceAreaM2: input.areas.teras,
-        warehouseAreaM2: input.areas.gudang,
-      },
-    })
+    // Store technical data is admin-owned now: it is snapshotted on the audit
+    // below and only copied back to the store when an admin validates.
 
     // ── 4. Run calculation ──────────────────────────────────────────────────────
     const calc = calculateAudit(input.equipments, input.plnHistory, {
@@ -221,6 +209,22 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
       },
       plnPowerVa: input.plnPowerVa,
     })
+
+    const gapPercent = calculateGapPercent(
+      calc.avgActualPlnKwhPerMonth,
+      calc.equipmentEstimateKwhPerMonth
+    )
+    const storeTechnical = {
+      storeType: input.storeType || null,
+      plnPowerVa: input.plnPowerVa,
+      salesAreaM2: input.areas.sales,
+      parkingAreaM2: input.areas.parkir,
+      terraceAreaM2: input.areas.teras,
+      warehouseAreaM2: input.areas.gudang,
+      is24Hours: input.is24Hours,
+      openTime: input.is24Hours ? null : input.openTime,
+      closeTime: input.is24Hours ? null : input.closeTime,
+    }
 
     // ── 5. Create or Update Audit record ─────────────────────────────────────────
     let audit
@@ -239,6 +243,11 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
           isBoros: calc.isBoros,
           totalEstimatedKwhPerMonth: calc.equipmentEstimateKwhPerMonth,
           avgActualPlnKwhPerMonth: calc.avgActualPlnKwhPerMonth,
+          gapPercent,
+          ...storeTechnical,
+          validationStatus: "PENDING",
+          validatedAt: null,
+          validatedById: null,
           auditDate: new Date(),
         },
       })
@@ -251,6 +260,8 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
           isBoros: calc.isBoros,
           totalEstimatedKwhPerMonth: calc.equipmentEstimateKwhPerMonth,
           avgActualPlnKwhPerMonth: calc.avgActualPlnKwhPerMonth,
+          gapPercent,
+          ...storeTechnical,
           auditDate: new Date(),
         },
       })

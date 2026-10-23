@@ -15,7 +15,7 @@ function HeroCard() {
     <Card className="bg-linear-to-br from-primary/16 via-background to-background">
       <CardHeader>
         <CardTitle className="text-2xl leading-tight">
-          Audit Energi Toko
+          Kalkulator Konsumsi Energi Toko
         </CardTitle>
         <CardDescription>
           Hitung konsumsi energi toko secara akurat.
@@ -25,7 +25,7 @@ function HeroCard() {
         <Button asChild className="w-full">
           <Link href="/audit/start?new=1">
             <IconPlus data-icon="inline-start" />
-            Mulai Audit Baru
+            Mulai Kalkulasi Baru
           </Link>
         </Button>
       </CardFooter>

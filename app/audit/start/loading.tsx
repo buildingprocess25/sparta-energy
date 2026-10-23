@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 export default function AuditStartLoading() {
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col bg-background px-4 pb-32">
-      <Header variant="dashboard-back" title="Mulai Audit Baru" backHref="/dashboard" className="px-0" />
+      <Header variant="dashboard-back" title="Mulai Kalkulasi Baru" backHref="/dashboard" className="px-0" />
       <main className="flex flex-col gap-8 mt-5">
         <section className="flex flex-col gap-4">
           {/* AuditStepIndicator Skeleton */}

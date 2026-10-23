@@ -299,6 +299,7 @@ The application is single-column, **mobile-first at `max-w-sm` (384px)**. On wid
 
 - **Page gutter:** `16px` horizontal padding on all screens.
 - **8px base grid:** All spacing increments are multiples of 8px. `gap-2` (8px) is the default intra-component gap; `gap-4` (16px) separates related card sections; `space-y-4` (16px) is the default section separator.
+- **Catatan (2026-10-22):** untuk kode baru, utamakan `flex flex-col gap-*` pada container daripada `space-y-*`, sesuai aturan styling shadcn dan AI Coding Rules di `AI_CONTEXT.md`. Nilai jaraknya tetap sama (16px).
 - **Bottom navigation clearance:** All scrollable pages include `pb-32` (128px) padding at the bottom to keep the last card clear of the persistent bottom navigation bar.
 - **Fixed bottom nav:** The navigation floats at `z-40` with a frosted glass backdrop (`bg-background/80`, `backdrop-blur-md`), anchored to the safe area bottom.
 

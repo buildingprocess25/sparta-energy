@@ -13,7 +13,7 @@ import {
   IconInfoCircle,
   IconLogout,
   IconChevronRight,
-  IconLayoutDashboard,
+  IconArrowsExchange,
 } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 
@@ -151,9 +151,9 @@ export default function SettingsPage() {
           <section>
             <SectionLabel>Mode</SectionLabel>
             <MenuRow
-              icon={IconLayoutDashboard}
-              label="Dashboard Admin"
-              href="/admin/dashboard"
+              icon={IconArrowsExchange}
+              label="Ganti Peran"
+              href="/admin-entry"
             />
           </section>
         )}

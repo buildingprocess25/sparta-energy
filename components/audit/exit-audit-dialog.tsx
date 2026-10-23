@@ -44,10 +44,10 @@ export function ExitAuditDialog({
             </div>
           </div>
           <DialogTitle className="text-center text-base font-bold text-foreground">
-            Simpan Progres Audit?
+            Simpan Progres Kalkulasi?
           </DialogTitle>
           <DialogDescription className="text-center text-xs leading-relaxed text-muted-foreground">
-            Anda memiliki progres audit untuk toko{" "}
+            Anda memiliki progres kalkulasi untuk toko{" "}
             <strong className="text-foreground">
               {storeName}
               {storeCode ? ` (${storeCode})` : ""}

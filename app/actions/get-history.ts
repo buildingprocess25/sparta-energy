@@ -16,11 +16,13 @@ export type HistoryItem = {
   standardAverage: number
   actualAverage: number
   efficiency: number
+  isValidated: boolean
 }
 
 export type HistoryResponse = {
   items: HistoryItem[]
   hasMore: boolean
+  canDelete?: boolean
   error?: ActionError
 }
 
@@ -33,8 +35,13 @@ type AuditHistoryRow = {
   id: string
   auditDate: Date
   isBoros: boolean | null
+  validationStatus: string
   totalEstimatedKwhPerMonth: unknown
   avgActualPlnKwhPerMonth: unknown
+  salesAreaM2: unknown
+  parkingAreaM2: unknown
+  terraceAreaM2: unknown
+  warehouseAreaM2: unknown
   store: {
     name: string
     salesAreaM2: unknown
@@ -110,8 +117,13 @@ export async function getAuditHistory(
         id: true,
         auditDate: true,
         isBoros: true,
+        validationStatus: true,
         totalEstimatedKwhPerMonth: true,
         avgActualPlnKwhPerMonth: true,
+        salesAreaM2: true,
+        parkingAreaM2: true,
+        terraceAreaM2: true,
+        warehouseAreaM2: true,
         store: {
           select: {
             name: true,
@@ -128,11 +140,12 @@ export async function getAuditHistory(
     const itemsToReturn = audits.slice(0, itemsPerPage)
 
     const items: HistoryItem[] = itemsToReturn.map((a) => {
+      // Areas recorded on the audit win; older audits fall back to the store row.
       const totalAreaM2 =
-        Number(a.store.salesAreaM2) +
-          Number(a.store.parkingAreaM2) +
-          Number(a.store.terraceAreaM2) +
-          Number(a.store.warehouseAreaM2) || 1
+        Number(a.salesAreaM2 ?? a.store.salesAreaM2) +
+          Number(a.parkingAreaM2 ?? a.store.parkingAreaM2) +
+          Number(a.terraceAreaM2 ?? a.store.terraceAreaM2) +
+          Number(a.warehouseAreaM2 ?? a.store.warehouseAreaM2) || 1
 
       const est = Number(a.totalEstimatedKwhPerMonth ?? 0) / totalAreaM2
       const actual = Number(a.avgActualPlnKwhPerMonth ?? 0) / totalAreaM2
@@ -152,12 +165,19 @@ export async function getAuditHistory(
         standardAverage: Math.round(est * 10) / 10,
         actualAverage: Math.round(actual * 10) / 10,
         efficiency,
+        isValidated: a.validationStatus === "VALIDATED",
       }
+    })
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
     })
 
     return {
       items,
       hasMore,
+      canDelete: user?.role === "ADMIN",
     }
   } catch (error) {
     return {

@@ -13,6 +13,9 @@ import { AcEstimationUnavailableNotice } from "@/components/dashboard/ac-estimat
 import { HeroCard } from "@/components/dashboard/hero-card"
 import { CalculatorGrid } from "@/components/dashboard/calculator-grid"
 import { DraftListSection } from "@/components/dashboard/draft-list-section"
+import { ValidationCard } from "@/components/dashboard/validation-card"
+import { canValidateAudit } from "@/lib/audit-validation-access"
+import { getPendingValidationCount } from "@/lib/audit-validation-queries"
 
 
 export default async function DashboardPage() {
@@ -51,6 +54,10 @@ export default async function DashboardPage() {
 
   if (!dbUser) redirect("/forbidden")
   const isAdmin = dbUser.role === "ADMIN"
+  const canValidate = canValidateAudit(dbUser.role)
+  const pendingValidationCount = canValidate
+    ? await getPendingValidationCount()
+    : 0
 
   // Fetch draft audits for this user
   const draftAudits = await prisma.audit.findMany({
@@ -114,6 +121,11 @@ export default async function DashboardPage() {
       id: true,
       auditDate: true,
       isBoros: true,
+      validationStatus: true,
+      salesAreaM2: true,
+      parkingAreaM2: true,
+      terraceAreaM2: true,
+      warehouseAreaM2: true,
       totalEstimatedKwhPerMonth: true,
       avgActualPlnKwhPerMonth: true,
       store: {
@@ -132,10 +144,10 @@ export default async function DashboardPage() {
   // Map to RecentAuditItem shape
   const auditItems: RecentAuditItem[] = recentAudits.map((a) => {
     const totalAreaM2 =
-      Number(a.store.salesAreaM2) +
-        Number(a.store.parkingAreaM2) +
-        Number(a.store.terraceAreaM2) +
-        Number(a.store.warehouseAreaM2) || 1
+      Number(a.salesAreaM2 ?? a.store.salesAreaM2) +
+        Number(a.parkingAreaM2 ?? a.store.parkingAreaM2) +
+        Number(a.terraceAreaM2 ?? a.store.terraceAreaM2) +
+        Number(a.warehouseAreaM2 ?? a.store.warehouseAreaM2) || 1
 
     const est = Number(a.totalEstimatedKwhPerMonth ?? 0) / totalAreaM2
     const actual = Number(a.avgActualPlnKwhPerMonth ?? 0) / totalAreaM2
@@ -154,6 +166,7 @@ export default async function DashboardPage() {
       standardAverage: Math.round(est * 10) / 10,
       actualAverage: Math.round(actual * 10) / 10,
       efficiency,
+      isValidated: a.validationStatus === "VALIDATED",
     }
   })
 
@@ -172,6 +185,7 @@ export default async function DashboardPage() {
         {/* Left Column (lg:col-span-8): Hero Card + Calculator Tools + Drafts */}
         <div className="lg:col-span-8 space-y-6">
           <HeroCard />
+          {canValidate && <ValidationCard pendingCount={pendingValidationCount} />}
           <CalculatorGrid isAdmin={isAdmin} />
           <DraftListSection drafts={drafts} />
         </div>

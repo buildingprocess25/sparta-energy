@@ -11,6 +11,7 @@ export default async function AuditResultPage({ params }: Props) {
 
   const audit = await prisma.audit.findUnique({
     where: { id },
+    omit: { gapPercent: true },
     include: {
       store: true,
       items: true,
@@ -18,15 +19,26 @@ export default async function AuditResultPage({ params }: Props) {
         orderBy: { monthIdx: "asc" },
       },
       recommendations: true,
+      validatedBy: { select: { fullName: true, email: true } },
     },
   })
 
   if (!audit) notFound()
 
+  // Decimal columns cannot cross to the client component, so they are pulled
+  // out here; areas recorded on the audit win over the current store row.
+  const {
+    salesAreaM2,
+    parkingAreaM2,
+    terraceAreaM2,
+    warehouseAreaM2,
+    ...auditFields
+  } = audit
+
   return (
     <AuditResultDB
       audit={{
-        ...audit,
+        ...auditFields,
         totalEstimatedKwhPerMonth: audit.totalEstimatedKwhPerMonth
           ? Number(audit.totalEstimatedKwhPerMonth)
           : null,
@@ -35,10 +47,10 @@ export default async function AuditResultPage({ params }: Props) {
           : null,
         store: {
           ...audit.store,
-          salesAreaM2: Number(audit.store.salesAreaM2),
-          parkingAreaM2: Number(audit.store.parkingAreaM2),
-          terraceAreaM2: Number(audit.store.terraceAreaM2),
-          warehouseAreaM2: Number(audit.store.warehouseAreaM2),
+          salesAreaM2: Number(salesAreaM2 ?? audit.store.salesAreaM2),
+          parkingAreaM2: Number(parkingAreaM2 ?? audit.store.parkingAreaM2),
+          terraceAreaM2: Number(terraceAreaM2 ?? audit.store.terraceAreaM2),
+          warehouseAreaM2: Number(warehouseAreaM2 ?? audit.store.warehouseAreaM2),
         },
         items: audit.items.map((item) => ({
           ...item,
@@ -52,6 +64,15 @@ export default async function AuditResultPage({ params }: Props) {
           salesTransactionPerDay: Number(row.salesTransactionPerDay),
         })),
       }}
+      validation={
+        audit.validationStatus === "VALIDATED" && audit.validatedAt
+          ? {
+              validatedBy:
+                audit.validatedBy?.fullName ?? audit.validatedBy?.email ?? "Admin",
+              validatedAt: audit.validatedAt.toISOString(),
+            }
+          : null
+      }
       dashboardHref="/dashboard"
       dashboardLabel="Kembali ke Dashboard"
     />
