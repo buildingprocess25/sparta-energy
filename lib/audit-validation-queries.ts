@@ -24,6 +24,7 @@ export type ValidationListRow = {
   storeName: string
   branch: string | null
   isBoros: boolean
+  isSangatBoros: boolean
   isValidated: boolean
   actualKwhPerMonth: number
   baselineKwhPerMonth: number
@@ -37,6 +38,7 @@ type RawValidationRow = {
   store_name: string
   branch: string | null
   is_boros: boolean | null
+  is_sangat_boros: boolean | null
   validation_status: string
   actual_kwh: unknown
   baseline_kwh: unknown
@@ -86,17 +88,35 @@ export const activeStoreSql =
     ? Prisma.sql`(s.branch IS NULL OR lower(s.branch) NOT IN ('demo', 'head office'))`
     : Prisma.sql`(s.branch IS NULL OR lower(s.branch) <> 'head office')`
 
+// "Sangat boros": the boros stores with the largest gap, regardless of
+// validation status, so the flag stays put after a store is validated.
+// Needs the `latest` CTE from latestAuditPerStore in the same query.
+export const sangatBorosIdsSql = Prisma.sql`
+  SELECT t.id
+  FROM latest t
+  JOIN stores s ON s.id = t.store_id
+  WHERE ${activeStoreSql} AND t.is_boros = true AND t.gap_percent IS NOT NULL
+  ORDER BY t.gap_percent DESC
+  LIMIT ${TOP_BOROS_LIMIT}
+`
+
+export async function isSangatBorosAudit(auditId: string) {
+  const rows = await prisma.$queryRaw<{ flag: boolean }[]>`
+    ${latestAuditPerStore}
+    SELECT EXISTS (
+      SELECT 1 FROM (${sangatBorosIdsSql}) top_boros WHERE top_boros.id = ${auditId}::uuid
+    ) AS flag
+  `
+  return rows[0]?.flag === true
+}
+
 export async function getValidationAudits(filters: ValidationListFilters) {
   const conditions = [activeStoreSql]
   let limit = VALIDATION_PAGE_SIZE
   let offset = (filters.page - 1) * VALIDATION_PAGE_SIZE
 
   if (filters.view === "top") {
-    conditions.push(
-      Prisma.sql`l.is_boros = true`,
-      Prisma.sql`l.validation_status = 'PENDING'`,
-      Prisma.sql`l.gap_percent IS NOT NULL`
-    )
+    conditions.push(Prisma.sql`l.id IN (${sangatBorosIdsSql})`)
     limit = TOP_BOROS_LIMIT
     offset = 0
   } else {
@@ -131,6 +151,7 @@ export async function getValidationAudits(filters: ValidationListFilters) {
       l.avg_actual_pln_kwh_per_month AS actual_kwh,
       l.total_estimated_kwh_per_month AS baseline_kwh,
       l.gap_percent,
+      (l.id IN (${sangatBorosIdsSql})) AS is_sangat_boros,
       COUNT(*) OVER() AS total_count
     FROM latest l
     JOIN stores s ON s.id = l.store_id
@@ -149,6 +170,7 @@ export async function getValidationAudits(filters: ValidationListFilters) {
         storeName: row.store_name,
         branch: row.branch,
         isBoros: row.is_boros === true,
+        isSangatBoros: row.is_sangat_boros === true,
         isValidated: row.validation_status === "VALIDATED",
         actualKwhPerMonth: Number(row.actual_kwh ?? 0),
         baselineKwhPerMonth: Number(row.baseline_kwh ?? 0),
@@ -234,7 +256,7 @@ export async function getValidationAudit(id: string) {
 
   if (!audit || audit.status !== "COMPLETED") return null
 
-  const [latest, previous] = await Promise.all([
+  const [latest, previous, isSangatBoros] = await Promise.all([
     prisma.audit.findFirst({
       where: { storeId: audit.storeId, status: "COMPLETED" },
       orderBy: { auditDate: "desc" },
@@ -259,11 +281,13 @@ export async function getValidationAudit(id: string) {
         },
       },
     }),
+    isSangatBorosAudit(audit.id),
   ])
 
   return {
     id: audit.id,
     isLatest: latest?.id === audit.id,
+    isSangatBoros,
     previousAudit: previous
       ? {
           auditDate: previous.auditDate.toISOString(),

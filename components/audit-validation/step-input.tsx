@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import {
   IconAlertTriangle,
   IconCircleCheck,
+  IconFlame,
   IconLeaf,
   IconPencil,
   IconPlus,
@@ -108,9 +109,17 @@ export function StepInput({ audit, equipmentMaster, defaultHours }: StepInputPro
               className="absolute -top-4 -right-4 size-36 opacity-15"
             />
             <CardContent className="relative flex flex-col gap-4">
-              <Badge className="w-fit rounded-full bg-black/15 text-white">
-                {audit.store.name} · {audit.store.code}
-              </Badge>
+              <div className="flex flex-wrap gap-2">
+                <Badge className="w-fit rounded-full bg-black/15 text-white">
+                  {audit.store.name} · {audit.store.code}
+                </Badge>
+                {audit.isBoros && audit.isSangatBoros && (
+                  <Badge className="w-fit rounded-full bg-black/30 text-white">
+                    <IconFlame data-icon="inline-start" aria-hidden="true" />
+                    Sangat Boros · 12 teratas
+                  </Badge>
+                )}
+              </div>
               <div>
                 <p className="text-[11px] font-semibold tracking-[0.14em] uppercase">
                   Hasil identifikasi anak toko

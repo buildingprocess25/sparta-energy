@@ -12,7 +12,7 @@ import {
 } from "@/lib/lighting-audit"
 
 type ExportAudit = Awaited<ReturnType<typeof getLightingAuditsForExport>>[number]
-type Cell = string | number | Date | null
+export type Cell = string | number | Date | null
 
 const STATUS_LABEL = { DRAFT: "Draf", COMPLETED: "Selesai" } as const
 const lpdStandard = `${LPD_MIN} - ${LPD_MAX} W/m2`
@@ -34,7 +34,7 @@ function fitColumns(rows: Cell[][]) {
   return widths.map((wch) => ({ wch }))
 }
 
-function appendSheet(workbook: XLSX.WorkBook, name: string, rows: Cell[][]) {
+export function appendSheet(workbook: XLSX.WorkBook, name: string, rows: Cell[][]) {
   const sheet = XLSX.utils.aoa_to_sheet(rows, { cellDates: true })
   sheet["!cols"] = fitColumns(rows)
   rows.forEach((row, r) =>
@@ -46,7 +46,7 @@ function appendSheet(workbook: XLSX.WorkBook, name: string, rows: Cell[][]) {
   XLSX.utils.book_append_sheet(workbook, sheet, name)
 }
 
-function toBuffer(workbook: XLSX.WorkBook) {
+export function toBuffer(workbook: XLSX.WorkBook) {
   return XLSX.write(workbook, { bookType: "xlsx", cellDates: true, type: "buffer" }) as Buffer
 }
 
@@ -157,11 +157,11 @@ export function buildLightingAuditWorkbook(audit: ExportAudit) {
   return toBuffer(workbook)
 }
 
-export function buildLightingRecapWorkbook(audits: ExportAudit[]) {
-  const workbook = XLSX.utils.book_new()
+// Adds the Tata Cahaya sheets to a shared recap workbook.
+export function appendLightingRecapSheets(workbook: XLSX.WorkBook, audits: ExportAudit[]) {
   const summaries = audits.map((audit) => ({ audit, summary: summarizeLightingAudit(audit.data) }))
 
-  appendSheet(workbook, "Rekap Tata Cahaya", [
+  appendSheet(workbook, "Tata Cahaya - Rekap", [
     [
       "Kode Toko",
       "Nama Toko",
@@ -202,7 +202,7 @@ export function buildLightingRecapWorkbook(audits: ExportAudit[]) {
     ]),
   ])
 
-  appendSheet(workbook, "Detail Zona", [
+  appendSheet(workbook, "Tata Cahaya - Zona", [
     [
       "Kode Toko",
       "Nama Toko",
@@ -236,6 +236,4 @@ export function buildLightingRecapWorkbook(audits: ExportAudit[]) {
       ])
     ),
   ])
-
-  return toBuffer(workbook)
 }

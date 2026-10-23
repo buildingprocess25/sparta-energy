@@ -726,10 +726,10 @@
     "semantic_hash": "f795530e02e1b67dc22036786e942d96"
   },
   "components/audit/brand-combobox.tsx": {
-    "mtime": 1790057425.9106169,
-    "seen": 1792635430.1310863,
-    "ast_hash": "63a378683e273726d022c703512c788b",
-    "semantic_hash": "63a378683e273726d022c703512c788b"
+    "mtime": 1792725243.8120382,
+    "seen": 1792725432.219639,
+    "ast_hash": "11e1d990756b5173d4b5b6047151042a",
+    "semantic_hash": ""
   },
   "components/audit/exit-audit-dialog.tsx": {
     "mtime": 1792720065.4118335,
@@ -2160,9 +2160,9 @@
     "semantic_hash": ""
   },
   "app/audit/kategori/export/route.ts": {
-    "mtime": 1792724849.0176637,
-    "seen": 1792725114.345006,
-    "ast_hash": "89867946c7009afa718f4ad881c5e3d7",
+    "mtime": 1792727106.5304902,
+    "seen": 1792727382.8608997,
+    "ast_hash": "bdd40a480d2ca89ad143a3a784fd9695",
     "semantic_hash": ""
   },
   "app/audit/kategori/loading.tsx": {
@@ -2172,9 +2172,9 @@
     "semantic_hash": ""
   },
   "app/audit/kategori/page.tsx": {
-    "mtime": 1792724806.2120185,
-    "seen": 1792725114.345006,
-    "ast_hash": "71b2e90fed191d22e64f552efdee3e05",
+    "mtime": 1792727107.6487496,
+    "seen": 1792727382.8618999,
+    "ast_hash": "77e60926eacc7ed21cc1f446a3bbf726",
     "semantic_hash": ""
   },
   "components/dashboard/energy-audit-card.tsx": {
@@ -2190,9 +2190,9 @@
     "semantic_hash": ""
   },
   "components/energy-audit/lighting-audit-form.tsx": {
-    "mtime": 1792724804.059317,
-    "seen": 1792725114.3835342,
-    "ast_hash": "6425ce827d8f0460ddeb31a2ec312131",
+    "mtime": 1792727400.50258,
+    "seen": 1792727647.4194224,
+    "ast_hash": "4abfc410afbb464293ba9e1f243fa4ef",
     "semantic_hash": ""
   },
   "lib/energy-audit-categories.ts": {
@@ -2202,15 +2202,15 @@
     "semantic_hash": ""
   },
   "lib/energy-audit-queries.ts": {
-    "mtime": 1792723439.2992134,
-    "seen": 1792724266.3229115,
-    "ast_hash": "a10ba112d78ce49fad4364e39a3ccda4",
+    "mtime": 1792727104.2282526,
+    "seen": 1792727382.9685397,
+    "ast_hash": "cb8f7a1425700b95379f876d38cf8aca",
     "semantic_hash": ""
   },
   "lib/lighting-audit-export.ts": {
-    "mtime": 1792724845.804942,
-    "seen": 1792725114.416569,
-    "ast_hash": "5f2161a8b2354d8ef95144bf19baf010",
+    "mtime": 1792727103.1255727,
+    "seen": 1792727382.9715395,
+    "ast_hash": "17eb816ac9d07e58ce4170e87f916459",
     "semantic_hash": ""
   },
   "lib/lighting-audit.test.ts": {
@@ -2223,6 +2223,12 @@
     "mtime": 1792723410.3502896,
     "seen": 1792724266.3249116,
     "ast_hash": "044c837433888e2ebee05ce253a9e384",
+    "semantic_hash": ""
+  },
+  "lib/energy-audit-export.ts": {
+    "mtime": 1792727105.3735464,
+    "seen": 1792727382.9685397,
+    "ast_hash": "06c5038b3d302f5027c24cb1637ba681",
     "semantic_hash": ""
   }
 }

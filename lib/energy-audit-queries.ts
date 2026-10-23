@@ -2,7 +2,9 @@ import { Prisma, type EnergyAuditCategory, type EnergyAuditStatus } from "@prism
 
 import {
   activeStoreSql,
+  isSangatBorosAudit,
   latestAuditPerStore,
+  sangatBorosIdsSql,
 } from "@/lib/audit-validation-queries"
 import {
   createEmptyLightingAudit,
@@ -22,6 +24,7 @@ export type EnergyAuditListRow = {
   branch: string | null
   auditDate: string
   gapPercent: number | null
+  isSangatBoros: boolean
   lightingStatus: EnergyAuditStatus | null
   lightingSummaryStatus: string | null
   lightingUpdatedAt: string | null
@@ -34,6 +37,7 @@ type RawListRow = {
   store_name: string
   branch: string | null
   gap_percent: unknown
+  is_sangat_boros: boolean | null
   lighting_status: EnergyAuditStatus | null
   lighting_summary: string | null
   lighting_updated_at: Date | null
@@ -68,6 +72,7 @@ export async function getEnergyAuditCandidates({
       s.name AS store_name,
       s.branch,
       l.gap_percent,
+      (l.id IN (${sangatBorosIdsSql})) AS is_sangat_boros,
       ea.status AS lighting_status,
       ea.summary_status AS lighting_summary,
       ea.updated_at AS lighting_updated_at,
@@ -94,6 +99,7 @@ export async function getEnergyAuditCandidates({
         branch: row.branch,
         auditDate: row.audit_date.toISOString(),
         gapPercent: row.gap_percent === null ? null : Number(row.gap_percent),
+        isSangatBoros: row.is_sangat_boros === true,
         lightingStatus: row.lighting_status,
         lightingSummaryStatus: row.lighting_summary,
         lightingUpdatedAt: row.lighting_updated_at?.toISOString() ?? null,
@@ -167,6 +173,8 @@ export async function getEnergyAuditStore(sourceAuditId: string) {
     return null
   }
 
+  const isSangatBoros = await isSangatBorosAudit(audit.id)
+
   const statusByCategory = Object.fromEntries(
     audit.energyAudits.map((entry) => [
       entry.category,
@@ -187,6 +195,7 @@ export async function getEnergyAuditStore(sourceAuditId: string) {
     sourceAuditId: audit.id,
     auditDate: audit.auditDate.toISOString(),
     isBoros: audit.isBoros === true,
+    isSangatBoros,
     gapPercent: audit.gapPercent === null ? null : Number(audit.gapPercent),
     store: {
       id: audit.store.id,
@@ -336,6 +345,35 @@ export async function getLightingAuditForm(sourceAuditId: string) {
 }
 
 export type LightingAuditForm = NonNullable<Awaited<ReturnType<typeof getLightingAuditForm>>>
+
+export async function getEnergyAuditStatusRows() {
+  const audits = await prisma.energyAudit.findMany({
+    orderBy: { updatedAt: "desc" },
+    select: {
+      sourceAuditId: true,
+      category: true,
+      status: true,
+      store: { select: { id: true, code: true, name: true, branch: true } },
+    },
+  })
+
+  // One row per store visit (kalkulasi); audits whose kalkulasi was deleted
+  // are grouped by store instead.
+  const rows = new Map<
+    string,
+    {
+      store: { code: string; name: string; branch: string | null }
+      statuses: Partial<Record<EnergyAuditCategory, EnergyAuditStatus>>
+    }
+  >()
+  for (const audit of audits) {
+    const key = audit.sourceAuditId ?? `store-${audit.store.id}`
+    const row = rows.get(key) ?? { store: audit.store, statuses: {} }
+    row.statuses[audit.category] ??= audit.status
+    rows.set(key, row)
+  }
+  return Array.from(rows.values())
+}
 
 export async function getLightingAuditsForExport(sourceAuditId?: string) {
   const audits = await prisma.energyAudit.findMany({

@@ -792,6 +792,10 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Peluang efisiensi energi</CardTitle>
+                <CardDescription>
+                  Diisi pemeriksa di Step 2 untuk setiap zona. Klik nama zona untuk
+                  menambah atau mengubah saran.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="flex flex-col gap-3 text-sm">
@@ -799,9 +803,20 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                     const items = [...zone.eco, ...(zone.ecoNote ? [zone.ecoNote] : [])]
                     return (
                       <li key={zone.key}>
-                        <p className="font-medium">{zone.definition.label}</p>
+                        <button
+                          type="button"
+                          className="min-h-11 text-left font-medium underline-offset-4 hover:underline focus-visible:underline"
+                          onClick={() => {
+                            setActiveZone(zone.key)
+                            goToStep(2)
+                          }}
+                        >
+                          {zone.definition.label}
+                        </button>
                         <p className="text-muted-foreground">
-                          {items.length > 0 ? items.join(" · ") : "Belum ada saran."}
+                          {items.length > 0
+                            ? items.join(" · ")
+                            : "Belum dipilih. Pilih saran di bagian Peluang efisiensi zona ini."}
                         </p>
                       </li>
                     )

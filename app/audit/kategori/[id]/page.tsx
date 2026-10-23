@@ -14,6 +14,7 @@ import type { EnergyAuditCategory } from "@prisma/client"
 
 import { AuditStatusBadge } from "@/components/energy-audit/audit-status-badge"
 import { formatGap } from "@/components/audit-validation/format"
+import { ResultStatusBadge } from "@/components/audit-validation/result-status-badge"
 import { Header } from "@/components/header"
 import { Badge } from "@/components/ui/badge"
 import { getAuditValidator } from "@/lib/audit-validation-access"
@@ -61,7 +62,10 @@ export default async function EnergyAuditStorePage({ params }: Props) {
 
       <main className="flex flex-col gap-5">
         <section className="flex flex-col gap-1 rounded-xl border bg-card p-4">
-          <p className="text-sm font-semibold">{store.store.name}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold">{store.store.name}</p>
+            {store.isSangatBoros && <ResultStatusBadge isBoros isSangatBoros />}
+          </div>
           <p className="text-xs text-muted-foreground">
             {store.store.code}
             {store.store.branch ? ` · ${store.store.branch}` : ""} · kalkulasi{" "}

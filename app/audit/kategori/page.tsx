@@ -10,6 +10,7 @@ import {
 
 import { AuditStatusBadge } from "@/components/energy-audit/audit-status-badge"
 import { formatGap } from "@/components/audit-validation/format"
+import { ResultStatusBadge } from "@/components/audit-validation/result-status-badge"
 import { BottomNavigation } from "@/components/bottom-navigation"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
@@ -92,7 +93,7 @@ export default async function EnergyAuditListPage({ searchParams }: Props) {
           <Button asChild variant="outline" className="h-11">
             <a href="/audit/kategori/export" download>
               <IconDownload data-icon="inline-start" />
-              Unduh Rekap Tata Cahaya
+              Unduh Rekap Pemeriksaan
             </a>
           </Button>
         </div>
@@ -127,6 +128,9 @@ export default async function EnergyAuditListPage({ searchParams }: Props) {
                         {dateFormat.format(new Date(row.auditDate))}
                       </ItemDescription>
                       <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        {row.isSangatBoros && (
+                          <ResultStatusBadge isBoros isSangatBoros />
+                        )}
                         <span className="text-xs text-muted-foreground">Tata cahaya:</span>
                         <AuditStatusBadge status={row.lightingStatus} />
                         {row.lightingStatus === "COMPLETED" && row.lightingSummaryStatus && (

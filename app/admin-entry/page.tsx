@@ -23,7 +23,7 @@ import {
 import { prisma } from "@/lib/prisma"
 import { cn } from "@/lib/utils"
 
-const ENERGY_METER_URL = "https://energy-meter-un89.onrender.com/"
+const ENERGY_METER_URL = "https://energy-monitoring.sparta-alfamart.web.id/"
 const numberFormat = new Intl.NumberFormat("id-ID")
 
 type DestinationCardProps = {
@@ -265,11 +265,11 @@ export default async function AdminEntryPage() {
             iconClassName="bg-secondary text-secondary-foreground"
             title="Smart Energy Meter"
             badge="Aplikasi terpisah"
-            description="Pantau listrik toko dari perangkat meter yang terpasang."
+            description="Pantau pemakaian listrik toko yang sudah terpasang alat meter."
             items={[
-              "Tegangan, arus, dan daya per fase secara langsung",
-              "Riwayat rekaman perangkat",
-              "Atur perangkat per toko",
+              "Daya per fase secara langsung",
+              "Peta toko yang terpasang alat meter",
+              "Grafik tren daya dan kWh per toko",
             ]}
             cta="Buka di tab baru"
           />
