@@ -2,6 +2,8 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withEffectiveRole } from "@/lib/current-role"
+import { can } from "@/lib/role-access"
 import { headers } from "next/headers"
 
 const excludedBranchNames = [
@@ -20,16 +22,18 @@ export async function searchStoresAction(query: string = "") {
       throw new Error("Unauthorized")
     }
 
-    const dbUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { branch: true, role: true },
-    })
+    const dbUser = await withEffectiveRole(
+      await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { branch: true, role: true },
+      })
+    )
 
     if (!dbUser) {
       throw new Error("User not found")
     }
 
-    const isAdmin = dbUser.role === "ADMIN"
+    const isAdmin = can(dbUser.role, "adminTools")
     const isSuperAuditor =
       !isAdmin &&
       (dbUser?.branch === "*" || dbUser?.branch?.toLowerCase() === "all")

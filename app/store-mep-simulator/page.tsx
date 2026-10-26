@@ -2,6 +2,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withEffectiveRole } from "@/lib/current-role"
 import { hasFullBranchAccess } from "@/lib/permissions"
 import { StoreMepSimulatorClient } from "./store-mep-simulator-client"
 import { getMepSimulationDetail } from "@/app/actions/mep-simulation-actions"
@@ -25,12 +26,14 @@ export default async function StoreMepSimulatorPage({
   searchParams?: SearchParams
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
-  const dbUser = session?.user
-    ? await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { email: true, branch: true, role: true },
-      })
-    : null
+  const dbUser = await withEffectiveRole(
+    session?.user
+      ? await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { email: true, branch: true, role: true },
+        })
+      : null
+  )
 
   const resolvedParams = searchParams ? await searchParams : {}
   const initialLoadedLog = resolvedParams.loadMepLogId

@@ -2,6 +2,8 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { getEffectiveRole } from "@/lib/current-role"
+import { can } from "@/lib/role-access"
 import { headers } from "next/headers"
 import type { Prisma } from "@prisma/client"
 import { getServerErrorMessage, type ActionError } from "@/lib/error-handling"
@@ -177,7 +179,7 @@ export async function getAuditHistory(
     return {
       items,
       hasMore,
-      canDelete: user?.role === "ADMIN",
+      canDelete: can(await getEffectiveRole(user?.role), "deleteAudits"),
     }
   } catch (error) {
     return {

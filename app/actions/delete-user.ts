@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 
-import { requireAdmin } from "@/lib/admin-auth"
+import { requireUserManager } from "@/lib/admin-auth"
 import { prisma } from "@/lib/prisma"
 
 type ActionResult = {
@@ -19,7 +19,7 @@ export async function deleteUser(
   input: DeleteUserInput
 ): Promise<ActionResult> {
   try {
-    const currentAdmin = await requireAdmin()
+    const currentAdmin = await requireUserManager()
     const { userId } = input
 
     if (!userId) {

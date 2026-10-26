@@ -3,6 +3,8 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withEffectiveRole } from "@/lib/current-role"
+import { can } from "@/lib/role-access"
 import { getAllEquipmentMaster } from "@/lib/get-equipment-for-area"
 import { hasFullBranchAccess } from "@/lib/permissions"
 import { AuditStartClient } from "./start-client"
@@ -21,14 +23,16 @@ export default async function AuditStartPage() {
   if (!session?.user) redirect("/login?reason=session-expired")
 
   // Find user with branch info
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { email: true, branch: true, role: true },
-  })
+  const dbUser = await withEffectiveRole(
+    await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { email: true, branch: true, role: true },
+    })
+  )
 
   if (!dbUser) redirect("/forbidden")
   const canAccessAll = hasFullBranchAccess(dbUser)
-  const isAdmin = dbUser.role === "ADMIN"
+  const isAdmin = can(dbUser.role, "adminTools")
   const isSuperAuditor = !isAdmin && canAccessAll
 
   // Find all stores in the user's branches (comma-separated for multi-branch support)

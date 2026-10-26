@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 
-import { requireAdmin } from "@/lib/admin-auth"
+import { requireUserManager } from "@/lib/admin-auth"
 import { prisma } from "@/lib/prisma"
+import { isRole } from "@/lib/role-access"
+import type { Role } from "@prisma/client"
 
 type ActionResult = {
   success: boolean
@@ -15,7 +17,7 @@ type UpdateUserInput = {
   userId: string
   email?: string
   fullName?: string | null
-  role?: "USER" | "ADMIN"
+  role?: Role
   branch?: string | null
 }
 
@@ -23,7 +25,7 @@ export async function updateUser(
   input: UpdateUserInput
 ): Promise<ActionResult> {
   try {
-    await requireAdmin()
+    await requireUserManager()
 
     const { userId, email, fullName, role, branch } = input
 
@@ -59,10 +61,10 @@ export async function updateUser(
     }
 
     // Validate role enum if provided
-    if (role !== undefined && role !== "USER" && role !== "ADMIN") {
+    if (role !== undefined && !isRole(role)) {
       return {
         success: false,
-        message: "Role tidak valid. Harus USER atau ADMIN",
+        message: "Role tidak valid.",
       }
     }
 
@@ -89,7 +91,7 @@ export async function updateUser(
     const updateData: {
       email?: string
       fullName?: string | null
-      role?: "USER" | "ADMIN"
+      role?: Role
       branch?: string | null
     } = {}
 

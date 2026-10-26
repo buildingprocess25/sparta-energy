@@ -29,14 +29,17 @@ export function getEnergyMonitoringUrl() {
 }
 
 // GET /api/stores on smart-energy-monitoring lists only stores that have a device,
-// matched by the store code in the device name. Read-only, no auth on that side.
+// matched by the store code in the device name. The portal accepts the internal
+// token header; without MONITORING_INTERNAL_TOKEN the header is simply not sent.
 export async function getIotStatusLookup(): Promise<IotStatusLookup> {
+  const token = process.env.MONITORING_INTERNAL_TOKEN?.trim()
   try {
     const response = await fetch(
       new URL("/api/stores", getEnergyMonitoringUrl()),
       {
         next: { revalidate: IOT_CACHE_SECONDS },
         signal: AbortSignal.timeout(IOT_TIMEOUT_MS),
+        headers: token ? { "x-internal-token": token } : undefined,
       }
     )
     if (!response.ok) return { available: false }

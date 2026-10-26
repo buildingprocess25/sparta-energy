@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 
-import { requireAdmin } from "@/lib/admin-auth"
+import { requireUserManager } from "@/lib/admin-auth"
 import { createMasterEquipment } from "@/lib/admin-master-data-mutations"
 
 export async function POST(request: Request) {
-  await requireAdmin()
+  await requireUserManager()
 
   try {
     const body = await request.json()

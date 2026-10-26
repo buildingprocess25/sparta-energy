@@ -12,7 +12,9 @@ import {
   type AdminReportFilters,
 } from "@/lib/admin-report-queries"
 import { auth } from "@/lib/auth"
+import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
+import { can } from "@/lib/role-access"
 
 async function isAdmin() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -23,7 +25,7 @@ async function isAdmin() {
     select: { role: true },
   })
 
-  return user?.role === "ADMIN"
+  return can(await getEffectiveRole(user?.role), "adminPanel")
 }
 
 function getColumnWidths(dataset: AdminReportDataset) {

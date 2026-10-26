@@ -2,6 +2,8 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withEffectiveRole } from "@/lib/current-role"
+import { can } from "@/lib/role-access"
 import { hasFullBranchAccess } from "@/lib/permissions"
 import { AcMappingClient } from "./ac-mapping-client"
 import type { StoreData } from "@/app/audit/start/start-client"
@@ -17,14 +19,16 @@ const excludedBranchNames = [
 
 export default async function AcMappingPage() {
   const session = await auth.api.getSession({ headers: await headers() })
-  const dbUser = session?.user
-    ? await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { email: true, branch: true, role: true },
-      })
-    : null
+  const dbUser = await withEffectiveRole(
+    session?.user
+      ? await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { email: true, branch: true, role: true },
+        })
+      : null
+  )
 
-  const isAdmin = dbUser?.role === "ADMIN"
+  const isAdmin = can(dbUser?.role, "adminTools")
 
   // Proteksi rute: Hanya role ADMIN yang diizinkan mengakses halaman selama fase DEV
   if (!isAdmin) {

@@ -39,6 +39,7 @@ import {
   type MasterEquipmentFilters,
   type MasterStoreFilters,
 } from "@/lib/admin-master-data-queries"
+import { requireUserManager } from "@/lib/admin-auth"
 
 type SearchParams = Promise<{
   tab?: string
@@ -71,6 +72,7 @@ export default async function AdminMasterDataPage({
 }: {
   searchParams: SearchParams
 }) {
+  await requireUserManager()
   const params = await searchParams
   const activeTab = parseMasterDataTab(params.tab)
   const summary = await getMasterDataSummary()

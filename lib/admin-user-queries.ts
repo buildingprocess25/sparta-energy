@@ -1,6 +1,9 @@
-import { prisma } from "@/lib/prisma"
+import type { Role } from "@prisma/client"
 
-export type UserRole = "USER" | "ADMIN"
+import { prisma } from "@/lib/prisma"
+import { ROLES, isRole } from "@/lib/role-access"
+
+export type UserRole = Role
 export type AdminUserSortKey =
   | "fullName"
   | "email"
@@ -64,11 +67,8 @@ export const defaultAdminUserOrder: AdminUserSortOrder = "desc"
 export function parseAdminUserRole(
   value: string | null | undefined
 ): UserRole | "all" {
-  if (!value) return "all"
-  const normalized = value.trim().toLowerCase()
-  if (normalized === "user") return "USER"
-  if (normalized === "admin") return "ADMIN"
-  return "all"
+  const normalized = value?.trim().toUpperCase()
+  return isRole(normalized) ? normalized : "all"
 }
 
 export function parseAdminUserSort(
@@ -245,5 +245,5 @@ export async function getAdminUserBranches(): Promise<string[]> {
 }
 
 export async function getAdminUserRoles(): Promise<UserRole[]> {
-  return ["USER", "ADMIN"]
+  return [...ROLES]
 }

@@ -21,7 +21,9 @@ import {
   parseValidationFilters,
 } from "@/lib/audit-validation-queries"
 import { getEnergyMonitoringUrl } from "@/lib/iot-status"
+import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
+import { can, getHomeUrl } from "@/lib/role-access"
 import { cn } from "@/lib/utils"
 
 const numberFormat = new Intl.NumberFormat("id-ID")
@@ -166,7 +168,8 @@ export default async function AdminEntryPage() {
   })
 
   if (!user) redirect("/forbidden")
-  if (user.role !== "ADMIN") redirect("/dashboard")
+  const role = await getEffectiveRole(user.role)
+  if (!can(role, "adminEntry")) redirect(getHomeUrl(role))
 
   const [pendingResult, borosResult] = await Promise.allSettled([
     getPendingValidationCount(),

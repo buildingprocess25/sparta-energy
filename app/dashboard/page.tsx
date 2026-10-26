@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withEffectiveRole } from "@/lib/current-role"
+import { can } from "@/lib/role-access"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
@@ -49,13 +51,15 @@ export default async function DashboardPage() {
   if (!session?.user) redirect("/login?reason=session-expired")
 
   // Get all audits for stores in user's branch
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { branch: true, fullName: true, role: true },
-  })
+  const dbUser = await withEffectiveRole(
+    await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { branch: true, fullName: true, role: true },
+    })
+  )
 
   if (!dbUser) redirect("/forbidden")
-  const isAdmin = dbUser.role === "ADMIN"
+  const isAdmin = can(dbUser.role, "adminTools")
   const canValidate = canValidateAudit(dbUser.role)
   const [pendingValidationCount, energyAuditReadyCount] = canValidate
     ? await Promise.all([

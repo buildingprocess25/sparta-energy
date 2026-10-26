@@ -12,6 +12,7 @@ import {
   type AdminUserFilters as AdminUserFiltersValue,
   type UserRole,
 } from "@/lib/admin-user-queries"
+import { requireUserManager } from "@/lib/admin-auth"
 
 type SearchParams = Promise<{
   q?: string
@@ -34,6 +35,7 @@ export default async function AdminUsersPage({
 }: {
   searchParams: SearchParams
 }) {
+  await requireUserManager()
   const params = await searchParams
   const filters: AdminUserFiltersValue = {
     q: params.q?.trim() ?? "",

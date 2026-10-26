@@ -13,7 +13,9 @@ import {
   type AdminAuditStatus,
 } from "@/lib/admin-audit-queries"
 import { auth } from "@/lib/auth"
+import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
+import { can } from "@/lib/role-access"
 
 function getFilter(searchParams: URLSearchParams, key: string) {
   return searchParams.get(key)?.trim() || "all"
@@ -42,7 +44,7 @@ async function isAdmin() {
     select: { role: true },
   })
 
-  return user?.role === "ADMIN"
+  return can(await getEffectiveRole(user?.role), "adminPanel")
 }
 
 export async function GET(request: Request) {

@@ -1,6 +1,7 @@
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withEffectiveRole } from "@/lib/current-role"
 import { hasFullBranchAccess } from "@/lib/permissions"
 import { AcEstimationClient } from "./ac-estimation-client"
 import type { StoreData } from "@/app/audit/start/start-client"
@@ -16,12 +17,14 @@ const excludedBranchNames = [
 
 export default async function AcEstimationPage() {
   const session = await auth.api.getSession({ headers: await headers() })
-  const dbUser = session?.user
-    ? await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { email: true, branch: true, role: true },
-      })
-    : null
+  const dbUser = await withEffectiveRole(
+    session?.user
+      ? await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { email: true, branch: true, role: true },
+        })
+      : null
+  )
   const canAccessAll = dbUser ? hasFullBranchAccess(dbUser) : false
   const branches =
     dbUser?.branch

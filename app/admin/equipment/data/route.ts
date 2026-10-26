@@ -9,7 +9,9 @@ import {
   type EquipmentArea,
 } from "@/lib/admin-equipment-queries"
 import { auth } from "@/lib/auth"
+import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
+import { can } from "@/lib/role-access"
 
 const validAreas = new Set(["PARKING", "TERRACE", "SALES", "WAREHOUSE"])
 
@@ -31,7 +33,7 @@ async function isAdmin() {
     select: { role: true },
   })
 
-  return user?.role === "ADMIN"
+  return can(await getEffectiveRole(user?.role), "adminPanel")
 }
 
 export async function GET(request: Request) {

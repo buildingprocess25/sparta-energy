@@ -16,6 +16,15 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
+// Local only: logs in as the dev admin and simulates this role via the dev_role cookie.
+const DEV_LOGIN_ROLES = [
+  { role: "ADMIN", label: "Admin" },
+  { role: "AUDITOR", label: "Auditor" },
+  { role: "GS", label: "GS" },
+  { role: "AREA", label: "Area" },
+  { role: "USER", label: "User" },
+] as const
+
 export function LoginForm({
   className,
   ...props
@@ -25,28 +34,32 @@ export function LoginForm({
   const [password, setPassword] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
   const [isPending, setIsPending] = React.useState(false)
-  const [isDevPending, setIsDevPending] = React.useState(false)
+  const [devPendingRole, setDevPendingRole] = React.useState<string | null>(
+    null
+  )
+  const isDevPending = devPendingRole !== null
   const [showPassword, setShowPassword] = React.useState(false)
 
-  async function handleDevLogin() {
-    setIsDevPending(true)
+  async function handleDevLogin(role: string) {
+    setDevPendingRole(role)
     setError(null)
     try {
       const res = await fetch("/api/dev-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
       })
       const data = await res.json()
       if (!res.ok) {
         setError(data.error || "Gagal melakukan Dev Login.")
-        setIsDevPending(false)
+        setDevPendingRole(null)
         return
       }
-      toast.success(`Login berhasil sebagai ${data.email}`)
-      window.location.href = data.redirectTo || "/admin-entry"
+      toast.success(`Masuk sebagai ${data.role} (${data.email})`)
+      window.location.assign(data.redirectTo || "/admin-entry")
     } catch {
       setError("Terjadi kesalahan saat memproses dev login.")
-      setIsDevPending(false)
+      setDevPendingRole(null)
     }
   }
 
@@ -101,11 +114,16 @@ export function LoginForm({
           <Button
             type="button"
             onClick={() => {
-              const fallbackUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5173' : 'https://sparta-alfamart.web.id';
-              window.location.href = process.env.NEXT_PUBLIC_SSO_PORTAL_URL || fallbackUrl;
+              const fallbackUrl =
+                typeof window !== "undefined" &&
+                window.location.hostname === "localhost"
+                  ? "http://localhost:5173"
+                  : "https://sparta-alfamart.web.id"
+              window.location.href =
+                process.env.NEXT_PUBLIC_SSO_PORTAL_URL || fallbackUrl
             }}
             disabled={isPending || isDevPending}
-            className="w-full h-12 text-base font-bold bg-[#005a9e] hover:bg-[#004a80] transition-transform active:scale-[0.98] shadow-md"
+            className="h-12 w-full bg-[#005a9e] text-base font-bold shadow-md transition-transform hover:bg-[#004a80] active:scale-[0.98]"
           >
             {isPending ? "Masuk..." : "Masuk via SPARTA SSO"}
           </Button>
@@ -117,17 +135,28 @@ export function LoginForm({
               <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
                 🛠️ Local Dev Quick-Login
               </span>
-              <span className="text-[10px] text-muted-foreground font-mono">admin@energy.sparta</span>
+              <span className="font-mono text-[10px] text-muted-foreground">
+                admin@energy.sparta
+              </span>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isPending || isDevPending}
-              onClick={handleDevLogin}
-              className="w-full h-10 border-amber-500/40 text-xs font-semibold text-amber-900 hover:bg-amber-500/20 dark:text-amber-200"
-            >
-              {isDevPending ? "Memproses..." : "⚡ Masuk Cepat sbg Admin"}
-            </Button>
+            <p className="text-[11px] text-muted-foreground">
+              Masuk Cepat sebagai role berikut. Role selain Admin hanya
+              disimulasikan di komputer ini.
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {DEV_LOGIN_ROLES.map(({ role, label }) => (
+                <Button
+                  key={role}
+                  type="button"
+                  variant="outline"
+                  disabled={isPending || isDevPending}
+                  onClick={() => handleDevLogin(role)}
+                  className="h-10 border-amber-500/40 text-xs font-semibold text-amber-900 hover:bg-amber-500/20 dark:text-amber-200"
+                >
+                  {devPendingRole === role ? "Memproses..." : label}
+                </Button>
+              ))}
+            </div>
           </div>
         )}
 

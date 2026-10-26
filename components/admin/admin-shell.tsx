@@ -90,6 +90,7 @@ type AdminUser = {
 type AdminShellProps = {
   user: AdminUser
   gapFilter: AdminGapFilterState
+  canManageUsers: boolean
   children: ReactNode
 }
 
@@ -99,6 +100,8 @@ type AdminNavItem = {
   icon: ComponentType<React.ComponentProps<"svg">>
   disabled?: boolean
   external?: boolean
+  // Hidden for roles without manageUsers in lib/role-access.ts.
+  managersOnly?: boolean
 }
 
 type AdminNavGroup = {
@@ -160,11 +163,13 @@ const navGroups: AdminNavGroup[] = [
         label: "User & Akses",
         href: "/admin/users",
         icon: IconUsers,
+        managersOnly: true,
       },
       {
         label: "Master Data",
         href: "/admin/master-data",
         icon: IconDatabase,
+        managersOnly: true,
       },
     ],
   },
@@ -226,12 +231,21 @@ function getBreadcrumbItems(pathname: string) {
 
 async function handleLogout() {
   await signOut()
-  const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-  const portalUrl = isLocal ? (process.env.NEXT_PUBLIC_PORTAL_URL || 'http://localhost:5173/') : 'https://sparta-alfamart.web.id/';
-  window.location.href = portalUrl;
+  const isLocal =
+    typeof window !== "undefined" && window.location.hostname === "localhost"
+  const portalUrl = isLocal
+    ? process.env.NEXT_PUBLIC_PORTAL_URL || "http://localhost:5173/"
+    : "https://sparta-alfamart.web.id/"
+  window.location.href = portalUrl
 }
 
-function AdminSidebar({ user }: { user: AdminUser }) {
+function AdminSidebar({
+  user,
+  canManageUsers,
+}: {
+  user: AdminUser
+  canManageUsers: boolean
+}) {
   const pathname = usePathname()
   const isMobile = useIsMobile()
 
@@ -294,24 +308,32 @@ function AdminSidebar({ user }: { user: AdminUser }) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {navGroups.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel className="text-sidebar-foreground/55 group-data-[collapsible=icon]:opacity-0">
-              {group.label}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <AdminSidebarItem
-                    key={item.href}
-                    item={item}
-                    pathname={pathname}
-                  />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+        {navGroups
+          .map((group) => ({
+            ...group,
+            items: group.items.filter(
+              (item) => canManageUsers || !item.managersOnly
+            ),
+          }))
+          .filter((group) => group.items.length > 0)
+          .map((group) => (
+            <SidebarGroup key={group.label}>
+              <SidebarGroupLabel className="text-sidebar-foreground/55 group-data-[collapsible=icon]:opacity-0">
+                {group.label}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {group.items.map((item) => (
+                    <AdminSidebarItem
+                      key={item.href}
+                      item={item}
+                      pathname={pathname}
+                    />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
       </SidebarContent>
 
       <SidebarFooter className="relative z-10">
@@ -670,7 +692,12 @@ function AdminSiteHeader({
   )
 }
 
-export function AdminShell({ user, gapFilter, children }: AdminShellProps) {
+export function AdminShell({
+  user,
+  gapFilter,
+  canManageUsers,
+  children,
+}: AdminShellProps) {
   return (
     <TooltipProvider>
       <SidebarProvider
@@ -681,7 +708,7 @@ export function AdminShell({ user, gapFilter, children }: AdminShellProps) {
           } as CSSProperties
         }
       >
-        <AdminSidebar user={user} />
+        <AdminSidebar user={user} canManageUsers={canManageUsers} />
         <SidebarInset>
           <AdminSiteHeader user={user} gapFilter={gapFilter} />
           <div className="flex flex-1 flex-col">

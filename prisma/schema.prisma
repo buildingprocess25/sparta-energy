@@ -20,6 +20,8 @@ model User {
   audits          Audit[]   @relation("AuditAuditor")
   validatedAudits Audit[]   @relation("AuditValidator")
   auditCorrections AuditCorrection[]
+  deviceAccess     UserDeviceAccess[] @relation("DeviceAccessUser")
+  grantedDeviceAccess UserDeviceAccess[] @relation("DeviceAccessCreator")
   sessions      Session[]
   accounts      Account[]
   acCalculatorLogs    AcCalculatorLog[]
@@ -215,6 +217,24 @@ model AuditRecommendation {
 enum Role {
   USER
   ADMIN
+  AUDITOR
+  GS
+  AREA
+}
+
+// Devices (devices.id in DB 2) a GS user may see in smart-energy-monitoring.
+model UserDeviceAccess {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  deviceId  String   @map("device_id")
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User  @relation("DeviceAccessUser", fields: [userId], references: [id], onDelete: Cascade)
+  creator User? @relation("DeviceAccessCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([userId, deviceId])
+  @@map("user_device_access")
 }
 
 enum AuditStatus {

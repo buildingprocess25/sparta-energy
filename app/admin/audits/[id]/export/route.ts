@@ -3,7 +3,9 @@ import { NextResponse } from "next/server"
 import * as XLSX from "xlsx"
 
 import { auth } from "@/lib/auth"
+import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
+import { can } from "@/lib/role-access"
 import { getAdminAuditDetail } from "@/lib/admin-audit-detail"
 
 async function isAdmin() {
@@ -15,7 +17,7 @@ async function isAdmin() {
     select: { role: true },
   })
 
-  return user?.role === "ADMIN"
+  return can(await getEffectiveRole(user?.role), "adminPanel")
 }
 
 export async function GET(

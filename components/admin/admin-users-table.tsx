@@ -34,6 +34,7 @@ import type {
   AdminUserSortOrder,
   UserRole,
 } from "@/lib/admin-user-queries"
+import { ROLE_LABELS, usesBranch } from "@/lib/role-access"
 
 const numberFormat = new Intl.NumberFormat("id-ID")
 
@@ -56,10 +57,19 @@ function getRoleBadge(role: UserRole) {
     )
   }
 
+  if (role === "USER") {
+    return (
+      <Badge variant="secondary" className="gap-1">
+        <IconUser aria-hidden="true" className="size-3" />
+        User
+      </Badge>
+    )
+  }
+
   return (
-    <Badge variant="secondary" className="gap-1">
-      <IconUser aria-hidden="true" className="size-3" />
-      User
+    <Badge variant="outline" className="gap-1">
+      <IconShieldCheck aria-hidden="true" className="size-3" />
+      {ROLE_LABELS[role]}
     </Badge>
   )
 }
@@ -80,7 +90,11 @@ function BranchCell({
   branch: string | null
   role: UserRole
 }) {
-  if (role === "ADMIN") {
+  if (role === "GS") {
+    return <span className="text-muted-foreground">Alat yang di-assign</span>
+  }
+
+  if (!usesBranch(role)) {
     return (
       <Badge variant="outline" className="font-normal">
         Semua cabang

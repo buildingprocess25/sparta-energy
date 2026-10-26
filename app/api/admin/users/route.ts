@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { requireAdmin } from "@/lib/admin-auth"
+import { requireUserManager } from "@/lib/admin-auth"
 import {
   adminUsersPageSize,
   getAdminUserRows,
@@ -17,7 +17,7 @@ function getFilter(value: string | null) {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin()
+    await requireUserManager()
 
     const { searchParams } = new URL(request.url)
     const filters: AdminUserFilters = {
