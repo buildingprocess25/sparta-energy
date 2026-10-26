@@ -21,6 +21,7 @@ import {
   IconCheck,
   IconTrash,
 } from "@tabler/icons-react"
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll"
 import { MepFloorPlanCanvasPreview } from "@/components/admin/mep-layout-canvas-preview"
 import {
   Dialog,
@@ -1003,9 +1004,9 @@ export function CalculatorLogsClient({
         <TabsContent value="ac" className="space-y-4">
           <Card className="border-border/60 shadow-xs overflow-hidden">
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              <AdminTableScroll className="max-h-[600px]">
                 <table className="w-full text-left text-xs min-w-[960px]">
-                  <thead className="border-b bg-muted/50 font-semibold text-muted-foreground">
+                  <thead className="sticky top-0 z-10 border-b bg-muted font-semibold text-muted-foreground">
                     <tr>
                       <th className="px-4 py-3.5 w-44">Waktu & Auditor</th>
                       <th className="px-4 py-3.5 min-w-[220px]">Toko & Cabang</th>
@@ -1099,7 +1100,7 @@ export function CalculatorLogsClient({
                     )}
                   </tbody>
                 </table>
-              </div>
+              </AdminTableScroll>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1108,9 +1109,9 @@ export function CalculatorLogsClient({
         <TabsContent value="light" className="space-y-4">
           <Card className="border-border/60 shadow-xs overflow-hidden">
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              <AdminTableScroll className="max-h-[600px]">
                 <table className="w-full text-left text-xs min-w-[960px]">
-                  <thead className="border-b bg-muted/50 font-semibold text-muted-foreground">
+                  <thead className="sticky top-0 z-10 border-b bg-muted font-semibold text-muted-foreground">
                     <tr>
                       <th className="px-4 py-3.5 w-44">Waktu & Auditor</th>
                       <th className="px-4 py-3.5 min-w-[220px]">Toko & Cabang</th>
@@ -1222,7 +1223,7 @@ export function CalculatorLogsClient({
                     )}
                   </tbody>
                 </table>
-              </div>
+              </AdminTableScroll>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1243,9 +1244,9 @@ export function CalculatorLogsClient({
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              <AdminTableScroll className="max-h-[600px]">
                 <table className="w-full text-xs text-left border-collapse">
-                  <thead className="bg-muted/40 text-[11px] font-bold text-muted-foreground uppercase border-b border-border/60">
+                  <thead className="sticky top-0 z-10 bg-muted text-[11px] font-bold text-muted-foreground uppercase border-b border-border/60">
                     <tr>
                       <th className="px-4 py-3">Waktu & Auditor</th>
                       <th className="px-4 py-3">Toko & Cabang</th>
@@ -1383,7 +1384,7 @@ export function CalculatorLogsClient({
                     )}
                   </tbody>
                 </table>
-              </div>
+              </AdminTableScroll>
             </CardContent>
           </Card>
         </TabsContent>

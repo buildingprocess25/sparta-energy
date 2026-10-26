@@ -5,7 +5,9 @@ import {
   adminAuditsPageSize,
   getAdminAuditRows,
   parseAdminAuditOrder,
+  parseAdminAuditPriority,
   parseAdminAuditSort,
+  parseAdminAuditValidation,
   type AdminAuditFilters,
   type AdminAuditRecommendation,
   type AdminAuditStatus,
@@ -58,6 +60,8 @@ export async function GET(request: Request) {
     month: getFilter(url.searchParams, "month"),
     status: parseStatus(url.searchParams.get("status")),
     recommendation: parseRecommendation(url.searchParams.get("recommendation")),
+    validation: parseAdminAuditValidation(url.searchParams.get("validation")),
+    priority: parseAdminAuditPriority(url.searchParams.get("priority")),
     sort: parseAdminAuditSort(url.searchParams.get("sort")),
     order: parseAdminAuditOrder(url.searchParams.get("order")),
   }

@@ -1,3 +1,5 @@
+import { isAdminSangatBoros } from "@/lib/admin-sangat-boros"
+import { getIotStatusLookup, getStoreIot } from "@/lib/iot-status"
 import { prisma } from "@/lib/prisma"
 
 const areaLabels: Record<string, string> = {
@@ -30,10 +32,25 @@ export async function getAdminAuditDetail(id: string) {
       isBoros: true,
       totalEstimatedKwhPerMonth: true,
       avgActualPlnKwhPerMonth: true,
+      validationStatus: true,
+      validatedAt: true,
       auditor: {
         select: {
           fullName: true,
           email: true,
+        },
+      },
+      validatedBy: {
+        select: {
+          fullName: true,
+          email: true,
+        },
+      },
+      energyAudits: {
+        select: {
+          category: true,
+          status: true,
+          completedAt: true,
         },
       },
       store: {
@@ -97,6 +114,11 @@ export async function getAdminAuditDetail(id: string) {
 
   if (!audit) return null
 
+  const [isSangatBoros, iotLookup] = await Promise.all([
+    isAdminSangatBoros(audit.id),
+    getIotStatusLookup(),
+  ])
+
   const actualPln = toNumber(audit.avgActualPlnKwhPerMonth)
   const baseline = toNumber(audit.totalEstimatedKwhPerMonth)
   const gapKwh = actualPln - baseline
@@ -131,6 +153,20 @@ export async function getAdminAuditDetail(id: string) {
     auditDate: audit.auditDate.toISOString(),
     status: audit.status,
     isBoros: audit.isBoros,
+    isSangatBoros,
+    iot: getStoreIot(iotLookup, audit.store.code),
+    validation: {
+      validated: audit.validationStatus === "VALIDATED",
+      validatedAt: audit.validatedAt?.toISOString() ?? null,
+      validatedBy: audit.validatedBy
+        ? (audit.validatedBy.fullName ?? audit.validatedBy.email)
+        : null,
+    },
+    energyAudits: audit.energyAudits.map((item) => ({
+      category: item.category,
+      status: item.status,
+      completedAt: item.completedAt?.toISOString() ?? null,
+    })),
     actualPln,
     baseline,
     gapKwh,

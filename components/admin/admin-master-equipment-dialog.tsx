@@ -836,7 +836,7 @@ export function AdminMasterEquipmentDialog({
                 Dokumentasi & Referensi
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Unggah foto produk dan foto name plate untuk referensi saat melakukan audit di lapangan.
+                Unggah foto produk dan foto name plate untuk referensi saat pendataan di lapangan.
               </p>
 
               <div className="grid grid-cols-2 gap-3">

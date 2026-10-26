@@ -189,7 +189,7 @@ export function CreateUserDialog({
               />
               <p className="text-[11px] text-muted-foreground leading-normal">
                 {role === "ADMIN"
-                  ? "Admin dapat mengakses dashboard admin dan audit semua cabang."
+                  ? "Admin dapat mengakses dashboard admin dan kalkulasi semua cabang."
                   : "User hanya dapat mengakses cabang yang ditetapkan."}
               </p>
             </div>

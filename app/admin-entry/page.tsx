@@ -20,10 +20,10 @@ import {
   getValidationAudits,
   parseValidationFilters,
 } from "@/lib/audit-validation-queries"
+import { getEnergyMonitoringUrl } from "@/lib/iot-status"
 import { prisma } from "@/lib/prisma"
 import { cn } from "@/lib/utils"
 
-const ENERGY_METER_URL = "https://energy-monitoring.sparta-alfamart.web.id/"
 const numberFormat = new Intl.NumberFormat("id-ID")
 
 type DestinationCardProps = {
@@ -248,16 +248,16 @@ export default async function AdminEntryPage() {
             iconClassName="bg-secondary text-secondary-foreground"
             title="Dashboard Admin"
             badge="Desktop"
-            description="Pantau hasil audit semua cabang."
+            description="Pantau hasil kalkulasi semua cabang."
             items={[
               "Ringkasan hemat dan boros per cabang",
-              "Data audit, toko, dan master alat",
+              "Data kalkulasi, toko, dan master alat",
               "Laporan Excel dan kelola user",
             ]}
             cta="Buka Dashboard Admin"
           />
           <DestinationCard
-            href={ENERGY_METER_URL}
+            href={getEnergyMonitoringUrl()}
             external
             layout="wide"
             className="md:col-span-2"

@@ -2,10 +2,13 @@ import type { Prisma, RecommendationType } from "@prisma/client"
 
 import { getAdminAuditDateWhere } from "@/lib/admin-audit-date-filter"
 import { prisma } from "@/lib/prisma"
-import { getAuditGapFilterWhereSql } from "@/lib/audit-gap-filter"
+import { getAdminGapFilterSql } from "@/lib/admin-gap-filter"
+import { getSangatBorosAuditIdsSql } from "@/lib/admin-sangat-boros"
 
 export type AdminAuditStatus = "hemat" | "boros"
 export type AdminAuditRecommendation = RecommendationType
+export type AdminAuditValidation = "pending" | "validated"
+export type AdminAuditPriority = "sangat-boros"
 export type AdminAuditSortKey =
   | "auditDate"
   | "store"
@@ -26,6 +29,8 @@ export type AdminAuditFilters = {
   month: string
   status: AdminAuditStatus | "all"
   recommendation: AdminAuditRecommendation | "all"
+  validation: AdminAuditValidation | "all"
+  priority: AdminAuditPriority | "all"
   sort: AdminAuditSortKey
   order: AdminAuditSortOrder
 }
@@ -34,6 +39,8 @@ export type AdminAuditRow = {
   id: string
   auditDate: string
   isBoros: boolean | null
+  isSangatBoros: boolean
+  validationStatus: "PENDING" | "VALIDATED"
   actualPln: number | null
   baseline: number | null
   std: number | null
@@ -77,6 +84,8 @@ type RawAdminAuditRow = {
   id: string
   auditDate: Date
   isBoros: boolean | null
+  isSangatBoros: boolean
+  validationStatus: AdminAuditRow["validationStatus"]
   actualPln: { toString(): string } | string | number | null
   baseline: { toString(): string } | string | number | null
   std: { toString(): string } | string | number | null
@@ -123,6 +132,18 @@ export function parseAdminAuditSort(
   }
 
   return defaultAdminAuditSort
+}
+
+export function parseAdminAuditValidation(
+  value: string | null | undefined
+): AdminAuditValidation | "all" {
+  return value === "pending" || value === "validated" ? value : "all"
+}
+
+export function parseAdminAuditPriority(
+  value: string | null | undefined
+): AdminAuditPriority | "all" {
+  return value === "sangat-boros" ? value : "all"
 }
 
 export function parseAdminAuditOrder(
@@ -211,6 +232,8 @@ function serializeAudit(row: RawAdminAuditRow) {
     id: row.id,
     auditDate: row.auditDate.toISOString(),
     isBoros: row.isBoros,
+    isSangatBoros: row.isSangatBoros,
+    validationStatus: row.validationStatus,
     actualPln: toNullableNumber(row.actualPln),
     baseline: toNullableNumber(row.baseline),
     std: toNullableNumber(row.std),
@@ -243,12 +266,25 @@ function getDateRange(filters: AdminAuditFilters) {
   }
 }
 
-function getAuditRowsWhereSql(filters: AdminAuditFilters, values: unknown[]) {
+async function getAuditRowsWhereSql(
+  filters: AdminAuditFilters,
+  values: unknown[]
+) {
   const clauses = ["a.status = 'COMPLETED'", `(${activeStoreWhereSql})`]
 
-  const gapClause = getAuditGapFilterWhereSql("a")
-  if (gapClause) {
-    clauses.push(gapClause)
+  const gapClause = await getAdminGapFilterSql("a")
+  if (gapClause) clauses.push(gapClause)
+
+  if (filters.priority === "sangat-boros") {
+    clauses.push(`a.id IN (${await getSangatBorosAuditIdsSql()})`)
+  }
+
+  if (filters.validation !== "all") {
+    clauses.push(
+      filters.validation === "validated"
+        ? "a.validation_status = 'VALIDATED'"
+        : "a.validation_status = 'PENDING'"
+    )
   }
 
   if (filters.q) {
@@ -351,7 +387,7 @@ async function getAdminAuditRowsRaw({
   limit: number
 }) {
   const values: unknown[] = []
-  const whereSql = getAuditRowsWhereSql(filters, values)
+  const whereSql = await getAuditRowsWhereSql(filters, values)
   const orderBySql = getAuditRowsOrderBySql(filters)
 
   values.push(limit)
@@ -365,6 +401,8 @@ async function getAdminAuditRowsRaw({
         a.id,
         a.audit_date AS "auditDate",
         a.is_boros AS "isBoros",
+        (a.id IN (${await getSangatBorosAuditIdsSql()})) AS "isSangatBoros",
+        a.validation_status::text AS "validationStatus",
         a.avg_actual_pln_kwh_per_month AS "actualPln",
         a.total_estimated_kwh_per_month AS baseline,
         std.avg_std AS std,
@@ -429,7 +467,7 @@ export async function getAdminAuditRows({
 export async function getAdminAuditCount(filters: AdminAuditFilters) {
   // Menggunakan queryRawUnsafe agar sinkron dengan getAdminAuditRowsRaw
   const values: unknown[] = []
-  const whereSql = getAuditRowsWhereSql(filters, values)
+  const whereSql = await getAuditRowsWhereSql(filters, values)
   const result = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(`
     SELECT COUNT(*)::bigint AS count
     FROM audits a

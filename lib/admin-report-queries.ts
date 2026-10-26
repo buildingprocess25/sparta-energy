@@ -1,4 +1,12 @@
 import { prisma } from "@/lib/prisma"
+import { getAdminGapFilterEnabled } from "@/lib/admin-gap-filter"
+import { getSangatBorosAuditIdsSql } from "@/lib/admin-sangat-boros"
+import { ENERGY_AUDIT_CATEGORIES } from "@/lib/energy-audit-categories"
+import {
+  getIotStatusLookup,
+  getStoreIot,
+  type StoreIotInfo,
+} from "@/lib/iot-status"
 import { getAuditGapFilterWhereSql } from "@/lib/audit-gap-filter"
 
 export type AdminReportType =
@@ -16,6 +24,9 @@ export type AdminReportFilters = {
   storeType: string
   status: AdminReportStatus | "all"
 }
+
+// gapFilter comes from the admin toggle cookie, never from the URL.
+type ReportQueryFilters = AdminReportFilters & { gapFilter?: boolean }
 
 type CountRow = {
   count: number | bigint
@@ -59,14 +70,14 @@ const monthLabels = [
 
 const reportLabels: Record<AdminReportType, string> = {
   "store-data": "data-toko-bulanan",
-  "audit-history": "riwayat-audit",
-  equipment: "equipment-audit",
+  "audit-history": "riwayat-kalkulasi",
+  equipment: "equipment-kalkulasi",
   "branch-summary": "ringkasan-cabang",
 }
 
 const reportSheetNames: Record<AdminReportType, string> = {
   "store-data": "Data Toko",
-  "audit-history": "Riwayat Audit",
+  "audit-history": "Riwayat Kalkulasi",
   equipment: "Equipment",
   "branch-summary": "Ringkasan Cabang",
 }
@@ -104,7 +115,7 @@ function getDefaultYear() {
   return String(new Date().getFullYear())
 }
 
-function getDateRange(filters: AdminReportFilters) {
+function getDateRange(filters: ReportQueryFilters) {
   const isDefaultYear = filters.year === "all"
   const year = isDefaultYear ? getDefaultYear() : filters.year
   const month = filters.month !== "all" ? Number(filters.month) : null
@@ -132,7 +143,7 @@ function addCommonWhere({
   storeAlias = "s",
   includeStatus = true,
 }: {
-  filters: AdminReportFilters
+  filters: ReportQueryFilters
   values: unknown[]
   auditAlias?: string
   storeAlias?: string
@@ -143,7 +154,7 @@ function addCommonWhere({
     `(${activeStoreWhereSql.replaceAll("s.", `${storeAlias}.`)})`,
   ]
 
-  const gapClause = getAuditGapFilterWhereSql(auditAlias)
+  const gapClause = getAuditGapFilterWhereSql(auditAlias, filters.gapFilter)
   if (gapClause) {
     clauses.push(gapClause)
   }
@@ -188,7 +199,7 @@ function addCommonWhere({
   return clauses
 }
 
-function getCommonWhereSql(filters: AdminReportFilters, values: unknown[]) {
+function getCommonWhereSql(filters: ReportQueryFilters, values: unknown[]) {
   return `WHERE ${addCommonWhere({ filters, values }).join(" AND ")}`
 }
 
@@ -224,6 +235,26 @@ function formatMonth(monthIdx: unknown, billingMonth: unknown) {
   return billingMonth ?? ""
 }
 
+function formatEnergyAudits(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) return "Belum diperiksa"
+
+  return value
+    .map((item: { category: string; status: string }) => {
+      const label =
+        ENERGY_AUDIT_CATEGORIES.find((c) => c.key === item.category)?.label ??
+        item.category
+      return `${label}: ${item.status === "COMPLETED" ? "Selesai" : "Draf"}`
+    })
+    .join("; ")
+}
+
+function formatIotStatus(iot: StoreIotInfo | null) {
+  if (!iot) return "Tidak tersedia"
+  if (iot.status === "live") return iot.isRecording ? "Merekam" : "Live"
+  if (iot.status === "historical") return "Pernah dipasang"
+  return "Belum dipasang"
+}
+
 function getFilenameDateStamp() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
@@ -233,7 +264,7 @@ function getFilenameDateStamp() {
   }).format(new Date())
 }
 
-function getFilename(report: AdminReportType, filters: AdminReportFilters) {
+function getFilename(report: AdminReportType, filters: ReportQueryFilters) {
   const parts = [reportLabels[report]]
 
   if (filters.year !== "all") parts.push(filters.year)
@@ -241,6 +272,7 @@ function getFilename(report: AdminReportType, filters: AdminReportFilters) {
   if (filters.branch !== "all") parts.push(filters.branch.toLowerCase())
   if (filters.storeType !== "all") parts.push(filters.storeType.toLowerCase())
   if (filters.status !== "all") parts.push(filters.status)
+  if (filters.gapFilter === false) parts.push("semua-gap")
   parts.push(getFilenameDateStamp())
 
   return `${parts.join("-").replaceAll(/\s+/g, "-")}.xlsx`
@@ -284,7 +316,7 @@ export async function getAdminReportFilterOptions() {
   }
 }
 
-async function countStoreData(filters: AdminReportFilters) {
+async function countStoreData(filters: ReportQueryFilters) {
   const values: unknown[] = []
   const whereSql = getCommonWhereSql(filters, values)
   const rows = await prisma.$queryRawUnsafe<CountRow[]>(
@@ -301,7 +333,7 @@ async function countStoreData(filters: AdminReportFilters) {
   return formatAdminReportCount(rows[0]?.count ?? 0)
 }
 
-async function countAuditHistory(filters: AdminReportFilters) {
+async function countAuditHistory(filters: ReportQueryFilters) {
   const values: unknown[] = []
   const whereSql = getCommonWhereSql(filters, values)
   const rows = await prisma.$queryRawUnsafe<CountRow[]>(
@@ -317,7 +349,7 @@ async function countAuditHistory(filters: AdminReportFilters) {
   return formatAdminReportCount(rows[0]?.count ?? 0)
 }
 
-async function countEquipment(filters: AdminReportFilters) {
+async function countEquipment(filters: ReportQueryFilters) {
   const values: unknown[] = []
   const whereSql = getCommonWhereSql(filters, values)
   const rows = await prisma.$queryRawUnsafe<CountRow[]>(
@@ -334,7 +366,7 @@ async function countEquipment(filters: AdminReportFilters) {
   return formatAdminReportCount(rows[0]?.count ?? 0)
 }
 
-async function countBranchSummary(filters: AdminReportFilters) {
+async function countBranchSummary(filters: ReportQueryFilters) {
   const values: unknown[] = []
   const clauses = [`(${activeStoreWhereSql})`, "s.branch IS NOT NULL"]
 
@@ -360,7 +392,14 @@ async function countBranchSummary(filters: AdminReportFilters) {
   return formatAdminReportCount(rows[0]?.count ?? 0)
 }
 
-export async function getAdminReportCounts(filters: AdminReportFilters) {
+async function withAdminGapFilter(
+  filters: AdminReportFilters
+): Promise<ReportQueryFilters> {
+  return { ...filters, gapFilter: await getAdminGapFilterEnabled() }
+}
+
+export async function getAdminReportCounts(rawFilters: AdminReportFilters) {
+  const filters = await withAdminGapFilter(rawFilters)
   const [storeData, auditHistory, equipment, branchSummary] = await Promise.all(
     [
       countStoreData(filters),
@@ -379,7 +418,7 @@ export async function getAdminReportCounts(filters: AdminReportFilters) {
 }
 
 async function buildStoreDataDataset(
-  filters: AdminReportFilters,
+  filters: ReportQueryFilters,
   limit?: number
 ) {
   const values: unknown[] = []
@@ -420,7 +459,7 @@ async function buildStoreDataDataset(
       { label: "STD", type: "number" },
       { label: "PLN kWh", type: "number" },
       { label: "Baseline", type: "number" },
-      { label: "Tanggal Audit", type: "date" },
+      { label: "Tanggal Kalkulasi", type: "date" },
     ],
     rows: rows.map((row) => [
       toText(row.code),
@@ -437,12 +476,13 @@ async function buildStoreDataDataset(
 }
 
 async function buildAuditHistoryDataset(
-  filters: AdminReportFilters,
+  filters: ReportQueryFilters,
   limit?: number
 ) {
   const values: unknown[] = []
   const whereSql = getCommonWhereSql(filters, values)
   const limitSql = getLimitSql(values, limit)
+  const iotLookup = await getIotStatusLookup()
   const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
     `
       SELECT
@@ -468,10 +508,16 @@ async function buildAuditHistoryDataset(
             / a.total_estimated_kwh_per_month * 100
           )
         END AS "gapPercent",
-        rec.recommendations
+        rec.recommendations,
+        a.validation_status::text AS "validationStatus",
+        COALESCE(v.full_name, v.email) AS "validatedBy",
+        a.validated_at AS "validatedAt",
+        (a.id IN (${await getSangatBorosAuditIdsSql()})) AS "isSangatBoros",
+        ea.energy_audits AS "energyAudits"
       FROM audits a
       JOIN stores s ON s.id = a.store_id
       LEFT JOIN users u ON u.id = a.auditor_id
+      LEFT JOIN users v ON v.id = a.validated_by_id
       LEFT JOIN LATERAL (
         SELECT AVG(h.sales_transaction_per_day) AS avg_std
         FROM audit_pln_std_history h
@@ -482,6 +528,11 @@ async function buildAuditHistoryDataset(
         FROM audit_recommendations ar
         WHERE ar.audit_id = a.id
       ) rec ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT json_agg(json_build_object('category', e.category, 'status', e.status)) AS energy_audits
+        FROM energy_audits e
+        WHERE e.source_audit_id = a.id
+      ) ea ON TRUE
       ${whereSql}
       ORDER BY a.audit_date DESC, s.code ASC
       ${limitSql}
@@ -493,7 +544,7 @@ async function buildAuditHistoryDataset(
     filename: getFilename("audit-history", filters),
     sheetName: reportSheetNames["audit-history"],
     columns: [
-      { label: "Tanggal Audit", type: "date" },
+      { label: "Tanggal Kalkulasi", type: "date" },
       { label: "Kode Toko", type: "text" },
       { label: "Nama Toko", type: "text" },
       { label: "Cabang", type: "text" },
@@ -506,6 +557,12 @@ async function buildAuditHistoryDataset(
       { label: "Gap kWh", type: "number" },
       { label: "Gap %", type: "number" },
       { label: "Rekomendasi", type: "text" },
+      { label: "Sangat Boros", type: "text" },
+      { label: "Status Validasi", type: "text" },
+      { label: "Divalidasi Oleh", type: "text" },
+      { label: "Tanggal Validasi", type: "date" },
+      { label: "Pemeriksaan", type: "text" },
+      { label: "Status IoT", type: "text" },
     ],
     rows: rows.map((row) => [
       toDate(row.auditDate as Date | string | null),
@@ -521,12 +578,18 @@ async function buildAuditHistoryDataset(
       toRoundedNumber(row.gap),
       toRoundedNumber(row.gapPercent, 2),
       toText(row.recommendations),
+      row.isSangatBoros ? "Ya" : "Tidak",
+      row.validationStatus === "VALIDATED" ? "Sudah divalidasi" : "Menunggu validasi",
+      toText(row.validatedBy),
+      toDate(row.validatedAt as Date | string | null),
+      formatEnergyAudits(row.energyAudits),
+      formatIotStatus(getStoreIot(iotLookup, String(row.code ?? ""))),
     ]),
   } satisfies AdminReportDataset
 }
 
 async function buildEquipmentDataset(
-  filters: AdminReportFilters,
+  filters: ReportQueryFilters,
   limit?: number
 ) {
   const values: unknown[] = []
@@ -568,7 +631,7 @@ async function buildEquipmentDataset(
       { label: "Nama Toko", type: "text" },
       { label: "Cabang", type: "text" },
       { label: "Tipe Toko", type: "text" },
-      { label: "Tanggal Audit", type: "date" },
+      { label: "Tanggal Kalkulasi", type: "date" },
       { label: "Area", type: "text" },
       { label: "Equipment", type: "text" },
       { label: "Brand", type: "text" },
@@ -597,7 +660,7 @@ async function buildEquipmentDataset(
 }
 
 async function buildBranchSummaryDataset(
-  filters: AdminReportFilters,
+  filters: ReportQueryFilters,
   limit?: number
 ) {
   const values: unknown[] = []
@@ -669,7 +732,7 @@ async function buildBranchSummaryDataset(
     columns: [
       { label: "Cabang", type: "text" },
       { label: "Total Toko", type: "number" },
-      { label: "Toko Diaudit", type: "number" },
+      { label: "Toko Dikalkulasi", type: "number" },
       { label: "Coverage %", type: "number" },
       { label: "Toko Hemat", type: "number" },
       { label: "Toko Boros", type: "number" },
@@ -704,13 +767,14 @@ async function buildBranchSummaryDataset(
 
 export async function buildAdminReportDataset({
   report,
-  filters,
+  filters: rawFilters,
   limit,
 }: {
   report: AdminReportType
   filters: AdminReportFilters
   limit?: number
 }) {
+  const filters = await withAdminGapFilter(rawFilters)
   const datasetByReport: Record<
     AdminReportType,
     () => Promise<AdminReportDataset>

@@ -8,15 +8,17 @@ type ResultStatusBadgeProps = {
 }
 
 // Admin-only label. "Sangat Boros" marks the 12 boros stores with the largest gap.
+export function SangatBorosBadge() {
+  return (
+    <Badge className="border-transparent bg-[#b23f39] text-white">
+      <IconFlame data-icon="inline-start" aria-hidden="true" />
+      Sangat Boros
+    </Badge>
+  )
+}
+
 export function ResultStatusBadge({ isBoros, isSangatBoros }: ResultStatusBadgeProps) {
-  if (isBoros && isSangatBoros) {
-    return (
-      <Badge className="border-transparent bg-[#b23f39] text-white">
-        <IconFlame data-icon="inline-start" aria-hidden="true" />
-        Sangat Boros
-      </Badge>
-    )
-  }
+  if (isBoros && isSangatBoros) return <SangatBorosBadge />
   return (
     <Badge
       className={

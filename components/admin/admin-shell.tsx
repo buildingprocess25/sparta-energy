@@ -34,6 +34,10 @@ import {
 } from "react"
 
 import { AdminDashboardFilters } from "@/components/admin/admin-dashboard-filters"
+import {
+  AdminGapFilterToggle,
+  type AdminGapFilterState,
+} from "@/components/admin/admin-gap-filter-toggle"
 import { Logo } from "@/components/logo"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -85,6 +89,7 @@ type AdminUser = {
 
 type AdminShellProps = {
   user: AdminUser
+  gapFilter: AdminGapFilterState
   children: ReactNode
 }
 
@@ -117,7 +122,7 @@ const navGroups: AdminNavGroup[] = [
         icon: IconBuildingStore,
       },
       {
-        label: "Riwayat Audit",
+        label: "Riwayat Kalkulasi",
         href: "/admin/audits",
         icon: IconClipboardList,
       },
@@ -207,8 +212,8 @@ function getBreadcrumbItems(pathname: string) {
 
   if (pathname.startsWith("/admin/audits/")) {
     return [
-      { label: "Riwayat Audit", href: "/admin/audits" },
-      { label: "Detail Audit" },
+      { label: "Riwayat Kalkulasi", href: "/admin/audits" },
+      { label: "Detail Kalkulasi" },
     ]
   }
 
@@ -541,9 +546,11 @@ function DashboardGlobalFilters() {
 
 function AdminHeaderActions({
   user,
+  gapFilter,
   showGlobalFilters,
 }: {
   user: AdminUser
+  gapFilter: AdminGapFilterState
   showGlobalFilters: boolean
 }) {
   return (
@@ -553,6 +560,7 @@ function AdminHeaderActions({
           <DashboardGlobalFilters />
         </Suspense>
       )}
+      <AdminGapFilterToggle {...gapFilter} />
       <ThemeModeToggle />
       <HeaderProfileMenu user={user} />
     </div>
@@ -607,7 +615,13 @@ function AdminSidebarItem({
   )
 }
 
-function AdminSiteHeader({ user }: { user: AdminUser }) {
+function AdminSiteHeader({
+  user,
+  gapFilter,
+}: {
+  user: AdminUser
+  gapFilter: AdminGapFilterState
+}) {
   const pathname = usePathname()
   const breadcrumbItems = getBreadcrumbItems(pathname)
   const showGlobalFilters = pathname === "/admin/dashboard"
@@ -646,13 +660,17 @@ function AdminSiteHeader({ user }: { user: AdminUser }) {
             })}
           </BreadcrumbList>
         </Breadcrumb>
-        <AdminHeaderActions user={user} showGlobalFilters={showGlobalFilters} />
+        <AdminHeaderActions
+          user={user}
+          gapFilter={gapFilter}
+          showGlobalFilters={showGlobalFilters}
+        />
       </div>
     </header>
   )
 }
 
-export function AdminShell({ user, children }: AdminShellProps) {
+export function AdminShell({ user, gapFilter, children }: AdminShellProps) {
   return (
     <TooltipProvider>
       <SidebarProvider
@@ -665,7 +683,7 @@ export function AdminShell({ user, children }: AdminShellProps) {
       >
         <AdminSidebar user={user} />
         <SidebarInset>
-          <AdminSiteHeader user={user} />
+          <AdminSiteHeader user={user} gapFilter={gapFilter} />
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2">
               <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6">

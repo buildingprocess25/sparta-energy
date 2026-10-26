@@ -17,6 +17,11 @@ import {
   type Filter,
   type FilterFieldConfig,
 } from "@/components/reui/filters"
+import {
+  iotFilterField,
+  priorityFilterField,
+  validationFilterField,
+} from "@/components/admin/admin-shared-filter-fields"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -29,7 +34,14 @@ function getParam(searchParams: URLSearchParams, key: string) {
   return searchParams.get(key) ?? ""
 }
 
-const filterParamKeys = ["branch", "status", "type"] as const
+const filterParamKeys = [
+  "branch",
+  "status",
+  "type",
+  "validation",
+  "priority",
+  "iot",
+] as const
 const filterParamKeySet = new Set<string>(filterParamKeys)
 
 export function AdminStoreFilters({
@@ -71,13 +83,13 @@ export function AdminStoreFilters({
       },
       {
         key: "status",
-        label: "Status Audit",
+        label: "Status Kalkulasi",
         type: "select",
         icon: <IconLeaf />,
         options: [
           { value: "hemat", label: "Hemat" },
           { value: "boros", label: "Boros" },
-          { value: "not-audited", label: "Belum Audit" },
+          { value: "not-audited", label: "Belum Dikalkulasi" },
         ],
       },
       {
@@ -90,6 +102,9 @@ export function AdminStoreFilters({
           label: item,
         })),
       },
+      validationFilterField,
+      priorityFilterField,
+      iotFilterField,
     ],
     [branchOptions, storeTypeOptions]
   )

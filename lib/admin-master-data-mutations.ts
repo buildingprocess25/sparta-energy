@@ -182,7 +182,7 @@ export async function deleteMasterStore(
     return {
       ok: false,
       status: 409,
-      message: "Toko sudah dipakai audit, jadi tidak bisa dihapus",
+      message: "Toko sudah dipakai kalkulasi, jadi tidak bisa dihapus",
     }
   }
 
@@ -284,7 +284,7 @@ export async function deleteMasterEquipment(
     return {
       ok: false,
       status: 409,
-      message: "Brand equipment sudah dipakai audit, jadi tidak bisa dihapus",
+      message: "Brand equipment sudah dipakai kalkulasi, jadi tidak bisa dihapus",
     }
   }
 

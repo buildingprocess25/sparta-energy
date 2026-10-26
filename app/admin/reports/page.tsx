@@ -44,20 +44,20 @@ const reportCards: ReportCard[] = [
   {
     report: "store-data",
     title: "Export Toko Bulanan",
-    description: "PLN kWh, baseline, cabang, dan tipe toko per audit.",
+    description: "PLN kWh, baseline, cabang, dan tipe toko per kalkulasi.",
     icon: IconFileSpreadsheet,
   },
   {
     report: "audit-history",
-    title: "Export Riwayat Audit",
+    title: "Export Riwayat Kalkulasi",
     description:
-      "Audit selesai lintas toko dengan status, gap, dan rekomendasi.",
+      "Kalkulasi selesai lintas toko dengan status, gap, dan rekomendasi.",
     icon: IconClipboardList,
   },
   {
     report: "equipment",
     title: "Export Equipment",
-    description: "Daftar equipment audit lengkap dengan area dan estimasi kWh.",
+    description: "Daftar equipment kalkulasi lengkap dengan area dan estimasi kWh.",
     icon: IconTool,
   },
   {

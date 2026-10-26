@@ -133,8 +133,8 @@ export function AdminMasterStoresTable({
   const handleMouseDown = (e: React.MouseEvent) => {
     const root = containerRef.current
     if (!root) return
-    const container = root.querySelector('[data-slot="table-container"]') as HTMLDivElement | null
-    if (!container) return
+    // The outer box scrolls both axes; the Table's own wrapper no longer scrolls.
+    const container = root
     if (e.button !== 0) return // Left click only
     const target = e.target as HTMLElement
     if (
@@ -308,7 +308,7 @@ export function AdminMasterStoresTable({
         onMouseUp={handleMouseUpOrLeave}
         onMouseLeave={handleMouseUpOrLeave}
         className={cn(
-          "min-h-0 w-full flex-1 overflow-auto bg-background max-h-[45vh] min-h-[300px] border rounded-md transition-all",
+          "max-h-[45vh] min-h-0 min-h-[300px] w-full flex-1 overflow-auto rounded-md border bg-background transition-all [&_[data-slot=table-container]]:overflow-visible",
           isDragging ? "cursor-grabbing select-none" : "cursor-grab"
         )}
       >
@@ -479,10 +479,13 @@ export function AdminMasterStoresTable({
             <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
               <IconAlertTriangle className="size-6" />
             </div>
-            <DialogTitle className="text-center mt-3">Hapus Toko</DialogTitle>
+            <DialogTitle className="mt-3 text-center">Hapus Toko</DialogTitle>
             <DialogDescription className="text-center">
               Apakah Anda yakin ingin menghapus toko{" "}
-              <strong className="text-foreground">{deleteStore?.code} - {deleteStore?.name}</strong>? Tindakan ini tidak dapat dibatalkan.
+              <strong className="text-foreground">
+                {deleteStore?.code} - {deleteStore?.name}
+              </strong>
+              ? Tindakan ini tidak dapat dibatalkan.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-2 grid grid-cols-2 gap-2 sm:space-x-0">

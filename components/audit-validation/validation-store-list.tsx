@@ -1,12 +1,9 @@
 import Link from "next/link"
 import {
   IconChevronRight,
-  IconCircleCheck,
   IconClipboardCheck,
-  IconClock,
 } from "@tabler/icons-react"
 
-import { Badge } from "@/components/ui/badge"
 import {
   Item,
   ItemActions,
@@ -17,6 +14,7 @@ import {
 import type { ValidationListRow } from "@/lib/audit-validation-queries"
 import { formatGap, formatKwh } from "@/components/audit-validation/format"
 import { ResultStatusBadge } from "@/components/audit-validation/result-status-badge"
+import { ValidationStatusBadge } from "@/components/audit-validation/validation-status-badge"
 import { cn } from "@/lib/utils"
 
 type ValidationStoreListProps = {
@@ -68,21 +66,7 @@ export function ValidationStoreList({
                     isBoros={row.isBoros}
                     isSangatBoros={row.isSangatBoros}
                   />
-                  <Badge
-                    className={cn(
-                      "border-transparent",
-                      row.isValidated
-                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
-                        : "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
-                    )}
-                  >
-                    {row.isValidated ? (
-                      <IconCircleCheck data-icon="inline-start" aria-hidden="true" />
-                    ) : (
-                      <IconClock data-icon="inline-start" aria-hidden="true" />
-                    )}
-                    {row.isValidated ? "Sudah divalidasi" : "Menunggu validasi"}
-                  </Badge>
+                  <ValidationStatusBadge validated={row.isValidated} />
                 </div>
               </ItemContent>
               {row.gapPercent !== null && (

@@ -289,7 +289,7 @@ prisma/
   - `estimatedDailyKwh = baseKw * qty * operationalHours`
   - `estimatedMonthlyKwh = estimatedDailyKwh * 30`
   - Boros if avg actual PLN kWh/month > estimate × 1.05; recommendation TRAINING / REPAIR / MAINTENANCE (details in `AI_CONTEXT.md` → Pembaruan Implementasi)
-- `lib/audit-gap-filter.ts`: temporary ±20% gap filter that hides outlier audits from admin views (does not change Hemat/Boros)
+- `lib/audit-gap-filter.ts`: temporary ±20% gap filter that hides outlier audits from admin views (does not change Hemat/Boros). Admins switch it per browser from the admin header; admin queries read it through `lib/admin-gap-filter.ts`
 - Used in audit creation and admin dashboard
 
 ### AI Recommendations

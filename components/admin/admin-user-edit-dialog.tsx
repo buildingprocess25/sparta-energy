@@ -193,7 +193,7 @@ export function EditUserDialog({
               />
               <p className="text-xs text-muted-foreground">
                 {role === "ADMIN"
-                  ? "Admin dapat mengakses dashboard admin dan audit semua cabang."
+                  ? "Admin dapat mengakses dashboard admin dan kalkulasi semua cabang."
                   : "User hanya dapat mengakses cabang yang ditetapkan."}
               </p>
             </div>

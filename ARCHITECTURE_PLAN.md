@@ -69,3 +69,10 @@ Sistem terdiri dari 3 repositori/proyek independen dengan peran dan domain fungs
    | View | Dipakai oleh | Rincian |
    |---|---|---|
    | `v_toko_sangat_boros` | `smart-energy-monitoring` (Prioritas Pasang IoT, baseline grafik kWh) dan label "Sangat Boros" di admin `sparta-energy` | `docs/integrasi-sangat-boros-monitoring.md` |
+
+## 📡 5. Status IoT di admin `sparta-energy` (diputuskan 26 Oktober 2026)
+
+1. `sparta-energy` **tidak** terhubung ke DB 2 (`energy_meter`). Status IoT per toko dibaca dari `GET /api/stores` milik `smart-energy-monitoring` lewat HTTP, sehingga aturan pencocokan device dan status live tetap di satu tempat.
+2. Endpoint itu read-only dan saat ini tanpa autentikasi (diputuskan user). Alamatnya diatur lewat env `ENERGY_MONITORING_URL` di `sparta-energy`.
+3. Kontrak respons yang dipakai: `code` (huruf besar), `status` (`live` atau `historical`), `deviceCount`, `isRecording`. Toko yang tidak ada di respons berarti belum dipasang IoT. Perubahan nama field ini harus dikoordinasikan.
+4. Pencocokan device ke toko bergantung pada kode toko di dalam kurung pada nama device di `smart-energy-meter-vps`, misalnya `[TI90] RUKO ELEVEE`. Device tanpa kode seperti itu tidak akan cocok ke toko mana pun.

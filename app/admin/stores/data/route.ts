@@ -6,6 +6,9 @@ import {
   getAdminStoreRows,
   parseAdminStoreSort,
   parseSortOrder,
+  parseStoreIotFilter,
+  parseStorePriority,
+  parseStoreValidation,
   type StoreStatus,
 } from "@/lib/admin-store-queries"
 import { auth } from "@/lib/auth"
@@ -39,6 +42,9 @@ export async function GET(request: Request) {
     branch: getFilter(url.searchParams, "branch"),
     status: getFilter(url.searchParams, "status") as StoreStatus | "all",
     type: getFilter(url.searchParams, "type"),
+    validation: parseStoreValidation(url.searchParams.get("validation")),
+    priority: parseStorePriority(url.searchParams.get("priority")),
+    iot: parseStoreIotFilter(url.searchParams.get("iot")),
     sort: parseAdminStoreSort(url.searchParams.get("sort")),
     order: parseSortOrder(url.searchParams.get("order")),
   }

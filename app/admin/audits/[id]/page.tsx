@@ -15,8 +15,13 @@ import {
   IconTool,
 } from "@tabler/icons-react"
 
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll"
 import { ConsumptionTrendChart } from "@/components/admin/admin-dashboard-charts"
 import { AdminMetricCard } from "@/components/admin/admin-metric-card"
+import { IotStatusBadge } from "@/components/admin/iot-status-badge"
+import { SangatBorosBadge } from "@/components/audit-validation/result-status-badge"
+import { ValidationStatusBadge } from "@/components/audit-validation/validation-status-badge"
+import { EnergyAuditCategoryStatusList } from "@/components/energy-audit/energy-audit-category-status-list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -284,9 +289,15 @@ export default async function AdminAuditDetailPage({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">
-              Audit {audit.store.code}
+              Kalkulasi {audit.store.code}
             </h1>
-            <StatusBadge isBoros={audit.isBoros} />
+            {audit.isSangatBoros ? (
+              <SangatBorosBadge />
+            ) : (
+              <StatusBadge isBoros={audit.isBoros} />
+            )}
+            <ValidationStatusBadge validated={audit.validation.validated} />
+            <IotStatusBadge iot={audit.iot} />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {audit.store.name} · {audit.store.branch ?? "Tanpa cabang"} ·{" "}
@@ -297,7 +308,7 @@ export default async function AdminAuditDetailPage({
           <Button asChild variant="outline">
             <Link href="/admin/audits">
               <IconArrowLeft data-icon="inline-start" />
-              Riwayat Audit
+              Riwayat Kalkulasi
             </Link>
           </Button>
           <Button
@@ -323,7 +334,7 @@ export default async function AdminAuditDetailPage({
         <AdminMetricCard
           label="Actual PLN"
           value={formatNumber(audit.actualPln, " kWh")}
-          description="Rata-rata PLN dari audit ini"
+          description="Rata-rata PLN dari kalkulasi ini"
           icon={IconBolt}
           tone={audit.isBoros ? "danger" : "success"}
         />
@@ -395,7 +406,7 @@ export default async function AdminAuditDetailPage({
 
         <Card size="sm" className="h-full gap-3">
           <CardHeader>
-            <CardTitle className="text-sm">Informasi Audit</CardTitle>
+            <CardTitle className="text-sm">Informasi Kalkulasi</CardTitle>
             <CardAction>
               <StatusBadge isBoros={audit.isBoros} />
             </CardAction>
@@ -403,7 +414,7 @@ export default async function AdminAuditDetailPage({
           <CardContent>
             <div className="grid grid-cols-2 gap-1.5 text-[11px] sm:grid-cols-3">
               {[
-                ["Tanggal audit", formatDate(audit.auditDate)],
+                ["Tanggal kalkulasi", formatDate(audit.auditDate)],
                 ["Auditor", audit.auditor.name],
                 ["Email auditor", audit.auditor.email],
                 ["Actual PLN", formatNumber(audit.actualPln, " kWh")],
@@ -416,6 +427,13 @@ export default async function AdminAuditDetailPage({
                   )}`,
                 ],
                 ["Gap %", formatGapPercent(audit.gapPercent)],
+                ["Divalidasi oleh", audit.validation.validatedBy ?? "-"],
+                [
+                  "Tanggal validasi",
+                  audit.validation.validatedAt
+                    ? formatDate(audit.validation.validatedAt)
+                    : "-",
+                ],
               ].map(([label, value]) => (
                 <div
                   key={label}
@@ -435,7 +453,8 @@ export default async function AdminAuditDetailPage({
           <CardHeader>
             <CardTitle>Tren Pemakaian PLN &amp; Baseline</CardTitle>
             <CardDescription>
-              Perbandingan aktual pemakaian PLN dan baseline estimasi beban pada audit ini.
+              Perbandingan aktual pemakaian PLN dan baseline estimasi beban pada
+              kalkulasi ini.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -443,157 +462,172 @@ export default async function AdminAuditDetailPage({
               <ConsumptionTrendChart data={trendData} />
             ) : (
               <p className="text-sm text-muted-foreground">
-                Audit ini belum memiliki histori PLN.
+                Kalkulasi ini belum memiliki histori PLN.
               </p>
             )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Rekomendasi Audit</CardTitle>
-            <CardDescription>
-              Rekomendasi tindakan yang dihasilkan dari audit ini.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {audit.recommendations.length > 0 ? (
-              audit.recommendations.map((item) => (
-                <div
-                  key={`${item.type}-${item.title}`}
-                  className={cn(
-                    "rounded-lg border px-4 py-3",
-                    getRecommendationClass(item.type)
-                  )}
-                >
-                  <Badge variant="secondary">
-                    <IconFileDescription data-icon="inline-start" />
-                    {getRecommendationLabel(item.type)}
-                  </Badge>
-                  <p className="mt-3 text-sm font-medium">{item.title}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    {item.description}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Audit ini belum memiliki rekomendasi.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Rekomendasi</CardTitle>
+              <CardDescription>
+                Rekomendasi tindakan yang dihasilkan dari kalkulasi ini.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              {audit.recommendations.length > 0 ? (
+                audit.recommendations.map((item) => (
+                  <div
+                    key={`${item.type}-${item.title}`}
+                    className={cn(
+                      "rounded-lg border px-4 py-3",
+                      getRecommendationClass(item.type)
+                    )}
+                  >
+                    <Badge variant="secondary">
+                      <IconFileDescription data-icon="inline-start" />
+                      {getRecommendationLabel(item.type)}
+                    </Badge>
+                    <p className="mt-3 text-sm font-medium">{item.title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      {item.description}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Kalkulasi ini belum memiliki rekomendasi.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Pemeriksaan per Kategori</CardTitle>
+              <CardDescription>
+                Status pemeriksaan energi di toko untuk kalkulasi ini.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EnergyAuditCategoryStatusList items={audit.energyAudits} />
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
       <Card>
         <CardHeader>
-          <CardTitle>Daftar Equipment Audit</CardTitle>
+          <CardTitle>Daftar Equipment</CardTitle>
           <CardDescription>
             Detail equipment, area, merek, jam operasional, dan estimasi kWh.
           </CardDescription>
         </CardHeader>
-        <CardContent className="overflow-auto px-0 pb-0">
-          <Table className="min-w-[900px] text-xs [&_td]:px-4 [&_td]:py-2 [&_th]:px-4">
-            <TableHeader>
-              <TableRow>
-                <SortableEquipmentHeader
-                  auditId={audit.id}
-                  column="area"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                >
-                  Area
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  auditId={audit.id}
-                  column="name"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                >
-                  Equipment
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  auditId={audit.id}
-                  column="brand"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                >
-                  Merek
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  auditId={audit.id}
-                  column="qty"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                  align="right"
-                >
-                  Qty
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  auditId={audit.id}
-                  column="operationalHours"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                  align="right"
-                >
-                  Jam
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  auditId={audit.id}
-                  column="baseKw"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                  align="right"
-                >
-                  kW
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  auditId={audit.id}
-                  column="estimatedDailyKwh"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                  align="right"
-                >
-                  kWh/hari
-                </SortableEquipmentHeader>
-                <TableHead className="w-40">Kontribusi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {equipmentRows.map((item, index) => (
-                <TableRow key={`${item.area}-${item.name}-${index}`}>
-                  <TableCell>{item.area}</TableCell>
-                  <TableCell className="font-medium">{item.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {item.brand}
-                  </TableCell>
-                  <TableCell className="text-right">{item.qty}</TableCell>
-                  <TableCell className="text-right">
-                    {formatDecimal(item.operationalHours)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatDecimal(item.baseKw)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatDecimal(item.estimatedDailyKwh)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-1.5 rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            (item.estimatedDailyKwh / maxDailyKwh) * 100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </TableCell>
+        <CardContent className="px-0 pb-0">
+          <AdminTableScroll className="max-h-[560px]">
+            <Table className="min-w-[900px] text-xs [&_td]:px-4 [&_td]:py-2 [&_th]:px-4">
+              <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
+                <TableRow>
+                  <SortableEquipmentHeader
+                    auditId={audit.id}
+                    column="area"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                  >
+                    Area
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    auditId={audit.id}
+                    column="name"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                  >
+                    Equipment
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    auditId={audit.id}
+                    column="brand"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                  >
+                    Merek
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    auditId={audit.id}
+                    column="qty"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                    align="right"
+                  >
+                    Qty
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    auditId={audit.id}
+                    column="operationalHours"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                    align="right"
+                  >
+                    Jam
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    auditId={audit.id}
+                    column="baseKw"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                    align="right"
+                  >
+                    kW
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    auditId={audit.id}
+                    column="estimatedDailyKwh"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                    align="right"
+                  >
+                    kWh/hari
+                  </SortableEquipmentHeader>
+                  <TableHead className="w-40">Kontribusi</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {equipmentRows.map((item, index) => (
+                  <TableRow key={`${item.area}-${item.name}-${index}`}>
+                    <TableCell>{item.area}</TableCell>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {item.brand}
+                    </TableCell>
+                    <TableCell className="text-right">{item.qty}</TableCell>
+                    <TableCell className="text-right">
+                      {formatDecimal(item.operationalHours)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatDecimal(item.baseKw)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatDecimal(item.estimatedDailyKwh)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-1.5 rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              (item.estimatedDailyKwh / maxDailyKwh) * 100
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </AdminTableScroll>
         </CardContent>
       </Card>
     </div>

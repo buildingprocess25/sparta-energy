@@ -1,3 +1,5 @@
+import type { EnergyAuditCategory, EnergyAuditStatus } from "@prisma/client"
+
 type AreaTarget = "PARKING" | "TERRACE" | "SALES" | "WAREHOUSE"
 type RecommendationType = "TRAINING" | "REPAIR" | "MAINTENANCE"
 
@@ -22,6 +24,11 @@ export type AdminStoreDetailInput = {
     id: string
     auditDate: Date | string
     isBoros: boolean | null
+    validationStatus?: "PENDING" | "VALIDATED"
+    energyAudits?: Array<{
+      category: EnergyAuditCategory
+      status: EnergyAuditStatus
+    }>
     totalEstimatedKwhPerMonth: number | string | { toString(): string } | null
     avgActualPlnKwhPerMonth:
       | number
@@ -251,6 +258,8 @@ export function buildStoreDetailViewModel(input: AdminStoreDetailInput) {
           baselineKwhPerM2: round(baseline / areaDivisor, 1),
           recommendation: latestAudit.recommendations[0] ?? null,
           auditorName: latestAudit.auditor.fullName ?? latestAudit.auditor.email,
+          validated: latestAudit.validationStatus === "VALIDATED",
+          energyAudits: latestAudit.energyAudits ?? [],
         }
       : null,
     monthlyTrend:
@@ -310,6 +319,10 @@ export async function getAdminStoreDetail(storeId: string) {
           id: true,
           auditDate: true,
           isBoros: true,
+          validationStatus: true,
+          energyAudits: {
+            select: { category: true, status: true },
+          },
           totalEstimatedKwhPerMonth: true,
           avgActualPlnKwhPerMonth: true,
           auditor: {
@@ -359,9 +372,19 @@ export async function getAdminStoreDetail(storeId: string) {
   if (!store) return null
 
   const { audits, ...storeIdentity } = store
+  const { isAdminSangatBoros } = await import("@/lib/admin-sangat-boros")
+  const { getIotStatusLookup, getStoreIot } = await import("@/lib/iot-status")
+  const [isSangatBoros, iotLookup] = await Promise.all([
+    audits[0] ? isAdminSangatBoros(audits[0].id) : false,
+    getIotStatusLookup(),
+  ])
 
-  return buildStoreDetailViewModel({
-    store: storeIdentity,
-    audits,
-  })
+  return {
+    ...buildStoreDetailViewModel({
+      store: storeIdentity,
+      audits,
+    }),
+    isSangatBoros,
+    iot: getStoreIot(iotLookup, storeIdentity.code),
+  }
 }

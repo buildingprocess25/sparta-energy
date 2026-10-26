@@ -207,8 +207,23 @@ Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbed
 ### Filter Gap ±20% (`lib/audit-gap-filter.ts`)
 
 - Gap = (aktual PLN − estimasi) / estimasi.
-- Saat `AUDIT_GAP_FILTER.enabled = true`, audit dengan gap di luar ±20% **disembunyikan** dari tampilan admin (dashboard, branches, stores, audits, reports) sebagai penyaring outlier.
-- Filter ini **tidak mengubah** status Hemat/Boros yang tersimpan, dan bersifat sementara (bisa dimatikan lewat flag).
+- Saat filter aktif, audit dengan gap di luar ±20% **disembunyikan** dari tampilan admin (dashboard, branches, stores, audits, reports) sebagai penyaring outlier.
+- Admin menyalakan atau mematikan filter lewat switch "Gap ±20%" di header admin. Pilihan disimpan di cookie `admin-gap-filter` per browser (`lib/admin-gap-filter.ts`). Tanpa cookie, nilai default `AUDIT_GAP_FILTER.enabled` yang dipakai.
+- Query admin membaca status filter lewat `getAdminGapFilterSql()` / `getAdminGapFilterEnabled()`, bukan konstanta langsung. Mode Auditor dan halaman validasi tidak memakai filter ini.
+- "Sangat Boros" di admin ikut filter ini (`lib/admin-sangat-boros.ts`). Filter mati: dibaca dari view `v_toko_sangat_boros`, sama dengan web energy dan halaman validasi auditor. Filter nyala: 12 teratas dihitung ulang hanya dari kalkulasi di dalam ±20%, tanpa toko DEMO, sehingga bisa berbeda dari web energy.
+- Filter ini **tidak mengubah** status Hemat/Boros yang tersimpan.
+
+### Istilah di Admin
+
+- Hasil kalkulator konsumsi (model `Audit`) disebut **Kalkulasi** di UI admin. Form 7 kategori (model `EnergyAudit`) disebut **Pemeriksaan**. Peran pengguna tetap **Auditor**.
+- URL, nama tabel, dan nama variabel tetap memakai `audit`.
+
+### Status IoT di Admin (`lib/iot-status.ts`)
+
+- Admin membaca `GET {ENERGY_MONITORING_URL}/api/stores` milik smart-energy-monitoring (read-only, cache 5 menit, timeout 5 detik). sparta-energy tidak terhubung ke DB 2.
+- Toko dianggap punya IoT kalau `code` di respons sama dengan `stores.code` (huruf besar). Status: live, pernah dipasang, atau belum dipasang.
+- Kalau portal gagal dihubungi, tampilkan "Status IoT tidak tersedia", jangan "belum dipasang". Filter IoT dilewati dalam kondisi ini.
+- `ENERGY_MONITORING_URL` opsional. Default: `https://energy-monitoring.sparta-alfamart.web.id/`.
 
 ### Tambahan Routes (belum tercantum di Codebase Map)
 

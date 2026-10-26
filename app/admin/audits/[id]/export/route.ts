@@ -30,7 +30,7 @@ export async function GET(
   const audit = await getAdminAuditDetail(id)
 
   if (!audit) {
-    return NextResponse.json({ error: "Audit not found" }, { status: 404 })
+    return NextResponse.json({ error: "Kalkulasi tidak ditemukan" }, { status: 404 })
   }
 
   const workbook = XLSX.utils.book_new()
@@ -58,7 +58,7 @@ export async function GET(
         ? "24 Jam Non-Stop"
         : `${audit.store.openTime || "-"} s/d ${audit.store.closeTime || "-"}`,
       "",
-      "Tanggal Pelaksanaan Audit",
+      "Tanggal Kalkulasi",
       audit.auditDate.split("T")[0],
     ],
     ["Auditor Bertugas", audit.auditor.name, "", "Email Auditor", audit.auditor.email],
@@ -138,7 +138,7 @@ export async function GET(
     }
   }
 
-  XLSX.utils.book_append_sheet(workbook, summarySheet, "Ringkasan Audit")
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Ringkasan Kalkulasi")
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ─── SHEET 2: DAFTAR EQUIPMENT (INVENTARIS PERALATAN LENGKAP) ─────────────
@@ -306,7 +306,7 @@ export async function GET(
 
   const sanitizedStoreName = audit.store.name.replace(/[^a-zA-Z0-9_-]/g, "_")
   const dateStr = audit.auditDate.split("T")[0]
-  const filename = `Audit_Energy_${audit.store.code}_${sanitizedStoreName}_${dateStr}.xlsx`
+  const filename = `Kalkulasi_Energi_${audit.store.code}_${sanitizedStoreName}_${dateStr}.xlsx`
 
   return new Response(new Uint8Array(buffer), {
     headers: {
