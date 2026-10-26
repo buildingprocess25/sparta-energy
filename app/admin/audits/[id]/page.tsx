@@ -21,6 +21,7 @@ import { AdminMetricCard } from "@/components/admin/admin-metric-card"
 import { IotStatusBadge } from "@/components/admin/iot-status-badge"
 import { SangatBorosBadge } from "@/components/audit-validation/result-status-badge"
 import { ValidationStatusBadge } from "@/components/audit-validation/validation-status-badge"
+import { CorrectionHistory } from "@/components/audit-validation/correction-history"
 import { EnergyAuditCategoryStatusList } from "@/components/energy-audit/energy-audit-category-status-list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -501,6 +502,13 @@ export default async function AdminAuditDetailPage({
                   Kalkulasi ini belum memiliki rekomendasi.
                 </p>
               )}
+              {audit.original &&
+                audit.original.isBoros !== Boolean(audit.isBoros) && (
+                  <p className="text-xs text-muted-foreground">
+                    Rekomendasi dibuat dari data sebelum koreksi, saat status
+                    toko masih {audit.original.isBoros ? "Boros" : "Hemat"}.
+                  </p>
+                )}
             </CardContent>
           </Card>
           <Card>
@@ -514,6 +522,49 @@ export default async function AdminAuditDetailPage({
               <EnergyAuditCategoryStatusList items={audit.energyAudits} />
             </CardContent>
           </Card>
+          {audit.original && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Koreksi saat validasi</CardTitle>
+                <CardDescription>
+                  Hasil anak toko dibandingkan hasil setelah dikoreksi
+                  validator.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2 text-sm tabular-nums">
+                {[
+                  [
+                    "Status",
+                    audit.original.isBoros ? "Boros" : "Hemat",
+                    audit.isBoros ? "Boros" : "Hemat",
+                  ],
+                  [
+                    "Standar konsumsi",
+                    formatNumber(audit.original.baseline, " kWh"),
+                    formatNumber(audit.baseline, " kWh"),
+                  ],
+                  [
+                    "Aktual PLN",
+                    formatNumber(audit.original.actualPln, " kWh"),
+                    formatNumber(audit.actualPln, " kWh"),
+                  ],
+                ].map(([label, before, after]) => (
+                  <div
+                    key={label}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2"
+                  >
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className="font-medium">
+                      {before} → {after}
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+          {audit.corrections.length > 0 && (
+            <CorrectionHistory corrections={audit.corrections} />
+          )}
         </div>
       </section>
 

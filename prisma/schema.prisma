@@ -19,6 +19,7 @@ model User {
   updatedAt     DateTime  @updatedAt @map("updated_at")
   audits          Audit[]   @relation("AuditAuditor")
   validatedAudits Audit[]   @relation("AuditValidator")
+  auditCorrections AuditCorrection[]
   sessions      Session[]
   accounts      Account[]
   acCalculatorLogs    AcCalculatorLog[]
@@ -147,9 +148,14 @@ model Audit {
   is24Hours                 Boolean?              @map("is_24_hours")
   openTime                  String?               @map("open_time")
   closeTime                 String?               @map("close_time")
+  // Results as submitted by the store, copied before the first correction during validation
+  originalIsBoros                   Boolean? @map("original_is_boros")
+  originalTotalEstimatedKwhPerMonth Decimal? @map("original_total_estimated_kwh_per_month")
+  originalAvgActualPlnKwhPerMonth   Decimal? @map("original_avg_actual_pln_kwh_per_month")
   createdAt                 DateTime              @default(now()) @map("created_at")
   updatedAt                 DateTime              @updatedAt @map("updated_at")
   items                     AuditItem[]
+  corrections               AuditCorrection[]
   plnHistory                AuditPlnStdHistory[]
   recommendations           AuditRecommendation[]
   energyAudits              EnergyAudit[]
@@ -219,6 +225,33 @@ enum AuditStatus {
 enum AuditValidationStatus {
   PENDING
   VALIDATED
+}
+
+enum AuditCorrectionType {
+  ITEM_ADDED
+  ITEM_UPDATED
+  ITEM_DELETED
+  PLN_UPDATED
+  TECHNICAL_UPDATED
+  ADDRESS_UPDATED
+}
+
+// One row per change a validator makes to a kalkulasi before validating it.
+model AuditCorrection {
+  id          String              @id @default(uuid()) @db.Uuid
+  auditId     String              @map("audit_id") @db.Uuid
+  validatorId String?             @map("validator_id") @db.Uuid
+  type        AuditCorrectionType
+  summary     String
+  before      Json?
+  after       Json?
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  audit     Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  validator User? @relation(fields: [validatorId], references: [id], onDelete: SetNull)
+
+  @@index([auditId, createdAt])
+  @@map("audit_corrections")
 }
 
 enum EnergyAuditCategory {

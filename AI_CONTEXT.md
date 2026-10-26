@@ -225,6 +225,15 @@ Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbed
 - Kalau portal gagal dihubungi, tampilkan "Status IoT tidak tersedia", jangan "belum dipasang". Filter IoT dilewati dalam kondisi ini.
 - `ENERGY_MONITORING_URL` opsional. Default: `https://energy-monitoring.sparta-alfamart.web.id/`.
 
+### Validasi Kalkulasi (`/audit/validation/[id]`)
+
+- Satu halaman, tanpa step. Kiri: ringkasan status dan perbandingan kWh, plus riwayat koreksi. Kanan: Teknis Toko (tipe, alamat, daya PLN, luas area, jam operasional, riwayat PLN 6 bulan dengan STD), lalu Daftar Peralatan (tambah, ubah, hapus).
+- Koreksi alat langsung tersimpan lewat dialog. Teknis toko, alamat, dan riwayat PLN tersimpan lewat "Simpan Draf" atau saat "Validasi Kalkulasi" (`saveValidationDraft`, `validateAudit` di `app/actions/audit-validation.ts`).
+- Setiap koreksi menghitung ulang standar, aktual (rata-rata PLN, bulan 0 kWh tidak dihitung), gap, **dan status Hemat/Boros** (`BOROS_TOLERANCE` 1,05 di `lib/audit-recalculate.ts`).
+- Sebelum koreksi pertama, hasil anak toko disalin ke `audits.original_*`. Setiap koreksi dicatat di tabel `audit_corrections`. Admin melihat keduanya di Detail Kalkulasi.
+- Alamat disimpan langsung ke `stores.address`. Tipe, daya, luas, dan jam hanya disalin ke data toko kalau kalkulasi ini yang terbaru.
+- Rekomendasi tidak dibuat ulang saat status berubah. Halaman validasi dan admin memberi keterangan kalau status berubah setelah koreksi.
+
 ### Tambahan Routes (belum tercantum di Codebase Map)
 
 - `/admin` beserta `/admin/dashboard`, `/admin/audits`, `/admin/audits/[id]`, `/admin/stores`, `/admin/stores/[id]`, `/admin/branches`, `/admin/equipment`, `/admin/master-data`, `/admin/users`, `/admin/reports`, `/admin/calculator-logs`

@@ -11,13 +11,14 @@ import {
   IconDownload,
   IconPlus,
   IconTrash,
-  IconX,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { saveLightingAudit } from "@/app/actions/energy-audit"
 import { StepActionBar } from "@/components/audit-validation/step-action-bar"
 import { BrandCombobox } from "@/components/audit/brand-combobox"
+import { LuxMeasurementTable } from "@/components/energy-audit/lux-measurement-table"
+import { LuxSubZoneGuide } from "@/components/energy-audit/lux-sub-zone-guide"
 import { AuditStepIndicator } from "@/components/audit/step-indicator"
 import { Header } from "@/components/header"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -144,7 +145,6 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
   const [step, setStep] = useState<Step>(1)
   const [activeZone, setActiveZone] = useState<LightingZoneKey>("SALES")
   const [isDirty, setIsDirty] = useState(false)
-  const [luxDraft, setLuxDraft] = useState("")
   const [issues, setIssues] = useState<string[]>([])
 
   const summary = useMemo(() => summarizeLightingAudit(data), [data])
@@ -188,16 +188,6 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
   function goToStep(target: Step) {
     setStep(target)
     window.scrollTo({ top: 0 })
-  }
-
-  function addLuxPoint() {
-    const value = parseNumber(luxDraft)
-    if (value === null) {
-      toast.error("Isi angka lux yang valid.")
-      return
-    }
-    updateZone(activeZone, (zone) => ({ ...zone, luxPoints: [...zone.luxPoints, value] }))
-    setLuxDraft("")
   }
 
   function save(complete: boolean) {
@@ -341,10 +331,7 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
               spacing={1}
               value={activeZone}
               onValueChange={(value) => {
-                if (value) {
-                  setActiveZone(value as LightingZoneKey)
-                  setLuxDraft("")
-                }
+                if (value) setActiveZone(value as LightingZoneKey)
               }}
               className="flex w-full flex-wrap"
               aria-label="Pilih zona"
@@ -355,7 +342,7 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                   value={zone.key}
                   className="h-11 rounded-full px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground hover:data-[state=on]:bg-primary/90"
                 >
-                  {zone.definition.label.replace(/^Area /, "")}
+                  {zone.definition.tabLabel}
                   {zone.lpdStatus !== "BELUM_LENGKAP" && zone.luxStatus !== "BELUM_DIUKUR" && (
                     <IconCircleCheck aria-label="lengkap" className="size-3.5" />
                   )}
@@ -531,55 +518,16 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                     <h3 id="lux-heading" className="text-sm font-semibold">
                       Titik ukur lux
                     </h3>
-                    {zoneSummary.luxPoints.length > 0 && (
-                      <ul className="flex flex-wrap gap-2">
-                        {zoneSummary.luxPoints.map((point, index) => (
-                          <li
-                            key={`${point}-${index}`}
-                            className="flex items-center gap-1 rounded-full bg-muted pl-3 text-sm tabular-nums"
-                          >
-                            Titik {index + 1}: {numberFormat.format(point)} lux
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-11 rounded-full"
-                              aria-label={`Hapus titik ${index + 1}`}
-                              onClick={() =>
-                                updateZone(activeZone, (zone) => ({
-                                  ...zone,
-                                  luxPoints: zone.luxPoints.filter((_, i) => i !== index),
-                                }))
-                              }
-                            >
-                              <IconX />
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <div className="flex gap-2">
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        value={luxDraft}
-                        onChange={(e) => setLuxDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault()
-                            addLuxPoint()
-                          }
-                        }}
-                        placeholder="Hasil ukur, contoh 450"
-                        aria-label="Hasil ukur lux"
-                        className="h-11"
-                      />
-                      <Button type="button" variant="outline" className="h-11" onClick={addLuxPoint}>
-                        <IconPlus data-icon="inline-start" />
-                        Tambah Titik
-                      </Button>
-                    </div>
+                    <LuxMeasurementTable
+                      zoneLabel={zoneDefinition.label}
+                      rows={zoneSummary.luxRows}
+                      subZones={zoneDefinition.subZones}
+                      noteNeededAreas={zoneSummary.lux.areasMissingNote.map((area) => area.key)}
+                      onChange={(luxRows) =>
+                        updateZone(activeZone, (zone) => ({ ...zone, luxRows }))
+                      }
+                      createId={newId}
+                    />
                   </section>
 
                   <fieldset className="flex flex-col gap-2">
@@ -618,7 +566,8 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                 </CardContent>
               </Card>
 
-              <Card className="lg:sticky lg:top-20 lg:col-span-5">
+              <div className="flex flex-col gap-4 lg:sticky lg:top-20 lg:col-span-5">
+              <Card>
                 <CardHeader>
                   <CardTitle className="text-sm">Hasil zona ini</CardTitle>
                   <CardDescription>Dihitung otomatis saat angka diisi.</CardDescription>
@@ -665,9 +614,44 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                         className={luxTone[zoneSummary.luxStatus]}
                       />
                     </div>
+                    {zoneDefinition.subZones && (
+                      <ul className="flex flex-col gap-1.5 border-t pt-2">
+                        {zoneSummary.lux.areas.map((area) => (
+                          <li key={area.key} className="flex items-center justify-between gap-2 text-xs">
+                            <span className="text-muted-foreground">
+                              {area.key} · {area.label}
+                            </span>
+                            <span className="flex items-center gap-2">
+                              <span className="font-semibold">
+                                {area.avgLux === null ? "-" : `${numberFormat.format(Math.round(area.avgLux))} lux`}
+                              </span>
+                              <StatusBadge
+                                label={LUX_STATUS_LABEL[area.luxStatus]}
+                                className={luxTone[area.luxStatus]}
+                              />
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
+                  {zoneSummary.lux.unevenAreas.map((area) => (
+                    <p
+                      key={area.key}
+                      className="rounded-xl bg-amber-100 p-3 text-xs text-amber-900 dark:bg-amber-500/15 dark:text-amber-200"
+                    >
+                      Area {area.label} {LUX_STATUS_LABEL[area.luxStatus].toLowerCase()} (
+                      {numberFormat.format(Math.round(area.avgLux ?? 0))} lux), sedangkan rata-rata zona{" "}
+                      {LUX_STATUS_LABEL[zoneSummary.luxStatus].toLowerCase()}. Isi catatan alasannya di
+                      baris area ini.
+                    </p>
+                  ))}
                 </CardContent>
               </Card>
+              {zoneDefinition.subZones && (
+                <LuxSubZoneGuide rows={zoneSummary.luxRows} definition={zoneDefinition} />
+              )}
+              </div>
             </div>
           </div>
         )}
@@ -780,6 +764,14 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                               label={LUX_STATUS_LABEL[zone.luxStatus]}
                               className={luxTone[zone.luxStatus]}
                             />
+                            {zone.lux.unevenAreas.length > 0 && (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Tidak merata:{" "}
+                                {zone.lux.unevenAreas
+                                  .map((area) => `${area.label} ${LUX_STATUS_LABEL[area.luxStatus].toLowerCase()}`)
+                                  .join(", ")}
+                              </p>
+                            )}
                           </td>
                         </tr>
                       ))}

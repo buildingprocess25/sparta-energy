@@ -205,13 +205,37 @@ export async function getValidationAudit(id: string) {
       is24Hours: true,
       openTime: true,
       closeTime: true,
+      originalIsBoros: true,
+      originalTotalEstimatedKwhPerMonth: true,
+      originalAvgActualPlnKwhPerMonth: true,
       validatedBy: { select: { fullName: true, email: true } },
       auditor: { select: { fullName: true, email: true } },
+      plnHistory: {
+        orderBy: { monthIdx: "asc" },
+        select: {
+          id: true,
+          billingMonth: true,
+          plnUsageKwh: true,
+          salesTransactionPerDay: true,
+        },
+      },
+      corrections: {
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          type: true,
+          summary: true,
+          createdAt: true,
+          validator: { select: { fullName: true, email: true } },
+        },
+      },
       store: {
         select: {
           code: true,
           name: true,
           branch: true,
+          address: true,
           type: true,
           plnPowerVa: true,
           salesAreaM2: true,
@@ -301,10 +325,34 @@ export async function getValidationAudit(id: string) {
     validatedBy:
       audit.validatedBy?.fullName ?? audit.validatedBy?.email ?? null,
     auditor: audit.auditor.fullName ?? audit.auditor.email,
+    // Null until a validator changes something; then it holds the store's own result.
+    original:
+      audit.originalTotalEstimatedKwhPerMonth === null
+        ? null
+        : {
+            isBoros: audit.originalIsBoros === true,
+            baselineKwhPerMonth: Number(audit.originalTotalEstimatedKwhPerMonth),
+            actualKwhPerMonth: Number(audit.originalAvgActualPlnKwhPerMonth ?? 0),
+          },
+    corrections: audit.corrections.map((correction) => ({
+      id: correction.id,
+      type: correction.type,
+      summary: correction.summary,
+      createdAt: correction.createdAt.toISOString(),
+      validator:
+        correction.validator?.fullName ?? correction.validator?.email ?? null,
+    })),
+    plnHistory: audit.plnHistory.map((row) => ({
+      id: row.id,
+      billingMonth: row.billingMonth,
+      plnUsageKwh: Number(row.plnUsageKwh),
+      salesTransactionPerDay: Number(row.salesTransactionPerDay),
+    })),
     store: {
       code: audit.store.code,
       name: audit.store.name,
       branch: audit.store.branch,
+      address: audit.store.address ?? "",
     },
     // Audits saved before the technical columns existed fall back to the store row.
     technical: {
@@ -344,3 +392,5 @@ export type ValidationAudit = NonNullable<
 >
 export type ValidationAuditItem = ValidationAudit["items"][number]
 export type ValidationTechnical = ValidationAudit["technical"]
+export type ValidationPlnRow = ValidationAudit["plnHistory"][number]
+export type ValidationCorrection = ValidationAudit["corrections"][number]

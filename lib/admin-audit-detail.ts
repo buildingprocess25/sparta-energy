@@ -34,6 +34,18 @@ export async function getAdminAuditDetail(id: string) {
       avgActualPlnKwhPerMonth: true,
       validationStatus: true,
       validatedAt: true,
+      originalIsBoros: true,
+      originalTotalEstimatedKwhPerMonth: true,
+      originalAvgActualPlnKwhPerMonth: true,
+      corrections: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          summary: true,
+          createdAt: true,
+          validator: { select: { fullName: true, email: true } },
+        },
+      },
       auditor: {
         select: {
           fullName: true,
@@ -162,6 +174,21 @@ export async function getAdminAuditDetail(id: string) {
         ? (audit.validatedBy.fullName ?? audit.validatedBy.email)
         : null,
     },
+    original:
+      audit.originalTotalEstimatedKwhPerMonth === null
+        ? null
+        : {
+            isBoros: audit.originalIsBoros === true,
+            baseline: toNumber(audit.originalTotalEstimatedKwhPerMonth),
+            actualPln: toNumber(audit.originalAvgActualPlnKwhPerMonth),
+          },
+    corrections: audit.corrections.map((correction) => ({
+      id: correction.id,
+      summary: correction.summary,
+      createdAt: correction.createdAt.toISOString(),
+      validator:
+        correction.validator?.fullName ?? correction.validator?.email ?? null,
+    })),
     energyAudits: audit.energyAudits.map((item) => ({
       category: item.category,
       status: item.status,

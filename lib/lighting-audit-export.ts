@@ -8,6 +8,8 @@ import {
   LPD_STATUS_LABEL,
   LUX_STATUS_LABEL,
   formatLuxStandard,
+  getLuxArea,
+  getLuxAreaLabel,
   summarizeLightingAudit,
 } from "@/lib/lighting-audit"
 
@@ -141,17 +143,51 @@ export function buildLightingAuditWorkbook(audit: ExportAudit) {
   ])
 
   appendSheet(workbook, "Titik Ukur Lux", [
-    ["Zona", "Titik ke", "Lux", "Standar Lux", "Rata-rata Zona", "Status"],
+    [
+      "Zona",
+      "Titik ke",
+      "Sub Zona",
+      "Area",
+      "Lux",
+      "Catatan",
+      "Standar Lux",
+      "Rata-rata Zona",
+      "Status Zona",
+    ],
     ...summary.zones.flatMap((zone) =>
-      zone.luxPoints.map((lux, index): Cell[] => [
-        zone.definition.label,
-        index + 1,
-        lux,
-        formatLuxStandard(zone.definition),
-        round(zone.avgLux, 0),
-        LUX_STATUS_LABEL[zone.luxStatus],
-      ])
+      zone.luxRows
+        .filter((row) => row.lux !== null)
+        .map((row, index): Cell[] => {
+          const area = getLuxArea(row.subZone)
+          return [
+            zone.definition.label,
+            index + 1,
+            row.subZone ?? "-",
+            area ? getLuxAreaLabel(area) : "-",
+            row.lux,
+            row.note || null,
+            formatLuxStandard(zone.definition),
+            round(zone.avgLux, 0),
+            LUX_STATUS_LABEL[zone.luxStatus],
+          ]
+        })
     ),
+  ])
+
+  appendSheet(workbook, "Lux per Area", [
+    ["Zona", "Area", "Jumlah Titik", "Rata-rata Lux", "Status", "Berbeda dari Rata-rata Zona"],
+    ...summary.zones
+      .filter((zone) => zone.definition.subZones)
+      .flatMap((zone) =>
+        zone.lux.areas.map((area): Cell[] => [
+          zone.definition.label,
+          `${area.key} · ${area.label}`,
+          area.count,
+          round(area.avgLux, 0),
+          LUX_STATUS_LABEL[area.luxStatus],
+          zone.lux.unevenAreas.some((item) => item.key === area.key) ? "Ya" : "Tidak",
+        ])
+      ),
   ])
 
   return toBuffer(workbook)
@@ -216,6 +252,7 @@ export function appendLightingRecapSheets(workbook: XLSX.WorkBook, audits: Expor
       "Status LPD",
       "Rata-rata Lux",
       "Status Lux",
+      "Area Tidak Merata",
       "Peluang Efisiensi",
     ],
     ...summaries.flatMap(({ audit, summary }) =>
@@ -232,6 +269,9 @@ export function appendLightingRecapSheets(workbook: XLSX.WorkBook, audits: Expor
         LPD_STATUS_LABEL[zone.lpdStatus],
         round(zone.avgLux, 0),
         LUX_STATUS_LABEL[zone.luxStatus],
+        zone.lux.unevenAreas
+          .map((area) => `${area.label} (${LUX_STATUS_LABEL[area.luxStatus]})`)
+          .join("; ") || null,
         [...zone.eco, ...(zone.ecoNote ? [zone.ecoNote] : [])].join("; "),
       ])
     ),

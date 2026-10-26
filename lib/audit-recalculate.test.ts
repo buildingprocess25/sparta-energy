@@ -2,8 +2,10 @@ import assert from "node:assert/strict"
 
 import { calculateAudit } from "./audit-kalkulator"
 import {
+  averagePlnKwh,
   calculateGapPercent,
   calculateItemDailyKwh,
+  isBorosFor,
   summarizeAuditItems,
 } from "./audit-recalculate"
 
@@ -92,5 +94,13 @@ assert.ok(
   Math.abs(stored.totalEstimatedKwhPerMonth - calc.equipmentEstimateKwhPerMonth) <
     1e-9
 )
+
+// Validation corrections: PLN average skips empty months, status uses the 5% tolerance.
+assert.equal(averagePlnKwh([1000, 0, 2000, 0]), 1500)
+assert.equal(averagePlnKwh([0, 0]), 0)
+assert.equal(isBorosFor(1050, 1000), false)
+assert.equal(isBorosFor(1051, 1000), true)
+assert.equal(summarizeAuditItems([10], 400).isBoros, true)
+assert.equal(summarizeAuditItems([10], 300).isBoros, false)
 
 console.log("audit-recalculate tests passed")

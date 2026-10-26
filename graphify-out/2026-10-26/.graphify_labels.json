@@ -1,5 +1,4 @@
 {
-  "0": "Master Data Queries",
   "4": "Equipment Admin Queries",
   "6": "Report Export Queries",
   "9": "Package & ESLint Config",
@@ -8,12 +7,10 @@
   "18": "CAD Import & AC Optimizer",
   "22": "Branch Audit Summaries",
   "24": "Dashboard Charts",
-  "31": "AC Mapping Canvas",
   "32": "Dev Dependencies",
   "35": "shadcn components.json",
   "36": "Admin Audit Detail Page",
   "37": "Admin Dashboard Page",
-  "41": "Audit Result & Metric Cards",
   "43": "TypeScript Config",
   "44": "Root Layout & Theme",
   "46": "DB Pool & Scripts",
