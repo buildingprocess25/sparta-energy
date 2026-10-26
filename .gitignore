@@ -77,4 +77,7 @@ go2rtc*.yaml
 app/cctv-test/
 components/cctv/
 
+# Gypsum tile concept, excel references & generated artifacts
+concept_gypsum_tile/
+
 

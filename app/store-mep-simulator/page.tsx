@@ -92,6 +92,7 @@ export default async function StoreMepSimulatorPage({
         longitude: s.longitude ? Number(s.longitude) : null,
       }))}
       initialLoadedLog={initialLoadedLog}
+      isAdmin={dbUser?.role === "ADMIN"}
     />
   )
 }

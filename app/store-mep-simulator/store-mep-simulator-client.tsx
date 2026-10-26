@@ -39,6 +39,7 @@ import {
   IconAdjustmentsHorizontal,
   IconLayersLinked,
   IconLayoutGrid,
+  IconRotateRectangle,
   IconCalculator,
   IconDeviceFloppy,
   IconFolder,
@@ -70,6 +71,13 @@ import { calcPolygonArea, type Point } from "@/lib/polygon-utils"
 import { AcMappingResultCard, type AcMappingResultCardData } from "@/components/audit/ac-mapping-result-card"
 import { LightEstimationResultCard, type LightEstimationResultCardData } from "@/components/audit/light-estimation-result-card"
 import {
+  calculateGypsumTileLayout,
+  type GypsumTileCalculationResult,
+  type GypsumOrientation,
+} from "@/lib/gypsum-tile-calculator"
+import { GypsumTileResultCard } from "@/components/audit/gypsum-tile-result-card"
+import { GypsumTileExportCard, type GypsumTileExportCardData } from "@/components/audit/gypsum-tile-export-card"
+import {
   calcSimetris,
   calcIregular,
   calcLampRange,
@@ -90,6 +98,7 @@ import { optimizeAcPlacements } from "@/lib/ac-placement-optimizer"
 interface StoreMepSimulatorClientProps {
   stores: StoreData[]
   initialLoadedLog?: any
+  isAdmin?: boolean
 }
 
 export interface StorePillar {
@@ -119,6 +128,9 @@ const CASHIER_DEPTH_M = 2.0       // Kedalaman Kasir: 2.0 meter (baku)
 const CHILLER_UNIT_WIDTH_M = 1.2  // Open Chiller: 1.2 meter per unit (baku)
 const CHILLER_DEPTH_M = 0.8       // Kedalaman Chiller: 0.8 meter (baku)
 const CANVAS_H = 340
+
+// Kursor CAD Crosshair Dual-Tone (Hitam dengan Outline Putih agar selalu terlihat di mode gelap maupun terang)
+const CAD_CROSSHAIR_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cline x1='12' y1='1' x2='12' y2='23' stroke='white' stroke-width='3' stroke-linecap='square'/%3E%3Cline x1='1' y1='12' x2='23' y2='12' stroke='white' stroke-width='3' stroke-linecap='square'/%3E%3Cline x1='12' y1='2' x2='12' y2='22' stroke='%230f172a' stroke-width='1.5' stroke-linecap='square'/%3E%3Cline x1='2' y1='12' x2='22' y2='12' stroke='%230f172a' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E") 12 12, crosshair`
 
 export interface StoreScaleInfo {
   scale: number
@@ -1371,12 +1383,21 @@ export function checkStandards(rasio: number, jarakSamping: number, jarakBaris: 
   }
 }
 
-export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSimulatorClientProps) {
+export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = false }: StoreMepSimulatorClientProps) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === "dark"
 
-  // ─── 0. Active MEP Sub-System Tab (AC vs Lighting) ────────────────────────
-  const [activeMepTab, setActiveMepTab] = useState<"ac" | "lighting">("ac")
+  // ─── 0. Active MEP Sub-System Tab (AC vs Lighting vs Gypsum Tile) ─────────
+  const [activeMepTab, setActiveMepTab] = useState<"ac" | "lighting" | "gypsum">("ac")
+  const [gypsumOrientation, setGypsumOrientation] = useState<GypsumOrientation>("horizontal")
+  const [isGypsumCalculated, setIsGypsumCalculated] = useState<boolean>(false)
+
+  // Pastikan jika bukan admin, tab gypsum tidak bisa diakses
+  useEffect(() => {
+    if (!isAdmin && activeMepTab === "gypsum") {
+      setActiveMepTab("ac")
+    }
+  }, [isAdmin, activeMepTab])
 
   // ─── 0C. State Simpan & Buka Rancangan (MEP Activity Log) ──────────────────
   const [activeLogId, setActiveLogId] = useState<string | null>(initialLoadedLog?.id || null)
@@ -1403,6 +1424,8 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
   const [showLightingGlow, setShowLightingGlow] = useState<boolean>(true)
   const [lightExportCardData, setLightExportCardData] = useState<LightEstimationResultCardData | null>(null)
   const exportLightCardRef = useRef<HTMLDivElement | null>(null)
+  const [gypsumExportCardData, setGypsumExportCardData] = useState<GypsumTileExportCardData | null>(null)
+  const exportGypsumCardRef = useRef<HTMLDivElement | null>(null)
 
   // ─── 1. State Input Toko ──────────────────────────────────────────────────
   const [storeMode, setStoreMode] = useState<"existing" | "new">("existing")
@@ -1633,17 +1656,17 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
     })
   }, [])
 
-  const canvasCursorClass = useMemo(() => {
-    if (isPanningRef.current) return "cursor-grabbing"
-    if (isPanMode || isSpacePressed) return "cursor-grab"
+  const canvasCursorStyle = useMemo(() => {
+    if (isPanningRef.current) return "grabbing"
+    if (isPanMode || isSpacePressed) return "grab"
     if (activeDragAcId !== null || activeDragIdx !== null || activeDragPillarId !== null || activeDragSegmentIdx !== null) {
-      return "cursor-grabbing"
+      return "grabbing"
     }
-    if (isCalculated || isLightCalculated) {
-      return "cursor-default"
+    if ((activeMepTab === "ac" && isCalculated) || (activeMepTab === "lighting" && isLightCalculated) || (activeMepTab === "gypsum" && isGypsumCalculated)) {
+      return "default"
     }
-    return "cursor-crosshair"
-  }, [isPanMode, isSpacePressed, activeDragAcId, activeDragIdx, activeDragPillarId, activeDragSegmentIdx, activeMepTab, isCalculated, isLightCalculated])
+    return CAD_CROSSHAIR_CURSOR
+  }, [isPanMode, isSpacePressed, activeDragAcId, activeDragIdx, activeDragPillarId, activeDragSegmentIdx, activeMepTab, isCalculated, isLightCalculated, isGypsumCalculated])
 
   // ─── 4. Hitung Luas Denah Poligon & Segmen Dinding ───────────────────────
   const polygonAreaM2 = useMemo(() => {
@@ -1920,6 +1943,18 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
     const grossArea = Number(polygonAreaM2.toFixed(1))
     return { widthM, lengthM, grossArea }
   }, [activeCadMetadata, customPts, polygonAreaM2])
+
+  // ─── Kalkulasi Dinamis Plafon Gypsum Tile ──────────────────────────────────
+  const gypsumCalculation = useMemo<GypsumTileCalculationResult>(() => {
+    const w = storeDimensions.widthM
+    const l = storeDimensions.lengthM
+    return calculateGypsumTileLayout({
+      roomWidthM: w,
+      roomLengthM: l,
+      pts: customPts,
+      orientation: gypsumOrientation,
+    })
+  }, [storeDimensions.widthM, storeDimensions.lengthM, customPts, gypsumOrientation])
 
   // Maksimum batas unit chiller dinamis berdasarkan sisi terpanjang denah toko (PT / LT / Dinding Terpanjang)
   const maxStoreSideM = useMemo(() => {
@@ -2475,6 +2510,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
     setPlacedUnits([])
     setIsCalculated(false)
     setIsLightCalculated(false)
+    setIsGypsumCalculated(false)
     setIrregDisabledLamps(new Set())
     setPendingZoneStart(null)
     setPendingCashierDepth(null)
@@ -2493,9 +2529,10 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
     const newPts = customPts.filter((_, i) => i !== idx)
     const newClosed = newPts.length >= 3 ? customClosed : false
 
-    // Auto-Invalidate Hasil AC & Lampu saat bentuk denah diubah
+    // Auto-Invalidate Hasil AC, Lampu & Gypsum saat bentuk denah diubah
     setIsCalculated(false)
     setIsLightCalculated(false)
+    setIsGypsumCalculated(false)
     setPlacedUnits([])
 
     setCustomPts(newPts)
@@ -4710,6 +4747,17 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
     ctx.restore()
 
     // ── 1B. RENDER 2D VOLUMETRIC FIXTURES & CAD HATCHES (Kasir, Chiller, Pintu Riil) ──
+    // Saat di Tab Gypsum Tile (Reflected Ceiling Plan):
+    // Fixture lantai dipudarkan (opacity 25%) dan label teks lantai disembunyikan agar fokus pada plafon & tidak bentrok.
+    const isGypsumTab = activeMepTab === "gypsum"
+    const floorFixtureAlpha = isGypsumTab ? 0.25 : 1.0
+    const shouldShowFloorLabels = showZoneLabels && !isGypsumTab
+
+    ctx.save()
+    if (isGypsumTab) {
+      ctx.globalAlpha = floorFixtureAlpha
+    }
+
     // A. Area Meja Kasir (HATCH ANSI32 / Poligon Tunggal)
     if (activeCadMetadata?.zones?.cashier?.polygon && activeCadMetadata.zones.cashier.polygon.length >= 3) {
       const cz = activeCadMetadata.zones.cashier
@@ -4761,7 +4809,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
       const cashierDim = `${formatDim(cz.bounds.width)}m × ${formatDim(cz.bounds.height)}m`
       const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
 
-      if (showZoneLabels) {
+      if (shouldShowFloorLabels) {
         ctx.save()
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
@@ -4880,7 +4928,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                 : `${formatDim(totalLenM)}m × ${formatDim(avgDepth)}m`
             const haloColor = effectiveIsDark ? "rgba(15, 23, 42, 0.90)" : "rgba(255, 255, 255, 0.92)"
 
-            if (showZoneLabels) {
+            if (shouldShowFloorLabels) {
               ctx.save()
               ctx.textAlign = "center"
               ctx.textBaseline = "middle"
@@ -5004,7 +5052,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
         if (rot > Math.PI / 2) rot -= Math.PI
         else if (rot < -Math.PI / 2) rot += Math.PI
 
-        if (showZoneLabels) {
+        if (shouldShowFloorLabels) {
           ctx.save()
           ctx.translate(frontMidX, frontMidY)
           ctx.rotate(rot)
@@ -5104,7 +5152,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
           const doorTitle = "PINTU UTAMA"
           const doorDim = `LEBAR ${formatDim(wall.lengthM)}m`
 
-          if (showZoneLabels) {
+          if (shouldShowFloorLabels) {
             ctx.save()
             ctx.translate(labelPt.cx, labelPt.cy)
             ctx.rotate(rot)
@@ -5173,7 +5221,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
           const p1Title = "PINTU P1 GUDANG"
           const p1Dim = `LEBAR ${formatDim(leafR)}m`
 
-          if (showZoneLabels) {
+          if (shouldShowFloorLabels) {
             ctx.save()
             ctx.translate(labelPt.cx, labelPt.cy)
             ctx.rotate(rot)
@@ -5209,6 +5257,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
         ctx.restore()
       })
     }
+    ctx.restore() // Tutup globalAlpha floor fixtures
 
     // ── 1D. RENDER KOLOM / PILAR STRUKTUR (CAD & MANUAL) ──
     if (pillars.length > 0) {
@@ -7968,6 +8017,120 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
       }
     }
 
+    // ─── 9C. RENDER SISTEM PLAFON GYPSUM TILE (GYPSUM TILE GRID LAYER) ───
+    if (activeMepTab === "gypsum" && isGypsumCalculated && customClosed && customPts.length >= 3 && sc) {
+      ctx.save()
+
+      // 1. Clip ke dalam area poligon toko
+      ctx.beginPath()
+      customPts.forEach((p, idx) => {
+        const cx = sc.offX + p.x * sc.scale
+        const cy = sc.offY + p.y * sc.scale
+        if (idx === 0) ctx.moveTo(cx, cy)
+        else ctx.lineTo(cx, cy)
+      })
+      ctx.closePath()
+      ctx.clip()
+
+      // 2. Arsiran / Shading untuk setiap kotak tile
+      gypsumCalculation.cells.forEach((cell) => {
+        const cx = sc.offX + (sc.minX + cell.x) * sc.scale
+        const cy = sc.offY + (sc.minY + cell.y) * sc.scale
+        const cw = cell.w * sc.scale
+        const ch = cell.h * sc.scale
+
+        if (cell.type === "FULL") {
+          ctx.fillStyle = effectiveIsDark ? "rgba(16, 185, 129, 0.04)" : "rgba(16, 185, 129, 0.03)"
+        } else if (cell.type === "CORNER") {
+          ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.16)" : "rgba(245, 158, 11, 0.14)"
+        } else {
+          ctx.fillStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.09)" : "rgba(245, 158, 11, 0.08)"
+        }
+        ctx.fillRect(cx, cy, cw, ch)
+      })
+
+      // 3. Render Garis-Garis Rangka T-Bar (Main Tee & Cross Tee)
+      gypsumCalculation.gridLines.forEach((line) => {
+        ctx.save()
+        if (line.type === "border") {
+          ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.55)" : "rgba(217, 119, 6, 0.55)"
+          ctx.setLineDash([3, 2])
+          ctx.lineWidth = 1.0
+        } else {
+          ctx.strokeStyle = effectiveIsDark ? "rgba(148, 163, 184, 0.40)" : "rgba(100, 116, 139, 0.40)"
+          ctx.setLineDash([])
+          ctx.lineWidth = line.type === "main" ? 1.1 : 0.8
+        }
+
+        if (line.orientation === "h") {
+          const cy = sc.offY + (sc.minY + line.coord) * sc.scale
+          const x1 = sc.offX + sc.minX * sc.scale
+          const x2 = sc.offX + (sc.minX + line.to) * sc.scale
+          ctx.beginPath()
+          ctx.moveTo(x1, cy)
+          ctx.lineTo(x2, cy)
+          ctx.stroke()
+        } else {
+          const cx = sc.offX + (sc.minX + line.coord) * sc.scale
+          const y1 = sc.offY + sc.minY * sc.scale
+          const y2 = sc.offY + (sc.minY + line.to) * sc.scale
+          ctx.beginPath()
+          ctx.moveTo(cx, y1)
+          ctx.lineTo(cx, y2)
+          ctx.stroke()
+        }
+        ctx.restore()
+      })
+
+      // Lepas clip
+      ctx.restore()
+
+      // 4. Render Tag Dimensi Potongan Tepi di Sekeliling Kanvas Toko
+      ctx.save()
+      ctx.font = "bold 9px sans-serif"
+      ctx.textBaseline = "middle"
+      const halo = effectiveIsDark ? "rgba(15, 23, 42, 0.9)" : "rgba(255, 255, 255, 0.9)"
+      ctx.strokeStyle = halo
+      ctx.lineWidth = 3.5
+      ctx.lineJoin = "round"
+
+      // Tag Tepi Kiri & Kanan
+      if (gypsumCalculation.xAxis.borderCutCm > 0) {
+        ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
+        const midY = sc.offY + (sc.minY + sc.rH / 2) * sc.scale
+
+        // Kiri
+        const leftX = sc.offX + (sc.minX + gypsumCalculation.xAxis.borderCutM / 2) * sc.scale
+        ctx.textAlign = "center"
+        ctx.strokeText(`${gypsumCalculation.xAxis.borderCutCm}cm`, leftX, midY)
+        ctx.fillText(`${gypsumCalculation.xAxis.borderCutCm}cm`, leftX, midY)
+
+        // Kanan
+        const rightX = sc.offX + (sc.maxX - gypsumCalculation.xAxis.borderCutM / 2) * sc.scale
+        ctx.strokeText(`${gypsumCalculation.xAxis.borderCutCm}cm`, rightX, midY)
+        ctx.fillText(`${gypsumCalculation.xAxis.borderCutCm}cm`, rightX, midY)
+      }
+
+      // Tag Tepi Atas & Bawah
+      if (gypsumCalculation.yAxis.borderCutCm > 0) {
+        ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
+        const midX = sc.offX + (sc.minX + sc.rW / 2) * sc.scale
+        ctx.textAlign = "center"
+
+        // Atas
+        const topY = sc.offY + (sc.minY + gypsumCalculation.yAxis.borderCutM / 2) * sc.scale
+        ctx.strokeText(`${gypsumCalculation.yAxis.borderCutCm}cm`, midX, topY)
+        ctx.fillText(`${gypsumCalculation.yAxis.borderCutCm}cm`, midX, topY)
+
+        // Bawah
+        const botY = sc.offY + (sc.maxY - gypsumCalculation.yAxis.borderCutM / 2) * sc.scale
+        ctx.strokeText(`${gypsumCalculation.yAxis.borderCutCm}cm`, midX, botY)
+        ctx.fillText(`${gypsumCalculation.yAxis.borderCutCm}cm`, midX, botY)
+      }
+
+      ctx.restore()
+    }
+
     // ── 5. GARIS UKUR DIMENSI KESELURUHAN (PANJANG TOTAL & LEBAR TOTAL) DARI TITIK TERJAUH ──
     if (showTotalDimensions && customClosed && customPts.length >= 3) {
       ctx.save()
@@ -8111,7 +8274,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
 
       ctx.restore()
     }
-  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, isLightCalculated, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, chillerPlacement, chillerAlignments, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions, pillars, selectedPillarId, activeDragPillarId, pillarSizeM, pillarWidthInput, pillarLengthInput, pillarDistXInput, pillarDistYInput, magneticSnapFeedback, zoom, panOffset, isFullscreenCanvas, activeMepTab, lampWatt, lampLen, lampOrient, lampSpasi, irregDisabledLamps, showLightingDimensions, showLightingGlow, lightingCalculation])
+  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, isLightCalculated, isGypsumCalculated, gypsumCalculation, gypsumOrientation, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, chillerPlacement, chillerAlignments, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions, pillars, selectedPillarId, activeDragPillarId, pillarSizeM, pillarWidthInput, pillarLengthInput, pillarDistXInput, pillarDistYInput, magneticSnapFeedback, zoom, panOffset, isFullscreenCanvas, activeMepTab, lampWatt, lampLen, lampOrient, lampSpasi, irregDisabledLamps, showLightingDimensions, showLightingGlow, lightingCalculation])
 
   useEffect(() => {
     drawCanvas()
@@ -8318,7 +8481,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
           setIsSaving(false)
         }
       }, 150)
-    } else {
+    } else if (activeMepTab === "lighting") {
       // ─── LIGHTING EXPORT ───
       if (!isLightCalculated || !customClosed || customPts.length < 3) {
         toast.error("Silakan hitung dan simulasikan lampu terlebih dahulu sebelum mengunduh hasil.")
@@ -8392,6 +8555,72 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
         } catch (err) {
           console.error(err)
           toast.error("Gagal mengekspor denah lampu.")
+        } finally {
+          setIsSaving(false)
+        }
+      }, 150)
+    } else if (activeMepTab === "gypsum") {
+      // ─── GYPSUM TILE EXPORT ───
+      if (!isGypsumCalculated || !customClosed || customPts.length < 3) {
+        toast.error("Silakan hitung tata letak plafon gypsum terlebih dahulu sebelum mengunduh hasil.")
+        return
+      }
+
+      let snapshotUrl: string | null = null
+      try {
+        const exportCanvas = document.createElement("canvas")
+        const exportW = 840
+        const exportH = 580
+        drawCanvas(exportCanvas, true, exportW, exportH)
+        snapshotUrl = exportCanvas.toDataURL("image/png")
+      } catch (err) {
+        console.error("Gagal capture snapshot canvas gypsum:", err)
+      }
+
+      const gypsumCardData: GypsumTileExportCardData = {
+        storeCode: storeMode === "existing" ? selectedStore?.code || "STORE-001" : newStoreCode || "TOKO-BARU",
+        storeName: storeMode === "existing" ? selectedStore?.name || "Toko Retail" : newStoreName || "Toko Baru",
+        storeBranch: storeMode === "existing" ? selectedStore?.branch || "—" : newStoreBranch || "—",
+        calculation: gypsumCalculation,
+        layoutSnapshot: snapshotUrl,
+      }
+
+      setGypsumExportCardData(gypsumCardData)
+      setIsSaving(true)
+
+      setTimeout(async () => {
+        try {
+          if (exportGypsumCardRef.current) {
+            const dataUrl = await toPng(exportGypsumCardRef.current, {
+              pixelRatio: 2,
+              cacheBust: true,
+            })
+
+            const res = await fetch(dataUrl)
+            const blob = await res.blob()
+            const blobUrl = URL.createObjectURL(blob)
+
+            const link = document.createElement("a")
+            link.download = generateCalculationFilename({
+              prefix: "plafon-gypsum",
+              store: {
+                code: gypsumCardData?.storeCode,
+                name: gypsumCardData?.storeName,
+                branch: gypsumCardData?.storeBranch,
+              },
+            })
+            link.href = blobUrl
+            link.click()
+
+            toast.success("Gambar denah plafon gypsum tile berhasil diunduh!")
+
+            setTimeout(() => {
+              URL.revokeObjectURL(blobUrl)
+            }, 100)
+          }
+        } catch (err) {
+          console.error(err)
+          toast.error("Gagal mengekspor denah plafon gypsum.")
         } finally {
           setIsSaving(false)
         }
@@ -8653,6 +8882,34 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
               <IconBulb className="size-4" />
               <span>Sistem Lampu</span>
             </button>
+
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={() => setActiveMepTab("gypsum")}
+                className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  activeMepTab === "gypsum"
+                    ? "bg-linear-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                }`}
+              >
+                <IconLayoutGrid className="size-4" />
+                <span>Plafon Gypsum</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                title="Fitur Plafon Gypsum masih dalam tahap pengujian (khusus Administrator)"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-muted-foreground/60 bg-muted/30 border border-dashed border-border/60 cursor-not-allowed select-none opacity-70"
+              >
+                <IconLock className="size-3.5 text-amber-500" />
+                <span>Plafon Gypsum</span>
+                <span className="text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 rounded font-medium">
+                  Terkunci
+                </span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -8669,10 +8926,15 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                         <IconAirConditioning className="size-4 text-sky-500 shrink-0" />
                         <span className="truncate">Kanvas MEP: Sistem AC & Thermal Flow</span>
                       </>
-                    ) : (
+                    ) : activeMepTab === "lighting" ? (
                       <>
                         <IconBulb className="size-4 text-amber-500 shrink-0" />
                         <span className="truncate">Kanvas MEP: Tata Cahaya & Distribusi Lampu</span>
+                      </>
+                    ) : (
+                      <>
+                        <IconLayoutGrid className="size-4 text-emerald-500 shrink-0" />
+                        <span className="truncate">Kanvas MEP: Plafon Gypsum Tile (60x120 cm)</span>
                       </>
                     )}
                   </CardTitle>
@@ -9237,8 +9499,8 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                       onPointerMove={handleCanvasPointerMove}
                       onPointerUp={handleCanvasPointerUp}
                       onPointerLeave={handleCanvasPointerLeave}
-                      className={`w-full h-full touch-none select-none block ${canvasCursorClass}`}
-                      style={{ height: `${CANVAS_H}px` }}
+                      className="w-full h-full touch-none select-none block"
+                      style={{ height: `${CANVAS_H}px`, cursor: canvasCursorStyle }}
                     />
                   </div>
                 ) : (
@@ -9275,10 +9537,15 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                                 <IconSnowflake className="size-4 text-sky-500" />
                                 <span>Editor Denah & Pemetaan AC</span>
                               </>
-                            ) : (
+                            ) : activeMepTab === "lighting" ? (
                               <>
                                 <IconBulb className="size-4 text-amber-500" />
                                 <span>Editor Denah & Simulasi Lampu</span>
+                              </>
+                            ) : (
+                              <>
+                                <IconLayoutGrid className="size-4 text-emerald-500" />
+                                <span>Editor Denah & Plafon Gypsum</span>
                               </>
                             )}
                           </span>
@@ -9309,6 +9576,30 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                               <IconBulb className="size-3" />
                               <span>Sistem Lampu</span>
                             </button>
+                            {isAdmin ? (
+                              <button
+                                type="button"
+                                onClick={() => setActiveMepTab("gypsum")}
+                                className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                                  activeMepTab === "gypsum"
+                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                                }`}
+                              >
+                                <IconLayoutGrid className="size-3" />
+                                <span>Plafon</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                title="Fitur Plafon terkunci (Khusus Administrator)"
+                                className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium text-muted-foreground/50 cursor-not-allowed opacity-60 select-none"
+                              >
+                                <IconLock className="size-2.5 text-amber-500" />
+                                <span>Plafon</span>
+                              </button>
+                            )}
                           </div>
 
                           <Badge variant="outline" className="text-[10px] font-semibold py-0">
@@ -9463,6 +9754,25 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                               toast.info("Mode Edit Denah aktif.")
                             }}
                             className="h-6 text-[11px] font-bold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-xs cursor-pointer shrink-0"
+                            title="Edit denah dan zona toko"
+                          >
+                            <IconEdit className="size-3 text-white" /> Edit Denah
+                          </Button>
+                        </div>
+                      ) : activeMepTab === "gypsum" && isGypsumCalculated ? (
+                        <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-b border-border/50 bg-emerald-500/10 shrink-0">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                            <IconLock className="size-3.5 text-emerald-500" />
+                            <span>Denah terkunci dalam Mode Hasil Plafon Gypsum (Modul 60x120 cm)</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => {
+                              setIsGypsumCalculated(false)
+                              toast.info("Mode Edit Denah aktif.")
+                            }}
+                            className="h-6 text-[11px] font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer shrink-0"
                             title="Edit denah dan zona toko"
                           >
                             <IconEdit className="size-3 text-white" /> Edit Denah
@@ -9725,8 +10035,8 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                           onPointerMove={handleCanvasPointerMove}
                           onPointerUp={handleCanvasPointerUp}
                           onPointerLeave={handleCanvasPointerLeave}
-                          className={`w-full h-full touch-none select-none block ${canvasCursorClass}`}
-                          style={{ width: "100%", height: "100%" }}
+                          className="w-full h-full touch-none select-none block"
+                          style={{ width: "100%", height: "100%", cursor: canvasCursorStyle }}
                         />
 
                         {/* Floating Instruction Tip */}
@@ -10149,7 +10459,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                       )}
                     </Button>
                   </>
-                ) : (
+                ) : activeMepTab === "lighting" ? (
                   <>
                     {/* Ringkasan Parameter Sistem Pencahayaan */}
                     <div className="p-3 rounded-xl border border-border/70 bg-muted/20 shadow-xs space-y-2 text-xs">
@@ -10184,6 +10494,58 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                     >
                       <IconSparkles className="size-4" />
                       {isLightCalculated ? "Hitung Ulang & Simulasikan Lampu" : "Hitung & Simulasikan Lampu"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {/* Ringkasan Parameter Plafon Gypsum Tile */}
+                    <div className="p-3 rounded-xl border border-border/70 bg-muted/20 shadow-xs space-y-2 text-xs">
+                      <div className="flex items-center justify-between font-bold text-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <IconLayoutGrid className="size-4 text-emerald-600 dark:text-emerald-400" />
+                          <span>Parameter Plafon Gypsum</span>
+                        </span>
+                        <Badge variant="outline" className="border-border/80 bg-background/80 text-muted-foreground font-semibold text-[10px]">
+                          Modul 60x120 cm (T-Bar)
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/40">
+                        <span className="text-muted-foreground font-medium">Dimensi Toko:</span>
+                        <span className="font-bold text-foreground font-mono text-xs">
+                          {storeDimensions.widthM > 0 && storeDimensions.lengthM > 0
+                            ? `${storeDimensions.widthM}m x ${storeDimensions.lengthM}m (${storeDimensions.grossArea} m²)`
+                            : "Belum Ada Denah"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground font-medium">Arah Bentang:</span>
+                        <button
+                          type="button"
+                          onClick={() => setGypsumOrientation((prev) => prev === "horizontal" ? "vertical" : "horizontal")}
+                          className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer flex items-center gap-1"
+                          title="Klik untuk memutar arah bentang modul 90 derajat"
+                        >
+                          <IconRotateRectangle className="size-3" />
+                          <span>{gypsumOrientation === "horizontal" ? "Horizontal (1.2m X)" : "Vertikal (1.2m Y)"}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Action Hitung Gypsum */}
+                    <Button
+                      size="lg"
+                      onClick={() => {
+                        setIsGypsumCalculated(true)
+                        toast.success("Tata letak grid plafon gypsum tile berhasil dihitung secara simetris!")
+                        setTimeout(() => {
+                          drawCanvas()
+                        }, 20)
+                      }}
+                      disabled={customPts.length < 3 || !customClosed}
+                      className="w-full h-11 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm rounded-xl cursor-pointer"
+                    >
+                      <IconSparkles className="size-4" />
+                      {isGypsumCalculated ? "Hitung Ulang Layout Plafon Gypsum" : "Hitung Layout Plafon Gypsum"}
                     </Button>
                   </>
                 )}
@@ -10330,7 +10692,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                   </Button>
                 </CardContent>
               </Card>
-            ) : (
+            ) : activeMepTab === "lighting" ? (
               /* ─── LIGHTING RESULTS CARD ─── */
               <Card className={`border-border/80 shadow-xs rounded-2xl bg-card transition-all ${
                 isLightCalculated && lightingCalculation.complianceStatus === "ideal"
@@ -10480,6 +10842,17 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
                   )}
                 </CardContent>
               </Card>
+            ) : (
+              /* ─── GYPSUM TILE RESULTS CARD ─── */
+              <GypsumTileResultCard
+                data={gypsumCalculation}
+                storeName={currentStoreDisplayName}
+                storeCode={(storeMode === "existing" ? selectedStore?.code : newStoreCode) || "STORE-001"}
+                isCalculated={isGypsumCalculated}
+                onToggleOrientation={(orient) => setGypsumOrientation(orient)}
+                onDownload={handleExportPng}
+                isSaving={isSaving}
+              />
             )}
           </div>
         </div>
@@ -11070,12 +11443,15 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog }: StoreMepSi
           </DialogContent>
         </Dialog>
 
-        {/* Hidden Standarized Result Card for Image Capture (Sama Persis Kalkulator Lampu & AC) */}
+        {/* Hidden Standarized Result Card for Image Capture (Sama Persis Kalkulator Lampu, AC & Gypsum) */}
         {exportCardData && (
           <AcMappingResultCard cardRef={exportCardRef} data={exportCardData} />
         )}
         {lightExportCardData && (
           <LightEstimationResultCard cardRef={exportLightCardRef} data={lightExportCardData} />
+        )}
+        {gypsumExportCardData && (
+          <GypsumTileExportCard cardRef={exportGypsumCardRef} data={gypsumExportCardData} />
         )}
       </main>
     </div>
