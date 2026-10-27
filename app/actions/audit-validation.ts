@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache"
 import type { AreaTarget, AuditCorrectionType, Prisma } from "@prisma/client"
 
-import { areaLabels } from "@/components/audit-validation/format"
+import { areaLabels, formatKwh } from "@/components/audit-validation/format"
+import { generateRecommendationWithFallback } from "@/lib/ai-recommendation"
 import { getAuditValidator } from "@/lib/audit-validation-access"
 import {
   averagePlnKwh,
@@ -689,6 +690,142 @@ export async function saveValidationDraft(
   )
 }
 
+const AI_TIMEOUT_MS = 10_000
+
+const validationRecommendationRules = `Data ini sudah dikoreksi admin saat validasi dan status toko berubah. Aturan tambahan:
+- Kalimat pertama menyebut aktual PLN dan standar konsumsi energi setelah validasi dalam kWh.
+- Kalimat kedua menyebut penyebab status lama berdasarkan daftar koreksi. Jangan menebak di luar daftar itu.
+- Kalimat ketiga berisi satu tindakan konkret untuk staf toko.
+- Judul berisi tindakan, bukan pujian.
+- Jangan memakai pujian kosong seperti "luar biasa" atau "kinerja terbaik". Jangan menyebut alat, angka, atau kejadian yang tidak ada di data.`
+
+const fallbackRecommendations = {
+  MAINTENANCE: {
+    title: "Catat semua alat saat input kalkulasi",
+    description:
+      "Setelah validasi, pemakaian PLN toko masih dalam batas standar konsumsi energi. Status boros sebelumnya berasal dari data alat atau riwayat PLN yang dikoreksi admin. Cek ulang daftar alat per area sebelum mengirim kalkulasi berikutnya.",
+  },
+  REPAIR: {
+    title: "Periksa alat dengan pemakaian terbesar",
+    description:
+      "Setelah validasi, pemakaian PLN toko melebihi standar konsumsi energi. Data alat yang dikoreksi admin menunjukkan kebutuhan listrik lebih kecil dari tagihan PLN. Periksa AC dan pendingin untuk kebocoran freon, kompresor lemah, atau kebocoran arus.",
+  },
+} as const
+
+function matchesStatus(type: string, isBoros: boolean) {
+  return isBoros ? type !== "MAINTENANCE" : type === "MAINTENANCE"
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number) {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`AI timeout after ${ms}ms`)), ms)
+    ),
+  ])
+}
+
+// Replaces the recommendation when it no longer fits the validated status.
+// Never fails the validation: AI errors fall back to a fixed text.
+async function refreshRecommendation(auditId: string, validatorId: string) {
+  try {
+    const audit = await prisma.audit.findUniqueOrThrow({
+      where: { id: auditId },
+      select: {
+        isBoros: true,
+        originalIsBoros: true,
+        totalEstimatedKwhPerMonth: true,
+        avgActualPlnKwhPerMonth: true,
+        is24Hours: true,
+        openTime: true,
+        closeTime: true,
+        plnPowerVa: true,
+        store: { select: { name: true } },
+        items: {
+          select: {
+            qty: true,
+            customName: true,
+            operationalHours: true,
+            estimatedDailyKwh: true,
+            equipmentType: { select: { name: true } },
+          },
+        },
+        recommendations: {
+          select: { type: true, title: true, description: true },
+        },
+        corrections: {
+          where: { type: { not: "RECOMMENDATION_UPDATED" } },
+          orderBy: { createdAt: "asc" },
+          select: { summary: true },
+        },
+      },
+    })
+    const isBoros = audit.isBoros ?? false
+    const current = audit.recommendations[0]
+    if (current && matchesStatus(current.type, isBoros)) return false
+
+    const standard = Number(audit.totalEstimatedKwhPerMonth ?? 0)
+    const actual = Number(audit.avgActualPlnKwhPerMonth ?? 0)
+    const statusLabel = (boros: boolean) => (boros ? "BOROS" : "HEMAT")
+    const summary = `
+Toko: ${audit.store.name}
+Jam Buka: ${audit.is24Hours ? "24 Jam" : `${audit.openTime ?? "-"} - ${audit.closeTime ?? "-"}`}
+Daya PLN: ${audit.plnPowerVa ?? "-"} VA
+Status saat input anak toko: ${statusLabel(audit.originalIsBoros ?? !isBoros)}
+Status setelah validasi: ${statusLabel(isBoros)}
+Standar konsumsi energi setelah validasi: ${formatKwh(standard)}/bulan
+Aktual rata-rata PLN setelah validasi: ${formatKwh(actual)}/bulan
+Koreksi admin saat validasi:
+${audit.corrections.map((c) => `- ${c.summary}`).join("\n") || "- Tidak ada koreksi tercatat"}
+Daftar Peralatan (Qty x Nama, jam/hari = kWh/hari):
+${audit.items
+  .map(
+    (item) =>
+      `- ${item.qty}x ${item.equipmentType?.name ?? item.customName ?? "Alat"}, ${Number(item.operationalHours)} jam = ${Number(item.estimatedDailyKwh).toFixed(1)} kWh/hari`
+  )
+  .join("\n")}
+`
+
+    let next: {
+      type: "TRAINING" | "REPAIR" | "MAINTENANCE"
+      title: string
+      description: string
+    }
+    try {
+      next = await withTimeout(
+        generateRecommendationWithFallback(
+          summary,
+          validationRecommendationRules
+        ),
+        AI_TIMEOUT_MS
+      )
+      if (!matchesStatus(next.type, isBoros))
+        throw new Error(`AI returned ${next.type}`)
+    } catch (error) {
+      console.warn("[Audit Validation] Recommendation fallback used:", error)
+      const type = isBoros ? "REPAIR" : "MAINTENANCE"
+      next = { type, ...fallbackRecommendations[type] }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.auditRecommendation.deleteMany({ where: { auditId } })
+      await tx.auditRecommendation.create({ data: { auditId, ...next } })
+      await recordCorrections(tx, auditId, validatorId, [
+        {
+          type: "RECOMMENDATION_UPDATED",
+          summary: `Rekomendasi diperbarui karena status menjadi Toko ${isBoros ? "Boros" : "Hemat"}: ${next.title}.`,
+          before: current ?? undefined,
+          after: next,
+        },
+      ])
+    })
+    return true
+  } catch (error) {
+    console.error("[Audit Validation] Recommendation refresh failed", error)
+    return false
+  }
+}
+
 export async function validateAudit(
   auditId: string,
   draft: ValidationDraftInput
@@ -730,6 +867,16 @@ export async function validateAudit(
         return updated.store.name
       })
 
+      if (await refreshRecommendation(auditId, validatorId)) {
+        const status = await prisma.audit.findUniqueOrThrow({
+          where: { id: auditId },
+          select: { isBoros: true },
+        })
+        return {
+          auditId,
+          message: `${storeName} sudah divalidasi. Status sekarang Toko ${status.isBoros ? "Boros" : "Hemat"}, rekomendasi diperbarui.`,
+        }
+      }
       return { auditId, message: `${storeName} sudah divalidasi.` }
     }
   )

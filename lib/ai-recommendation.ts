@@ -29,11 +29,12 @@ export type AiRecommendationResponse = {
 }
 
 export async function generateRecommendationWithFallback(
-  auditSummary: string
+  auditSummary: string,
+  extraInstruction?: string
 ): Promise<AiRecommendationResponse> {
   const ai = getAiClient()
 
-  const systemInstruction = `Kamu adalah ahli audit energi bersertifikat. 
+  const baseInstruction = `Kamu adalah ahli audit energi bersertifikat.
 Tugasmu adalah menganalisis ringkasan data audit listrik sebuah toko ritel/minimarket dan memberikan 1 rekomendasi utama yang paling relevan.
 
 Aturan Penentuan Tipe Rekomendasi (Pilih salah satu):
@@ -42,6 +43,9 @@ Aturan Penentuan Tipe Rekomendasi (Pilih salah satu):
 - "REPAIR": Jika toko dinilai BOROS namun jam menyala alat sesuai jadwal (tidak ada indikasi kelalaian besar). Ini berarti ada alat yang usang, rusak, kompresor melemah, atau kebocoran arus listrik.
 
 Deskripsi harus profesional, langsung pada intinya (maks 3 kalimat), dan mudah dipahami oleh staf toko awam.`
+  const systemInstruction = extraInstruction
+    ? `${baseInstruction}\n\n${extraInstruction}`
+    : baseInstruction
 
   const responseSchema: Schema = {
     type: Type.OBJECT,

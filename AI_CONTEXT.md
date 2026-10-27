@@ -232,7 +232,8 @@ Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbed
 - Setiap koreksi menghitung ulang standar, aktual (rata-rata PLN, bulan 0 kWh tidak dihitung), gap, **dan status Hemat/Boros** (`BOROS_TOLERANCE` 1,05 di `lib/audit-recalculate.ts`).
 - Sebelum koreksi pertama, hasil anak toko disalin ke `audits.original_*`. Setiap koreksi dicatat di tabel `audit_corrections`. Admin melihat keduanya di Detail Kalkulasi.
 - Alamat disimpan langsung ke `stores.address`. Tipe, daya, luas, dan jam hanya disalin ke data toko kalau kalkulasi ini yang terbaru.
-- Rekomendasi tidak dibuat ulang saat status berubah. Halaman validasi dan admin memberi keterangan kalau status berubah setelah koreksi.
+- Saat "Validasi Kalkulasi", rekomendasi dibuat ulang hanya kalau tipenya tidak cocok lagi dengan status (Hemat butuh `MAINTENANCE`, Boros butuh `TRAINING`/`REPAIR`). AI menerima status awal, status akhir, dan daftar koreksi; batas tunggu 10 detik, lalu teks cadangan. Rekomendasi lama dicatat di `audit_corrections` (`RECOMMENDATION_UPDATED`). "Simpan Draf" tidak memanggil AI.
+- Halaman hasil (`/audit/[id]`) menulis "Status berubah dari … ke …" beserta perubahan kWh-nya, dan memberi label "Diperbarui setelah validasi" pada rekomendasi yang dibuat ulang. Halaman validasi dan admin juga memberi keterangan kalau status berubah setelah koreksi.
 
 ### Tambahan Routes (belum tercantum di Codebase Map)
 

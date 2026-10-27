@@ -115,6 +115,21 @@ function getAreaLabel(area: string) {
 type AuditValidationInfo = {
   validatedBy: string
   validatedAt: string
+  // Result as submitted by the store; null when validation corrected nothing
+  original?: {
+    isBoros: boolean
+    standardKwh: number
+    actualKwh: number
+  } | null
+  recommendationUpdated?: boolean
+}
+
+const storeStatusLabel = (boros: boolean) =>
+  boros ? "Toko Boros" : "Toko Hemat"
+
+function describeKwhChange(label: string, before: number, after: number) {
+  const direction = after > before ? "naik" : "turun"
+  return `Setelah koreksi, ${label} ${direction} dari ${numberFormat.format(Math.round(before))} kWh ke ${numberFormat.format(Math.round(after))} kWh.`
 }
 
 const validationDateFormat = new Intl.DateTimeFormat("id-ID", {
@@ -189,6 +204,13 @@ export function AuditResultDB({
   }))
 
   const recommendation = audit.recommendations[0]
+  const original = validation?.original ?? null
+  const statusChanged = original !== null && original.isBoros !== isBoros
+  const changeNote = !statusChanged
+    ? null
+    : Math.round(original.standardKwh) !== Math.round(totalEst)
+      ? describeKwhChange("standar konsumsi energi", original.standardKwh, totalEst)
+      : describeKwhChange("aktual PLN", original.actualKwh, avgActual)
 
   // Equipment section
   const areasWithItems = Array.from(
@@ -282,10 +304,15 @@ export function AuditResultDB({
         {validation && (
           <Alert>
             <IconCircleCheck className="text-primary" />
-            <AlertTitle>Sudah divalidasi</AlertTitle>
+            <AlertTitle>
+              {statusChanged
+                ? `Sudah divalidasi · Status berubah dari ${storeStatusLabel(original.isBoros)} ke ${storeStatusLabel(isBoros)}`
+                : "Sudah divalidasi"}
+            </AlertTitle>
             <AlertDescription>
               Data alat sudah dicek oleh {validation.validatedBy} pada{" "}
               {validationDateFormat.format(new Date(validation.validatedAt))}.
+              {changeNote && ` ${changeNote}`}
             </AlertDescription>
           </Alert>
         )}
@@ -297,9 +324,14 @@ export function AuditResultDB({
               <h3 className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
                 Rekomendasi Tindakan
               </h3>
-              <div className="flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-bold text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
-                <IconSparkles className="size-3" />
-                <span>AI Generated</span>
+              <div className="flex items-center gap-1.5">
+                {validation?.recommendationUpdated && (
+                  <Badge variant="secondary">Diperbarui setelah validasi</Badge>
+                )}
+                <div className="flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-bold text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
+                  <IconSparkles className="size-3" />
+                  <span>AI Generated</span>
+                </div>
               </div>
             </div>
             <div

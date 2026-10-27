@@ -20,6 +20,11 @@ export default async function AuditResultPage({ params }: Props) {
       },
       recommendations: true,
       validatedBy: { select: { fullName: true, email: true } },
+      corrections: {
+        where: { type: "RECOMMENDATION_UPDATED" },
+        select: { id: true },
+        take: 1,
+      },
     },
   })
 
@@ -34,6 +39,10 @@ export default async function AuditResultPage({ params }: Props) {
     warehouseAreaM2,
     toiletAreaM2,
     corridorAreaM2,
+    originalIsBoros,
+    originalTotalEstimatedKwhPerMonth,
+    originalAvgActualPlnKwhPerMonth,
+    corrections,
     ...auditFields
   } = audit
 
@@ -74,6 +83,15 @@ export default async function AuditResultPage({ params }: Props) {
               validatedBy:
                 audit.validatedBy?.fullName ?? audit.validatedBy?.email ?? "Admin",
               validatedAt: audit.validatedAt.toISOString(),
+              original:
+                originalIsBoros === null
+                  ? null
+                  : {
+                      isBoros: originalIsBoros,
+                      standardKwh: Number(originalTotalEstimatedKwhPerMonth ?? 0),
+                      actualKwh: Number(originalAvgActualPlnKwhPerMonth ?? 0),
+                    },
+              recommendationUpdated: corrections.length > 0,
             }
           : null
       }

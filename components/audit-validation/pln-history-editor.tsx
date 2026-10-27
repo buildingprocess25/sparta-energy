@@ -51,7 +51,7 @@ export function PlnHistoryEditor({
   const average = averagePlnKwh(
     rows.map((row) => toNumberOrZero(row.plnUsageKwh))
   )
-  const columns = "sm:grid-cols-[minmax(0,1fr)_5.5rem_8rem_6.5rem]"
+  const columns = "sm:grid-cols-[minmax(0,1fr)_5.5rem_8rem]"
 
   function updateRow(id: string, patch: Partial<PlnDraftRow>) {
     onChange(rows.map((row) => (row.id === id ? { ...row, ...patch } : row)))
@@ -77,7 +77,6 @@ export function PlnHistoryEditor({
         <span>Bulan</span>
         <span>Tahun</span>
         <span>kWh</span>
-        <span>STD</span>
       </div>
 
       <ol className="flex flex-col gap-2">
@@ -157,20 +156,7 @@ export function PlnHistoryEditor({
                 disabled={disabled}
                 placeholder="kWh"
                 aria-label={`kWh PLN ${row.billingMonth}`}
-                className="h-11 tabular-nums"
-              />
-              <Input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                value={row.salesTransactionPerDay}
-                onChange={(e) =>
-                  updateRow(row.id, { salesTransactionPerDay: e.target.value })
-                }
-                disabled={disabled}
-                placeholder="STD"
-                aria-label={`STD ${row.billingMonth}`}
-                className="h-11 tabular-nums"
+                className="col-span-2 h-11 tabular-nums sm:col-span-1"
               />
             </li>
           )
@@ -182,8 +168,7 @@ export function PlnHistoryEditor({
         <span className="font-semibold">{formatKwh(average)} / bulan</span>
       </p>
       <p className="text-xs text-muted-foreground">
-        Bulan dengan 0 kWh tidak ikut dihitung. STD adalah rata-rata transaksi
-        per hari.
+        Bulan dengan 0 kWh tidak ikut dihitung.
       </p>
     </div>
   )

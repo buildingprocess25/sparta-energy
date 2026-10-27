@@ -258,6 +258,7 @@ enum AuditCorrectionType {
   PLN_UPDATED
   TECHNICAL_UPDATED
   ADDRESS_UPDATED
+  RECOMMENDATION_UPDATED
 }
 
 // One row per change a validator makes to a kalkulasi before validating it.
