@@ -26,6 +26,14 @@ const csv: Record<LightingZoneKey, { area: number; watt: number; lux: number }> 
   TOILET: { area: 1.5, watt: 177, lux: 137 },
 }
 
+const photo = {
+  storage: "drive" as const,
+  ref: "file-1",
+  sig: "sig-1",
+  name: "SALES_B2.jpg",
+  uploadedAt: "2026-10-27T03:00:00.000Z",
+}
+
 const data: LightingAuditData = {
   ...createEmptyLightingAudit(),
   zones: createEmptyLightingAudit().zones.map((zone) => ({
@@ -38,6 +46,7 @@ const data: LightingAuditData = {
         subZone: getZoneDefinition(zone.key).subZones ? "B2" : null,
         lux: csv[zone.key].lux,
         note: "",
+        photos: [photo],
       },
     ],
   })),
@@ -74,6 +83,38 @@ assert.equal(getLuxStatus(null, sales), "BELUM_DIUKUR")
 assert.equal(getCompletionIssues(data).length, 0)
 assert.equal(getCompletionIssues(createEmptyLightingAudit()).length, 12)
 
+// A measured point needs at least one photo; toilet points are named by number.
+const withoutPhotos: LightingAuditData = {
+  ...data,
+  zones: data.zones.map((zone) => ({
+    ...zone,
+    luxRows: zone.luxRows.map((r) => ({ ...r, photos: [] })),
+  })),
+}
+const photoIssues = getCompletionIssues(withoutPhotos)
+assert.equal(photoIssues.length, 6)
+assert.ok(photoIssues.includes("Tambah foto untuk B2 di Area Sales."))
+assert.ok(photoIssues.includes("Tambah foto untuk titik 1 di Toilet."))
+
+// Stored photos keep at most 3 per point and drop entries without a signature.
+const sanitizedPhotos = sanitizeLightingAuditData({
+  zones: [
+    {
+      key: "SALES",
+      luxRows: [
+        {
+          id: "x",
+          subZone: "A1",
+          lux: 300,
+          note: "",
+          photos: [photo, { ...photo, ref: "file-2" }, { ...photo, sig: "" }, { ...photo, ref: "file-3" }, { ...photo, ref: "file-4" }],
+        },
+      ],
+    },
+  ],
+}).zones.find((z) => z.key === "SALES")!.luxRows[0].photos
+assert.deepEqual(sanitizedPhotos.map((p) => p.ref), ["file-1", "file-2", "file-3"])
+
 // Default template: A1 to C3 plus one spare row; toilet has no sub zona.
 const empty = createEmptyLightingAudit()
 const salesRows = empty.zones.find((z) => z.key === "SALES")!.luxRows
@@ -90,6 +131,7 @@ const row = (subZone: "A1" | "A2" | "A3" | "B1" | "C1" | null, lux: number, note
   subZone,
   lux,
   note,
+  photos: [],
 })
 const uneven = summarizeLux(
   [row("A1", 600), row("A2", 600), row("A3", 600), row("B1", 400), row("C1", 150)],

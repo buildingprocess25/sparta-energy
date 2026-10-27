@@ -150,6 +150,8 @@ export function buildLightingAuditWorkbook(audit: ExportAudit) {
       "Area",
       "Lux",
       "Catatan",
+      "Jumlah Foto",
+      "Link Foto",
       "Standar Lux",
       "Rata-rata Zona",
       "Status Zona",
@@ -166,6 +168,14 @@ export function buildLightingAuditWorkbook(audit: ExportAudit) {
             area ? getLuxAreaLabel(area) : "-",
             row.lux,
             row.note || null,
+            row.photos.length,
+            row.photos
+              .map((photo) =>
+                photo.storage === "drive"
+                  ? `https://drive.google.com/file/d/${photo.ref}/view`
+                  : "Tersimpan di komputer lokal"
+              )
+              .join("\n") || null,
             formatLuxStandard(zone.definition),
             round(zone.avgLux, 0),
             LUX_STATUS_LABEL[zone.luxStatus],

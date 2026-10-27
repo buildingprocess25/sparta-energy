@@ -2,6 +2,10 @@
 
 import { IconPlus, IconTrash } from "@tabler/icons-react"
 
+import {
+  LuxRowPhotos,
+  type LuxPhotoContext,
+} from "@/components/energy-audit/lux-row-photos"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -27,6 +31,7 @@ type LuxMeasurementTableProps = {
   rows: LightingLuxRow[]
   subZones: boolean
   noteNeededAreas: LuxArea[]
+  photoContext: LuxPhotoContext
   onChange: (rows: LightingLuxRow[]) => void
   createId: () => string
 }
@@ -42,12 +47,13 @@ export function LuxMeasurementTable({
   rows,
   subZones,
   noteNeededAreas,
+  photoContext,
   onChange,
   createId,
 }: LuxMeasurementTableProps) {
   const columns = subZones
-    ? "sm:grid-cols-[2rem_7.5rem_7rem_minmax(0,1fr)_2.75rem]"
-    : "sm:grid-cols-[2rem_7rem_minmax(0,1fr)_2.75rem]"
+    ? "sm:grid-cols-[2rem_7.5rem_7rem_minmax(0,1fr)_6.5rem_2.75rem]"
+    : "sm:grid-cols-[2rem_7rem_minmax(0,1fr)_6.5rem_2.75rem]"
 
   function updateRow(id: string, patch: Partial<LightingLuxRow>) {
     onChange(rows.map((row) => (row.id === id ? { ...row, ...patch } : row)))
@@ -66,6 +72,7 @@ export function LuxMeasurementTable({
         {subZones && <span>Sub zona</span>}
         <span>Lux</span>
         <span>Catatan</span>
+        <span>Foto</span>
         <span />
       </div>
 
@@ -152,11 +159,21 @@ export function LuxMeasurementTable({
                   className="col-span-2 h-11 sm:col-span-1"
                 />
 
+                <LuxRowPhotos
+                  context={photoContext}
+                  pointLabel={row.subZone ?? `titik ${number}`}
+                  pointCode={row.subZone ?? `T${number}`}
+                  zoneLabel={zoneLabel}
+                  photos={row.photos}
+                  missing={row.lux !== null && row.photos.length === 0}
+                  onChange={(photos) => updateRow(row.id, { photos })}
+                />
+
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="col-span-2 size-11 justify-self-end text-destructive hover:text-destructive sm:col-span-1"
+                  className="size-11 justify-self-end text-destructive hover:text-destructive"
                   aria-label={`Hapus titik ${number}`}
                   onClick={() =>
                     onChange(rows.filter((item) => item.id !== row.id))
@@ -177,7 +194,7 @@ export function LuxMeasurementTable({
         onClick={() =>
           onChange([
             ...rows,
-            { id: createId(), subZone: null, lux: null, note: "" },
+            { id: createId(), subZone: null, lux: null, note: "", photos: [] },
           ])
         }
       >

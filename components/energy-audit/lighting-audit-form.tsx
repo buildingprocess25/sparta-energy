@@ -526,6 +526,10 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                       rows={zoneSummary.luxRows}
                       subZones={zoneDefinition.subZones}
                       noteNeededAreas={zoneSummary.lux.areasMissingNote.map((area) => area.key)}
+                      photoContext={{
+                        sourceAuditId: form.context.sourceAuditId,
+                        zone: activeZone,
+                      }}
                       onChange={(luxRows) =>
                         updateZone(activeZone, (zone) => ({ ...zone, luxRows }))
                       }

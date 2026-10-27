@@ -149,11 +149,24 @@ export type LuxSubZone = (typeof LUX_SUB_ZONES)[number]
 export const DEFAULT_LUX_ROWS = 10
 const DEFAULT_TOILET_LUX_ROWS = 3
 
+export const MAX_PHOTOS_PER_LUX_ROW = 3
+
+// ref points into the storage; sig is the server's HMAC over storage + ref, so
+// the photo route only serves files this app uploaded.
+export type LightingLuxPhoto = {
+  storage: "drive" | "local"
+  ref: string
+  sig: string
+  name: string
+  uploadedAt: string
+}
+
 export type LightingLuxRow = {
   id: string
   subZone: LuxSubZone | null
   lux: number | null
   note: string
+  photos: LightingLuxPhoto[]
 }
 
 export type LightingZoneInput = {
@@ -365,6 +378,7 @@ export function createDefaultLuxRows(
     subZone,
     lux: null,
     note: "",
+    photos: [],
   }))
 }
 
@@ -395,6 +409,23 @@ function toText(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : ""
 }
 
+function sanitizePhotos(value: unknown): LightingLuxPhoto[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((photo) => {
+      const item = (photo ?? {}) as Partial<Record<keyof LightingLuxPhoto, unknown>>
+      return {
+        storage: item.storage === "local" ? ("local" as const) : ("drive" as const),
+        ref: toText(item.ref, 300),
+        sig: toText(item.sig, 128),
+        name: toText(item.name, 200),
+        uploadedAt: toText(item.uploadedAt, 40),
+      }
+    })
+    .filter((photo) => photo.ref !== "" && photo.sig !== "")
+    .slice(0, MAX_PHOTOS_PER_LUX_ROW)
+}
+
 function isLuxSubZone(value: unknown): value is LuxSubZone {
   return LUX_SUB_ZONES.includes(value as LuxSubZone)
 }
@@ -414,6 +445,7 @@ function sanitizeLuxRows(
           definition.subZones && isLuxSubZone(item.subZone) ? item.subZone : null,
         lux: toNumber(item.lux, 100_000),
         note: toText(item.note, 300),
+        photos: sanitizePhotos(item.photos),
       }
     })
   }
@@ -428,6 +460,7 @@ function sanitizeLuxRows(
         subZone: null,
         lux,
         note: "",
+        photos: [],
       }))
   }
 
@@ -508,6 +541,15 @@ export function getCompletionIssues(data: LightingAuditData) {
     }
     if (definition.subZones && lux.unassignedMeasuredCount > 0) {
       issues.push(`Pilih sub zona untuk setiap titik lux di ${label}.`)
+    }
+    const unphotographed = zone.luxRows
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => row.lux !== null && row.photos.length === 0)
+      .map(({ row, index }) => row.subZone ?? `titik ${index + 1}`)
+    if (unphotographed.length > 0) {
+      issues.push(
+        `Tambah foto untuk ${unphotographed.join(", ")} di ${label}.`
+      )
     }
     for (const area of lux.areasMissingNote) {
       issues.push(

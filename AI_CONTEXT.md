@@ -235,6 +235,14 @@ Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbed
 - Saat "Validasi Kalkulasi", rekomendasi dibuat ulang hanya kalau tipenya tidak cocok lagi dengan status (Hemat butuh `MAINTENANCE`, Boros butuh `TRAINING`/`REPAIR`). AI menerima status awal, status akhir, dan daftar koreksi; batas tunggu 10 detik, lalu teks cadangan. Rekomendasi lama dicatat di `audit_corrections` (`RECOMMENDATION_UPDATED`). "Simpan Draf" tidak memanggil AI.
 - Halaman hasil (`/audit/[id]`) menulis "Status berubah dari … ke …" beserta perubahan kWh-nya, dan memberi label "Diperbarui setelah validasi" pada rekomendasi yang dibuat ulang. Halaman validasi dan admin juga memberi keterangan kalau status berubah setelah koreksi.
 
+### Foto Bukti Titik Ukur Lux (Pemeriksaan Tata Cahaya)
+
+- Tiap titik ukur lux bisa punya maksimal 3 foto (`photos` di `LightingLuxRow`, tersimpan di JSON `energy_audits.data`). Titik yang lux-nya terisi wajib punya minimal 1 foto sebelum pemeriksaan diselesaikan; draf boleh tanpa foto.
+- Foto dikecilkan di HP (sisi terpanjang 1600 px, JPEG) lalu diunggah ke `POST /api/energy-audit/photos`. Baca dan hapus lewat `GET`/`DELETE` route yang sama. Semua butuh akses validator.
+- Penyimpanan (`lib/photo-storage/`): toko branch `DEMO` disimpan di disk lokal `.local-uploads/energy-audit/<KODE>/<tanggal>/` (di-ignore git). Toko lain ke Google Drive: `GOOGLE_DRIVE_ROOT_FOLDER_ID` (DOKUMEN SPARTA) / folder cabang (dicocokkan tanpa beda huruf besar, spasi, garis bawah) / `Toko` / folder toko (segmen nama yang sama dengan kode toko) / `Audit Energi/Tata Cahaya/<tanggal WIB>`. Folder cabang atau toko yang belum ada dibuat otomatis (`NAMA - KODE`).
+- Referensi foto ditandatangani HMAC (`BETTER_AUTH_SECRET`), jadi route foto hanya melayani file yang diunggah aplikasi ini. Env: `DRIVE_CDN_CLIENT_ID`, `DRIVE_CDN_CLIENT_SECRET`, `DRIVE_CDN_REFRESH_TOKEN`, `GOOGLE_DRIVE_ROOT_FOLDER_ID`.
+- Foto baru tercatat setelah draf disimpan; foto yang diunggah lalu ditinggal tanpa simpan tetap ada di Drive.
+
 ### Tambahan Routes (belum tercantum di Codebase Map)
 
 - `/admin` beserta `/admin/dashboard`, `/admin/audits`, `/admin/audits/[id]`, `/admin/stores`, `/admin/stores/[id]`, `/admin/branches`, `/admin/equipment`, `/admin/master-data`, `/admin/users`, `/admin/reports`, `/admin/calculator-logs`
