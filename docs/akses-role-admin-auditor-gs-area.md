@@ -116,6 +116,10 @@ cukup di-assign seperti alat lain.
    - Untuk user GS: daftar alat yang bisa dicentang, dikelompokkan per toko.
      Daftarnya diambil dari portal (`GET /api/internal/devices`), karena sparta
      tidak terhubung ke DB 2.
+   - Sudah dibuat: menu ⋯ di baris user GS → **Atur alat**
+     (`components/admin/admin-user-device-dialog.tsx`, action
+     `app/actions/device-access.ts`). Butuh `MONITORING_INTERNAL_TOKEN` yang sama
+     di sparta dan portal. Tabel user menampilkan jumlah alat tiap user GS.
 7. **`lib/iot-status.ts`** mengirim header token internal saat memanggil
    `/api/stores` (lihat langkah portal nomor 5).
 

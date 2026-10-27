@@ -86,12 +86,23 @@ function getBranchParts(branch: string | null) {
 function BranchCell({
   branch,
   role,
+  deviceCount,
 }: {
   branch: string | null
   role: UserRole
+  deviceCount: number | null
 }) {
   if (role === "GS") {
-    return <span className="text-muted-foreground">Alat yang di-assign</span>
+    if (deviceCount === null) {
+      return <span className="text-muted-foreground">Alat yang di-assign</span>
+    }
+    return deviceCount === 0 ? (
+      <span className="text-muted-foreground">Belum ada alat</span>
+    ) : (
+      <Badge variant="outline" className="font-normal">
+        {deviceCount} alat
+      </Badge>
+    )
   }
 
   if (!usesBranch(role)) {
@@ -330,7 +341,11 @@ export function AdminUsersTable({
                   </TableCell>
                   <TableCell>{getRoleBadge(user.role)}</TableCell>
                   <TableCell>
-                    <BranchCell branch={user.branch} role={user.role} />
+                    <BranchCell
+                      branch={user.branch}
+                      role={user.role}
+                      deviceCount={user.deviceCount}
+                    />
                   </TableCell>
                   <TableCell className="text-right">
                     {numberFormat.format(user.auditCount)}

@@ -201,6 +201,10 @@ export function EditUserDialog({
               />
               <p className="text-xs text-muted-foreground">
                 {ROLE_DESCRIPTIONS[role]}
+                {role === "GS" &&
+                  (user.role === "GS"
+                    ? " Atur alatnya lewat menu ⋯ di baris user ini, pilih Atur alat."
+                    : " Simpan role GS dulu, lalu atur alatnya lewat menu ⋯ di baris user ini, pilih Atur alat.")}
               </p>
             </div>
           </div>
