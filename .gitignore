@@ -78,3 +78,6 @@ app/cctv-test/
 components/cctv/
 
 
+
+# Lighting audit photos for demo stores
+/.local-uploads/

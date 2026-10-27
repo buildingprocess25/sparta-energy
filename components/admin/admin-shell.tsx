@@ -34,6 +34,10 @@ import {
 } from "react"
 
 import { AdminDashboardFilters } from "@/components/admin/admin-dashboard-filters"
+import {
+  AdminGapFilterToggle,
+  type AdminGapFilterState,
+} from "@/components/admin/admin-gap-filter-toggle"
 import { Logo } from "@/components/logo"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -85,6 +89,8 @@ type AdminUser = {
 
 type AdminShellProps = {
   user: AdminUser
+  gapFilter: AdminGapFilterState
+  canManageUsers: boolean
   children: ReactNode
 }
 
@@ -94,6 +100,8 @@ type AdminNavItem = {
   icon: ComponentType<React.ComponentProps<"svg">>
   disabled?: boolean
   external?: boolean
+  // Hidden for roles without manageUsers in lib/role-access.ts.
+  managersOnly?: boolean
 }
 
 type AdminNavGroup = {
@@ -117,7 +125,7 @@ const navGroups: AdminNavGroup[] = [
         icon: IconBuildingStore,
       },
       {
-        label: "Riwayat Audit",
+        label: "Riwayat Kalkulasi",
         href: "/admin/audits",
         icon: IconClipboardList,
       },
@@ -155,11 +163,13 @@ const navGroups: AdminNavGroup[] = [
         label: "User & Akses",
         href: "/admin/users",
         icon: IconUsers,
+        managersOnly: true,
       },
       {
         label: "Master Data",
         href: "/admin/master-data",
         icon: IconDatabase,
+        managersOnly: true,
       },
     ],
   },
@@ -207,8 +217,8 @@ function getBreadcrumbItems(pathname: string) {
 
   if (pathname.startsWith("/admin/audits/")) {
     return [
-      { label: "Riwayat Audit", href: "/admin/audits" },
-      { label: "Detail Audit" },
+      { label: "Riwayat Kalkulasi", href: "/admin/audits" },
+      { label: "Detail Kalkulasi" },
     ]
   }
 
@@ -221,12 +231,21 @@ function getBreadcrumbItems(pathname: string) {
 
 async function handleLogout() {
   await signOut()
-  const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-  const portalUrl = isLocal ? (process.env.NEXT_PUBLIC_PORTAL_URL || 'http://localhost:5173/') : 'https://sparta-alfamart.web.id/';
-  window.location.href = portalUrl;
+  const isLocal =
+    typeof window !== "undefined" && window.location.hostname === "localhost"
+  const portalUrl = isLocal
+    ? process.env.NEXT_PUBLIC_PORTAL_URL || "http://localhost:5173/"
+    : "https://sparta-alfamart.web.id/"
+  window.location.href = portalUrl
 }
 
-function AdminSidebar({ user }: { user: AdminUser }) {
+function AdminSidebar({
+  user,
+  canManageUsers,
+}: {
+  user: AdminUser
+  canManageUsers: boolean
+}) {
   const pathname = usePathname()
   const isMobile = useIsMobile()
 
@@ -289,24 +308,32 @@ function AdminSidebar({ user }: { user: AdminUser }) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {navGroups.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel className="text-sidebar-foreground/55 group-data-[collapsible=icon]:opacity-0">
-              {group.label}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <AdminSidebarItem
-                    key={item.href}
-                    item={item}
-                    pathname={pathname}
-                  />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+        {navGroups
+          .map((group) => ({
+            ...group,
+            items: group.items.filter(
+              (item) => canManageUsers || !item.managersOnly
+            ),
+          }))
+          .filter((group) => group.items.length > 0)
+          .map((group) => (
+            <SidebarGroup key={group.label}>
+              <SidebarGroupLabel className="text-sidebar-foreground/55 group-data-[collapsible=icon]:opacity-0">
+                {group.label}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {group.items.map((item) => (
+                    <AdminSidebarItem
+                      key={item.href}
+                      item={item}
+                      pathname={pathname}
+                    />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
       </SidebarContent>
 
       <SidebarFooter className="relative z-10">
@@ -541,9 +568,11 @@ function DashboardGlobalFilters() {
 
 function AdminHeaderActions({
   user,
+  gapFilter,
   showGlobalFilters,
 }: {
   user: AdminUser
+  gapFilter: AdminGapFilterState
   showGlobalFilters: boolean
 }) {
   return (
@@ -553,6 +582,7 @@ function AdminHeaderActions({
           <DashboardGlobalFilters />
         </Suspense>
       )}
+      <AdminGapFilterToggle {...gapFilter} />
       <ThemeModeToggle />
       <HeaderProfileMenu user={user} />
     </div>
@@ -607,7 +637,13 @@ function AdminSidebarItem({
   )
 }
 
-function AdminSiteHeader({ user }: { user: AdminUser }) {
+function AdminSiteHeader({
+  user,
+  gapFilter,
+}: {
+  user: AdminUser
+  gapFilter: AdminGapFilterState
+}) {
   const pathname = usePathname()
   const breadcrumbItems = getBreadcrumbItems(pathname)
   const showGlobalFilters = pathname === "/admin/dashboard"
@@ -646,13 +682,22 @@ function AdminSiteHeader({ user }: { user: AdminUser }) {
             })}
           </BreadcrumbList>
         </Breadcrumb>
-        <AdminHeaderActions user={user} showGlobalFilters={showGlobalFilters} />
+        <AdminHeaderActions
+          user={user}
+          gapFilter={gapFilter}
+          showGlobalFilters={showGlobalFilters}
+        />
       </div>
     </header>
   )
 }
 
-export function AdminShell({ user, children }: AdminShellProps) {
+export function AdminShell({
+  user,
+  gapFilter,
+  canManageUsers,
+  children,
+}: AdminShellProps) {
   return (
     <TooltipProvider>
       <SidebarProvider
@@ -663,9 +708,9 @@ export function AdminShell({ user, children }: AdminShellProps) {
           } as CSSProperties
         }
       >
-        <AdminSidebar user={user} />
+        <AdminSidebar user={user} canManageUsers={canManageUsers} />
         <SidebarInset>
-          <AdminSiteHeader user={user} />
+          <AdminSiteHeader user={user} gapFilter={gapFilter} />
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2">
               <div className="flex flex-col gap-4 p-4 md:gap-6 md:p-6">

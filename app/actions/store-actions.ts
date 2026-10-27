@@ -2,6 +2,8 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withEffectiveRole } from "@/lib/current-role"
+import { can } from "@/lib/role-access"
 import { headers } from "next/headers"
 
 const excludedBranchNames = [
@@ -20,16 +22,18 @@ export async function searchStoresAction(query: string = "") {
       throw new Error("Unauthorized")
     }
 
-    const dbUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { branch: true, role: true },
-    })
+    const dbUser = await withEffectiveRole(
+      await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { branch: true, role: true },
+      })
+    )
 
     if (!dbUser) {
       throw new Error("User not found")
     }
 
-    const isAdmin = dbUser.role === "ADMIN"
+    const isAdmin = can(dbUser.role, "adminTools")
     const isSuperAuditor =
       !isAdmin &&
       (dbUser?.branch === "*" || dbUser?.branch?.toLowerCase() === "all")
@@ -84,6 +88,8 @@ export async function searchStoresAction(query: string = "") {
         terraceAreaM2: true,
         salesAreaM2: true,
         warehouseAreaM2: true,
+        toiletAreaM2: true,
+        corridorAreaM2: true,
         latitude: true,
         longitude: true,
       },
@@ -97,6 +103,8 @@ export async function searchStoresAction(query: string = "") {
       terraceAreaM2: Number(s.terraceAreaM2),
       salesAreaM2: Number(s.salesAreaM2),
       warehouseAreaM2: Number(s.warehouseAreaM2),
+      toiletAreaM2: Number(s.toiletAreaM2),
+      corridorAreaM2: Number(s.corridorAreaM2),
       latitude: s.latitude ?? null,
       longitude: s.longitude ?? null,
     }))
@@ -130,6 +138,8 @@ export async function getStoreByCodeAction(code: string) {
         terraceAreaM2: true,
         salesAreaM2: true,
         warehouseAreaM2: true,
+        toiletAreaM2: true,
+        corridorAreaM2: true,
         latitude: true,
         longitude: true,
       },
@@ -145,6 +155,8 @@ export async function getStoreByCodeAction(code: string) {
       terraceAreaM2: Number(store.terraceAreaM2),
       salesAreaM2: Number(store.salesAreaM2),
       warehouseAreaM2: Number(store.warehouseAreaM2),
+      toiletAreaM2: Number(store.toiletAreaM2),
+      corridorAreaM2: Number(store.corridorAreaM2),
       latitude: store.latitude ?? null,
       longitude: store.longitude ?? null,
     }

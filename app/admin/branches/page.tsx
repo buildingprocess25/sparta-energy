@@ -9,8 +9,9 @@ import {
   IconSortDescending,
 } from "@tabler/icons-react"
 
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll"
 import { AdminMetricCard } from "@/components/admin/admin-metric-card"
-import { getAuditGapFilterWhereSql } from "@/lib/audit-gap-filter"
+import { getAdminGapFilterSql } from "@/lib/admin-gap-filter"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -85,7 +86,7 @@ const areaLabels: Record<string, string> = {
   PARKING: "Parkir",
   TERRACE: "Teras",
   SALES: "Sales",
-  WAREHOUSE: "Gudang",
+  WAREHOUSE: "Gudang, Toilet & Selasar",
 }
 
 function getStartOfMonth(year: number, monthIndex: number) {
@@ -212,7 +213,10 @@ function buildBranchesQueryParts(params: Awaited<SearchParams>) {
   const branch = params.branch?.trim()
 
   if (branch && branch !== "all") {
-    const branches = branch.split(",").map((b) => b.trim()).filter(Boolean)
+    const branches = branch
+      .split(",")
+      .map((b) => b.trim())
+      .filter(Boolean)
     if (branches.length > 0) {
       const placeholders = branches.map((b) => {
         values.push(b)
@@ -277,7 +281,7 @@ function getStoreScopeSql(storeWhere: string) {
   `
 }
 
-function getLatestAuditSql(auditDateWhere: string) {
+function getLatestAuditSql(auditDateWhere: string, gapClause: string | null) {
   return `
     latest_audits AS (
       SELECT DISTINCT ON (a.store_id)
@@ -293,7 +297,7 @@ function getLatestAuditSql(auditDateWhere: string) {
       INNER JOIN store_scope ss ON ss.id = a.store_id
       INNER JOIN stores s ON s.id = a.store_id
       WHERE a.status = 'COMPLETED'
-        ${getAuditGapFilterWhereSql("a") ? `AND ${getAuditGapFilterWhereSql("a")}` : ""}
+        ${gapClause ? `AND ${gapClause}` : ""}
         AND ${auditDateWhere}
       ORDER BY a.store_id, a.audit_date DESC, a.created_at DESC
     )
@@ -349,7 +353,7 @@ async function getBranchSummaryRows(params: Awaited<SearchParams>) {
     `
       WITH
         ${getStoreScopeSql(storeWhere)},
-        ${getLatestAuditSql(auditDateWhere)}
+        ${getLatestAuditSql(auditDateWhere, await getAdminGapFilterSql("a"))}
       SELECT
         ss.branch,
         count(ss.id)::int AS "totalStores",
@@ -376,7 +380,7 @@ async function getBranchDominantRows(params: Awaited<SearchParams>) {
     `
       WITH
         ${getStoreScopeSql(storeWhere)},
-        ${getLatestAuditSql(auditDateWhere)},
+        ${getLatestAuditSql(auditDateWhere, await getAdminGapFilterSql("a"))},
         branch_items AS (
           SELECT
             la.branch,
@@ -576,7 +580,7 @@ export default async function AdminBranchesPage({
                     : "-",
                 },
                 {
-                  label: "Belum Audit",
+                  label: "Belum Dikalkulasi",
                   value: lowCoverageBranch
                     ? formatNumber(lowCoverageBranch.notAuditedStores)
                     : "-",
@@ -588,16 +592,16 @@ export default async function AdminBranchesPage({
           <div className="px-4 pb-4 md:px-6">
             <Card size="sm">
               <CardHeader>
-                <CardTitle>Ringkasan Audit per Cabang</CardTitle>
+                <CardTitle>Ringkasan Kalkulasi per Cabang</CardTitle>
                 <CardDescription>
-                  Coverage audit dan status hemat/boros berdasarkan audit
-                  terakhir tiap toko dalam periode aktif.
+                  Coverage kalkulasi dan status hemat/boros berdasarkan
+                  kalkulasi terakhir tiap toko dalam periode aktif.
                 </CardDescription>
               </CardHeader>
               <CardContent className="px-0">
-                <div className="overflow-x-auto">
+                <AdminTableScroll className="max-h-[560px]">
                   <Table className="min-w-[980px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
-                    <TableHeader className="bg-background shadow-[0_1px_0_var(--border)]">
+                    <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
                       <TableRow>
                         <TableHead className="pl-6">
                           <SortableHeader
@@ -628,7 +632,7 @@ export default async function AdminBranchesPage({
                             params={params}
                             align="right"
                           >
-                            Sudah Audit
+                            Sudah Dikalkulasi
                           </SortableHeader>
                         </TableHead>
                         <TableHead className="text-right">
@@ -639,7 +643,7 @@ export default async function AdminBranchesPage({
                             params={params}
                             align="right"
                           >
-                            Belum Audit
+                            Belum Dikalkulasi
                           </SortableHeader>
                         </TableHead>
                         <TableHead className="text-right">
@@ -757,7 +761,7 @@ export default async function AdminBranchesPage({
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+                </AdminTableScroll>
               </CardContent>
             </Card>
           </div>
@@ -767,13 +771,14 @@ export default async function AdminBranchesPage({
               <CardHeader>
                 <CardTitle>Dominan Area & Equipment</CardTitle>
                 <CardDescription>
-                  Kontributor kWh harian terbesar dari audit terakhir tiap toko.
+                  Kontributor kWh harian terbesar dari kalkulasi terakhir tiap
+                  toko.
                 </CardDescription>
               </CardHeader>
               <CardContent className="px-0">
-                <div className="overflow-x-auto">
+                <AdminTableScroll className="max-h-[560px]">
                   <Table className="min-w-[560px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
-                    <TableHeader className="bg-background shadow-[0_1px_0_var(--border)]">
+                    <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
                       <TableRow>
                         <TableHead className="pl-6">Cabang</TableHead>
                         <TableHead>Area</TableHead>
@@ -805,7 +810,7 @@ export default async function AdminBranchesPage({
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+                </AdminTableScroll>
               </CardContent>
             </Card>
           </div>

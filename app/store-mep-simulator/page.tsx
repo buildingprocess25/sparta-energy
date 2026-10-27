@@ -2,6 +2,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withEffectiveRole } from "@/lib/current-role"
 import { hasFullBranchAccess } from "@/lib/permissions"
 import { StoreMepSimulatorClient } from "./store-mep-simulator-client"
 import { getMepSimulationDetail } from "@/app/actions/mep-simulation-actions"
@@ -25,12 +26,14 @@ export default async function StoreMepSimulatorPage({
   searchParams?: SearchParams
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
-  const dbUser = session?.user
-    ? await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { email: true, branch: true, role: true },
-      })
-    : null
+  const dbUser = await withEffectiveRole(
+    session?.user
+      ? await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { email: true, branch: true, role: true },
+        })
+      : null
+  )
 
   const resolvedParams = searchParams ? await searchParams : {}
   const initialLoadedLog = resolvedParams.loadMepLogId
@@ -75,6 +78,8 @@ export default async function StoreMepSimulatorPage({
       terraceAreaM2: true,
       salesAreaM2: true,
       warehouseAreaM2: true,
+      toiletAreaM2: true,
+      corridorAreaM2: true,
       latitude: true,
       longitude: true,
     },
@@ -88,6 +93,8 @@ export default async function StoreMepSimulatorPage({
         terraceAreaM2: Number(s.terraceAreaM2 ?? 0),
         salesAreaM2: Number(s.salesAreaM2 ?? 0),
         warehouseAreaM2: Number(s.warehouseAreaM2 ?? 0),
+        toiletAreaM2: Number(s.toiletAreaM2 ?? 0),
+        corridorAreaM2: Number(s.corridorAreaM2 ?? 0),
         latitude: s.latitude ? Number(s.latitude) : null,
         longitude: s.longitude ? Number(s.longitude) : null,
       }))}

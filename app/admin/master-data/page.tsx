@@ -39,6 +39,7 @@ import {
   type MasterEquipmentFilters,
   type MasterStoreFilters,
 } from "@/lib/admin-master-data-queries"
+import { requireUserManager } from "@/lib/admin-auth"
 
 type SearchParams = Promise<{
   tab?: string
@@ -71,6 +72,7 @@ export default async function AdminMasterDataPage({
 }: {
   searchParams: SearchParams
 }) {
+  await requireUserManager()
   const params = await searchParams
   const activeTab = parseMasterDataTab(params.tab)
   const summary = await getMasterDataSummary()
@@ -153,16 +155,16 @@ export default async function AdminMasterDataPage({
               ]}
             />
             <AdminMetricCard
-              label="Status Audit Toko"
+              label="Status Kalkulasi Toko"
               value={`${summary.auditPercent}%`}
-              description="Toko aktif teraudit"
+              description="Toko aktif yang sudah dikalkulasi"
               icon={IconClipboardCheck}
               tone="default"
               valueClassName="text-xl"
               rows={[
-                { label: "Audit Selesai", value: formatNumber(summary.auditedStores, " Toko") },
-                { label: "Audit Draf", value: formatNumber(summary.draftAuditedStores, " Toko") },
-                { label: "Belum Diaudit", value: formatNumber(summary.notAuditedStores, " Toko") },
+                { label: "Kalkulasi Selesai", value: formatNumber(summary.auditedStores, " Toko") },
+                { label: "Kalkulasi Draf", value: formatNumber(summary.draftAuditedStores, " Toko") },
+                { label: "Belum Dikalkulasi", value: formatNumber(summary.notAuditedStores, " Toko") },
               ]}
             />
             <AdminMetricCard
@@ -196,7 +198,7 @@ export default async function AdminMasterDataPage({
                 Master Data
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Data dasar toko dan equipment yang dipakai oleh flow audit.
+                Data dasar toko dan equipment yang dipakai oleh flow kalkulasi.
               </p>
             </div>
             <AdminMasterDataNav activeTab={activeTab} />

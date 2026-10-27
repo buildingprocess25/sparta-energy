@@ -155,7 +155,7 @@ prisma/
 
 **Core Models:**
 - `User`: Auditors and admins (role-based: USER, ADMIN)
-- `Store`: Retail locations with area specs (parking, terrace, sales, warehouse)
+- `Store`: Retail locations with area specs (parking, terrace, sales, warehouse, toilet, corridor/selasar)
 - `Audit`: Energy audit records linked to store & auditor
 - `AuditItem`: Equipment entries within an audit (qty, operational hours, estimated kWh)
 - `EquipmentType`: Equipment categories (AC, refrigerator, etc.) with default kW
@@ -289,7 +289,7 @@ prisma/
   - `estimatedDailyKwh = baseKw * qty * operationalHours`
   - `estimatedMonthlyKwh = estimatedDailyKwh * 30`
   - Boros if avg actual PLN kWh/month > estimate × 1.05; recommendation TRAINING / REPAIR / MAINTENANCE (details in `AI_CONTEXT.md` → Pembaruan Implementasi)
-- `lib/audit-gap-filter.ts`: temporary ±20% gap filter that hides outlier audits from admin views (does not change Hemat/Boros)
+- `lib/audit-gap-filter.ts`: temporary ±20% gap filter that hides outlier audits from admin views (does not change Hemat/Boros). Admins switch it per browser from the admin header; admin queries read it through `lib/admin-gap-filter.ts`
 - Used in audit creation and admin dashboard
 
 ### AI Recommendations

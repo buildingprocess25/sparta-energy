@@ -31,7 +31,7 @@ const areaOptions = [
   { value: "SALES", label: "Sales" },
   { value: "PARKING", label: "Parkir" },
   { value: "TERRACE", label: "Teras" },
-  { value: "WAREHOUSE", label: "Gudang" },
+  { value: "WAREHOUSE", label: "Gudang, Toilet & Selasar" },
 ]
 
 const filterParamKeys = ["branch", "area", "equipment", "brand"] as const

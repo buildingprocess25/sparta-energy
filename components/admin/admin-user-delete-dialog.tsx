@@ -50,7 +50,7 @@ export function DeleteUserConfirmDialog({
     event.preventDefault()
 
     if (hasAudits) {
-      toast.error("User ini tidak dapat dihapus karena memiliki riwayat audit")
+      toast.error("User ini tidak dapat dihapus karena memiliki riwayat kalkulasi")
       return
     }
 
@@ -101,7 +101,7 @@ export function DeleteUserConfirmDialog({
                   🛑 Penghapusan Diblokir Sistem
                 </h4>
                 <p className="text-[11px] text-rose-700/80 dark:text-rose-400/80 leading-relaxed">
-                  User <b>{user.fullName || user.email}</b> memiliki <b>{user.auditCount} laporan audit aktif</b>.
+                  User <b>{user.fullName || user.email}</b> memiliki <b>{user.auditCount} kalkulasi aktif</b>.
                   Untuk menjaga integritas dan riwayat pelaporan cabang, database melarang keras menghapus akun ini.
                 </p>
                 <div className="text-[10px] text-muted-foreground leading-normal border-t border-rose-500/10 pt-2">

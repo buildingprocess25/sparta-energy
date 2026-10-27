@@ -41,6 +41,7 @@ import type {
   SortOrder,
 } from "@/lib/admin-master-data-queries"
 
+import { getMasterStoreCompleteness } from "@/lib/master-store-completeness"
 import { cn } from "@/lib/utils"
 
 const numberFormat = new Intl.NumberFormat("id-ID")
@@ -64,24 +65,6 @@ function formatHours(row: MasterStoreRow) {
   if (row.is24Hours) return "24 jam"
   if (row.openTime && row.closeTime) return `${row.openTime} - ${row.closeTime}`
   return "-"
-}
-
-function getCompleteness(row: MasterStoreRow) {
-  const checks = [
-    Boolean(row.code),
-    Boolean(row.name),
-    Boolean(row.branch),
-    Boolean(row.type),
-    Boolean(row.plnCustomerId),
-    row.plnPowerVa > 0,
-    row.salesAreaM2 > 0,
-    row.parkingAreaM2 >= 0,
-    row.terraceAreaM2 >= 0,
-    row.warehouseAreaM2 > 0,
-    row.is24Hours || Boolean(row.openTime && row.closeTime),
-  ]
-
-  return Math.round((checks.filter(Boolean).length / checks.length) * 100)
 }
 
 function getNextSortOrder({
@@ -133,8 +116,8 @@ export function AdminMasterStoresTable({
   const handleMouseDown = (e: React.MouseEvent) => {
     const root = containerRef.current
     if (!root) return
-    const container = root.querySelector('[data-slot="table-container"]') as HTMLDivElement | null
-    if (!container) return
+    // The outer box scrolls both axes; the Table's own wrapper no longer scrolls.
+    const container = root
     if (e.button !== 0) return // Left click only
     const target = e.target as HTMLElement
     if (
@@ -308,7 +291,7 @@ export function AdminMasterStoresTable({
         onMouseUp={handleMouseUpOrLeave}
         onMouseLeave={handleMouseUpOrLeave}
         className={cn(
-          "min-h-0 w-full flex-1 overflow-auto bg-background max-h-[45vh] min-h-[300px] border rounded-md transition-all",
+          "max-h-[45vh] min-h-0 min-h-[300px] w-full flex-1 overflow-auto rounded-md border bg-background transition-all [&_[data-slot=table-container]]:overflow-visible",
           isDragging ? "cursor-grabbing select-none" : "cursor-grab"
         )}
       >
@@ -340,6 +323,8 @@ export function AdminMasterStoresTable({
               <TableHead className="text-right">Parkir</TableHead>
               <TableHead className="text-right">Teras</TableHead>
               <TableHead className="text-right">Gudang</TableHead>
+              <TableHead className="text-right">Toilet</TableHead>
+              <TableHead className="text-right">Selasar</TableHead>
               <TableHead>Completeness</TableHead>
               <TableHead>
                 <SortableHeader column="updatedAt">Update</SortableHeader>
@@ -349,7 +334,7 @@ export function AdminMasterStoresTable({
           </TableHeader>
           <TableBody>
             {rows.map((store) => {
-              const completeness = getCompleteness(store)
+              const completeness = getMasterStoreCompleteness(store)
 
               return (
                 <TableRow key={store.id}>
@@ -403,6 +388,12 @@ export function AdminMasterStoresTable({
                   </TableCell>
                   <TableCell className="text-right">
                     {formatNumber(store.warehouseAreaM2)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatNumber(store.toiletAreaM2)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatNumber(store.corridorAreaM2)}
                   </TableCell>
                   <TableCell>
                     <Badge
@@ -479,10 +470,13 @@ export function AdminMasterStoresTable({
             <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
               <IconAlertTriangle className="size-6" />
             </div>
-            <DialogTitle className="text-center mt-3">Hapus Toko</DialogTitle>
+            <DialogTitle className="mt-3 text-center">Hapus Toko</DialogTitle>
             <DialogDescription className="text-center">
               Apakah Anda yakin ingin menghapus toko{" "}
-              <strong className="text-foreground">{deleteStore?.code} - {deleteStore?.name}</strong>? Tindakan ini tidak dapat dibatalkan.
+              <strong className="text-foreground">
+                {deleteStore?.code} - {deleteStore?.name}
+              </strong>
+              ? Tindakan ini tidak dapat dibatalkan.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-2 grid grid-cols-2 gap-2 sm:space-x-0">

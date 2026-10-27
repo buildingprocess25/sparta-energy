@@ -3,12 +3,22 @@ import {
   IconArrowRight,
   IconAlertTriangle,
   IconBuildingStore,
+  IconCircleCheck,
+  IconFlame,
   IconLeaf,
   IconTrendingUp,
 } from "@tabler/icons-react"
 import type { Prisma } from "@prisma/client"
+import { getAdminGapFilterEnabled } from "@/lib/admin-gap-filter"
+import { getSangatBorosStores } from "@/lib/admin-sangat-boros"
 import { isAuditGapAllowed } from "@/lib/audit-gap-filter"
+import {
+  getIotInstalledCodes,
+  getIotStatusLookup,
+  getStoreIot,
+} from "@/lib/iot-status"
 
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll"
 import { ConsumptionTrendChart } from "@/components/admin/admin-dashboard-charts"
 import { AdminMetricCard } from "@/components/admin/admin-metric-card"
 import { Badge } from "@/components/ui/badge"
@@ -49,6 +59,7 @@ type CompletedAuditRow = {
   storeId: string
   auditDate: Date
   isBoros: boolean | null
+  validationStatus: "PENDING" | "VALIDATED"
   totalEstimatedKwhPerMonth: unknown
   avgActualPlnKwhPerMonth: unknown
   store: {
@@ -137,14 +148,20 @@ function getStoreFilter(params: Awaited<SearchParams>): Prisma.StoreWhereInput {
   const conditions: Prisma.StoreWhereInput[] = [storeBranchFilter]
 
   if (branch && branch !== "all") {
-    const branches = branch.split(",").map((b) => b.trim()).filter(Boolean)
+    const branches = branch
+      .split(",")
+      .map((b) => b.trim())
+      .filter(Boolean)
     if (branches.length > 0) {
       conditions.push({ branch: { in: branches } })
     }
   }
 
   if (type && type !== "all") {
-    const types = type.split(",").map((t) => t.trim()).filter(Boolean)
+    const types = type
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean)
     if (types.length > 0) {
       conditions.push({ type: { in: types } })
     }
@@ -326,7 +343,16 @@ export default async function AdminDashboardPage({
     auditDate: auditDateFilter,
   }
 
-  const [totalStores, completedAuditsRaw] = await Promise.all([
+  const [
+    gapFilterEnabled,
+    sangatBorosStores,
+    iotLookup,
+    totalStores,
+    completedAuditsRaw,
+  ] = await Promise.all([
+    getAdminGapFilterEnabled(),
+    getSangatBorosStores(),
+    getIotStatusLookup(),
     prisma.store.count({
       where: storeFilter,
     }),
@@ -338,6 +364,7 @@ export default async function AdminDashboardPage({
         storeId: true,
         auditDate: true,
         isBoros: true,
+        validationStatus: true,
         totalEstimatedKwhPerMonth: true,
         avgActualPlnKwhPerMonth: true,
         store: {
@@ -366,8 +393,13 @@ export default async function AdminDashboardPage({
 
   const completedAudits = completedAuditsRaw.filter((audit) =>
     isAuditGapAllowed(
-      audit.avgActualPlnKwhPerMonth ? Number(audit.avgActualPlnKwhPerMonth) : null,
-      audit.totalEstimatedKwhPerMonth ? Number(audit.totalEstimatedKwhPerMonth) : null
+      audit.avgActualPlnKwhPerMonth
+        ? Number(audit.avgActualPlnKwhPerMonth)
+        : null,
+      audit.totalEstimatedKwhPerMonth
+        ? Number(audit.totalEstimatedKwhPerMonth)
+        : null,
+      gapFilterEnabled
     )
   )
 
@@ -385,6 +417,33 @@ export default async function AdminDashboardPage({
       : 0
   const coverage =
     totalStores > 0 ? Math.round((auditedStores / totalStores) * 1000) / 10 : 0
+  const iotWithoutKalkulasi = iotLookup.available
+    ? await prisma.store.count({
+        where: {
+          AND: [
+            storeFilter,
+            {
+              code: {
+                in: getIotInstalledCodes(iotLookup),
+                mode: "insensitive",
+              },
+            },
+            { audits: { none: { status: "COMPLETED" } } },
+          ],
+        },
+      })
+    : null
+  const pendingValidationStores = latestAudits.filter(
+    (audit) => audit.validationStatus === "PENDING"
+  ).length
+  const validatedStores = auditedStores - pendingValidationStores
+  const validatedSangatBoros = sangatBorosStores.filter(
+    (store) => store.validated
+  ).length
+  const iotInstalledSangatBoros = sangatBorosStores.filter(
+    (store) =>
+      (getStoreIot(iotLookup, store.storeCode)?.status ?? "none") !== "none"
+  ).length
 
   const avgActual =
     auditedStores > 0
@@ -433,7 +492,7 @@ export default async function AdminDashboardPage({
     <div className="flex flex-col gap-6">
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <AdminMetricCard
-          label="Total Audited Stores"
+          label="Toko Sudah Dikalkulasi"
           value={numberFormat.format(auditedStores)}
           icon={IconBuildingStore}
           tone="info"
@@ -441,6 +500,13 @@ export default async function AdminDashboardPage({
           rows={[
             { label: "Total Stores", value: formatNumber(totalStores) },
             { label: "Coverage", value: `${coverage.toFixed(1)}%` },
+            {
+              label: "IoT terpasang, belum dikalkulasi",
+              value:
+                iotWithoutKalkulasi === null
+                  ? "Tidak tersedia"
+                  : formatNumber(iotWithoutKalkulasi),
+            },
           ]}
         >
           <Link
@@ -525,12 +591,81 @@ export default async function AdminDashboardPage({
         />
       </section>
 
+      <section className="grid gap-3 md:grid-cols-2">
+        <AdminMetricCard
+          label="Menunggu Validasi"
+          value={numberFormat.format(pendingValidationStores)}
+          description="Kalkulasi terakhir tiap toko sesuai filter dashboard."
+          icon={IconCircleCheck}
+          tone={pendingValidationStores > 0 ? "default" : "success"}
+          rows={[
+            {
+              label: "Sudah divalidasi",
+              value: formatNumber(validatedStores),
+            },
+          ]}
+        >
+          <Link
+            href={`/admin/stores?${new URLSearchParams({
+              validation: "pending",
+              ...(params.branch ? { branch: params.branch } : {}),
+              ...(params.type ? { type: params.type } : {}),
+            }).toString()}`}
+            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary underline decoration-primary/30 underline-offset-2 transition-colors hover:decoration-primary"
+          >
+            Lihat toko yang menunggu validasi
+            <IconArrowRight className="size-3.5" />
+          </Link>
+        </AdminMetricCard>
+
+        <AdminMetricCard
+          label="Sangat Boros"
+          value={`${numberFormat.format(sangatBorosStores.length)} Toko`}
+          description={
+            gapFilterEnabled
+              ? "12 toko boros dengan gap terbesar di dalam ±20%. Web energy tetap memakai semua data."
+              : "12 toko boros dengan gap terbesar dari semua data, sama dengan web energy."
+          }
+          icon={IconFlame}
+          tone="danger"
+          rows={[
+            {
+              label: "Sudah divalidasi",
+              value: formatNumber(validatedSangatBoros),
+            },
+            ...(iotLookup.available
+              ? [
+                  {
+                    label: "IoT sudah dipasang",
+                    value: formatNumber(iotInstalledSangatBoros),
+                  },
+                  {
+                    label: "IoT belum dipasang",
+                    value: formatNumber(
+                      sangatBorosStores.length - iotInstalledSangatBoros
+                    ),
+                  },
+                ]
+              : [{ label: "Status IoT", value: "Tidak tersedia" }]),
+          ]}
+        >
+          <Link
+            href="/admin/stores?priority=sangat-boros"
+            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary underline decoration-primary/30 underline-offset-2 transition-colors hover:decoration-primary"
+          >
+            Lihat toko Sangat Boros
+            <IconArrowRight className="size-3.5" />
+          </Link>
+        </AdminMetricCard>
+      </section>
+
       <section>
         <Card size="sm">
           <CardHeader>
             <CardTitle>Tren Pemakaian PLN &amp; Baseline</CardTitle>
             <CardDescription>
-              Rata-rata aktual PLN dan baseline estimasi beban dari audit toko.
+              Rata-rata aktual PLN dan baseline estimasi beban dari kalkulasi
+              toko.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -548,7 +683,7 @@ export default async function AdminDashboardPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="px-0">
-            <div className="overflow-x-auto">
+            <AdminTableScroll>
               <Table className="min-w-[1040px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
                 <TableHeader className="bg-background shadow-[0_1px_0_var(--border)]">
                   <TableRow>
@@ -600,7 +735,7 @@ export default async function AdminDashboardPage({
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </AdminTableScroll>
           </CardContent>
         </Card>
       </section>

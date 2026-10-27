@@ -35,7 +35,7 @@ async function main() {
         WHEN 'SALES' THEN 'Sales Area'
         WHEN 'PARKING' THEN 'Parkir'
         WHEN 'TERRACE' THEN 'Teras'
-        WHEN 'WAREHOUSE' THEN 'Gudang'
+        WHEN 'WAREHOUSE' THEN 'Gudang, Toilet & Selasar'
         ELSE ai.area_target::text
       END AS area,
       ai.qty AS jumlah,

@@ -45,6 +45,8 @@ export type DemoAuditResult = {
     parkingAreaM2: number
     terraceAreaM2: number
     warehouseAreaM2: number
+    toiletAreaM2: number
+    corridorAreaM2: number
   }
   items: Array<{
     areaTarget: "SALES" | "PARKING" | "TERRACE" | "WAREHOUSE"
@@ -84,6 +86,8 @@ interface AuditState {
     parkir: number
     teras: number
     gudang: number
+    toilet: number
+    selasar: number
   }
 
   // Step 2
@@ -120,6 +124,8 @@ export const useAuditStore = create<AuditState>()(
         parkir: 0,
         teras: 0,
         gudang: 0,
+        toilet: 0,
+        selasar: 0,
       },
 
       equipments: [],
@@ -155,6 +161,15 @@ export const useAuditStore = create<AuditState>()(
     {
       name: "sparta-audit-storage",
       storage: createJSONStorage(() => sessionStorage),
+      // Sessions saved before toilet and selasar were split lack those keys
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<AuditState> | undefined
+        return {
+          ...current,
+          ...saved,
+          areas: { ...current.areas, ...saved?.areas },
+        }
+      },
     }
   )
 )

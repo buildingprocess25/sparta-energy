@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { DEV_ROLE_COOKIE, getHomeUrl, resolveRole } from "@/lib/role-access"
+import { clearCookieHeaders } from "@/lib/sso-cookie"
 
 // Guest-only routes: accessible only when not logged in.
 const guestOnlyRoutes = new Set(["/", "/login"])
@@ -61,12 +63,17 @@ export async function proxy(request: NextRequest) {
 
       // Short-circuit the response so we have 100% control over the Set-Cookie headers
       const response = NextResponse.json({ success: true })
-      response.headers.append("Set-Cookie", "sso_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+      for (const header of clearCookieHeaders("sso_session")) {
+        response.headers.append("Set-Cookie", header)
+      }
       response.headers.append("Set-Cookie", "better-auth.session_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+      response.headers.append("Set-Cookie", `${DEV_ROLE_COOKIE}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`)
       return response
     } else {
       console.log("[Proxy] No sso_session cookie found during sign-out")
-      return NextResponse.next()
+      const response = NextResponse.next()
+      response.cookies.set(DEV_ROLE_COOKIE, "", { path: "/", maxAge: 0 })
+      return response
     }
   }
 
@@ -112,16 +119,20 @@ export async function proxy(request: NextRequest) {
 
   const isGuestOnlyRoute = guestOnlyRoutes.has(pathname)
 
-  if (isGuestOnlyRoute && isLoggedIn) {
+  if (isLoggedIn) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
     })
-    const dashboardUrl = new URL(
-      user?.role === "ADMIN" ? "/admin-entry" : "/dashboard",
-      request.url
+    const role = resolveRole(
+      user?.role,
+      request.cookies.get(DEV_ROLE_COOKIE)?.value
     )
-    return NextResponse.redirect(dashboardUrl)
+
+    // GS only works in the monitoring portal, so every sparta page sends them there.
+    if (isGuestOnlyRoute || role === "GS") {
+      return NextResponse.redirect(new URL(getHomeUrl(role), request.url))
+    }
   }
 
   if (!isGuestOnlyRoute && !isLoggedIn) {

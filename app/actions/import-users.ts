@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import * as crypto from "crypto"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 
-import { requireAdmin } from "@/lib/admin-auth"
+import { requireUserManager } from "@/lib/admin-auth"
 import { prisma } from "@/lib/prisma"
 
 type ActionResult = {
@@ -30,7 +30,7 @@ export async function checkExistingEmails(
   emails: string[]
 ): Promise<string[]> {
   try {
-    await requireAdmin()
+    await requireUserManager()
 
     if (!emails || emails.length === 0) return []
 
@@ -65,7 +65,7 @@ export async function importUsersBulk(
   users: ImportUserInput[]
 ): Promise<ActionResult> {
   try {
-    await requireAdmin()
+    await requireUserManager()
 
     if (!users || users.length === 0) {
       return {

@@ -2,6 +2,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withEffectiveRole } from "@/lib/current-role"
 import { hasFullBranchAccess } from "@/lib/permissions"
 import { LightEstimationClient } from "./light-estimation-client"
 import type { StoreData } from "@/app/audit/start/start-client"
@@ -19,10 +20,12 @@ export default async function LightEstimationPage() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) redirect("/login?reason=session-expired")
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { email: true, branch: true, role: true },
-  })
+  const dbUser = await withEffectiveRole(
+    await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { email: true, branch: true, role: true },
+    })
+  )
 
   if (!dbUser) redirect("/forbidden")
   
@@ -57,6 +60,8 @@ export default async function LightEstimationPage() {
       terraceAreaM2: true,
       salesAreaM2: true,
       warehouseAreaM2: true,
+      toiletAreaM2: true,
+      corridorAreaM2: true,
     },
   })
 
@@ -68,6 +73,8 @@ export default async function LightEstimationPage() {
     terraceAreaM2: Number(s.terraceAreaM2),
     salesAreaM2: Number(s.salesAreaM2),
     warehouseAreaM2: Number(s.warehouseAreaM2),
+    toiletAreaM2: Number(s.toiletAreaM2),
+    corridorAreaM2: Number(s.corridorAreaM2),
   }))
 
   return <LightEstimationClient stores={formattedStores} />

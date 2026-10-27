@@ -402,7 +402,7 @@ export async function getAdminEquipmentAreaBreakdown(
           WHEN 'SALES' THEN 'Sales'
           WHEN 'PARKING' THEN 'Parkir'
           WHEN 'TERRACE' THEN 'Teras'
-          WHEN 'WAREHOUSE' THEN 'Gudang'
+          WHEN 'WAREHOUSE' THEN 'Gudang, Toilet & Selasar'
           ELSE ai.area_target::text
         END AS label,
         COALESCE(SUM(ai.qty), 0)::int AS qty,

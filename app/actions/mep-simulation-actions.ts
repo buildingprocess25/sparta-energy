@@ -3,6 +3,9 @@
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { getEffectiveRole } from "@/lib/current-role"
+import { can } from "@/lib/role-access"
+import type { Role } from "@prisma/client"
 
 export type SaveMepSimulationPayload = {
   logId?: string | null
@@ -370,7 +373,10 @@ export async function deleteMepSimulationLog(id: string): Promise<{ success: boo
 
     // Cek apakah user yang login adalah pemilik rancangan atau akun Admin
     const isOwner = (userId && existing.userId === userId) || (userEmail && existing.userEmail === userEmail)
-    const isAdmin = (session?.user as any)?.role === "ADMIN"
+    const isAdmin = can(
+      await getEffectiveRole((session?.user as { role?: Role } | undefined)?.role),
+      "adminTools"
+    )
 
     if (!isOwner && !isAdmin) {
       return { success: false, error: "Anda tidak memiliki izin untuk menghapus rancangan ini" }

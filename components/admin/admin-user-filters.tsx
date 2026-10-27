@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select"
 import { CreateUserDialog } from "@/components/admin/admin-user-create-dialog"
 import { ImportUserCsvDialog } from "@/components/admin/admin-user-import-dialog"
+import { ROLES, ROLE_LABELS } from "@/lib/role-access"
 
 type AdminUserFiltersProps = {
   branches: string[]
@@ -191,18 +192,18 @@ export function AdminUserFilters({ branches, roles }: AdminUserFiltersProps) {
                   <span>Semua Role</span>
                 </div>
               </SelectItem>
-              <SelectItem value="user">
-                <div className="flex items-center gap-1.5">
-                  <IconUser className="size-3.5 text-muted-foreground" />
-                  <span>User / Auditor</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="admin">
-                <div className="flex items-center gap-1.5">
-                  <IconShieldCheck className="size-3.5 text-primary" />
-                  <span>Admin</span>
-                </div>
-              </SelectItem>
+              {ROLES.map((role) => (
+                <SelectItem key={role} value={role.toLowerCase()}>
+                  <div className="flex items-center gap-1.5">
+                    {role === "USER" ? (
+                      <IconUser className="size-3.5 text-muted-foreground" />
+                    ) : (
+                      <IconShieldCheck className="size-3.5 text-primary" />
+                    )}
+                    <span>{ROLE_LABELS[role]}</span>
+                  </div>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

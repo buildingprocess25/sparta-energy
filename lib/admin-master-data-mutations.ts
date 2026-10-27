@@ -90,6 +90,8 @@ function getStorePayload(data: Record<string, unknown>) {
     terraceAreaM2: requireNonNegativeNumber(data, "terraceAreaM2"),
     salesAreaM2: requireNonNegativeNumber(data, "salesAreaM2"),
     warehouseAreaM2: requireNonNegativeNumber(data, "warehouseAreaM2"),
+    toiletAreaM2: requireNonNegativeNumber(data, "toiletAreaM2"),
+    corridorAreaM2: requireNonNegativeNumber(data, "corridorAreaM2"),
   }
 }
 
@@ -182,7 +184,7 @@ export async function deleteMasterStore(
     return {
       ok: false,
       status: 409,
-      message: "Toko sudah dipakai audit, jadi tidak bisa dihapus",
+      message: "Toko sudah dipakai kalkulasi, jadi tidak bisa dihapus",
     }
   }
 
@@ -284,7 +286,7 @@ export async function deleteMasterEquipment(
     return {
       ok: false,
       status: 409,
-      message: "Brand equipment sudah dipakai audit, jadi tidak bisa dihapus",
+      message: "Brand equipment sudah dipakai kalkulasi, jadi tidak bisa dihapus",
     }
   }
 

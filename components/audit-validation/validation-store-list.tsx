@@ -1,7 +1,9 @@
 import Link from "next/link"
-import { IconChevronRight, IconClipboardCheck } from "@tabler/icons-react"
+import {
+  IconChevronRight,
+  IconClipboardCheck,
+} from "@tabler/icons-react"
 
-import { Badge } from "@/components/ui/badge"
 import {
   Item,
   ItemActions,
@@ -11,6 +13,8 @@ import {
 } from "@/components/ui/item"
 import type { ValidationListRow } from "@/lib/audit-validation-queries"
 import { formatGap, formatKwh } from "@/components/audit-validation/format"
+import { ResultStatusBadge } from "@/components/audit-validation/result-status-badge"
+import { ValidationStatusBadge } from "@/components/audit-validation/validation-status-badge"
 import { cn } from "@/lib/utils"
 
 type ValidationStoreListProps = {
@@ -58,17 +62,11 @@ export function ValidationStoreList({
                   konsumsi energi {formatKwh(row.baselineKwhPerMonth)}
                 </p>
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  <Badge
-                    className={cn(
-                      "text-white",
-                      row.isBoros ? "bg-[#c54b45]" : "bg-[#2c7a57]"
-                    )}
-                  >
-                    {row.isBoros ? "Boros" : "Hemat"}
-                  </Badge>
-                  <Badge variant={row.isValidated ? "secondary" : "outline"}>
-                    {row.isValidated ? "Sudah divalidasi" : "Menunggu validasi"}
-                  </Badge>
+                  <ResultStatusBadge
+                    isBoros={row.isBoros}
+                    isSangatBoros={row.isSangatBoros}
+                  />
+                  <ValidationStatusBadge validated={row.isValidated} />
                 </div>
               </ItemContent>
               {row.gapPercent !== null && (

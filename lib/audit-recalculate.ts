@@ -1,4 +1,6 @@
 export const DAYS_PER_MONTH = 30
+// Boros when actual PLN exceeds the standard by more than 5%.
+export const BOROS_TOLERANCE = 1.05
 const DEFAULT_STANDBY_RATIO = 0.05
 
 export type ItemKwhInput = {
@@ -41,6 +43,20 @@ export function calculateGapPercent(
   return ((actualKwhPerMonth - estimatedKwhPerMonth) / estimatedKwhPerMonth) * 100
 }
 
+// Months with 0 kWh are left out, same as calculateAudit().
+export function averagePlnKwh(monthlyKwh: number[]) {
+  const valid = monthlyKwh.filter((kwh) => kwh > 0)
+  if (valid.length === 0) return 0
+  return valid.reduce((sum, kwh) => sum + kwh, 0) / valid.length
+}
+
+export function isBorosFor(
+  actualKwhPerMonth: number,
+  estimatedKwhPerMonth: number
+) {
+  return actualKwhPerMonth > estimatedKwhPerMonth * BOROS_TOLERANCE
+}
+
 export function summarizeAuditItems(
   itemDailyKwh: number[],
   avgActualPlnKwhPerMonth: number
@@ -54,5 +70,6 @@ export function summarizeAuditItems(
       avgActualPlnKwhPerMonth,
       totalEstimatedKwhPerMonth
     ),
+    isBoros: isBorosFor(avgActualPlnKwhPerMonth, totalEstimatedKwhPerMonth),
   }
 }

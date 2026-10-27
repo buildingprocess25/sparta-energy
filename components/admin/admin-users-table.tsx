@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll"
 import { AdminUserActions } from "@/components/admin/admin-user-actions"
 import {
   Tooltip,
@@ -33,6 +34,7 @@ import type {
   AdminUserSortOrder,
   UserRole,
 } from "@/lib/admin-user-queries"
+import { ROLE_LABELS, usesBranch } from "@/lib/role-access"
 
 const numberFormat = new Intl.NumberFormat("id-ID")
 
@@ -55,10 +57,19 @@ function getRoleBadge(role: UserRole) {
     )
   }
 
+  if (role === "USER") {
+    return (
+      <Badge variant="secondary" className="gap-1">
+        <IconUser aria-hidden="true" className="size-3" />
+        User
+      </Badge>
+    )
+  }
+
   return (
-    <Badge variant="secondary" className="gap-1">
-      <IconUser aria-hidden="true" className="size-3" />
-      User
+    <Badge variant="outline" className="gap-1">
+      <IconShieldCheck aria-hidden="true" className="size-3" />
+      {ROLE_LABELS[role]}
     </Badge>
   )
 }
@@ -79,7 +90,11 @@ function BranchCell({
   branch: string | null
   role: UserRole
 }) {
-  if (role === "ADMIN") {
+  if (role === "GS") {
+    return <span className="text-muted-foreground">Alat yang di-assign</span>
+  }
+
+  if (!usesBranch(role)) {
     return (
       <Badge variant="outline" className="font-normal">
         Semua cabang
@@ -242,7 +257,7 @@ export function AdminUsersTable({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-auto">
+      <AdminTableScroll className="min-h-80 flex-1">
         <Table className="text-xs [&_td]:px-3 [&_td]:py-2.5 [&_th]:h-9 [&_th]:px-3">
           <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
             <TableRow>
@@ -284,7 +299,7 @@ export function AdminUsersTable({
               </TableHead>
               <TableHead className="text-right">
                 <SortHeader
-                  label="Audit"
+                  label="Kalkulasi"
                   sortKey="auditCount"
                   currentSort={filters.sort}
                   currentOrder={filters.order}
@@ -344,27 +359,27 @@ export function AdminUsersTable({
             )}
           </TableBody>
         </Table>
-      </div>
 
-      {hasMore && (
-        <div
-          ref={observerRef}
-          className="flex items-center justify-center border-t py-4"
-        >
-          {isLoading && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <IconLoader2 className="size-4 animate-spin" />
-              Memuat lebih banyak...
-            </div>
-          )}
-        </div>
-      )}
+        {hasMore && (
+          <div
+            ref={observerRef}
+            className="flex items-center justify-center border-t py-4"
+          >
+            {isLoading && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <IconLoader2 className="size-4 animate-spin" />
+                Memuat lebih banyak...
+              </div>
+            )}
+          </div>
+        )}
 
-      {!hasMore && rows.length > 0 && (
-        <div className="border-t py-3 text-center text-xs text-muted-foreground">
-          Menampilkan semua {numberFormat.format(totalRows)} user
-        </div>
-      )}
+        {!hasMore && rows.length > 0 && (
+          <div className="border-t py-3 text-center text-xs text-muted-foreground">
+            Menampilkan semua {numberFormat.format(totalRows)} user
+          </div>
+        )}
+      </AdminTableScroll>
     </div>
   )
 }

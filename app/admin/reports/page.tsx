@@ -1,10 +1,13 @@
 import {
   IconBuildingBank,
+  IconBuildingStore,
   IconClipboardList,
+  IconDatabase,
   IconFileSpreadsheet,
   IconTool,
 } from "@tabler/icons-react"
 
+import { AdminMasterStoreExportFilter } from "@/components/admin/admin-master-store-export-filter"
 import { AdminReportActions } from "@/components/admin/admin-report-actions"
 import { AdminReportFilters } from "@/components/admin/admin-report-filters"
 import { Badge } from "@/components/ui/badge"
@@ -21,9 +24,15 @@ import {
   getAdminReportCounts,
   getAdminReportFilterOptions,
   parseAdminReportStatus,
+  parseMasterStoreExportFilters,
   type AdminReportFilters as AdminReportFiltersValue,
   type AdminReportType,
+  type MasterStoreExportFilters,
 } from "@/lib/admin-report-queries"
+import {
+  getMasterStoreBranchCounts,
+  getMasterStoreTypes,
+} from "@/lib/admin-master-data-queries"
 
 type SearchParams = Promise<{
   year?: string
@@ -31,6 +40,10 @@ type SearchParams = Promise<{
   branch?: string
   storeType?: string
   status?: string
+  mBranch?: string
+  mType?: string
+  mComplete?: string
+  mHours?: string
 }>
 
 type ReportCard = {
@@ -38,26 +51,28 @@ type ReportCard = {
   title: string
   description: string
   icon: typeof IconFileSpreadsheet
+  // Master data ignores some page filters; say which ones apply
+  scope?: string
 }
 
 const reportCards: ReportCard[] = [
   {
     report: "store-data",
     title: "Export Toko Bulanan",
-    description: "PLN kWh, baseline, cabang, dan tipe toko per audit.",
+    description: "PLN kWh, baseline, cabang, dan tipe toko per kalkulasi.",
     icon: IconFileSpreadsheet,
   },
   {
     report: "audit-history",
-    title: "Export Riwayat Audit",
+    title: "Export Riwayat Kalkulasi",
     description:
-      "Audit selesai lintas toko dengan status, gap, dan rekomendasi.",
+      "Kalkulasi selesai lintas toko dengan status, gap, dan rekomendasi.",
     icon: IconClipboardList,
   },
   {
     report: "equipment",
     title: "Export Equipment",
-    description: "Daftar equipment audit lengkap dengan area dan estimasi kWh.",
+    description: "Daftar equipment kalkulasi lengkap dengan area dan estimasi kWh.",
     icon: IconTool,
   },
   {
@@ -66,38 +81,82 @@ const reportCards: ReportCard[] = [
     description: "Coverage, toko hemat/boros, boros rate, dan rata-rata gap.",
     icon: IconBuildingBank,
   },
+  {
+    report: "master-stores",
+    title: "Export Master Toko",
+    description:
+      "Data induk toko: cabang, tipe, ID PLN, daya, jam operasional, dan luas tiap area.",
+    icon: IconBuildingStore,
+  },
+  {
+    report: "master-equipment",
+    title: "Export Master Equipment",
+    description:
+      "Semua equipment dan brand dengan kategori, area, metode kalkulasi, dan kW.",
+    icon: IconDatabase,
+    scope: "Selalu berisi semua equipment. Filter tidak berlaku.",
+  },
 ]
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("id-ID").format(value)
 }
 
-function getExportHref(
+function getReportParams(
   report: AdminReportType,
-  filters: AdminReportFiltersValue
+  filters: AdminReportFiltersValue,
+  master: MasterStoreExportFilters
 ) {
   const params = new URLSearchParams({ report })
+
+  if (report === "master-stores") {
+    if (master.branches.length) params.set("mBranch", master.branches.join(","))
+    if (master.types.length) params.set("mType", master.types.join(","))
+    if (master.completeness !== "all") params.set("mComplete", master.completeness)
+    if (master.hours !== "all") params.set("mHours", master.hours)
+    return params
+  }
 
   for (const [key, value] of Object.entries(filters)) {
     if (!value || value === "all") continue
     params.set(key, value)
   }
 
-  return `/admin/reports/export?${params.toString()}`
+  return params
+}
+
+function getExportHref(
+  report: AdminReportType,
+  filters: AdminReportFiltersValue,
+  master: MasterStoreExportFilters
+) {
+  return `/admin/reports/export?${getReportParams(report, filters, master)}`
 }
 
 function getPreviewHref(
   report: AdminReportType,
-  filters: AdminReportFiltersValue
+  filters: AdminReportFiltersValue,
+  master: MasterStoreExportFilters
 ) {
-  const params = new URLSearchParams({ report })
+  return `/admin/reports/preview?${getReportParams(report, filters, master)}`
+}
 
-  for (const [key, value] of Object.entries(filters)) {
-    if (!value || value === "all") continue
-    params.set(key, value)
-  }
+function describeList(items: string[], all: string, unit: string) {
+  if (items.length === 0) return all
+  if (items.length <= 3) return items.join(", ")
+  return `${items.length} ${unit}`
+}
 
-  return `/admin/reports/preview?${params.toString()}`
+function describeMasterStoreScope(master: MasterStoreExportFilters) {
+  const parts = [
+    describeList(master.branches, "Semua cabang", "cabang"),
+    describeList(master.types, "semua tipe", "tipe"),
+  ]
+  if (master.completeness === "complete") parts.push("data lengkap")
+  if (master.completeness === "incomplete") parts.push("data belum lengkap")
+  if (master.hours === "24h") parts.push("24 jam")
+  if (master.hours === "non-24h") parts.push("non-24 jam")
+  return `${parts.join(" · ")}. Dikelompokkan per cabang.`
 }
 
 export default async function AdminReportsPage({
@@ -114,9 +173,13 @@ export default async function AdminReportsPage({
     status: parseAdminReportStatus(params.status),
   }
 
-  const [options, counts] = await Promise.all([
+  const master = parseMasterStoreExportFilters((key) => params[key])
+
+  const [options, counts, masterBranches, masterStoreTypes] = await Promise.all([
     getAdminReportFilterOptions(),
-    getAdminReportCounts(filters),
+    getAdminReportCounts(filters, master),
+    getMasterStoreBranchCounts(),
+    getMasterStoreTypes(),
   ])
 
   return (
@@ -160,15 +223,28 @@ export default async function AdminReportsPage({
                       </Badge>
                     </CardAction>
                   </CardHeader>
-                  <CardContent className="flex items-center justify-between gap-4 border-t pt-4">
-                    <span className="text-xs text-muted-foreground">
-                      Preview tersedia sebelum download.
+                  <CardContent className="flex flex-wrap items-center justify-between gap-4 border-t pt-4">
+                    <span className="min-w-0 flex-1 basis-48 text-xs text-muted-foreground">
+                      {item.report === "master-stores"
+                        ? describeMasterStoreScope(master)
+                        : (item.scope ?? "Preview tersedia sebelum download.")}
                     </span>
-                    <AdminReportActions
-                      title={item.title}
-                      downloadHref={getExportHref(item.report, filters)}
-                      previewHref={getPreviewHref(item.report, filters)}
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      {item.report === "master-stores" && (
+                        <AdminMasterStoreExportFilter
+                          branches={masterBranches.flatMap((row) =>
+                            row.branch ? [{ branch: row.branch, count: row.count }] : []
+                          )}
+                          storeTypes={masterStoreTypes}
+                          value={master}
+                        />
+                      )}
+                      <AdminReportActions
+                        title={item.title}
+                        downloadHref={getExportHref(item.report, filters, master)}
+                        previewHref={getPreviewHref(item.report, filters, master)}
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               )

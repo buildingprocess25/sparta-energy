@@ -2,7 +2,9 @@ import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 
 import { auth } from "@/lib/auth"
+import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
+import { can } from "@/lib/role-access"
 
 const excludedBranchNames = [
   "DEMO",
@@ -22,7 +24,7 @@ async function isAdmin() {
     select: { role: true },
   })
 
-  return user?.role === "ADMIN"
+  return can(await getEffectiveRole(user?.role), "adminPanel")
 }
 
 export async function GET() {

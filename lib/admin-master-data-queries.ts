@@ -1,3 +1,4 @@
+import { masterStoreCompleteSql } from "@/lib/master-store-completeness"
 import { prisma } from "@/lib/prisma"
 
 export type MasterDataTab = "stores" | "equipment"
@@ -12,11 +13,14 @@ export type MasterStoreSortKey =
   | "totalArea"
   | "updatedAt"
 
+export type MasterStoreCompletenessFilter = "complete" | "incomplete"
+
 export type MasterStoreFilters = {
   q: string
   branch: string
   type: string
   hours: MasterStoreHoursFilter | "all"
+  completeness?: MasterStoreCompletenessFilter | "all"
   sort: MasterStoreSortKey
   order: SortOrder
 }
@@ -36,6 +40,8 @@ export type MasterStoreRow = {
   terraceAreaM2: number
   salesAreaM2: number
   warehouseAreaM2: number
+  toiletAreaM2: number
+  corridorAreaM2: number
   totalAreaM2: number
   updatedAt: string
 }
@@ -146,6 +152,8 @@ type RawMasterStoreRow = Omit<
   | "terraceAreaM2"
   | "salesAreaM2"
   | "warehouseAreaM2"
+  | "toiletAreaM2"
+  | "corridorAreaM2"
   | "totalAreaM2"
   | "updatedAt"
 > & {
@@ -153,6 +161,8 @@ type RawMasterStoreRow = Omit<
   terraceAreaM2: { toString(): string } | string | number
   salesAreaM2: { toString(): string } | string | number
   warehouseAreaM2: { toString(): string } | string | number
+  toiletAreaM2: { toString(): string } | string | number
+  corridorAreaM2: { toString(): string } | string | number
   totalAreaM2: { toString(): string } | string | number
   updatedAt: Date | string
 }
@@ -270,6 +280,8 @@ function serializeStoreRow(row: RawMasterStoreRow): MasterStoreRow {
     terraceAreaM2: toNumber(row.terraceAreaM2),
     salesAreaM2: toNumber(row.salesAreaM2),
     warehouseAreaM2: toNumber(row.warehouseAreaM2),
+    toiletAreaM2: toNumber(row.toiletAreaM2),
+    corridorAreaM2: toNumber(row.corridorAreaM2),
     totalAreaM2: toNumber(row.totalAreaM2),
     updatedAt: new Date(row.updatedAt).toISOString(),
   }
@@ -328,6 +340,12 @@ function getStoreWhereSql(filters: MasterStoreFilters, values: unknown[]) {
     clauses.push("s.is_24_hours IS NOT TRUE")
   }
 
+  if (filters.completeness === "complete") {
+    clauses.push(masterStoreCompleteSql)
+  } else if (filters.completeness === "incomplete") {
+    clauses.push(`NOT ${masterStoreCompleteSql}`)
+  }
+
   return `WHERE ${clauses.join(" AND ")}`
 }
 
@@ -335,7 +353,7 @@ function getStoreOrderBySql(filters: MasterStoreFilters) {
   const direction = filters.order === "desc" ? "DESC" : "ASC"
   const nulls = filters.order === "desc" ? "NULLS LAST" : "NULLS FIRST"
   const totalAreaSql =
-    "(s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2)"
+    "(s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2 + s.toilet_area_m2 + s.corridor_area_m2)"
 
   const sortSqlByKey: Record<MasterStoreSortKey, string> = {
     store: `lower(s.code) ${direction}, lower(s.name) ${direction}`,
@@ -504,7 +522,7 @@ export async function getMasterDataSummary(): Promise<MasterDataSummary> {
         WHERE s.is_24_hours IS NOT TRUE AND ${activeStoreWhereSql}
       ) AS stores_non_24h,
       (
-        SELECT COALESCE(AVG(s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2), 0)
+        SELECT COALESCE(AVG(s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2 + s.toilet_area_m2 + s.corridor_area_m2), 0)
         FROM stores s
         WHERE ${activeStoreWhereSql}
       ) AS avg_store_area,
@@ -583,6 +601,28 @@ export async function getMasterStoreBranches() {
     .filter((item): item is string => Boolean(item))
 }
 
+// Stores per branch; null branch means the store has no branch filled in.
+export async function getMasterStoreBranchCounts(filters?: MasterStoreFilters) {
+  const values: unknown[] = []
+  const whereSql = filters
+    ? getStoreWhereSql(filters, values)
+    : `WHERE ${activeStoreWhereSql}`
+  const rows = await prisma.$queryRawUnsafe<
+    { branch: string | null; count: number }[]
+  >(
+    `
+      SELECT nullif(trim(s.branch), '') AS branch, COUNT(*)::int AS count
+      FROM stores s
+      ${whereSql}
+      GROUP BY nullif(trim(s.branch), '')
+      ORDER BY nullif(trim(s.branch), '') ASC NULLS LAST
+    `,
+    ...values
+  )
+
+  return rows.map((row) => ({ branch: row.branch, count: Number(row.count) }))
+}
+
 export async function getMasterStoreTypes() {
   const rows = await prisma.$queryRawUnsafe<OptionRow[]>(`
     SELECT DISTINCT trim(s.type) AS value
@@ -648,8 +688,10 @@ export async function getMasterStoreRows({
         s.terrace_area_m2 AS "terraceAreaM2",
         s.sales_area_m2 AS "salesAreaM2",
         s.warehouse_area_m2 AS "warehouseAreaM2",
+        s.toilet_area_m2 AS "toiletAreaM2",
+        s.corridor_area_m2 AS "corridorAreaM2",
         (
-          s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2
+          s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2 + s.toilet_area_m2 + s.corridor_area_m2
         ) AS "totalAreaM2",
         s.updated_at AS "updatedAt"
       FROM stores s

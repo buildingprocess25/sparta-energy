@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { requireAdmin } from "@/lib/admin-auth"
+import { requireUserManager } from "@/lib/admin-auth"
 import {
   deleteMasterStore,
   updateMasterStore,
@@ -10,7 +10,7 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  await requireAdmin()
+  await requireUserManager()
   const { id } = await params
 
   try {
@@ -35,7 +35,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  await requireAdmin()
+  await requireUserManager()
   const { id } = await params
 
   const result = await deleteMasterStore(id)

@@ -43,7 +43,7 @@ export default async function AuditValidationPage({ searchParams }: Props) {
   const hasFilters = filters.result !== "all" || filters.status !== "all" || Boolean(filters.q)
 
   const emptyMessage = isTop
-    ? "Tidak ada toko boros yang menunggu validasi."
+    ? "Belum ada toko boros."
     : hasFilters
       ? "Tidak ada toko yang cocok dengan filter ini."
       : "Belum ada kalkulasi toko yang selesai."

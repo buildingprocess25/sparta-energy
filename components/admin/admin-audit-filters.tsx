@@ -20,6 +20,10 @@ import {
   type Filter,
   type FilterFieldConfig,
 } from "@/components/reui/filters"
+import {
+  priorityFilterField,
+  validationFilterField,
+} from "@/components/admin/admin-shared-filter-fields"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { AdminAuditAuditorOption } from "@/lib/admin-audit-queries"
@@ -56,6 +60,8 @@ const filterParamKeys = [
   "month",
   "status",
   "recommendation",
+  "validation",
+  "priority",
 ] as const
 
 const filterParamKeySet = new Set<string>(filterParamKeys)
@@ -126,7 +132,7 @@ export function AdminAuditFilters({
     periodFields.push(
       {
         key: "status",
-        label: "Status Audit",
+        label: "Status Kalkulasi",
         type: "select",
         icon: <IconLeaf />,
         options: [
@@ -145,6 +151,8 @@ export function AdminAuditFilters({
           { value: "MAINTENANCE", label: "Maintenance" },
         ],
       },
+      validationFilterField,
+      priorityFilterField,
     )
 
     return periodFields

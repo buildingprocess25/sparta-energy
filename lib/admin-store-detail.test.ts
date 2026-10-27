@@ -17,7 +17,9 @@ const detail = buildStoreDetailViewModel({
     salesAreaM2: 80,
     parkingAreaM2: 20,
     terraceAreaM2: 10,
-    warehouseAreaM2: 15,
+    warehouseAreaM2: 10,
+    toiletAreaM2: 2,
+    corridorAreaM2: 3,
   },
   audits: [
     {

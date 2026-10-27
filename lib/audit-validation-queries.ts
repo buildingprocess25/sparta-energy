@@ -24,6 +24,7 @@ export type ValidationListRow = {
   storeName: string
   branch: string | null
   isBoros: boolean
+  isSangatBoros: boolean
   isValidated: boolean
   actualKwhPerMonth: number
   baselineKwhPerMonth: number
@@ -37,6 +38,7 @@ type RawValidationRow = {
   store_name: string
   branch: string | null
   is_boros: boolean | null
+  is_sangat_boros: boolean | null
   validation_status: string
   actual_kwh: unknown
   baseline_kwh: unknown
@@ -69,7 +71,7 @@ export function parseValidationFilters(
 
 // Each store is represented by its latest completed audit, so a validated
 // store only needs checking again once a newer audit comes in.
-const latestAuditPerStore = Prisma.sql`
+export const latestAuditPerStore = Prisma.sql`
   WITH latest AS (
     SELECT DISTINCT ON (a.store_id)
       a.id, a.store_id, a.audit_date, a.is_boros, a.validation_status,
@@ -81,10 +83,23 @@ const latestAuditPerStore = Prisma.sql`
 `
 
 // DEMO stores stay visible in development so the flow can be tested on them.
-const activeStoreSql =
+export const activeStoreSql =
   process.env.NODE_ENV === "production"
     ? Prisma.sql`(s.branch IS NULL OR lower(s.branch) NOT IN ('demo', 'head office'))`
     : Prisma.sql`(s.branch IS NULL OR lower(s.branch) <> 'head office')`
+
+// "Sangat boros" comes from the v_toko_sangat_boros view, the same source the
+// smart-energy-monitoring portal reads, so both apps flag the same stores.
+export const sangatBorosIdsSql = Prisma.sql`SELECT audit_id FROM v_toko_sangat_boros`
+
+export async function isSangatBorosAudit(auditId: string) {
+  const rows = await prisma.$queryRaw<{ flag: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM v_toko_sangat_boros WHERE audit_id = ${auditId}::uuid
+    ) AS flag
+  `
+  return rows[0]?.flag === true
+}
 
 export async function getValidationAudits(filters: ValidationListFilters) {
   const conditions = [activeStoreSql]
@@ -92,11 +107,7 @@ export async function getValidationAudits(filters: ValidationListFilters) {
   let offset = (filters.page - 1) * VALIDATION_PAGE_SIZE
 
   if (filters.view === "top") {
-    conditions.push(
-      Prisma.sql`l.is_boros = true`,
-      Prisma.sql`l.validation_status = 'PENDING'`,
-      Prisma.sql`l.gap_percent IS NOT NULL`
-    )
+    conditions.push(Prisma.sql`l.id IN (${sangatBorosIdsSql})`)
     limit = TOP_BOROS_LIMIT
     offset = 0
   } else {
@@ -131,6 +142,7 @@ export async function getValidationAudits(filters: ValidationListFilters) {
       l.avg_actual_pln_kwh_per_month AS actual_kwh,
       l.total_estimated_kwh_per_month AS baseline_kwh,
       l.gap_percent,
+      (l.id IN (${sangatBorosIdsSql})) AS is_sangat_boros,
       COUNT(*) OVER() AS total_count
     FROM latest l
     JOIN stores s ON s.id = l.store_id
@@ -149,6 +161,7 @@ export async function getValidationAudits(filters: ValidationListFilters) {
         storeName: row.store_name,
         branch: row.branch,
         isBoros: row.is_boros === true,
+        isSangatBoros: row.is_sangat_boros === true,
         isValidated: row.validation_status === "VALIDATED",
         actualKwhPerMonth: Number(row.actual_kwh ?? 0),
         baselineKwhPerMonth: Number(row.baseline_kwh ?? 0),
@@ -189,22 +202,50 @@ export async function getValidationAudit(id: string) {
       parkingAreaM2: true,
       terraceAreaM2: true,
       warehouseAreaM2: true,
+      toiletAreaM2: true,
+      corridorAreaM2: true,
       is24Hours: true,
       openTime: true,
       closeTime: true,
+      originalIsBoros: true,
+      originalTotalEstimatedKwhPerMonth: true,
+      originalAvgActualPlnKwhPerMonth: true,
       validatedBy: { select: { fullName: true, email: true } },
       auditor: { select: { fullName: true, email: true } },
+      plnHistory: {
+        orderBy: { monthIdx: "asc" },
+        select: {
+          id: true,
+          billingMonth: true,
+          plnUsageKwh: true,
+          salesTransactionPerDay: true,
+        },
+      },
+      corrections: {
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          type: true,
+          summary: true,
+          createdAt: true,
+          validator: { select: { fullName: true, email: true } },
+        },
+      },
       store: {
         select: {
           code: true,
           name: true,
           branch: true,
+          address: true,
           type: true,
           plnPowerVa: true,
           salesAreaM2: true,
           parkingAreaM2: true,
           terraceAreaM2: true,
           warehouseAreaM2: true,
+          toiletAreaM2: true,
+          corridorAreaM2: true,
           is24Hours: true,
           openTime: true,
           closeTime: true,
@@ -234,7 +275,7 @@ export async function getValidationAudit(id: string) {
 
   if (!audit || audit.status !== "COMPLETED") return null
 
-  const [latest, previous] = await Promise.all([
+  const [latest, previous, isSangatBoros] = await Promise.all([
     prisma.audit.findFirst({
       where: { storeId: audit.storeId, status: "COMPLETED" },
       orderBy: { auditDate: "desc" },
@@ -259,11 +300,13 @@ export async function getValidationAudit(id: string) {
         },
       },
     }),
+    isSangatBorosAudit(audit.id),
   ])
 
   return {
     id: audit.id,
     isLatest: latest?.id === audit.id,
+    isSangatBoros,
     previousAudit: previous
       ? {
           auditDate: previous.auditDate.toISOString(),
@@ -286,10 +329,34 @@ export async function getValidationAudit(id: string) {
     validatedBy:
       audit.validatedBy?.fullName ?? audit.validatedBy?.email ?? null,
     auditor: audit.auditor.fullName ?? audit.auditor.email,
+    // Null until a validator changes something; then it holds the store's own result.
+    original:
+      audit.originalTotalEstimatedKwhPerMonth === null
+        ? null
+        : {
+            isBoros: audit.originalIsBoros === true,
+            baselineKwhPerMonth: Number(audit.originalTotalEstimatedKwhPerMonth),
+            actualKwhPerMonth: Number(audit.originalAvgActualPlnKwhPerMonth ?? 0),
+          },
+    corrections: audit.corrections.map((correction) => ({
+      id: correction.id,
+      type: correction.type,
+      summary: correction.summary,
+      createdAt: correction.createdAt.toISOString(),
+      validator:
+        correction.validator?.fullName ?? correction.validator?.email ?? null,
+    })),
+    plnHistory: audit.plnHistory.map((row) => ({
+      id: row.id,
+      billingMonth: row.billingMonth,
+      plnUsageKwh: Number(row.plnUsageKwh),
+      salesTransactionPerDay: Number(row.salesTransactionPerDay),
+    })),
     store: {
       code: audit.store.code,
       name: audit.store.name,
       branch: audit.store.branch,
+      address: audit.store.address ?? "",
     },
     // Audits saved before the technical columns existed fall back to the store row.
     technical: {
@@ -300,6 +367,8 @@ export async function getValidationAudit(id: string) {
         parkir: Number(audit.parkingAreaM2 ?? audit.store.parkingAreaM2),
         teras: Number(audit.terraceAreaM2 ?? audit.store.terraceAreaM2),
         gudang: Number(audit.warehouseAreaM2 ?? audit.store.warehouseAreaM2),
+        toilet: Number(audit.toiletAreaM2 ?? audit.store.toiletAreaM2),
+        selasar: Number(audit.corridorAreaM2 ?? audit.store.corridorAreaM2),
       },
       is24Hours: audit.is24Hours ?? audit.store.is24Hours,
       openTime: audit.openTime ?? audit.store.openTime,
@@ -329,3 +398,5 @@ export type ValidationAudit = NonNullable<
 >
 export type ValidationAuditItem = ValidationAudit["items"][number]
 export type ValidationTechnical = ValidationAudit["technical"]
+export type ValidationPlnRow = ValidationAudit["plnHistory"][number]
+export type ValidationCorrection = ValidationAudit["corrections"][number]

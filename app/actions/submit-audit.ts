@@ -34,6 +34,8 @@ type SubmitAuditInput = {
     parkir: number
     teras: number
     gudang: number
+    toilet: number
+    selasar: number
   }
   // Step 2
   equipments: (EquipmentState & { brandId?: string; brandName?: string })[]
@@ -162,6 +164,8 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
             parkingAreaM2: input.areas.parkir,
             terraceAreaM2: input.areas.teras,
             warehouseAreaM2: input.areas.gudang,
+            toiletAreaM2: input.areas.toilet,
+            corridorAreaM2: input.areas.selasar,
           },
           items,
           plnHistory: input.plnHistory.map((row, idx) => ({
@@ -221,6 +225,8 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
       parkingAreaM2: input.areas.parkir,
       terraceAreaM2: input.areas.teras,
       warehouseAreaM2: input.areas.gudang,
+      toiletAreaM2: input.areas.toilet,
+      corridorAreaM2: input.areas.selasar,
       is24Hours: input.is24Hours,
       openTime: input.is24Hours ? null : input.openTime,
       closeTime: input.is24Hours ? null : input.closeTime,

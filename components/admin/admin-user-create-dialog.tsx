@@ -31,6 +31,13 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { BranchCombobox } from "@/components/admin/admin-branch-combobox"
+import {
+  ROLES,
+  ROLE_DESCRIPTIONS,
+  ROLE_LABELS,
+  usesBranch,
+} from "@/lib/role-access"
+import type { Role } from "@prisma/client"
 
 export function CreateUserDialog({
   open,
@@ -45,12 +52,15 @@ export function CreateUserDialog({
 }) {
   const [email, setEmail] = useState("")
   const [fullName, setFullName] = useState("")
-  const [role, setRole] = useState<"USER" | "ADMIN">("USER")
+  const [role, setRole] = useState<Role>("USER")
   const [branch, setBranch] = useState<string>("none")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const normalizedBranch =
-    role === "ADMIN" ? null : branch === "none" ? null : branch
+  const normalizedBranch = !usesBranch(role)
+    ? null
+    : branch === "none"
+      ? null
+      : branch
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 
@@ -65,9 +75,9 @@ export function CreateUserDialog({
     }
   }, [open])
 
-  function handleRoleChange(value: "USER" | "ADMIN") {
+  function handleRoleChange(value: Role) {
     setRole(value)
-    if (value === "ADMIN") setBranch("none")
+    if (!usesBranch(value)) setBranch("none")
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -148,33 +158,29 @@ export function CreateUserDialog({
               />
             </div>
 
-
-
             <div className="space-y-2">
               <Label htmlFor="create-role">Role *</Label>
               <Select
                 value={role}
-                onValueChange={(value) =>
-                  handleRoleChange(value as "USER" | "ADMIN")
-                }
+                onValueChange={(value) => handleRoleChange(value as Role)}
                 disabled={isSubmitting}
               >
                 <SelectTrigger id="create-role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USER">
-                    <div className="flex items-center gap-2">
-                      <IconUser aria-hidden="true" className="size-4" />
-                      User
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="ADMIN">
-                    <div className="flex items-center gap-2">
-                      <IconShield aria-hidden="true" className="size-4" />
-                      Admin
-                    </div>
-                  </SelectItem>
+                  {ROLES.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      <div className="flex items-center gap-2">
+                        {option === "USER" ? (
+                          <IconUser aria-hidden="true" className="size-4" />
+                        ) : (
+                          <IconShield aria-hidden="true" className="size-4" />
+                        )}
+                        {ROLE_LABELS[option]}
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -185,12 +191,10 @@ export function CreateUserDialog({
                 branches={branches}
                 value={branch}
                 onChange={setBranch}
-                disabled={isSubmitting || role === "ADMIN"}
+                disabled={isSubmitting || !usesBranch(role)}
               />
-              <p className="text-[11px] text-muted-foreground leading-normal">
-                {role === "ADMIN"
-                  ? "Admin dapat mengakses dashboard admin dan audit semua cabang."
-                  : "User hanya dapat mengakses cabang yang ditetapkan."}
+              <p className="text-[11px] leading-normal text-muted-foreground">
+                {ROLE_DESCRIPTIONS[role]}
               </p>
             </div>
           </div>
@@ -211,7 +215,7 @@ export function CreateUserDialog({
               {isSubmitting && (
                 <IconLoader2
                   aria-hidden="true"
-                  className="size-4 animate-spin mr-1.5"
+                  className="mr-1.5 size-4 animate-spin"
                 />
               )}
               Tambah User
@@ -222,4 +226,3 @@ export function CreateUserDialog({
     </Dialog>
   )
 }
-

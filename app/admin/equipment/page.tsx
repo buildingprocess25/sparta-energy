@@ -101,7 +101,7 @@ export default async function AdminEquipmentPage({
   )
 
   return (
-    <div className="-mt-4 flex min-h-[calc(100svh-var(--header-height)-1rem)] flex-col md:-mt-6 md:min-h-[calc(100svh-var(--header-height))]">
+    <div className="-mt-4 flex min-h-[calc(100svh-var(--header-height)-1rem)] flex-col md:-mt-6 md:h-[calc(100dvh-var(--header-height)-1.5rem)] md:min-h-0">
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="-mx-4 flex min-h-0 flex-1 flex-col border-y md:-mx-6">
           <div className="grid gap-3 px-4 py-4 md:grid-cols-2 md:px-6 xl:grid-cols-4">

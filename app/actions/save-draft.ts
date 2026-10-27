@@ -41,6 +41,8 @@ type SaveDraftInput = {
     parkir: number
     teras: number
     gudang: number
+    toilet: number
+    selasar: number
   }
   equipments?: EquipmentState[]
   plnHistory?: PlnRowState[]
@@ -445,6 +447,8 @@ export async function getAuditDraft(auditId: string) {
         parkir: Number(audit.store.parkingAreaM2),
         teras: Number(audit.store.terraceAreaM2),
         gudang: Number(audit.store.warehouseAreaM2),
+        toilet: Number(audit.store.toiletAreaM2),
+        selasar: Number(audit.store.corridorAreaM2),
       },
       equipments,
       savedAreas: Array.from(savedAreasSet),

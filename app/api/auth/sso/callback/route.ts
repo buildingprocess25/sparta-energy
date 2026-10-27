@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
+import { getHomeUrl } from "@/lib/role-access";
+import { getSsoCookieDomain } from "@/lib/sso-cookie";
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -68,7 +70,7 @@ export async function GET(request: Request) {
 
     console.log("[SSO Callback] Session created for user:", user.email);
 
-    const redirectPath = user.role === "ADMIN" ? "/admin-entry" : "/dashboard";
+    const redirectPath = getHomeUrl(user.role);
     const response = NextResponse.redirect(new URL(redirectPath, baseUrl));
     // The proxy and auth helper resolve this fallback cookie from the session table.
     response.cookies.set("sso_session", sessionToken, {
@@ -77,6 +79,7 @@ export async function GET(request: Request) {
         sameSite: "lax",
         maxAge: 8 * 60 * 60,
         path: "/",
+        domain: getSsoCookieDomain(),
     });
     
     console.log("[SSO Callback] Session cookie signed and set, redirecting to /dashboard");

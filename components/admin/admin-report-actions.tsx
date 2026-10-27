@@ -17,6 +17,7 @@ import type { AdminReportColumn } from "@/lib/admin-report-queries"
 type PreviewResponse = {
   columns: AdminReportColumn[]
   rows: Array<Array<string | number | null>>
+  groupRows?: number[]
   previewRows: number
   totalRows: number
 }
@@ -30,9 +31,14 @@ type AdminReportActionsProps = {
 function formatCell(value: string | number | null, column: AdminReportColumn) {
   if (value === null || value === undefined || value === "") return "-"
 
-  if (column.type === "number" || column.type === "kw") {
+  if (
+    column.type === "number" ||
+    column.type === "integer" ||
+    column.type === "kw"
+  ) {
     return new Intl.NumberFormat("id-ID", {
-      maximumFractionDigits: column.type === "kw" ? 20 : 2,
+      maximumFractionDigits:
+        column.type === "kw" ? 20 : column.type === "integer" ? 0 : 2,
     }).format(Number(value))
   }
 
@@ -136,7 +142,7 @@ export function AdminReportActions({
                         <th
                           key={column.label}
                           className={`h-9 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground ${
-                            column.type === "number" || column.type === "kw"
+                            column.type !== "text" && column.type !== "date"
                               ? "text-right"
                               : ""
                           }`}
@@ -147,25 +153,37 @@ export function AdminReportActions({
                     </tr>
                   </thead>
                   <tbody className="[&_tr:last-child]:border-0">
-                    {activePreview.rows.map((row, rowIndex) => (
-                      <tr
-                        key={rowIndex}
-                        className="border-b transition-colors hover:bg-muted/50"
-                      >
-                        {activePreview.columns.map((column, columnIndex) => (
-                          <td
-                            key={`${rowIndex}-${column.label}`}
-                            className={`px-2 py-2 align-middle whitespace-nowrap ${
-                              column.type === "number" || column.type === "kw"
-                                ? "text-right"
-                                : ""
-                            }`}
+                    {activePreview.rows.map((row, rowIndex) =>
+                      activePreview.groupRows?.includes(rowIndex) ? (
+                        <tr key={rowIndex} className="border-b bg-muted/60">
+                          <th
+                            scope="rowgroup"
+                            colSpan={activePreview.columns.length}
+                            className="px-2 py-2 text-left font-semibold"
                           >
-                            {formatCell(row[columnIndex], column)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
+                            {row[0]}
+                          </th>
+                        </tr>
+                      ) : (
+                        <tr
+                          key={rowIndex}
+                          className="border-b transition-colors hover:bg-muted/50"
+                        >
+                          {activePreview.columns.map((column, columnIndex) => (
+                            <td
+                              key={`${rowIndex}-${column.label}`}
+                              className={`px-2 py-2 align-middle whitespace-nowrap ${
+                                column.type !== "text" && column.type !== "date"
+                                  ? "text-right"
+                                  : ""
+                              }`}
+                            >
+                              {formatCell(row[columnIndex], column)}
+                            </td>
+                          ))}
+                        </tr>
+                      )
+                    )}
                   </tbody>
                 </table>
               </div>

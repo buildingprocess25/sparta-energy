@@ -2,11 +2,12 @@ import { headers } from "next/headers"
 import type { Role } from "@prisma/client"
 
 import { auth } from "@/lib/auth"
+import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
+import { can } from "@/lib/role-access"
 
-// Only ADMIN for now. Add the auditor role here once it exists in the Role enum.
 export function canValidateAudit(role: Role | null | undefined) {
-  return role === "ADMIN"
+  return can(role, "validateAudits")
 }
 
 export async function getAuditValidator() {
@@ -18,6 +19,8 @@ export async function getAuditValidator() {
     select: { id: true, fullName: true, email: true, role: true },
   })
 
-  if (!user || !canValidateAudit(user.role)) return null
-  return user
+  if (!user) return null
+  const role = await getEffectiveRole(user.role)
+  if (!canValidateAudit(role)) return null
+  return { ...user, role: role ?? user.role }
 }

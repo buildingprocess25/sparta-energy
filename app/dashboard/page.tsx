@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withEffectiveRole } from "@/lib/current-role"
+import { can } from "@/lib/role-access"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
@@ -14,6 +16,8 @@ import { HeroCard } from "@/components/dashboard/hero-card"
 import { CalculatorGrid } from "@/components/dashboard/calculator-grid"
 import { DraftListSection } from "@/components/dashboard/draft-list-section"
 import { ValidationCard } from "@/components/dashboard/validation-card"
+import { EnergyAuditCard } from "@/components/dashboard/energy-audit-card"
+import { getEnergyAuditPendingCount } from "@/lib/energy-audit-queries"
 import { canValidateAudit } from "@/lib/audit-validation-access"
 import { getPendingValidationCount } from "@/lib/audit-validation-queries"
 
@@ -47,17 +51,22 @@ export default async function DashboardPage() {
   if (!session?.user) redirect("/login?reason=session-expired")
 
   // Get all audits for stores in user's branch
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { branch: true, fullName: true, role: true },
-  })
+  const dbUser = await withEffectiveRole(
+    await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { branch: true, fullName: true, role: true },
+    })
+  )
 
   if (!dbUser) redirect("/forbidden")
-  const isAdmin = dbUser.role === "ADMIN"
+  const isAdmin = can(dbUser.role, "adminTools")
   const canValidate = canValidateAudit(dbUser.role)
-  const pendingValidationCount = canValidate
-    ? await getPendingValidationCount()
-    : 0
+  const [pendingValidationCount, energyAuditReadyCount] = canValidate
+    ? await Promise.all([
+        getPendingValidationCount(),
+        getEnergyAuditPendingCount(),
+      ])
+    : [0, 0]
 
   // Fetch draft audits for this user
   const draftAudits = await prisma.audit.findMany({
@@ -126,6 +135,8 @@ export default async function DashboardPage() {
       parkingAreaM2: true,
       terraceAreaM2: true,
       warehouseAreaM2: true,
+      toiletAreaM2: true,
+      corridorAreaM2: true,
       totalEstimatedKwhPerMonth: true,
       avgActualPlnKwhPerMonth: true,
       store: {
@@ -136,6 +147,8 @@ export default async function DashboardPage() {
           parkingAreaM2: true,
           terraceAreaM2: true,
           warehouseAreaM2: true,
+          toiletAreaM2: true,
+          corridorAreaM2: true,
         },
       },
     },
@@ -147,7 +160,9 @@ export default async function DashboardPage() {
       Number(a.salesAreaM2 ?? a.store.salesAreaM2) +
         Number(a.parkingAreaM2 ?? a.store.parkingAreaM2) +
         Number(a.terraceAreaM2 ?? a.store.terraceAreaM2) +
-        Number(a.warehouseAreaM2 ?? a.store.warehouseAreaM2) || 1
+        Number(a.warehouseAreaM2 ?? a.store.warehouseAreaM2) +
+        Number(a.toiletAreaM2 ?? a.store.toiletAreaM2) +
+        Number(a.corridorAreaM2 ?? a.store.corridorAreaM2) || 1
 
     const est = Number(a.totalEstimatedKwhPerMonth ?? 0) / totalAreaM2
     const actual = Number(a.avgActualPlnKwhPerMonth ?? 0) / totalAreaM2
@@ -186,6 +201,7 @@ export default async function DashboardPage() {
         <div className="lg:col-span-8 space-y-6">
           <HeroCard />
           {canValidate && <ValidationCard pendingCount={pendingValidationCount} />}
+          {canValidate && <EnergyAuditCard readyCount={energyAuditReadyCount} />}
           <CalculatorGrid isAdmin={isAdmin} />
           <DraftListSection drafts={drafts} />
         </div>
