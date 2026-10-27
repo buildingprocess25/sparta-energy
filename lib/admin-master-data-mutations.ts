@@ -90,6 +90,8 @@ function getStorePayload(data: Record<string, unknown>) {
     terraceAreaM2: requireNonNegativeNumber(data, "terraceAreaM2"),
     salesAreaM2: requireNonNegativeNumber(data, "salesAreaM2"),
     warehouseAreaM2: requireNonNegativeNumber(data, "warehouseAreaM2"),
+    toiletAreaM2: requireNonNegativeNumber(data, "toiletAreaM2"),
+    corridorAreaM2: requireNonNegativeNumber(data, "corridorAreaM2"),
   }
 }
 

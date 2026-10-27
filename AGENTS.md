@@ -144,7 +144,7 @@ prisma/
 
 **Core Models:**
 - `User`: Auditors and admins (role-based: USER, ADMIN)
-- `Store`: Retail locations with area specs (parking, terrace, sales, warehouse)
+- `Store`: Retail locations with area specs (parking, terrace, sales, warehouse, toilet, corridor/selasar)
 - `Audit`: Energy audit records linked to store & auditor
 - `AuditItem`: Equipment entries within an audit (qty, operational hours, estimated kWh)
 - `EquipmentType`: Equipment categories (AC, refrigerator, etc.) with default kW

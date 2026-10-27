@@ -78,6 +78,13 @@ export async function GET(
       "Luas Area Parkir (m2)",
       audit.store.parkingAreaM2,
     ],
+    [
+      "Luas Area Toilet (m2)",
+      audit.store.toiletAreaM2,
+      "",
+      "Luas Area Selasar (m2)",
+      audit.store.corridorAreaM2,
+    ],
     ["Total Luas Bangunan (m2)", audit.store.totalAreaM2, "", "Status Kelengkapan Data", `${audit.dataCompleteness.percent}% Lengkap`],
     [],
     ["2. INDIKATOR KINERJA ENERGI & STATUS EFISIENSI"],

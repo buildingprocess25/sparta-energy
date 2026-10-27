@@ -73,6 +73,8 @@ export default async function AcMappingPage() {
       terraceAreaM2: true,
       salesAreaM2: true,
       warehouseAreaM2: true,
+      toiletAreaM2: true,
+      corridorAreaM2: true,
       latitude: true,
       longitude: true,
     },
@@ -86,6 +88,8 @@ export default async function AcMappingPage() {
         terraceAreaM2: Number(s.terraceAreaM2 ?? 0),
         salesAreaM2: Number(s.salesAreaM2 ?? 0),
         warehouseAreaM2: Number(s.warehouseAreaM2 ?? 0),
+        toiletAreaM2: Number(s.toiletAreaM2 ?? 0),
+        corridorAreaM2: Number(s.corridorAreaM2 ?? 0),
         latitude: s.latitude ? Number(s.latitude) : null,
         longitude: s.longitude ? Number(s.longitude) : null,
       }))}

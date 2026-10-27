@@ -211,10 +211,13 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
 
   const completionIssues = getCompletionIssues(data)
   const visibleIssues = issues.length > 0 ? issues : completionIssues
+  const { gudang, toilet, selasar } = form.context.areas
   const warehouseHint =
     (activeZone === "GUDANG" || activeZone === "SELASAR" || activeZone === "TOILET") &&
-    form.context.areas.gudangGabungan > 0
-      ? `Luas gabungan gudang, toilet & selasar di kalkulasi: ${numberFormat.format(form.context.areas.gudangGabungan)} m². Ukur luas zona ini terpisah.`
+    gudang > 0 &&
+    toilet === 0 &&
+    selasar === 0
+      ? `Data toko masih mencatat gudang, toilet & selasar sebagai satu luas: ${numberFormat.format(gudang)} m². Ukur luas zona ini terpisah.`
       : null
 
   return (

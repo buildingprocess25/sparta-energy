@@ -19,6 +19,8 @@ export type AdminStoreDetailInput = {
     parkingAreaM2: number | string | { toString(): string }
     terraceAreaM2: number | string | { toString(): string }
     warehouseAreaM2: number | string | { toString(): string }
+    toiletAreaM2: number | string | { toString(): string }
+    corridorAreaM2: number | string | { toString(): string }
   }
   audits: Array<{
     id: string
@@ -68,7 +70,7 @@ const AREA_LABELS: Record<AreaTarget, string> = {
   SALES: "Sales Area",
   PARKING: "Parkir",
   TERRACE: "Teras",
-  WAREHOUSE: "Gudang",
+  WAREHOUSE: "Gudang, Toilet & Selasar",
 }
 
 const requiredStoreFields: Array<{
@@ -87,7 +89,7 @@ const requiredStoreFields: Array<{
   { key: "terraceAreaM2", label: "Area teras", isComplete: isNonNegativeNumber },
   {
     key: "warehouseAreaM2",
-    label: "Gudang/selasar",
+    label: "Gudang",
     isComplete: isNonNegativeNumber,
   },
 ]
@@ -129,8 +131,15 @@ export function buildStoreDetailViewModel(input: AdminStoreDetailInput) {
   const parkingAreaM2 = toNumber(store.parkingAreaM2)
   const terraceAreaM2 = toNumber(store.terraceAreaM2)
   const warehouseAreaM2 = toNumber(store.warehouseAreaM2)
+  const toiletAreaM2 = toNumber(store.toiletAreaM2)
+  const corridorAreaM2 = toNumber(store.corridorAreaM2)
   const totalAreaM2 =
-    salesAreaM2 + parkingAreaM2 + terraceAreaM2 + warehouseAreaM2
+    salesAreaM2 +
+    parkingAreaM2 +
+    terraceAreaM2 +
+    warehouseAreaM2 +
+    toiletAreaM2 +
+    corridorAreaM2
 
   const latestAudit = input.audits[0] ?? null
   const baseline = latestAudit
@@ -234,6 +243,8 @@ export function buildStoreDetailViewModel(input: AdminStoreDetailInput) {
       parkingAreaM2,
       terraceAreaM2,
       warehouseAreaM2,
+      toiletAreaM2,
+      corridorAreaM2,
       totalAreaM2: round(totalAreaM2, 1),
     },
     dataCompleteness: {
@@ -312,6 +323,8 @@ export async function getAdminStoreDetail(storeId: string) {
       parkingAreaM2: true,
       terraceAreaM2: true,
       warehouseAreaM2: true,
+      toiletAreaM2: true,
+      corridorAreaM2: true,
       audits: {
         where: { status: "COMPLETED" },
         orderBy: [{ auditDate: "desc" }, { createdAt: "desc" }],

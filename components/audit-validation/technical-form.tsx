@@ -24,7 +24,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { STORE_TYPES } from "@/lib/store-types"
 
-export type AreaField = "sales" | "parkir" | "teras" | "gudang"
+export type AreaField =
+  | "sales"
+  | "parkir"
+  | "teras"
+  | "gudang"
+  | "toilet"
+  | "selasar"
 
 export type TechnicalDraft = {
   storeType: string
@@ -48,7 +54,9 @@ const areaFields: { key: AreaField; label: string }[] = [
   { key: "sales", label: "Sales Area" },
   { key: "parkir", label: "Parkiran" },
   { key: "teras", label: "Teras" },
-  { key: "gudang", label: "Gudang, Toilet & Selasar" },
+  { key: "gudang", label: "Gudang" },
+  { key: "toilet", label: "Toilet" },
+  { key: "selasar", label: "Selasar" },
 ]
 
 function UnitInput({

@@ -48,6 +48,8 @@ type AuditStore = {
   parkingAreaM2: number | string
   terraceAreaM2: number | string
   warehouseAreaM2: number | string
+  toiletAreaM2: number | string
+  corridorAreaM2: number | string
 }
 
 type AuditItemDB = {
@@ -89,7 +91,7 @@ const areaChartConfig = {
   SALES: { label: "Sales Area", color: "var(--chart-1)" },
   TERRACE: { label: "Teras", color: "var(--chart-2)" },
   PARKING: { label: "Parkir", color: "var(--chart-4)" },
-  WAREHOUSE: { label: "Gudang & Lainnya", color: "var(--chart-3)" },
+  WAREHOUSE: { label: "Gudang, Toilet & Selasar", color: "var(--chart-3)" },
 } satisfies ChartConfig
 
 const trendChartConfig = {
@@ -103,7 +105,7 @@ const AREA_LABELS: Record<string, string> = {
   SALES: "Sales Area",
   TERRACE: "Teras",
   PARKING: "Parkir",
-  WAREHOUSE: "Gudang & Lainnya",
+  WAREHOUSE: "Gudang, Toilet & Selasar",
 }
 function getAreaLabel(area: string) {
   return AREA_LABELS[area] ?? area
@@ -141,7 +143,9 @@ export function AuditResultDB({
     Number(audit.store.salesAreaM2) +
       Number(audit.store.parkingAreaM2) +
       Number(audit.store.terraceAreaM2) +
-      Number(audit.store.warehouseAreaM2) || 1
+      Number(audit.store.warehouseAreaM2) +
+      Number(audit.store.toiletAreaM2) +
+      Number(audit.store.corridorAreaM2) || 1
 
   const estKwhPerM2 = totalEst / totalAreaM2
   const actualKwhPerM2 = avgActual / totalAreaM2

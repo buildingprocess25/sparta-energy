@@ -16,6 +16,8 @@ export const demoStores: StoreData[] = [
     terraceAreaM2: 15,
     salesAreaM2: 120,
     warehouseAreaM2: 20,
+    toiletAreaM2: 0,
+    corridorAreaM2: 0,
   },
   {
     id: "demo-store-2",
@@ -32,5 +34,7 @@ export const demoStores: StoreData[] = [
     terraceAreaM2: 20,
     salesAreaM2: 150,
     warehouseAreaM2: 25,
+    toiletAreaM2: 0,
+    corridorAreaM2: 0,
   },
 ]

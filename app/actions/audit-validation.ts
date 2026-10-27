@@ -41,7 +41,14 @@ export type UpdateAuditItemInput = ItemFields & {
 export type AuditTechnicalInput = {
   storeType: string
   plnPowerVa: number
-  areas: { sales: number; parkir: number; teras: number; gudang: number }
+  areas: {
+    sales: number
+    parkir: number
+    teras: number
+    gudang: number
+    toilet: number
+    selasar: number
+  }
   is24Hours: boolean
   openTime: string | null
   closeTime: string | null
@@ -127,6 +134,8 @@ function toTechnicalData(input: AuditTechnicalInput) {
     parkingAreaM2: input.areas.parkir,
     terraceAreaM2: input.areas.teras,
     warehouseAreaM2: input.areas.gudang,
+    toiletAreaM2: input.areas.toilet,
+    corridorAreaM2: input.areas.selasar,
     is24Hours: input.is24Hours,
     openTime: input.is24Hours ? null : input.openTime,
     closeTime: input.is24Hours ? null : input.closeTime,
@@ -523,6 +532,8 @@ async function applyDraft(
         parkingAreaM2: true,
         terraceAreaM2: true,
         warehouseAreaM2: true,
+        toiletAreaM2: true,
+        corridorAreaM2: true,
         is24Hours: true,
         openTime: true,
         closeTime: true,
@@ -554,6 +565,8 @@ async function applyDraft(
     parkingAreaM2: "Luas parkiran",
     terraceAreaM2: "Luas teras",
     warehouseAreaM2: "Luas gudang",
+    toiletAreaM2: "Luas toilet",
+    corridorAreaM2: "Luas selasar",
     is24Hours: "24 jam",
     openTime: "Jam buka",
     closeTime: "Jam tutup",

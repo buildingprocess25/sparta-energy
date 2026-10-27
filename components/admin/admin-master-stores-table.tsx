@@ -340,6 +340,8 @@ export function AdminMasterStoresTable({
               <TableHead className="text-right">Parkir</TableHead>
               <TableHead className="text-right">Teras</TableHead>
               <TableHead className="text-right">Gudang</TableHead>
+              <TableHead className="text-right">Toilet</TableHead>
+              <TableHead className="text-right">Selasar</TableHead>
               <TableHead>Completeness</TableHead>
               <TableHead>
                 <SortableHeader column="updatedAt">Update</SortableHeader>
@@ -403,6 +405,12 @@ export function AdminMasterStoresTable({
                   </TableCell>
                   <TableCell className="text-right">
                     {formatNumber(store.warehouseAreaM2)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatNumber(store.toiletAreaM2)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatNumber(store.corridorAreaM2)}
                   </TableCell>
                   <TableCell>
                     <Badge

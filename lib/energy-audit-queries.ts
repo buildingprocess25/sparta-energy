@@ -145,6 +145,8 @@ export async function getEnergyAuditStore(sourceAuditId: string) {
       parkingAreaM2: true,
       terraceAreaM2: true,
       warehouseAreaM2: true,
+      toiletAreaM2: true,
+      corridorAreaM2: true,
       store: {
         select: {
           id: true,
@@ -156,6 +158,8 @@ export async function getEnergyAuditStore(sourceAuditId: string) {
           parkingAreaM2: true,
           terraceAreaM2: true,
           warehouseAreaM2: true,
+          toiletAreaM2: true,
+          corridorAreaM2: true,
         },
       },
       energyAudits: {
@@ -208,7 +212,9 @@ export async function getEnergyAuditStore(sourceAuditId: string) {
       sales: Number(audit.salesAreaM2 ?? audit.store.salesAreaM2),
       parkir: Number(audit.parkingAreaM2 ?? audit.store.parkingAreaM2),
       teras: Number(audit.terraceAreaM2 ?? audit.store.terraceAreaM2),
-      gudangGabungan: Number(audit.warehouseAreaM2 ?? audit.store.warehouseAreaM2),
+      gudang: Number(audit.warehouseAreaM2 ?? audit.store.warehouseAreaM2),
+      toilet: Number(audit.toiletAreaM2 ?? audit.store.toiletAreaM2),
+      selasar: Number(audit.corridorAreaM2 ?? audit.store.corridorAreaM2),
     },
     statusByCategory,
   }
@@ -303,6 +309,12 @@ export async function getLightingAuditForm(sourceAuditId: string) {
       SALES: context.areas.sales,
       PARKIRAN: context.areas.parkir,
       TERAS: context.areas.teras,
+    }
+    // Older stores keep gudang, toilet and selasar combined in gudang
+    if (context.areas.toilet > 0 || context.areas.selasar > 0) {
+      prefilledAreas.GUDANG = context.areas.gudang
+      prefilledAreas.TOILET = context.areas.toilet
+      prefilledAreas.SELASAR = context.areas.selasar
     }
     data = {
       ...empty,

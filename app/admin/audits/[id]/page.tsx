@@ -392,6 +392,8 @@ export default async function AdminAuditDetailPage({
                 ["Parkir", formatDecimal(audit.store.parkingAreaM2, " m²")],
                 ["Teras", formatDecimal(audit.store.terraceAreaM2, " m²")],
                 ["Gudang", formatDecimal(audit.store.warehouseAreaM2, " m²")],
+                ["Toilet", formatDecimal(audit.store.toiletAreaM2, " m²")],
+                ["Selasar", formatDecimal(audit.store.corridorAreaM2, " m²")],
               ].map(([label, value]) => (
                 <div
                   key={label}

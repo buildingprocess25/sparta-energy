@@ -52,7 +52,7 @@ Ada 2 role user utama:
 
 - User **memilih toko** yang akan diaudit dari daftar toko yang tersedia di cabangnya (bukan input kode manual).
 - Identitas & Teknis: Daya PLN (VA), tipe toko (Regular, Basic, dll), jam operasional toko.
-- Input Luas 4 Area Utama: Area Parkir, Area Teras, Area Sales, Area Gudang+Selasar+KM.
+- Input Luas Area: Parkir, Teras, Sales, Gudang, Toilet, Selasar (dipisah sejak Oktober 2026; data lama masih menyimpan gabungan di Gudang dengan Toilet & Selasar = 0). Equipment tetap satu grup "Gudang, Toilet & Selasar" (enum `WAREHOUSE`).
 
 4. Step 2: Input Equipment per Area
 

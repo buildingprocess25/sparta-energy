@@ -6,7 +6,7 @@ const areaLabels: Record<string, string> = {
   PARKING: "Parkir",
   TERRACE: "Teras",
   SALES: "Sales",
-  WAREHOUSE: "Gudang",
+  WAREHOUSE: "Gudang, Toilet & Selasar",
 }
 
 function toNumber(value: unknown) {
@@ -81,6 +81,8 @@ export async function getAdminAuditDetail(id: string) {
           parkingAreaM2: true,
           terraceAreaM2: true,
           warehouseAreaM2: true,
+          toiletAreaM2: true,
+          corridorAreaM2: true,
         },
       },
       plnHistory: {
@@ -139,7 +141,9 @@ export async function getAdminAuditDetail(id: string) {
     toNumber(audit.store.salesAreaM2) +
     toNumber(audit.store.parkingAreaM2) +
     toNumber(audit.store.terraceAreaM2) +
-    toNumber(audit.store.warehouseAreaM2)
+    toNumber(audit.store.warehouseAreaM2) +
+    toNumber(audit.store.toiletAreaM2) +
+    toNumber(audit.store.corridorAreaM2)
   const totalDailyKwh = audit.items.reduce(
     (total, item) => total + toNumber(item.estimatedDailyKwh),
     0
@@ -220,6 +224,8 @@ export async function getAdminAuditDetail(id: string) {
       parkingAreaM2: toNumber(audit.store.parkingAreaM2),
       terraceAreaM2: toNumber(audit.store.terraceAreaM2),
       warehouseAreaM2: toNumber(audit.store.warehouseAreaM2),
+      toiletAreaM2: toNumber(audit.store.toiletAreaM2),
+      corridorAreaM2: toNumber(audit.store.corridorAreaM2),
       totalAreaM2,
     },
     plnHistory: audit.plnHistory.map((row) => ({

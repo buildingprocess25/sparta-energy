@@ -157,6 +157,8 @@ function buildDemoAuditResult(
       parkingAreaM2: auditState.areas.parkir,
       terraceAreaM2: auditState.areas.teras,
       warehouseAreaM2: auditState.areas.gudang,
+      toiletAreaM2: auditState.areas.toilet,
+      corridorAreaM2: auditState.areas.selasar,
     },
     items,
     plnHistory: rows.map((row, idx) => ({
@@ -340,6 +342,8 @@ export function AuditStep3({
             parkir: auditState.areas.parkir,
             teras: auditState.areas.teras,
             gudang: auditState.areas.gudang,
+            toilet: auditState.areas.toilet,
+            selasar: auditState.areas.selasar,
           },
           plnPowerVa: auditState.plnPowerVa,
         })

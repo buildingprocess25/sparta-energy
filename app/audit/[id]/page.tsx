@@ -32,6 +32,8 @@ export default async function AuditResultPage({ params }: Props) {
     parkingAreaM2,
     terraceAreaM2,
     warehouseAreaM2,
+    toiletAreaM2,
+    corridorAreaM2,
     ...auditFields
   } = audit
 
@@ -51,6 +53,8 @@ export default async function AuditResultPage({ params }: Props) {
           parkingAreaM2: Number(parkingAreaM2 ?? audit.store.parkingAreaM2),
           terraceAreaM2: Number(terraceAreaM2 ?? audit.store.terraceAreaM2),
           warehouseAreaM2: Number(warehouseAreaM2 ?? audit.store.warehouseAreaM2),
+          toiletAreaM2: Number(toiletAreaM2 ?? audit.store.toiletAreaM2),
+          corridorAreaM2: Number(corridorAreaM2 ?? audit.store.corridorAreaM2),
         },
         items: audit.items.map((item) => ({
           ...item,

@@ -25,6 +25,8 @@ export type StoreData = {
   terraceAreaM2: number
   salesAreaM2: number
   warehouseAreaM2: number
+  toiletAreaM2: number
+  corridorAreaM2: number
   latitude?: number | null
   longitude?: number | null
 }
@@ -225,6 +227,8 @@ export function AuditStartClient({
           parkir: store.parkingAreaM2,
           teras: store.terraceAreaM2,
           gudang: store.warehouseAreaM2,
+          toilet: store.toiletAreaM2,
+          selasar: store.corridorAreaM2,
         })
       }}
     />

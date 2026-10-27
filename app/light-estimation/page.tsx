@@ -60,6 +60,8 @@ export default async function LightEstimationPage() {
       terraceAreaM2: true,
       salesAreaM2: true,
       warehouseAreaM2: true,
+      toiletAreaM2: true,
+      corridorAreaM2: true,
     },
   })
 
@@ -71,6 +73,8 @@ export default async function LightEstimationPage() {
     terraceAreaM2: Number(s.terraceAreaM2),
     salesAreaM2: Number(s.salesAreaM2),
     warehouseAreaM2: Number(s.warehouseAreaM2),
+    toiletAreaM2: Number(s.toiletAreaM2),
+    corridorAreaM2: Number(s.corridorAreaM2),
   }))
 
   return <LightEstimationClient stores={formattedStores} />

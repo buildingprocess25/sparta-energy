@@ -44,12 +44,16 @@ type AuditHistoryRow = {
   parkingAreaM2: unknown
   terraceAreaM2: unknown
   warehouseAreaM2: unknown
+  toiletAreaM2: unknown
+  corridorAreaM2: unknown
   store: {
     name: string
     salesAreaM2: unknown
     parkingAreaM2: unknown
     terraceAreaM2: unknown
     warehouseAreaM2: unknown
+    toiletAreaM2: unknown
+    corridorAreaM2: unknown
   }
 }
 
@@ -126,6 +130,8 @@ export async function getAuditHistory(
         parkingAreaM2: true,
         terraceAreaM2: true,
         warehouseAreaM2: true,
+        toiletAreaM2: true,
+        corridorAreaM2: true,
         store: {
           select: {
             name: true,
@@ -133,6 +139,8 @@ export async function getAuditHistory(
             parkingAreaM2: true,
             terraceAreaM2: true,
             warehouseAreaM2: true,
+            toiletAreaM2: true,
+            corridorAreaM2: true,
           },
         },
       },
@@ -147,7 +155,9 @@ export async function getAuditHistory(
         Number(a.salesAreaM2 ?? a.store.salesAreaM2) +
           Number(a.parkingAreaM2 ?? a.store.parkingAreaM2) +
           Number(a.terraceAreaM2 ?? a.store.terraceAreaM2) +
-          Number(a.warehouseAreaM2 ?? a.store.warehouseAreaM2) || 1
+          Number(a.warehouseAreaM2 ?? a.store.warehouseAreaM2) +
+          Number(a.toiletAreaM2 ?? a.store.toiletAreaM2) +
+          Number(a.corridorAreaM2 ?? a.store.corridorAreaM2) || 1
 
       const est = Number(a.totalEstimatedKwhPerMonth ?? 0) / totalAreaM2
       const actual = Number(a.avgActualPlnKwhPerMonth ?? 0) / totalAreaM2

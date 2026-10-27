@@ -416,6 +416,8 @@ export default async function AdminStoreDetailPage({
                 ["Parkir", formatDecimal(identity.parkingAreaM2, " m²")],
                 ["Teras", formatDecimal(identity.terraceAreaM2, " m²")],
                 ["Gudang", formatDecimal(identity.warehouseAreaM2, " m²")],
+                ["Toilet", formatDecimal(identity.toiletAreaM2, " m²")],
+                ["Selasar", formatDecimal(identity.corridorAreaM2, " m²")],
               ].map(([label, value]) => (
                 <div
                   key={label}

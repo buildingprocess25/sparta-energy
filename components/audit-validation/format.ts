@@ -19,7 +19,7 @@ export const areaLabels = {
   SALES: "Sales Area",
   TERRACE: "Teras",
   PARKING: "Parkir",
-  WAREHOUSE: "Gudang & Lainnya",
+  WAREHOUSE: "Gudang, Toilet & Selasar",
 } as const
 
 export type AreaKey = keyof typeof areaLabels

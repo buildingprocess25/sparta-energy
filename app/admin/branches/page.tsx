@@ -86,7 +86,7 @@ const areaLabels: Record<string, string> = {
   PARKING: "Parkir",
   TERRACE: "Teras",
   SALES: "Sales",
-  WAREHOUSE: "Gudang",
+  WAREHOUSE: "Gudang, Toilet & Selasar",
 }
 
 function getStartOfMonth(year: number, monthIndex: number) {

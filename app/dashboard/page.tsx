@@ -135,6 +135,8 @@ export default async function DashboardPage() {
       parkingAreaM2: true,
       terraceAreaM2: true,
       warehouseAreaM2: true,
+      toiletAreaM2: true,
+      corridorAreaM2: true,
       totalEstimatedKwhPerMonth: true,
       avgActualPlnKwhPerMonth: true,
       store: {
@@ -145,6 +147,8 @@ export default async function DashboardPage() {
           parkingAreaM2: true,
           terraceAreaM2: true,
           warehouseAreaM2: true,
+          toiletAreaM2: true,
+          corridorAreaM2: true,
         },
       },
     },
@@ -156,7 +160,9 @@ export default async function DashboardPage() {
       Number(a.salesAreaM2 ?? a.store.salesAreaM2) +
         Number(a.parkingAreaM2 ?? a.store.parkingAreaM2) +
         Number(a.terraceAreaM2 ?? a.store.terraceAreaM2) +
-        Number(a.warehouseAreaM2 ?? a.store.warehouseAreaM2) || 1
+        Number(a.warehouseAreaM2 ?? a.store.warehouseAreaM2) +
+        Number(a.toiletAreaM2 ?? a.store.toiletAreaM2) +
+        Number(a.corridorAreaM2 ?? a.store.corridorAreaM2) || 1
 
     const est = Number(a.totalEstimatedKwhPerMonth ?? 0) / totalAreaM2
     const actual = Number(a.avgActualPlnKwhPerMonth ?? 0) / totalAreaM2

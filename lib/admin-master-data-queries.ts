@@ -36,6 +36,8 @@ export type MasterStoreRow = {
   terraceAreaM2: number
   salesAreaM2: number
   warehouseAreaM2: number
+  toiletAreaM2: number
+  corridorAreaM2: number
   totalAreaM2: number
   updatedAt: string
 }
@@ -146,6 +148,8 @@ type RawMasterStoreRow = Omit<
   | "terraceAreaM2"
   | "salesAreaM2"
   | "warehouseAreaM2"
+  | "toiletAreaM2"
+  | "corridorAreaM2"
   | "totalAreaM2"
   | "updatedAt"
 > & {
@@ -153,6 +157,8 @@ type RawMasterStoreRow = Omit<
   terraceAreaM2: { toString(): string } | string | number
   salesAreaM2: { toString(): string } | string | number
   warehouseAreaM2: { toString(): string } | string | number
+  toiletAreaM2: { toString(): string } | string | number
+  corridorAreaM2: { toString(): string } | string | number
   totalAreaM2: { toString(): string } | string | number
   updatedAt: Date | string
 }
@@ -270,6 +276,8 @@ function serializeStoreRow(row: RawMasterStoreRow): MasterStoreRow {
     terraceAreaM2: toNumber(row.terraceAreaM2),
     salesAreaM2: toNumber(row.salesAreaM2),
     warehouseAreaM2: toNumber(row.warehouseAreaM2),
+    toiletAreaM2: toNumber(row.toiletAreaM2),
+    corridorAreaM2: toNumber(row.corridorAreaM2),
     totalAreaM2: toNumber(row.totalAreaM2),
     updatedAt: new Date(row.updatedAt).toISOString(),
   }
@@ -335,7 +343,7 @@ function getStoreOrderBySql(filters: MasterStoreFilters) {
   const direction = filters.order === "desc" ? "DESC" : "ASC"
   const nulls = filters.order === "desc" ? "NULLS LAST" : "NULLS FIRST"
   const totalAreaSql =
-    "(s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2)"
+    "(s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2 + s.toilet_area_m2 + s.corridor_area_m2)"
 
   const sortSqlByKey: Record<MasterStoreSortKey, string> = {
     store: `lower(s.code) ${direction}, lower(s.name) ${direction}`,
@@ -504,7 +512,7 @@ export async function getMasterDataSummary(): Promise<MasterDataSummary> {
         WHERE s.is_24_hours IS NOT TRUE AND ${activeStoreWhereSql}
       ) AS stores_non_24h,
       (
-        SELECT COALESCE(AVG(s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2), 0)
+        SELECT COALESCE(AVG(s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2 + s.toilet_area_m2 + s.corridor_area_m2), 0)
         FROM stores s
         WHERE ${activeStoreWhereSql}
       ) AS avg_store_area,
@@ -648,8 +656,10 @@ export async function getMasterStoreRows({
         s.terrace_area_m2 AS "terraceAreaM2",
         s.sales_area_m2 AS "salesAreaM2",
         s.warehouse_area_m2 AS "warehouseAreaM2",
+        s.toilet_area_m2 AS "toiletAreaM2",
+        s.corridor_area_m2 AS "corridorAreaM2",
         (
-          s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2
+          s.parking_area_m2 + s.terrace_area_m2 + s.sales_area_m2 + s.warehouse_area_m2 + s.toilet_area_m2 + s.corridor_area_m2
         ) AS "totalAreaM2",
         s.updated_at AS "updatedAt"
       FROM stores s

@@ -53,7 +53,7 @@ Sistem terdiri dari 3 repositori/proyek independen dengan peran dan domain fungs
 ## ⚙️ 3. Peran `sparta-energy` sebagai Single Source of Truth Master Toko
 
 1. **Master Toko (`stores`):**
-   - Menyimpan seluruh metadata toko (Kode, Nama, Cabang, Luas Area Sales/Gudang/Teras/Parkir, Daya VA PLN, dan Koordinat `latitude`/`longitude`).
+   - Menyimpan seluruh metadata toko (Kode, Nama, Cabang, Luas Area Sales/Gudang/Toilet/Selasar/Teras/Parkir, Daya VA PLN, dan Koordinat `latitude`/`longitude`).
    - Digunakan oleh `smart-energy-meter-vps` saat auditor/teknisi mengasosiasikan device IoT dengan toko yang sedang diaudit.
 2. **Single Sign-On (SSO):**
    - Tabel `users`, `sessions`, dan `accounts` di `sparta_energy` menjadi basis autentikasi terpusat yang juga digunakan oleh `smart-energy-monitoring`.

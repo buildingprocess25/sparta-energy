@@ -38,7 +38,7 @@ const areaLabels: Record<EquipmentArea, string> = {
   SALES: "Sales",
   PARKING: "Parkir",
   TERRACE: "Teras",
-  WAREHOUSE: "Gudang",
+  WAREHOUSE: "Gudang, Toilet & Selasar",
 }
 
 function formatDate(value: string) {
