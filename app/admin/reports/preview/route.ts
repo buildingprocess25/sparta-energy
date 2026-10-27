@@ -7,6 +7,7 @@ import {
   getAdminReportFilter,
   parseAdminReportStatus,
   parseAdminReportType,
+  parseMasterStoreExportFilters,
   type AdminReportCellValue,
   type AdminReportFilters,
 } from "@/lib/admin-report-queries"
@@ -54,15 +55,20 @@ export async function GET(request: Request) {
     status: parseAdminReportStatus(url.searchParams.get("status")),
   }
 
+  const master = parseMasterStoreExportFilters((key) =>
+    url.searchParams.get(key)
+  )
   const [dataset, counts] = await Promise.all([
-    buildAdminReportDataset({ report, filters, limit: previewLimit }),
-    getAdminReportCounts(filters),
+    buildAdminReportDataset({ report, filters, master, limit: previewLimit }),
+    getAdminReportCounts(filters, master),
   ])
+  const groupRows = dataset.groupRows ?? []
 
   return NextResponse.json({
     columns: dataset.columns,
     rows: dataset.rows.map((row) => row.map(serializeCell)),
-    previewRows: dataset.rows.length,
+    groupRows,
+    previewRows: dataset.rows.length - groupRows.length,
     totalRows: counts[report],
   })
 }

@@ -7,6 +7,7 @@ import {
   getAdminReportFilter,
   parseAdminReportStatus,
   parseAdminReportType,
+  parseMasterStoreExportFilters,
   type AdminReportColumn,
   type AdminReportDataset,
   type AdminReportFilters,
@@ -29,8 +30,10 @@ async function isAdmin() {
 }
 
 function getColumnWidths(dataset: AdminReportDataset) {
+  const groupRows = new Set(dataset.groupRows)
+  const dataRows = dataset.rows.filter((_, index) => !groupRows.has(index))
   return dataset.columns.map((column, index) => {
-    const rowWidths = dataset.rows.slice(0, 200).map((row) => {
+    const rowWidths = dataRows.slice(0, 200).map((row) => {
       const value = row[index]
 
       if (value instanceof Date) return 12
@@ -59,6 +62,7 @@ function applyColumnFormats(
 
       if (column.type === "date") cell.z = "dd mmm yyyy"
       if (column.type === "number") cell.z = "#,##0.00"
+      if (column.type === "integer") cell.z = "#,##0"
       if (column.type === "kw") cell.z = "0.####################"
     }
   })
@@ -72,6 +76,13 @@ function buildWorkbookBuffer(dataset: AdminReportDataset) {
   )
 
   worksheet["!cols"] = getColumnWidths(dataset)
+  // Filter dropdowns are on when the file opens
+  worksheet["!autofilter"] = {
+    ref: XLSX.utils.encode_range({
+      s: { r: 0, c: 0 },
+      e: { r: dataset.rows.length, c: dataset.columns.length - 1 },
+    }),
+  }
   applyColumnFormats(worksheet, dataset.columns, dataset.rows.length)
 
   XLSX.utils.book_append_sheet(workbook, worksheet, dataset.sheetName)
@@ -103,7 +114,10 @@ export async function GET(request: Request) {
     status: parseAdminReportStatus(url.searchParams.get("status")),
   }
 
-  const dataset = await buildAdminReportDataset({ report, filters })
+  const master = parseMasterStoreExportFilters((key) =>
+    url.searchParams.get(key)
+  )
+  const dataset = await buildAdminReportDataset({ report, filters, master })
   const buffer = buildWorkbookBuffer(dataset)
 
   return new Response(new Uint8Array(buffer), {

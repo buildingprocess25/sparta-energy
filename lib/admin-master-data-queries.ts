@@ -1,3 +1,4 @@
+import { masterStoreCompleteSql } from "@/lib/master-store-completeness"
 import { prisma } from "@/lib/prisma"
 
 export type MasterDataTab = "stores" | "equipment"
@@ -12,11 +13,14 @@ export type MasterStoreSortKey =
   | "totalArea"
   | "updatedAt"
 
+export type MasterStoreCompletenessFilter = "complete" | "incomplete"
+
 export type MasterStoreFilters = {
   q: string
   branch: string
   type: string
   hours: MasterStoreHoursFilter | "all"
+  completeness?: MasterStoreCompletenessFilter | "all"
   sort: MasterStoreSortKey
   order: SortOrder
 }
@@ -336,6 +340,12 @@ function getStoreWhereSql(filters: MasterStoreFilters, values: unknown[]) {
     clauses.push("s.is_24_hours IS NOT TRUE")
   }
 
+  if (filters.completeness === "complete") {
+    clauses.push(masterStoreCompleteSql)
+  } else if (filters.completeness === "incomplete") {
+    clauses.push(`NOT ${masterStoreCompleteSql}`)
+  }
+
   return `WHERE ${clauses.join(" AND ")}`
 }
 
@@ -589,6 +599,28 @@ export async function getMasterStoreBranches() {
   return rows
     .map((row) => row.value?.trim())
     .filter((item): item is string => Boolean(item))
+}
+
+// Stores per branch; null branch means the store has no branch filled in.
+export async function getMasterStoreBranchCounts(filters?: MasterStoreFilters) {
+  const values: unknown[] = []
+  const whereSql = filters
+    ? getStoreWhereSql(filters, values)
+    : `WHERE ${activeStoreWhereSql}`
+  const rows = await prisma.$queryRawUnsafe<
+    { branch: string | null; count: number }[]
+  >(
+    `
+      SELECT nullif(trim(s.branch), '') AS branch, COUNT(*)::int AS count
+      FROM stores s
+      ${whereSql}
+      GROUP BY nullif(trim(s.branch), '')
+      ORDER BY nullif(trim(s.branch), '') ASC NULLS LAST
+    `,
+    ...values
+  )
+
+  return rows.map((row) => ({ branch: row.branch, count: Number(row.count) }))
 }
 
 export async function getMasterStoreTypes() {

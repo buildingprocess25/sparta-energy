@@ -41,6 +41,7 @@ import type {
   SortOrder,
 } from "@/lib/admin-master-data-queries"
 
+import { getMasterStoreCompleteness } from "@/lib/master-store-completeness"
 import { cn } from "@/lib/utils"
 
 const numberFormat = new Intl.NumberFormat("id-ID")
@@ -64,24 +65,6 @@ function formatHours(row: MasterStoreRow) {
   if (row.is24Hours) return "24 jam"
   if (row.openTime && row.closeTime) return `${row.openTime} - ${row.closeTime}`
   return "-"
-}
-
-function getCompleteness(row: MasterStoreRow) {
-  const checks = [
-    Boolean(row.code),
-    Boolean(row.name),
-    Boolean(row.branch),
-    Boolean(row.type),
-    Boolean(row.plnCustomerId),
-    row.plnPowerVa > 0,
-    row.salesAreaM2 > 0,
-    row.parkingAreaM2 >= 0,
-    row.terraceAreaM2 >= 0,
-    row.warehouseAreaM2 > 0,
-    row.is24Hours || Boolean(row.openTime && row.closeTime),
-  ]
-
-  return Math.round((checks.filter(Boolean).length / checks.length) * 100)
 }
 
 function getNextSortOrder({
@@ -351,7 +334,7 @@ export function AdminMasterStoresTable({
           </TableHeader>
           <TableBody>
             {rows.map((store) => {
-              const completeness = getCompleteness(store)
+              const completeness = getMasterStoreCompleteness(store)
 
               return (
                 <TableRow key={store.id}>
