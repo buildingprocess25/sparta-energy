@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache"
 import * as crypto from "crypto"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 
-import { requireAdmin } from "@/lib/admin-auth"
+import { requireUserManager } from "@/lib/admin-auth"
 import { prisma } from "@/lib/prisma"
+import { isRole, usesBranch } from "@/lib/role-access"
+import type { Role } from "@prisma/client"
 
 type ActionResult = {
   success: boolean
@@ -15,7 +17,7 @@ type ActionResult = {
 type CreateUserInput = {
   email: string
   fullName: string | null
-  role: "USER" | "ADMIN"
+  role: Role
   branch: string | null
 }
 
@@ -27,7 +29,7 @@ export async function createUser(
   input: CreateUserInput
 ): Promise<ActionResult> {
   try {
-    await requireAdmin()
+    await requireUserManager()
 
     const { email, fullName, role, branch } = input
 
@@ -47,10 +49,10 @@ export async function createUser(
       }
     }
 
-    if (role !== "USER" && role !== "ADMIN") {
+    if (!isRole(role)) {
       return {
         success: false,
-        message: "Role tidak valid. Harus USER atau ADMIN",
+        message: "Role tidak valid.",
       }
     }
 
@@ -68,7 +70,7 @@ export async function createUser(
     }
 
     const trimmedFullName = fullName?.trim() || null
-    const normalizedBranch = role === "ADMIN" ? null : branch?.trim() || null
+    const normalizedBranch = usesBranch(role) ? branch?.trim() || null : null
     const dummyPassword = crypto.randomBytes(16).toString("hex")
 
     // Execute in a transaction to create both User and Account

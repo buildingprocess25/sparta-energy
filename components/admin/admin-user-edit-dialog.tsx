@@ -28,6 +28,13 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { BranchCombobox } from "@/components/admin/admin-branch-combobox"
+import {
+  ROLES,
+  ROLE_DESCRIPTIONS,
+  ROLE_LABELS,
+  usesBranch,
+} from "@/lib/role-access"
+import type { Role } from "@prisma/client"
 
 export function EditUserDialog({
   open,
@@ -42,7 +49,7 @@ export function EditUserDialog({
     id: string
     email: string
     fullName: string | null
-    role: "USER" | "ADMIN"
+    role: Role
     branch: string | null
   }
   branches: string[]
@@ -50,11 +57,14 @@ export function EditUserDialog({
 }) {
   const [email, setEmail] = useState(user.email)
   const [fullName, setFullName] = useState(user.fullName || "")
-  const [role, setRole] = useState<"USER" | "ADMIN">(user.role)
+  const [role, setRole] = useState<Role>(user.role)
   const [branch, setBranch] = useState<string>(user.branch || "none")
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const normalizedBranch =
-    role === "ADMIN" ? null : branch === "none" ? null : branch
+  const normalizedBranch = !usesBranch(role)
+    ? null
+    : branch === "none"
+      ? null
+      : branch
 
   const hasChanges =
     email.trim().toLowerCase() !== user.email.toLowerCase() ||
@@ -74,9 +84,9 @@ export function EditUserDialog({
     setIsSubmitting(false)
   }, [open, user.branch, user.email, user.fullName, user.role])
 
-  function handleRoleChange(value: "USER" | "ADMIN") {
+  function handleRoleChange(value: Role) {
     setRole(value)
-    if (value === "ADMIN") setBranch("none")
+    if (!usesBranch(value)) setBranch("none")
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -158,27 +168,25 @@ export function EditUserDialog({
               <Label htmlFor="role">Role *</Label>
               <Select
                 value={role}
-                onValueChange={(value) =>
-                  handleRoleChange(value as "USER" | "ADMIN")
-                }
+                onValueChange={(value) => handleRoleChange(value as Role)}
                 disabled={isSubmitting}
               >
                 <SelectTrigger id="role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USER">
-                    <div className="flex items-center gap-2">
-                      <IconUser aria-hidden="true" className="size-4" />
-                      User
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="ADMIN">
-                    <div className="flex items-center gap-2">
-                      <IconShield aria-hidden="true" className="size-4" />
-                      Admin
-                    </div>
-                  </SelectItem>
+                  {ROLES.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      <div className="flex items-center gap-2">
+                        {option === "USER" ? (
+                          <IconUser aria-hidden="true" className="size-4" />
+                        ) : (
+                          <IconShield aria-hidden="true" className="size-4" />
+                        )}
+                        {ROLE_LABELS[option]}
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -189,12 +197,14 @@ export function EditUserDialog({
                 branches={branches}
                 value={branch}
                 onChange={setBranch}
-                disabled={isSubmitting || role === "ADMIN"}
+                disabled={isSubmitting || !usesBranch(role)}
               />
               <p className="text-xs text-muted-foreground">
-                {role === "ADMIN"
-                  ? "Admin dapat mengakses dashboard admin dan audit semua cabang."
-                  : "User hanya dapat mengakses cabang yang ditetapkan."}
+                {ROLE_DESCRIPTIONS[role]}
+                {role === "GS" &&
+                  (user.role === "GS"
+                    ? " Atur alatnya lewat menu ⋯ di baris user ini, pilih Atur alat."
+                    : " Simpan role GS dulu, lalu atur alatnya lewat menu ⋯ di baris user ini, pilih Atur alat.")}
               </p>
             </div>
           </div>

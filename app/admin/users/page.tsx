@@ -12,6 +12,7 @@ import {
   type AdminUserFilters as AdminUserFiltersValue,
   type UserRole,
 } from "@/lib/admin-user-queries"
+import { requireUserManager } from "@/lib/admin-auth"
 
 type SearchParams = Promise<{
   q?: string
@@ -34,6 +35,7 @@ export default async function AdminUsersPage({
 }: {
   searchParams: SearchParams
 }) {
+  await requireUserManager()
   const params = await searchParams
   const filters: AdminUserFiltersValue = {
     q: params.q?.trim() ?? "",
@@ -57,7 +59,7 @@ export default async function AdminUsersPage({
   )
 
   return (
-    <div className="-mt-4 flex min-h-[calc(100svh-var(--header-height)-1rem)] flex-col md:-mt-6 md:min-h-[calc(100svh-var(--header-height))]">
+    <div className="-mt-4 flex min-h-[calc(100svh-var(--header-height)-1rem)] flex-col md:-mt-6 md:h-[calc(100dvh-var(--header-height)-1.5rem)] md:min-h-0">
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="sticky top-(--header-height) z-20 -mx-4 border-y bg-background/90 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:-mx-6 md:px-6">
           <AdminUserFilters branches={branches} roles={roles} />

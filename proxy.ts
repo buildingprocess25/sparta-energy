@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { DEV_ROLE_COOKIE, getHomeUrl, resolveRole } from "@/lib/role-access"
+import {
+  clearSessionCookieHeaders,
+  sessionTokensFromCookieHeader,
+  ssoSessionCookie,
+} from "@/lib/sso-cookie"
 
 // Guest-only routes: accessible only when not logged in.
 const guestOnlyRoutes = new Set(["/", "/login"])
@@ -47,26 +53,30 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/api/auth/sign-out") {
     console.log("[Proxy] Hit /api/auth/sign-out")
     const cookieHeader = request.headers.get("cookie") || ""
-    const ssoMatch = cookieHeader.match(/sso_session=([^;]+)/)
-    if (ssoMatch) {
-      const ssoToken = ssoMatch[1]
+    // The browser can hold an sso_session and a better-auth cookie from different logins; end both.
+    const sessionTokens = sessionTokensFromCookieHeader(cookieHeader)
+    if (cookieHeader.includes("sso_session=")) {
       try {
         await prisma.session.deleteMany({
-          where: { token: ssoToken }
+          where: { token: { in: sessionTokens } }
         })
-        console.log("[Proxy] Deleted SSO session from DB on sign-out")
+        console.log("[Proxy] Deleted sessions from DB on sign-out:", sessionTokens.length)
       } catch (e) {
-        console.error("[Proxy] Failed to delete SSO session:", e)
+        console.error("[Proxy] Failed to delete sessions:", e)
       }
 
       // Short-circuit the response so we have 100% control over the Set-Cookie headers
       const response = NextResponse.json({ success: true })
-      response.headers.append("Set-Cookie", "sso_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
-      response.headers.append("Set-Cookie", "better-auth.session_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+      for (const header of clearSessionCookieHeaders()) {
+        response.headers.append("Set-Cookie", header)
+      }
+      response.headers.append("Set-Cookie", `${DEV_ROLE_COOKIE}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`)
       return response
     } else {
       console.log("[Proxy] No sso_session cookie found during sign-out")
-      return NextResponse.next()
+      const response = NextResponse.next()
+      response.cookies.set(DEV_ROLE_COOKIE, "", { path: "/", maxAge: 0 })
+      return response
     }
   }
 
@@ -86,7 +96,7 @@ export async function proxy(request: NextRequest) {
 
   const hasSsoCookie = cookieHeader.includes("sso_session=")
 
-  let betterAuthSession = await auth.api.getSession({
+  const betterAuthSession = await auth.api.getSession({
     headers: request.headers,
   })
 
@@ -112,16 +122,31 @@ export async function proxy(request: NextRequest) {
 
   const isGuestOnlyRoute = guestOnlyRoutes.has(pathname)
 
-  if (isGuestOnlyRoute && isLoggedIn) {
+  if (isLoggedIn) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
     })
-    const dashboardUrl = new URL(
-      user?.role === "ADMIN" ? "/admin-entry" : "/dashboard",
-      request.url
+    const role = resolveRole(
+      user?.role,
+      request.cookies.get(DEV_ROLE_COOKIE)?.value
     )
-    return NextResponse.redirect(dashboardUrl)
+
+    // GS only works in the monitoring portal, so every sparta page sends them there.
+    const response =
+      isGuestOnlyRoute || role === "GS"
+        ? NextResponse.redirect(new URL(getHomeUrl(role), request.url))
+        : NextResponse.next()
+    // The portal only reads sso_session, so keep it on the session sparta resolved; otherwise
+    // a stale cookie from an earlier login shows the portal a different user.
+    const session = betterAuthSession?.session
+    const ssoToken = cookieHeader.match(/sso_session=([^;]+)/)?.[1]
+    if (session && session.token !== ssoToken) {
+      response.cookies.set(
+        ssoSessionCookie(session.token, new Date(session.expiresAt))
+      )
+    }
+    return response
   }
 
   if (!isGuestOnlyRoute && !isLoggedIn) {

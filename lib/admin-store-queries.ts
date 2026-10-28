@@ -1,7 +1,18 @@
 import { prisma } from "@/lib/prisma"
-import { getAuditGapFilterWhereSql } from "@/lib/audit-gap-filter"
+import { getAdminGapFilterSql } from "@/lib/admin-gap-filter"
+import { getSangatBorosAuditIdsSql } from "@/lib/admin-sangat-boros"
+import {
+  getIotInstalledCodes,
+  getIotStatusLookup,
+  getStoreIot,
+  type IotStatusLookup,
+  type StoreIotInfo,
+} from "@/lib/iot-status"
 
 export type StoreStatus = "hemat" | "boros" | "not-audited"
+export type StoreValidation = "pending" | "validated"
+export type StorePriority = "sangat-boros"
+export type StoreIotFilter = "installed" | "not-installed"
 export type AdminStoreSortKey =
   | "store"
   | "branch"
@@ -23,9 +34,12 @@ export type AdminStoreRow = {
   latest_audit_id: string | null
   latest_audit_date: string | null
   is_boros: boolean | null
+  is_sangat_boros: boolean
+  validation_status: "PENDING" | "VALIDATED" | null
   actual_pln: number | null
   baseline: number | null
   std: number | null
+  iot: StoreIotInfo | null
 }
 
 export type StoreStats = {
@@ -40,6 +54,9 @@ export type AdminStoreFilters = {
   branch: string
   status: StoreStatus | "all"
   type: string
+  validation: StoreValidation | "all"
+  priority: StorePriority | "all"
+  iot: StoreIotFilter | "all"
   sort: AdminStoreSortKey
   order: SortOrder
 }
@@ -58,7 +75,7 @@ type StoreTypeRow = {
 
 type RawAdminStoreRow = Omit<
   AdminStoreRow,
-  "latest_audit_date" | "actual_pln" | "baseline" | "std"
+  "latest_audit_date" | "actual_pln" | "baseline" | "std" | "iot"
 > & {
   latest_audit_date: Date | string | null
   actual_pln: { toString(): string } | string | number | null
@@ -92,6 +109,24 @@ export function parseAdminStoreSort(value: string | null | undefined) {
   return defaultAdminStoreSort
 }
 
+export function parseStoreValidation(
+  value: string | null | undefined
+): StoreValidation | "all" {
+  return value === "pending" || value === "validated" ? value : "all"
+}
+
+export function parseStorePriority(
+  value: string | null | undefined
+): StorePriority | "all" {
+  return value === "sangat-boros" ? value : "all"
+}
+
+export function parseStoreIotFilter(
+  value: string | null | undefined
+): StoreIotFilter | "all" {
+  return value === "installed" || value === "not-installed" ? value : "all"
+}
+
 export function parseSortOrder(value: string | null | undefined): SortOrder {
   return value === "asc" || value === "desc" ? value : defaultAdminStoreOrder
 }
@@ -101,9 +136,13 @@ function toNullableNumber(value: RawAdminStoreRow["actual_pln"]) {
   return Number(value)
 }
 
-function serializeStoreRow(row: RawAdminStoreRow): AdminStoreRow {
+function serializeStoreRow(
+  row: RawAdminStoreRow,
+  iotLookup: IotStatusLookup
+): AdminStoreRow {
   return {
     ...row,
+    iot: getStoreIot(iotLookup, row.code),
     latest_audit_date: row.latest_audit_date
       ? new Date(row.latest_audit_date).toISOString()
       : null,
@@ -113,7 +152,7 @@ function serializeStoreRow(row: RawAdminStoreRow): AdminStoreRow {
   }
 }
 
-function latestAuditCte() {
+function latestAuditCte(gapClause: string | null) {
   return `
     WITH latest_audits AS (
       SELECT *
@@ -123,6 +162,7 @@ function latestAuditCte() {
           a.store_id,
           a.audit_date,
           a.is_boros,
+          a.validation_status,
           a.total_estimated_kwh_per_month,
           a.avg_actual_pln_kwh_per_month,
           (
@@ -136,7 +176,7 @@ function latestAuditCte() {
           ) AS rn
         FROM audits a
         WHERE a.status = 'COMPLETED'
-          ${getAuditGapFilterWhereSql("a") ? `AND ${getAuditGapFilterWhereSql("a")}` : ""}
+          ${gapClause ? `AND ${gapClause}` : ""}
       ) ranked
       WHERE ranked.rn = 1
     )
@@ -146,9 +186,13 @@ function latestAuditCte() {
 function getFilteredWhereSql({
   filters,
   values,
+  iotLookup,
+  sangatBorosSql,
 }: {
   filters: AdminStoreFilters
   values: unknown[]
+  iotLookup: IotStatusLookup
+  sangatBorosSql: string
 }) {
   const clauses = [`(${activeStoreWhereSql})`]
 
@@ -188,6 +232,23 @@ function getFilteredWhereSql({
     clauses.push("la.is_boros IS TRUE")
   } else if (filters.status === "not-audited") {
     clauses.push("la.id IS NULL")
+  }
+
+  if (filters.validation === "pending") {
+    clauses.push("la.validation_status = 'PENDING'")
+  } else if (filters.validation === "validated") {
+    clauses.push("la.validation_status = 'VALIDATED'")
+  }
+
+  if (filters.priority === "sangat-boros") {
+    clauses.push(`la.id IN (${sangatBorosSql})`)
+  }
+
+  // Covers stores without a kalkulasi too; skipped when the portal cannot be reached.
+  if (filters.iot !== "all" && iotLookup.available) {
+    values.push(getIotInstalledCodes(iotLookup))
+    const match = `upper(s.code) = ANY($${values.length}::text[])`
+    clauses.push(filters.iot === "installed" ? match : `NOT ${match}`)
   }
 
   return `WHERE ${clauses.join(" AND ")}`
@@ -241,7 +302,7 @@ function getOrderBySql(filters: AdminStoreFilters) {
 
 export async function getAdminStoreStats() {
   const rows = await prisma.$queryRawUnsafe<StoreStats[]>(`
-    ${latestAuditCte()}
+    ${latestAuditCte(await getAdminGapFilterSql("a"))}
     SELECT
       COUNT(*)::int AS total_stores,
       COUNT(la.id)::int AS audited_stores,
@@ -283,10 +344,19 @@ export async function getAdminStoreTypes() {
 
 export async function getAdminStoreCount(filters: AdminStoreFilters) {
   const values: unknown[] = []
-  const whereSql = getFilteredWhereSql({ filters, values })
+  const [iotLookup, sangatBorosSql] = await Promise.all([
+    getIotStatusLookup(),
+    getSangatBorosAuditIdsSql(),
+  ])
+  const whereSql = getFilteredWhereSql({
+    filters,
+    values,
+    iotLookup,
+    sangatBorosSql,
+  })
   const rows = await prisma.$queryRawUnsafe<CountRow[]>(
     `
-      ${latestAuditCte()}
+      ${latestAuditCte(await getAdminGapFilterSql("a"))}
       SELECT COUNT(*)::int AS total_rows
       FROM stores s
       LEFT JOIN latest_audits la ON la.store_id = s.id
@@ -308,7 +378,16 @@ export async function getAdminStoreRows({
   limit?: number
 }) {
   const values: unknown[] = []
-  const whereSql = getFilteredWhereSql({ filters, values })
+  const [iotLookup, sangatBorosSql] = await Promise.all([
+    getIotStatusLookup(),
+    getSangatBorosAuditIdsSql(),
+  ])
+  const whereSql = getFilteredWhereSql({
+    filters,
+    values,
+    iotLookup,
+    sangatBorosSql,
+  })
   const orderBySql = getOrderBySql(filters)
 
   values.push(limit + 1)
@@ -318,7 +397,7 @@ export async function getAdminStoreRows({
 
   const rows = await prisma.$queryRawUnsafe<RawAdminStoreRow[]>(
     `
-      ${latestAuditCte()}
+      ${latestAuditCte(await getAdminGapFilterSql("a"))}
       SELECT
         s.id,
         s.code,
@@ -328,6 +407,8 @@ export async function getAdminStoreRows({
         la.id AS latest_audit_id,
         la.audit_date AS latest_audit_date,
         la.is_boros,
+        COALESCE(la.id IN (${sangatBorosSql}), false) AS is_sangat_boros,
+        la.validation_status::text AS validation_status,
         la.avg_actual_pln_kwh_per_month AS actual_pln,
         la.total_estimated_kwh_per_month AS baseline,
         la.std
@@ -342,7 +423,7 @@ export async function getAdminStoreRows({
   )
 
   return {
-    rows: rows.slice(0, limit).map(serializeStoreRow),
+    rows: rows.slice(0, limit).map((row) => serializeStoreRow(row, iotLookup)),
     hasMore: rows.length > limit,
   }
 }

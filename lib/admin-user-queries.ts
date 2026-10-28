@@ -1,6 +1,9 @@
-import { prisma } from "@/lib/prisma"
+import type { Role } from "@prisma/client"
 
-export type UserRole = "USER" | "ADMIN"
+import { prisma } from "@/lib/prisma"
+import { ROLES, isRole } from "@/lib/role-access"
+
+export type UserRole = Role
 export type AdminUserSortKey =
   | "fullName"
   | "email"
@@ -26,6 +29,8 @@ export type AdminUserRow = {
   role: UserRole
   branch: string | null
   auditCount: number
+  // GS only: devices assigned in user_device_access; null when the table is missing
+  deviceCount: number | null
   createdAt: string
   lastActive: string | null
   emailVerified: boolean | null
@@ -64,11 +69,8 @@ export const defaultAdminUserOrder: AdminUserSortOrder = "desc"
 export function parseAdminUserRole(
   value: string | null | undefined
 ): UserRole | "all" {
-  if (!value) return "all"
-  const normalized = value.trim().toLowerCase()
-  if (normalized === "user") return "USER"
-  if (normalized === "admin") return "ADMIN"
-  return "all"
+  const normalized = value?.trim().toUpperCase()
+  return isRole(normalized) ? normalized : "all"
 }
 
 export function parseAdminUserSort(
@@ -103,6 +105,7 @@ function toAdminUserRow(raw: RawAdminUserRow): AdminUserRow {
     role: raw.role,
     branch: raw.branch,
     auditCount: Number(raw.audit_count),
+    deviceCount: null,
     createdAt: new Date(raw.created_at).toISOString(),
     lastActive: raw.last_active
       ? new Date(raw.last_active).toISOString()
@@ -225,9 +228,35 @@ export async function getAdminUserRows(params: {
 
   const rawRows = await prisma.$queryRawUnsafe<RawAdminUserRow[]>(sql)
   const hasMore = rawRows.length > limit
-  const rows = rawRows.slice(0, limit).map(toAdminUserRow)
+  const rows = await withDeviceCounts(
+    rawRows.slice(0, limit).map(toAdminUserRow)
+  )
 
   return { rows, hasMore }
+}
+
+// Separate from the main query so the list still loads before the
+// user_device_access migration has run.
+async function withDeviceCounts(rows: AdminUserRow[]) {
+  const gsIds = rows.filter((row) => row.role === "GS").map((row) => row.id)
+  if (gsIds.length === 0) return rows
+
+  try {
+    const counts = await prisma.userDeviceAccess.groupBy({
+      by: ["userId"],
+      where: { userId: { in: gsIds } },
+      _count: { _all: true },
+    })
+    const byUser = new Map(
+      counts.map((item) => [item.userId, item._count._all])
+    )
+    return rows.map((row) =>
+      row.role === "GS" ? { ...row, deviceCount: byUser.get(row.id) ?? 0 } : row
+    )
+  } catch (error) {
+    console.error("[Admin Users] Device access counts unavailable:", error)
+    return rows
+  }
 }
 
 export async function getAdminUserBranches(): Promise<string[]> {
@@ -245,5 +274,5 @@ export async function getAdminUserBranches(): Promise<string[]> {
 }
 
 export async function getAdminUserRoles(): Promise<UserRole[]> {
-  return ["USER", "ADMIN"]
+  return [...ROLES]
 }

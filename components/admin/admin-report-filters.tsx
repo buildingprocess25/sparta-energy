@@ -107,7 +107,7 @@ export function AdminReportFilters({
       },
       {
         key: "status",
-        label: "Status Audit",
+        label: "Status Kalkulasi",
         type: "select",
         icon: <IconLeaf />,
         options: [

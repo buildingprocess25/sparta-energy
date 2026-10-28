@@ -12,6 +12,9 @@ import {
   IconSortDescending,
 } from "@tabler/icons-react"
 
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll"
+import { SangatBorosBadge } from "@/components/audit-validation/result-status-badge"
+import { ValidationStatusBadge } from "@/components/audit-validation/validation-status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -194,12 +197,14 @@ export function AdminAuditsTable({
         month: filters.month,
         status: filters.status,
         recommendation: filters.recommendation,
+        validation: filters.validation,
+        priority: filters.priority,
         sort: filters.sort,
         order: filters.order,
       })
 
       const response = await fetch(`/admin/audits/data?${params.toString()}`)
-      if (!response.ok) throw new Error("Failed to load audits")
+      if (!response.ok) throw new Error("Gagal memuat kalkulasi")
 
       const payload = (await response.json()) as {
         rows: AdminAuditRow[]
@@ -215,8 +220,8 @@ export function AdminAuditsTable({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-auto bg-background">
-        <Table className="min-w-[1280px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
+      <AdminTableScroll className="min-h-80 flex-1 bg-background">
+        <Table className="min-w-[1400px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
           <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
             <TableRow>
               <TableHead>
@@ -234,6 +239,7 @@ export function AdminAuditsTable({
               <TableHead>
                 <SortableHeader column="status">Status</SortableHeader>
               </TableHead>
+              <TableHead>Validasi</TableHead>
               <TableHead className="text-right">
                 <SortableHeader column="actualPln" align="right">
                   Actual PLN
@@ -294,7 +300,18 @@ export function AdminAuditsTable({
                       </p>
                     </div>
                   </TableCell>
-                  <TableCell>{getStatusBadge(audit.isBoros)}</TableCell>
+                  <TableCell>
+                    {audit.isSangatBoros ? (
+                      <SangatBorosBadge />
+                    ) : (
+                      getStatusBadge(audit.isBoros)
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <ValidationStatusBadge
+                      validated={audit.validationStatus === "VALIDATED"}
+                    />
+                  </TableCell>
                   <TableCell className="text-right">
                     {formatKwh(audit.actualPln)}
                   </TableCell>
@@ -339,20 +356,20 @@ export function AdminAuditsTable({
           {loading ? (
             <Button variant="ghost" disabled>
               <IconLoader2 data-icon="inline-start" className="animate-spin" />
-              Memuat audit...
+              Memuat kalkulasi...
             </Button>
           ) : hasMore ? (
             <Button type="button" variant="outline" onClick={loadMore}>
-              Muat 20 audit lagi
+              Muat 20 kalkulasi lagi
             </Button>
           ) : (
             <p className="text-sm text-muted-foreground">
               {numberFormat.format(rows.length)} dari{" "}
-              {numberFormat.format(totalRows)} audit ditampilkan.
+              {numberFormat.format(totalRows)} kalkulasi ditampilkan.
             </p>
           )}
         </div>
-      </div>
+      </AdminTableScroll>
     </div>
   )
 }

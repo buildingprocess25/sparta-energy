@@ -15,15 +15,17 @@ import { AdminEntryLogoutButton } from "@/components/admin/admin-entry-logout-bu
 import { Logo } from "@/components/logo"
 import { Badge } from "@/components/ui/badge"
 import { auth } from "@/lib/auth"
+import { parseValidationFilters } from "@/lib/audit-validation-filters"
 import {
   getPendingValidationCount,
   getValidationAudits,
-  parseValidationFilters,
 } from "@/lib/audit-validation-queries"
+import { getEnergyMonitoringUrl } from "@/lib/iot-status"
+import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
+import { can, getHomeUrl } from "@/lib/role-access"
 import { cn } from "@/lib/utils"
 
-const ENERGY_METER_URL = "https://energy-meter-un89.onrender.com/"
 const numberFormat = new Intl.NumberFormat("id-ID")
 
 type DestinationCardProps = {
@@ -166,7 +168,8 @@ export default async function AdminEntryPage() {
   })
 
   if (!user) redirect("/forbidden")
-  if (user.role !== "ADMIN") redirect("/dashboard")
+  const role = await getEffectiveRole(user.role)
+  if (!can(role, "adminEntry")) redirect(getHomeUrl(role))
 
   const [pendingResult, borosResult] = await Promise.allSettled([
     getPendingValidationCount(),
@@ -248,16 +251,16 @@ export default async function AdminEntryPage() {
             iconClassName="bg-secondary text-secondary-foreground"
             title="Dashboard Admin"
             badge="Desktop"
-            description="Pantau hasil audit semua cabang."
+            description="Pantau hasil kalkulasi semua cabang."
             items={[
               "Ringkasan hemat dan boros per cabang",
-              "Data audit, toko, dan master alat",
+              "Data kalkulasi, toko, dan master alat",
               "Laporan Excel dan kelola user",
             ]}
             cta="Buka Dashboard Admin"
           />
           <DestinationCard
-            href={ENERGY_METER_URL}
+            href={getEnergyMonitoringUrl()}
             external
             layout="wide"
             className="md:col-span-2"
@@ -265,11 +268,11 @@ export default async function AdminEntryPage() {
             iconClassName="bg-secondary text-secondary-foreground"
             title="Smart Energy Meter"
             badge="Aplikasi terpisah"
-            description="Pantau listrik toko dari perangkat meter yang terpasang."
+            description="Pantau pemakaian listrik toko yang sudah terpasang alat meter."
             items={[
-              "Tegangan, arus, dan daya per fase secara langsung",
-              "Riwayat rekaman perangkat",
-              "Atur perangkat per toko",
+              "Daya per fase secara langsung",
+              "Peta toko yang terpasang alat meter",
+              "Grafik tren daya dan kWh per toko",
             ]}
             cta="Buka di tab baru"
           />

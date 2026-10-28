@@ -20,6 +20,11 @@ export default async function AuditResultPage({ params }: Props) {
       },
       recommendations: true,
       validatedBy: { select: { fullName: true, email: true } },
+      corrections: {
+        where: { type: "RECOMMENDATION_UPDATED" },
+        select: { id: true },
+        take: 1,
+      },
     },
   })
 
@@ -32,6 +37,12 @@ export default async function AuditResultPage({ params }: Props) {
     parkingAreaM2,
     terraceAreaM2,
     warehouseAreaM2,
+    toiletAreaM2,
+    corridorAreaM2,
+    originalIsBoros,
+    originalTotalEstimatedKwhPerMonth,
+    originalAvgActualPlnKwhPerMonth,
+    corrections,
     ...auditFields
   } = audit
 
@@ -51,6 +62,8 @@ export default async function AuditResultPage({ params }: Props) {
           parkingAreaM2: Number(parkingAreaM2 ?? audit.store.parkingAreaM2),
           terraceAreaM2: Number(terraceAreaM2 ?? audit.store.terraceAreaM2),
           warehouseAreaM2: Number(warehouseAreaM2 ?? audit.store.warehouseAreaM2),
+          toiletAreaM2: Number(toiletAreaM2 ?? audit.store.toiletAreaM2),
+          corridorAreaM2: Number(corridorAreaM2 ?? audit.store.corridorAreaM2),
         },
         items: audit.items.map((item) => ({
           ...item,
@@ -70,6 +83,15 @@ export default async function AuditResultPage({ params }: Props) {
               validatedBy:
                 audit.validatedBy?.fullName ?? audit.validatedBy?.email ?? "Admin",
               validatedAt: audit.validatedAt.toISOString(),
+              original:
+                originalIsBoros === null
+                  ? null
+                  : {
+                      isBoros: originalIsBoros,
+                      standardKwh: Number(originalTotalEstimatedKwhPerMonth ?? 0),
+                      actualKwh: Number(originalAvgActualPlnKwhPerMonth ?? 0),
+                    },
+              recommendationUpdated: corrections.length > 0,
             }
           : null
       }

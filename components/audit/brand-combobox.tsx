@@ -17,6 +17,9 @@ type BrandComboboxProps = {
   value: string
   onChange: (val: string) => void
   placeholder?: string
+  id?: string
+  className?: string
+  searchPlaceholder?: string
 }
 
 export function BrandCombobox({
@@ -24,6 +27,9 @@ export function BrandCombobox({
   value,
   onChange,
   placeholder = "-",
+  id,
+  className,
+  searchPlaceholder = "Cari merek atau ketik merek baru...",
 }: BrandComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
@@ -63,6 +69,7 @@ export function BrandCombobox({
       {/* ── Trigger ──────────────────────────────────────────────── */}
       <PopoverPrimitive.Trigger asChild>
         <button
+          id={id}
           type="button"
           role="combobox"
           aria-expanded={open}
@@ -71,7 +78,8 @@ export function BrandCombobox({
             "flex h-10 w-full items-center justify-between rounded-xl border border-input bg-background px-3 text-xs shadow-xs transition-[color,box-shadow] outline-none",
             "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
             "data-[state=open]:border-ring data-[state=open]:ring-[3px] data-[state=open]:ring-ring/50",
-            !value && "text-muted-foreground"
+            !value && "text-muted-foreground",
+            className
           )}
         >
           <span className="truncate">{value || placeholder}</span>
@@ -115,11 +123,11 @@ export function BrandCombobox({
             <input
               ref={inputRef}
               role="searchbox"
-              aria-label="Cari atau ketik merek"
+              aria-label={searchPlaceholder}
               autoComplete="off"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari merek atau ketik merek baru..."
+              placeholder={searchPlaceholder}
               className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
             />
           </div>

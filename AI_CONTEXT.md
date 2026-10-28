@@ -52,7 +52,7 @@ Ada 2 role user utama:
 
 - User **memilih toko** yang akan diaudit dari daftar toko yang tersedia di cabangnya (bukan input kode manual).
 - Identitas & Teknis: Daya PLN (VA), tipe toko (Regular, Basic, dll), jam operasional toko.
-- Input Luas 4 Area Utama: Area Parkir, Area Teras, Area Sales, Area Gudang+Selasar+KM.
+- Input Luas Area: Parkir, Teras, Sales, Gudang, Toilet, Selasar (dipisah sejak Oktober 2026; data lama masih menyimpan gabungan di Gudang dengan Toilet & Selasar = 0). Equipment tetap satu grup "Gudang, Toilet & Selasar" (enum `WAREHOUSE`).
 
 4. Step 2: Input Equipment per Area
 
@@ -207,8 +207,41 @@ Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbed
 ### Filter Gap ±20% (`lib/audit-gap-filter.ts`)
 
 - Gap = (aktual PLN − estimasi) / estimasi.
-- Saat `AUDIT_GAP_FILTER.enabled = true`, audit dengan gap di luar ±20% **disembunyikan** dari tampilan admin (dashboard, branches, stores, audits, reports) sebagai penyaring outlier.
-- Filter ini **tidak mengubah** status Hemat/Boros yang tersimpan, dan bersifat sementara (bisa dimatikan lewat flag).
+- Saat filter aktif, audit dengan gap di luar ±20% **disembunyikan** dari tampilan admin (dashboard, branches, stores, audits, reports) sebagai penyaring outlier.
+- Admin menyalakan atau mematikan filter lewat switch "Gap ±20%" di header admin. Pilihan disimpan di cookie `admin-gap-filter` per browser (`lib/admin-gap-filter.ts`). Tanpa cookie, nilai default `AUDIT_GAP_FILTER.enabled` yang dipakai.
+- Query admin membaca status filter lewat `getAdminGapFilterSql()` / `getAdminGapFilterEnabled()`, bukan konstanta langsung. Mode Auditor dan halaman validasi tidak memakai filter ini.
+- "Sangat Boros" di admin ikut filter ini (`lib/admin-sangat-boros.ts`). Filter mati: dibaca dari view `v_toko_sangat_boros`, sama dengan web energy dan halaman validasi auditor. Filter nyala: 12 teratas dihitung ulang hanya dari kalkulasi di dalam ±20%, tanpa toko DEMO, sehingga bisa berbeda dari web energy.
+- Filter ini **tidak mengubah** status Hemat/Boros yang tersimpan.
+
+### Istilah di Admin
+
+- Hasil kalkulator konsumsi (model `Audit`) disebut **Kalkulasi** di UI admin. Form 7 kategori (model `EnergyAudit`) disebut **Pemeriksaan**. Peran pengguna tetap **Auditor**.
+- URL, nama tabel, dan nama variabel tetap memakai `audit`.
+
+### Status IoT di Admin (`lib/iot-status.ts`)
+
+- Admin membaca `GET {ENERGY_MONITORING_URL}/api/stores` milik smart-energy-monitoring (read-only, cache 5 menit, timeout 5 detik). sparta-energy tidak terhubung ke DB 2.
+- Toko dianggap punya IoT kalau `code` di respons sama dengan `stores.code` (huruf besar). Status: live, pernah dipasang, atau belum dipasang.
+- Kalau portal gagal dihubungi, tampilkan "Status IoT tidak tersedia", jangan "belum dipasang". Filter IoT dilewati dalam kondisi ini.
+- `ENERGY_MONITORING_URL` opsional. Default: `https://energy-monitoring.sparta-alfamart.web.id/`.
+
+### Validasi Kalkulasi (`/audit/validation/[id]`)
+
+- Satu halaman, tanpa step. Kiri: ringkasan status dan perbandingan kWh, plus riwayat koreksi. Kanan: Teknis Toko (tipe, alamat, daya PLN, luas area, jam operasional, riwayat PLN 6 bulan dengan STD), lalu Daftar Peralatan (tambah, ubah, hapus).
+- Koreksi alat langsung tersimpan lewat dialog. Teknis toko, alamat, dan riwayat PLN tersimpan lewat "Simpan Draf" atau saat "Validasi Kalkulasi" (`saveValidationDraft`, `validateAudit` di `app/actions/audit-validation.ts`).
+- Setiap koreksi menghitung ulang standar, aktual (rata-rata PLN, bulan 0 kWh tidak dihitung), gap, **dan status Hemat/Boros** (`BOROS_TOLERANCE` 1,05 di `lib/audit-recalculate.ts`).
+- Sebelum koreksi pertama, hasil anak toko disalin ke `audits.original_*`. Setiap koreksi dicatat di tabel `audit_corrections`. Admin melihat keduanya di Detail Kalkulasi.
+- Alamat disimpan langsung ke `stores.address`. Tipe, daya, luas, dan jam hanya disalin ke data toko kalau kalkulasi ini yang terbaru.
+- Saat "Validasi Kalkulasi", rekomendasi dibuat ulang hanya kalau tipenya tidak cocok lagi dengan status (Hemat butuh `MAINTENANCE`, Boros butuh `TRAINING`/`REPAIR`). AI menerima status awal, status akhir, dan daftar koreksi; batas tunggu 10 detik, lalu teks cadangan. Rekomendasi lama dicatat di `audit_corrections` (`RECOMMENDATION_UPDATED`). "Simpan Draf" tidak memanggil AI.
+- Halaman hasil (`/audit/[id]`) menulis "Status berubah dari … ke …" beserta perubahan kWh-nya, dan memberi label "Diperbarui setelah validasi" pada rekomendasi yang dibuat ulang. Halaman validasi dan admin juga memberi keterangan kalau status berubah setelah koreksi.
+
+### Foto Bukti Titik Ukur Lux (Pemeriksaan Tata Cahaya)
+
+- Tiap titik ukur lux bisa punya maksimal 3 foto (`photos` di `LightingLuxRow`, tersimpan di JSON `energy_audits.data`). Titik yang lux-nya terisi wajib punya minimal 1 foto sebelum pemeriksaan diselesaikan; draf boleh tanpa foto.
+- Foto dikecilkan di HP (sisi terpanjang 1600 px, JPEG) lalu diunggah ke `POST /api/energy-audit/photos`. Baca dan hapus lewat `GET`/`DELETE` route yang sama. Semua butuh akses validator.
+- Penyimpanan (`lib/photo-storage/`): toko branch `DEMO` disimpan di disk lokal `.local-uploads/energy-audit/<KODE>/<tanggal>/` (di-ignore git). Toko lain ke Google Drive: `GOOGLE_DRIVE_ROOT_FOLDER_ID` (DOKUMEN SPARTA) / folder cabang (dicocokkan tanpa beda huruf besar, spasi, garis bawah) / `Toko` / folder toko (segmen nama yang sama dengan kode toko) / `Audit Energi/Tata Cahaya/<tanggal WIB>`. Folder cabang atau toko yang belum ada dibuat otomatis (`NAMA - KODE`).
+- Referensi foto ditandatangani HMAC (`BETTER_AUTH_SECRET`), jadi route foto hanya melayani file yang diunggah aplikasi ini. Env: `DRIVE_CDN_CLIENT_ID`, `DRIVE_CDN_CLIENT_SECRET`, `DRIVE_CDN_REFRESH_TOKEN`, `GOOGLE_DRIVE_ROOT_FOLDER_ID`.
+- Foto baru tercatat setelah draf disimpan; foto yang diunggah lalu ditinggal tanpa simpan tetap ada di Drive.
 
 ### Tambahan Routes (belum tercantum di Codebase Map)
 

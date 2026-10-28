@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { requireAdmin } from "@/lib/admin-auth"
+import { requireUserManager } from "@/lib/admin-auth"
 import {
   getMasterStoreRows,
   masterStoresPageSize,
@@ -14,7 +14,7 @@ function getFilter(searchParams: URLSearchParams, key: string) {
 }
 
 export async function GET(request: Request) {
-  await requireAdmin()
+  await requireUserManager()
 
   const url = new URL(request.url)
   const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0) || 0)

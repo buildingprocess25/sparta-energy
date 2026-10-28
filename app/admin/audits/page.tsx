@@ -8,7 +8,9 @@ import {
   getAdminAuditRows,
   getAdminAuditYears,
   parseAdminAuditOrder,
+  parseAdminAuditPriority,
   parseAdminAuditSort,
+  parseAdminAuditValidation,
   type AdminAuditRecommendation,
   type AdminAuditFilters as AdminAuditFiltersValue,
   type AdminAuditStatus,
@@ -22,6 +24,8 @@ type SearchParams = Promise<{
   month?: string
   status?: string
   recommendation?: string
+  validation?: string
+  priority?: string
   sort?: string
   order?: string
 }>
@@ -62,6 +66,8 @@ export default async function AdminAuditsPage({
     month: getFilter(params.month),
     status: parseStatus(params.status),
     recommendation: parseRecommendation(params.recommendation),
+    validation: parseAdminAuditValidation(params.validation),
+    priority: parseAdminAuditPriority(params.priority),
     sort: parseAdminAuditSort(params.sort),
     order: parseAdminAuditOrder(params.order),
   }
@@ -77,7 +83,7 @@ export default async function AdminAuditsPage({
   })
 
   return (
-    <div className="-mt-4 flex min-h-[calc(100svh-var(--header-height)-1rem)] flex-col md:-mt-6 md:min-h-[calc(100svh-var(--header-height))]">
+    <div className="-mt-4 flex min-h-[calc(100svh-var(--header-height)-1rem)] flex-col md:-mt-6 md:h-[calc(100dvh-var(--header-height)-1.5rem)] md:min-h-0">
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="sticky top-(--header-height) z-20 -mx-4 border-y bg-background/90 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:-mx-6 md:px-6">
           <AdminAuditFilters
@@ -89,7 +95,7 @@ export default async function AdminAuditsPage({
 
         <div className="-mx-4 flex min-h-0 flex-1 flex-col border-y px-3 md:-mx-6 md:px-4">
           <div className="py-3 text-xs text-muted-foreground">
-            Menampilkan {formatNumber(totalFilteredRows)} audit sesuai filter.
+            Menampilkan {formatNumber(totalFilteredRows)} kalkulasi sesuai filter.
           </div>
           <div className="flex min-h-0 flex-1 flex-col border-t">
             <AdminAuditsTable

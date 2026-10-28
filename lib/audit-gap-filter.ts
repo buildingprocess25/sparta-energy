@@ -15,12 +15,18 @@ export const AUDIT_GAP_FILTER = {
   maxGapThreshold: 0.20, // +- 20% (-20% s/d +20%)
 }
 
+// Admins switch the filter per browser; a missing cookie keeps the default above.
+export const ADMIN_GAP_FILTER_COOKIE = "admin-gap-filter"
+
 /**
  * Menghasilkan klausa SQL WHERE untuk memfilter audit berdasarkan ambang batas gap deviasi.
  * @param auditAlias Alias tabel audit dalam query SQL (default: "a")
  */
-export function getAuditGapFilterWhereSql(auditAlias = "a"): string | null {
-  if (!AUDIT_GAP_FILTER.enabled) return null
+export function getAuditGapFilterWhereSql(
+  auditAlias = "a",
+  enabled = AUDIT_GAP_FILTER.enabled
+): string | null {
+  if (!enabled) return null
   const th = AUDIT_GAP_FILTER.maxGapThreshold
 
   return `(
@@ -36,9 +42,10 @@ export function getAuditGapFilterWhereSql(auditAlias = "a"): string | null {
  */
 export function isAuditGapAllowed(
   actual: number | null,
-  baseline: number | null
+  baseline: number | null,
+  enabled = AUDIT_GAP_FILTER.enabled
 ): boolean {
-  if (!AUDIT_GAP_FILTER.enabled) return true
+  if (!enabled) return true
 
   const base = Number(baseline ?? 0)
   const act = Number(actual ?? 0)

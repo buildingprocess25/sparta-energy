@@ -14,6 +14,10 @@ import {
   IconSortDescending,
 } from "@tabler/icons-react"
 
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll"
+import { SangatBorosBadge } from "@/components/audit-validation/result-status-badge"
+import { ValidationStatusBadge } from "@/components/audit-validation/validation-status-badge"
+import { IotStatusBadge } from "@/components/admin/iot-status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -92,7 +96,7 @@ function getStatusBadge(status: StoreStatus) {
   return (
     <Badge variant="secondary">
       <IconMinus data-icon="inline-start" />
-      Belum Audit
+      Belum Dikalkulasi
     </Badge>
   )
 }
@@ -205,12 +209,15 @@ export function AdminStoresTable({
         branch: filters.branch,
         status: filters.status,
         type: filters.type,
+        validation: filters.validation,
+        priority: filters.priority,
+        iot: filters.iot,
         sort: filters.sort,
         order: filters.order,
       })
 
       const response = await fetch(`/admin/stores/data?${params.toString()}`)
-      if (!response.ok) throw new Error("Failed to load stores")
+      if (!response.ok) throw new Error("Gagal memuat toko")
 
       const payload = (await response.json()) as {
         rows: AdminStoreRow[]
@@ -226,8 +233,8 @@ export function AdminStoresTable({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-auto bg-background">
-        <Table className="min-w-[980px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
+      <AdminTableScroll className="min-h-80 flex-1 bg-background">
+        <Table className="min-w-[1280px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
           <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
             <TableRow>
               <TableHead>
@@ -242,9 +249,11 @@ export function AdminStoresTable({
               <TableHead>
                 <SortableHeader column="status">Status</SortableHeader>
               </TableHead>
+              <TableHead>Validasi</TableHead>
+              <TableHead>IoT</TableHead>
               <TableHead>
                 <SortableHeader column="auditDate">
-                  Audit Terakhir
+                  Kalkulasi Terakhir
                 </SortableHeader>
               </TableHead>
               <TableHead className="text-right">
@@ -298,7 +307,25 @@ export function AdminStoresTable({
                     {store.branch ?? "-"}
                   </TableCell>
                   <TableCell>{store.type}</TableCell>
-                  <TableCell>{getStatusBadge(status)}</TableCell>
+                  <TableCell>
+                    {store.is_sangat_boros ? (
+                      <SangatBorosBadge />
+                    ) : (
+                      getStatusBadge(status)
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {store.validation_status ? (
+                      <ValidationStatusBadge
+                        validated={store.validation_status === "VALIDATED"}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <IotStatusBadge iot={store.iot} />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <IconClipboardCheck className="size-4" />
@@ -346,7 +373,7 @@ export function AdminStoresTable({
             </p>
           )}
         </div>
-      </div>
+      </AdminTableScroll>
     </div>
   )
 }

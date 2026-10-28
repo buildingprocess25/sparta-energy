@@ -1,3 +1,4 @@
+import { BOROS_TOLERANCE } from "@/lib/audit-recalculate"
 import { type EquipmentState, type PlnRowState } from "@/store/use-audit-store"
 
 export function getHoursBetween(start: string, end: string): number {
@@ -96,8 +97,7 @@ export function calculateAudit(
   const avgActualPlnKwhPerDay = avgActualPlnKwhPerMonth / 30
 
   // Determine Efficiency (Boros vs Hemat)
-  const toleranceMultiplier = 1.05 // 5% toleransi
-  const isBoros = avgActualPlnKwhPerMonth > equipmentEstimateKwhPerMonth * toleranceMultiplier
+  const isBoros = avgActualPlnKwhPerMonth > equipmentEstimateKwhPerMonth * BOROS_TOLERANCE
   
   // Decide Action
   let recommendationType = "MAINTENANCE"

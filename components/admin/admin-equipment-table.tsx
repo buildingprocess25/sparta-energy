@@ -11,6 +11,7 @@ import {
   IconSortDescending,
 } from "@tabler/icons-react"
 
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,7 +38,7 @@ const areaLabels: Record<EquipmentArea, string> = {
   SALES: "Sales",
   PARKING: "Parkir",
   TERRACE: "Teras",
-  WAREHOUSE: "Gudang",
+  WAREHOUSE: "Gudang, Toilet & Selasar",
 }
 
 function formatDate(value: string) {
@@ -182,7 +183,7 @@ export function AdminEquipmentTable({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-auto bg-background">
+      <AdminTableScroll className="min-h-80 flex-1 bg-background">
         <Table className="min-w-[1180px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
           <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
             <TableRow>
@@ -214,7 +215,7 @@ export function AdminEquipmentTable({
                 <SortableHeader column="branch">Cabang</SortableHeader>
               </TableHead>
               <TableHead>
-                <SortableHeader column="auditDate">Audit</SortableHeader>
+                <SortableHeader column="auditDate">Kalkulasi</SortableHeader>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -305,7 +306,7 @@ export function AdminEquipmentTable({
             </p>
           )}
         </div>
-      </div>
+      </AdminTableScroll>
     </div>
   )
 }

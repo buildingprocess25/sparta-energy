@@ -3,7 +3,9 @@ import { NextResponse } from "next/server"
 import * as XLSX from "xlsx"
 
 import { auth } from "@/lib/auth"
+import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
+import { can } from "@/lib/role-access"
 import { getAdminAuditDetail } from "@/lib/admin-audit-detail"
 
 async function isAdmin() {
@@ -15,7 +17,7 @@ async function isAdmin() {
     select: { role: true },
   })
 
-  return user?.role === "ADMIN"
+  return can(await getEffectiveRole(user?.role), "adminPanel")
 }
 
 export async function GET(
@@ -30,7 +32,7 @@ export async function GET(
   const audit = await getAdminAuditDetail(id)
 
   if (!audit) {
-    return NextResponse.json({ error: "Audit not found" }, { status: 404 })
+    return NextResponse.json({ error: "Kalkulasi tidak ditemukan" }, { status: 404 })
   }
 
   const workbook = XLSX.utils.book_new()
@@ -58,7 +60,7 @@ export async function GET(
         ? "24 Jam Non-Stop"
         : `${audit.store.openTime || "-"} s/d ${audit.store.closeTime || "-"}`,
       "",
-      "Tanggal Pelaksanaan Audit",
+      "Tanggal Kalkulasi",
       audit.auditDate.split("T")[0],
     ],
     ["Auditor Bertugas", audit.auditor.name, "", "Email Auditor", audit.auditor.email],
@@ -75,6 +77,13 @@ export async function GET(
       "",
       "Luas Area Parkir (m2)",
       audit.store.parkingAreaM2,
+    ],
+    [
+      "Luas Area Toilet (m2)",
+      audit.store.toiletAreaM2,
+      "",
+      "Luas Area Selasar (m2)",
+      audit.store.corridorAreaM2,
     ],
     ["Total Luas Bangunan (m2)", audit.store.totalAreaM2, "", "Status Kelengkapan Data", `${audit.dataCompleteness.percent}% Lengkap`],
     [],
@@ -138,7 +147,7 @@ export async function GET(
     }
   }
 
-  XLSX.utils.book_append_sheet(workbook, summarySheet, "Ringkasan Audit")
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Ringkasan Kalkulasi")
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ─── SHEET 2: DAFTAR EQUIPMENT (INVENTARIS PERALATAN LENGKAP) ─────────────
@@ -306,7 +315,7 @@ export async function GET(
 
   const sanitizedStoreName = audit.store.name.replace(/[^a-zA-Z0-9_-]/g, "_")
   const dateStr = audit.auditDate.split("T")[0]
-  const filename = `Audit_Energy_${audit.store.code}_${sanitizedStoreName}_${dateStr}.xlsx`
+  const filename = `Kalkulasi_Energi_${audit.store.code}_${sanitizedStoreName}_${dateStr}.xlsx`
 
   return new Response(new Uint8Array(buffer), {
     headers: {

@@ -130,8 +130,8 @@ export function AdminMasterEquipmentTable({
   const handleMouseDown = (e: React.MouseEvent) => {
     const root = containerRef.current
     if (!root) return
-    const container = root.querySelector('[data-slot="table-container"]') as HTMLDivElement | null
-    if (!container) return
+    // The outer box scrolls both axes; the Table's own wrapper no longer scrolls.
+    const container = root
     if (e.button !== 0) return // Left click only
     const target = e.target as HTMLElement
     if (
@@ -308,7 +308,7 @@ export function AdminMasterEquipmentTable({
         onMouseUp={handleMouseUpOrLeave}
         onMouseLeave={handleMouseUpOrLeave}
         className={cn(
-          "min-h-0 w-full flex-1 overflow-auto bg-background max-h-[45vh] min-h-[300px] border rounded-md transition-all",
+          "min-h-0 w-full flex-1 overflow-auto bg-background max-h-[45vh] min-h-[300px] border rounded-md transition-all [&_[data-slot=table-container]]:overflow-visible",
           isDragging ? "cursor-grabbing select-none" : "cursor-grab"
         )}
       >

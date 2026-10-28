@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { IconChevronRight, IconClipboardCheck } from "@tabler/icons-react"
 
-import { Badge } from "@/components/ui/badge"
 import {
   Item,
   ItemActions,
@@ -11,17 +10,17 @@ import {
 } from "@/components/ui/item"
 import type { ValidationListRow } from "@/lib/audit-validation-queries"
 import { formatGap, formatKwh } from "@/components/audit-validation/format"
+import { ResultStatusBadge } from "@/components/audit-validation/result-status-badge"
+import { ValidationStatusBadge } from "@/components/audit-validation/validation-status-badge"
 import { cn } from "@/lib/utils"
 
 type ValidationStoreListProps = {
   rows: ValidationListRow[]
-  startRank: number
   emptyMessage: string
 }
 
 export function ValidationStoreList({
   rows,
-  startRank,
   emptyMessage,
 }: ValidationStoreListProps) {
   if (rows.length === 0) {
@@ -37,7 +36,7 @@ export function ValidationStoreList({
 
   return (
     <ol className="flex flex-col gap-2">
-      {rows.map((row, index) => (
+      {rows.map((row) => (
         <li key={row.auditId}>
           <Item variant="outline" asChild className="bg-card">
             <Link href={`/audit/validation/${row.auditId}`}>
@@ -45,10 +44,12 @@ export function ValidationStoreList({
                 aria-hidden="true"
                 className="w-6 shrink-0 text-center text-sm font-bold text-muted-foreground tabular-nums"
               >
-                {startRank + index}
+                {row.rank}
               </span>
               <ItemContent className="min-w-0">
-                <ItemTitle className="w-full truncate">{row.storeName}</ItemTitle>
+                <ItemTitle className="w-full truncate">
+                  {row.storeName}
+                </ItemTitle>
                 <ItemDescription className="truncate">
                   {row.storeCode}
                   {row.branch ? ` · ${row.branch}` : ""}
@@ -58,17 +59,11 @@ export function ValidationStoreList({
                   konsumsi energi {formatKwh(row.baselineKwhPerMonth)}
                 </p>
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  <Badge
-                    className={cn(
-                      "text-white",
-                      row.isBoros ? "bg-[#c54b45]" : "bg-[#2c7a57]"
-                    )}
-                  >
-                    {row.isBoros ? "Boros" : "Hemat"}
-                  </Badge>
-                  <Badge variant={row.isValidated ? "secondary" : "outline"}>
-                    {row.isValidated ? "Sudah divalidasi" : "Menunggu validasi"}
-                  </Badge>
+                  <ResultStatusBadge
+                    isBoros={row.isBoros}
+                    isSangatBoros={row.isSangatBoros}
+                  />
+                  <ValidationStatusBadge validated={row.isValidated} />
                 </div>
               </ItemContent>
               {row.gapPercent !== null && (

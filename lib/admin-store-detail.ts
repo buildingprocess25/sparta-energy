@@ -1,3 +1,5 @@
+import type { EnergyAuditCategory, EnergyAuditStatus } from "@prisma/client"
+
 type AreaTarget = "PARKING" | "TERRACE" | "SALES" | "WAREHOUSE"
 type RecommendationType = "TRAINING" | "REPAIR" | "MAINTENANCE"
 
@@ -17,11 +19,18 @@ export type AdminStoreDetailInput = {
     parkingAreaM2: number | string | { toString(): string }
     terraceAreaM2: number | string | { toString(): string }
     warehouseAreaM2: number | string | { toString(): string }
+    toiletAreaM2: number | string | { toString(): string }
+    corridorAreaM2: number | string | { toString(): string }
   }
   audits: Array<{
     id: string
     auditDate: Date | string
     isBoros: boolean | null
+    validationStatus?: "PENDING" | "VALIDATED"
+    energyAudits?: Array<{
+      category: EnergyAuditCategory
+      status: EnergyAuditStatus
+    }>
     totalEstimatedKwhPerMonth: number | string | { toString(): string } | null
     avgActualPlnKwhPerMonth:
       | number
@@ -61,7 +70,7 @@ const AREA_LABELS: Record<AreaTarget, string> = {
   SALES: "Sales Area",
   PARKING: "Parkir",
   TERRACE: "Teras",
-  WAREHOUSE: "Gudang",
+  WAREHOUSE: "Gudang, Toilet & Selasar",
 }
 
 const requiredStoreFields: Array<{
@@ -80,7 +89,7 @@ const requiredStoreFields: Array<{
   { key: "terraceAreaM2", label: "Area teras", isComplete: isNonNegativeNumber },
   {
     key: "warehouseAreaM2",
-    label: "Gudang/selasar",
+    label: "Gudang",
     isComplete: isNonNegativeNumber,
   },
 ]
@@ -122,8 +131,15 @@ export function buildStoreDetailViewModel(input: AdminStoreDetailInput) {
   const parkingAreaM2 = toNumber(store.parkingAreaM2)
   const terraceAreaM2 = toNumber(store.terraceAreaM2)
   const warehouseAreaM2 = toNumber(store.warehouseAreaM2)
+  const toiletAreaM2 = toNumber(store.toiletAreaM2)
+  const corridorAreaM2 = toNumber(store.corridorAreaM2)
   const totalAreaM2 =
-    salesAreaM2 + parkingAreaM2 + terraceAreaM2 + warehouseAreaM2
+    salesAreaM2 +
+    parkingAreaM2 +
+    terraceAreaM2 +
+    warehouseAreaM2 +
+    toiletAreaM2 +
+    corridorAreaM2
 
   const latestAudit = input.audits[0] ?? null
   const baseline = latestAudit
@@ -227,6 +243,8 @@ export function buildStoreDetailViewModel(input: AdminStoreDetailInput) {
       parkingAreaM2,
       terraceAreaM2,
       warehouseAreaM2,
+      toiletAreaM2,
+      corridorAreaM2,
       totalAreaM2: round(totalAreaM2, 1),
     },
     dataCompleteness: {
@@ -251,6 +269,8 @@ export function buildStoreDetailViewModel(input: AdminStoreDetailInput) {
           baselineKwhPerM2: round(baseline / areaDivisor, 1),
           recommendation: latestAudit.recommendations[0] ?? null,
           auditorName: latestAudit.auditor.fullName ?? latestAudit.auditor.email,
+          validated: latestAudit.validationStatus === "VALIDATED",
+          energyAudits: latestAudit.energyAudits ?? [],
         }
       : null,
     monthlyTrend:
@@ -303,6 +323,8 @@ export async function getAdminStoreDetail(storeId: string) {
       parkingAreaM2: true,
       terraceAreaM2: true,
       warehouseAreaM2: true,
+      toiletAreaM2: true,
+      corridorAreaM2: true,
       audits: {
         where: { status: "COMPLETED" },
         orderBy: [{ auditDate: "desc" }, { createdAt: "desc" }],
@@ -310,6 +332,10 @@ export async function getAdminStoreDetail(storeId: string) {
           id: true,
           auditDate: true,
           isBoros: true,
+          validationStatus: true,
+          energyAudits: {
+            select: { category: true, status: true },
+          },
           totalEstimatedKwhPerMonth: true,
           avgActualPlnKwhPerMonth: true,
           auditor: {
@@ -359,9 +385,19 @@ export async function getAdminStoreDetail(storeId: string) {
   if (!store) return null
 
   const { audits, ...storeIdentity } = store
+  const { isAdminSangatBoros } = await import("@/lib/admin-sangat-boros")
+  const { getIotStatusLookup, getStoreIot } = await import("@/lib/iot-status")
+  const [isSangatBoros, iotLookup] = await Promise.all([
+    audits[0] ? isAdminSangatBoros(audits[0].id) : false,
+    getIotStatusLookup(),
+  ])
 
-  return buildStoreDetailViewModel({
-    store: storeIdentity,
-    audits,
-  })
+  return {
+    ...buildStoreDetailViewModel({
+      store: storeIdentity,
+      audits,
+    }),
+    isSangatBoros,
+    iot: getStoreIot(iotLookup, storeIdentity.code),
+  }
 }

@@ -8,6 +8,7 @@ import {
   IconBuildingStore,
   IconChartBar,
   IconClipboardCheck,
+  IconExternalLink,
   IconFileDescription,
   IconLeaf,
   IconRulerMeasure,
@@ -16,8 +17,12 @@ import {
   IconTool,
 } from "@tabler/icons-react"
 
+import { AdminTableScroll } from "@/components/admin/admin-table-scroll"
 import { ConsumptionTrendChart } from "@/components/admin/admin-dashboard-charts"
 import { AdminMetricCard } from "@/components/admin/admin-metric-card"
+import { SangatBorosBadge } from "@/components/audit-validation/result-status-badge"
+import { ValidationStatusBadge } from "@/components/audit-validation/validation-status-badge"
+import { EnergyAuditCategoryStatusList } from "@/components/energy-audit/energy-audit-category-status-list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,7 +42,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { IotStatusBadge } from "@/components/admin/iot-status-badge"
 import { getAdminStoreDetail } from "@/lib/admin-store-detail"
+import { getEnergyMonitoringUrl } from "@/lib/iot-status"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -289,7 +296,15 @@ export default async function AdminStoreDetailPage({
             <h1 className="text-2xl font-semibold tracking-tight">
               {identity.name}
             </h1>
-            {latestAudit ? <StatusBadge status={latestAudit.status} /> : null}
+            {detail.isSangatBoros ? (
+              <SangatBorosBadge />
+            ) : latestAudit ? (
+              <StatusBadge status={latestAudit.status} />
+            ) : null}
+            {latestAudit ? (
+              <ValidationStatusBadge validated={latestAudit.validated} />
+            ) : null}
+            <IotStatusBadge iot={detail.iot} />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {identity.code} · {identity.branch ?? "Tanpa cabang"} ·{" "}
@@ -303,11 +318,23 @@ export default async function AdminStoreDetailPage({
               Monitoring Toko
             </Link>
           </Button>
+          {detail.iot && detail.iot.status !== "none" ? (
+            <Button asChild variant="outline">
+              <a
+                href={getEnergyMonitoringUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <IconExternalLink data-icon="inline-start" />
+                Portal Monitoring IoT
+              </a>
+            </Button>
+          ) : null}
           {latestAudit ? (
             <Button asChild>
               <Link href={`/admin/audits/${latestAudit.id}`}>
                 <IconClipboardCheck data-icon="inline-start" />
-                Buka Audit Terakhir
+                Buka Kalkulasi Terakhir
               </Link>
             </Button>
           ) : null}
@@ -320,7 +347,7 @@ export default async function AdminStoreDetailPage({
           value={
             latestAudit ? formatNumber(latestAudit.actualPln, " kWh") : "-"
           }
-          description="Rata-rata PLN audit terakhir"
+          description="Rata-rata PLN kalkulasi terakhir"
           icon={IconBolt}
           tone={latestAudit?.isBoros ? "danger" : "success"}
         />
@@ -344,7 +371,7 @@ export default async function AdminStoreDetailPage({
           description={
             latestAudit
               ? formatGapPercent(latestAudit.gapPercent)
-              : "Belum ada audit"
+              : "Belum ada kalkulasi"
           }
           icon={IconAlertTriangle}
           tone={latestAudit?.isBoros ? "danger" : "default"}
@@ -389,6 +416,8 @@ export default async function AdminStoreDetailPage({
                 ["Parkir", formatDecimal(identity.parkingAreaM2, " m²")],
                 ["Teras", formatDecimal(identity.terraceAreaM2, " m²")],
                 ["Gudang", formatDecimal(identity.warehouseAreaM2, " m²")],
+                ["Toilet", formatDecimal(identity.toiletAreaM2, " m²")],
+                ["Selasar", formatDecimal(identity.corridorAreaM2, " m²")],
               ].map(([label, value]) => (
                 <div
                   key={label}
@@ -404,7 +433,9 @@ export default async function AdminStoreDetailPage({
 
         <Card size="sm" className="h-full gap-3">
           <CardHeader>
-            <CardTitle className="text-sm">Informasi Audit Terakhir</CardTitle>
+            <CardTitle className="text-sm">
+              Informasi Kalkulasi Terakhir
+            </CardTitle>
             {latestAudit ? (
               <CardAction>
                 <StatusBadge status={latestAudit.status} />
@@ -413,35 +444,45 @@ export default async function AdminStoreDetailPage({
           </CardHeader>
           <CardContent>
             {latestAudit ? (
-              <div className="grid grid-cols-2 gap-1.5 text-[11px] sm:grid-cols-3">
-                {[
-                  ["Tanggal audit", formatDate(latestAudit.auditDate)],
-                  ["Auditor", latestAudit.auditorName],
-                  ["Actual PLN", formatNumber(latestAudit.actualPln, " kWh")],
-                  ["Baseline", formatNumber(latestAudit.baseline, " kWh")],
-                  [
-                    "Gap",
-                    `${latestAudit.gapKwh > 0 ? "+" : ""}${formatNumber(
-                      latestAudit.gapKwh,
-                      " kWh"
-                    )}`,
-                  ],
-                  ["Gap %", formatGapPercent(latestAudit.gapPercent)],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5"
-                  >
-                    <p className="truncate text-muted-foreground">{label}</p>
-                    <p className="truncate leading-tight font-medium">
-                      {value}
-                    </p>
-                  </div>
-                ))}
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-1.5 text-[11px] sm:grid-cols-3">
+                  {[
+                    ["Tanggal kalkulasi", formatDate(latestAudit.auditDate)],
+                    ["Auditor", latestAudit.auditorName],
+                    ["Actual PLN", formatNumber(latestAudit.actualPln, " kWh")],
+                    ["Baseline", formatNumber(latestAudit.baseline, " kWh")],
+                    [
+                      "Gap",
+                      `${latestAudit.gapKwh > 0 ? "+" : ""}${formatNumber(
+                        latestAudit.gapKwh,
+                        " kWh"
+                      )}`,
+                    ],
+                    ["Gap %", formatGapPercent(latestAudit.gapPercent)],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5"
+                    >
+                      <p className="truncate text-muted-foreground">{label}</p>
+                      <p className="truncate leading-tight font-medium">
+                        {value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Pemeriksaan per kategori
+                  </p>
+                  <EnergyAuditCategoryStatusList
+                    items={latestAudit.energyAudits}
+                  />
+                </div>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Toko ini belum pernah diaudit.
+                Toko ini belum pernah dikalkulasi.
               </p>
             )}
           </CardContent>
@@ -453,7 +494,7 @@ export default async function AdminStoreDetailPage({
           <CardHeader>
             <CardTitle>Tren Pemakaian Listrik PLN</CardTitle>
             <CardDescription>
-              Riwayat aktual pemakaian listrik PLN dari audit toko ini.
+              Riwayat aktual pemakaian listrik PLN dari kalkulasi toko ini.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -469,9 +510,9 @@ export default async function AdminStoreDetailPage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Rekomendasi Audit</CardTitle>
+            <CardTitle>Rekomendasi</CardTitle>
             <CardDescription>
-              Rekomendasi dari audit terakhir toko ini.
+              Rekomendasi dari kalkulasi terakhir toko ini.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
@@ -495,7 +536,7 @@ export default async function AdminStoreDetailPage({
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Belum ada rekomendasi audit.
+                Belum ada rekomendasi.
               </p>
             )}
           </CardContent>
@@ -523,7 +564,7 @@ export default async function AdminStoreDetailPage({
               ))
             ) : (
               <p className="text-sm text-muted-foreground">
-                Belum ada equipment pada audit terakhir.
+                Belum ada equipment pada kalkulasi terakhir.
               </p>
             )}
           </CardContent>
@@ -563,7 +604,7 @@ export default async function AdminStoreDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Daftar Equipment Audit Terakhir</CardTitle>
+          <CardTitle>Daftar Equipment Kalkulasi Terakhir</CardTitle>
           <CardDescription>
             Detail equipment, area, merek, jam operasional, dan estimasi kWh.
           </CardDescription>
@@ -582,116 +623,118 @@ export default async function AdminStoreDetailPage({
             </div>
           </CardAction>
         </CardHeader>
-        <CardContent className="overflow-auto px-0 pb-0">
-          <Table className="min-w-[900px] text-xs [&_td]:px-4 [&_td]:py-2 [&_th]:px-4">
-            <TableHeader>
-              <TableRow>
-                <SortableEquipmentHeader
-                  storeId={identity.id}
-                  column="area"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                >
-                  Area
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  storeId={identity.id}
-                  column="name"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                >
-                  Equipment
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  storeId={identity.id}
-                  column="brand"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                >
-                  Merek
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  storeId={identity.id}
-                  column="qty"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                  align="right"
-                >
-                  Qty
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  storeId={identity.id}
-                  column="operationalHours"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                  align="right"
-                >
-                  Jam
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  storeId={identity.id}
-                  column="baseKw"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                  align="right"
-                >
-                  kW
-                </SortableEquipmentHeader>
-                <SortableEquipmentHeader
-                  storeId={identity.id}
-                  column="dailyKwh"
-                  currentSort={equipmentSort}
-                  currentOrder={equipmentOrder}
-                  align="right"
-                >
-                  kWh/hari
-                </SortableEquipmentHeader>
-                <TableHead className="w-40">Kontribusi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {equipmentRows.map((item, index) => (
-                <TableRow key={`${item.area}-${item.name}-${index}`}>
-                  <TableCell>{item.area}</TableCell>
-                  <TableCell className="font-medium">{item.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {item.brand}
-                  </TableCell>
-                  <TableCell className="text-right">{item.qty}</TableCell>
-                  <TableCell className="text-right">
-                    {formatDecimal(item.operationalHours)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatDecimal(item.baseKw)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatDecimal(item.dailyKwh)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-1.5 rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            (item.dailyKwh / maxDailyKwh) * 100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </TableCell>
+        <CardContent className="px-0 pb-0">
+          <AdminTableScroll className="max-h-[560px]">
+            <Table className="min-w-[900px] text-xs [&_td]:px-4 [&_td]:py-2 [&_th]:px-4">
+              <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
+                <TableRow>
+                  <SortableEquipmentHeader
+                    storeId={identity.id}
+                    column="area"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                  >
+                    Area
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    storeId={identity.id}
+                    column="name"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                  >
+                    Equipment
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    storeId={identity.id}
+                    column="brand"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                  >
+                    Merek
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    storeId={identity.id}
+                    column="qty"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                    align="right"
+                  >
+                    Qty
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    storeId={identity.id}
+                    column="operationalHours"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                    align="right"
+                  >
+                    Jam
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    storeId={identity.id}
+                    column="baseKw"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                    align="right"
+                  >
+                    kW
+                  </SortableEquipmentHeader>
+                  <SortableEquipmentHeader
+                    storeId={identity.id}
+                    column="dailyKwh"
+                    currentSort={equipmentSort}
+                    currentOrder={equipmentOrder}
+                    align="right"
+                  >
+                    kWh/hari
+                  </SortableEquipmentHeader>
+                  <TableHead className="w-40">Kontribusi</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {equipmentRows.map((item, index) => (
+                  <TableRow key={`${item.area}-${item.name}-${index}`}>
+                    <TableCell>{item.area}</TableCell>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {item.brand}
+                    </TableCell>
+                    <TableCell className="text-right">{item.qty}</TableCell>
+                    <TableCell className="text-right">
+                      {formatDecimal(item.operationalHours)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatDecimal(item.baseKw)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatDecimal(item.dailyKwh)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-1.5 rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              (item.dailyKwh / maxDailyKwh) * 100
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </AdminTableScroll>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Timeline Audit Toko</CardTitle>
+          <CardTitle>Timeline Kalkulasi Toko</CardTitle>
           <CardDescription>
-            Perubahan status dan gap dari audit sebelumnya.
+            Perubahan status dan gap dari kalkulasi sebelumnya.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -732,9 +775,9 @@ export default async function AdminStoreDetailPage({
           ) : (
             <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-8 text-center">
               <IconBuildingStore className="size-6 text-muted-foreground" />
-              <p className="text-sm font-medium">Belum pernah diaudit</p>
+              <p className="text-sm font-medium">Belum pernah dikalkulasi</p>
               <p className="text-xs text-muted-foreground">
-                Toko ini belum memiliki audit completed.
+                Toko ini belum memiliki kalkulasi selesai.
               </p>
             </div>
           )}

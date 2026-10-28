@@ -5,6 +5,8 @@ import { headers } from "next/headers"
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { getEffectiveRole } from "@/lib/current-role"
+import { can } from "@/lib/role-access"
 
 type ActionResult = {
   success: boolean
@@ -25,7 +27,7 @@ export async function deleteAudit(auditId: string): Promise<ActionResult> {
       where: { id: session.user.id },
       select: { role: true },
     })
-    if (user?.role !== "ADMIN") {
+    if (!can(await getEffectiveRole(user?.role), "deleteAudits")) {
       return { success: false, message: "Hanya admin yang bisa menghapus kalkulasi." }
     }
 

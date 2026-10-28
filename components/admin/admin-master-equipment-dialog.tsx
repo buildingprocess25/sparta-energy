@@ -590,7 +590,7 @@ export function AdminMasterEquipmentDialog({
                       <SelectItem value="SALES">Area Belanja</SelectItem>
                       <SelectItem value="PARKIRAN">Parkiran</SelectItem>
                       <SelectItem value="TERAS">Teras</SelectItem>
-                      <SelectItem value="GUDANG">Gudang/Toilet</SelectItem>
+                      <SelectItem value="GUDANG">Gudang, Toilet & Selasar</SelectItem>
                       <SelectItem value="BEANSPOT">Beanspot</SelectItem>
                     </SelectContent>
                   </Select>
@@ -731,7 +731,7 @@ export function AdminMasterEquipmentDialog({
                     <SelectItem value="SALES">Area Belanja</SelectItem>
                     <SelectItem value="PARKING">Parkiran</SelectItem>
                     <SelectItem value="TERRACE">Teras</SelectItem>
-                    <SelectItem value="WAREHOUSE">Gudang/Toilet</SelectItem>
+                    <SelectItem value="WAREHOUSE">Gudang, Toilet & Selasar</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -836,7 +836,7 @@ export function AdminMasterEquipmentDialog({
                 Dokumentasi & Referensi
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Unggah foto produk dan foto name plate untuk referensi saat melakukan audit di lapangan.
+                Unggah foto produk dan foto name plate untuk referensi saat pendataan di lapangan.
               </p>
 
               <div className="grid grid-cols-2 gap-3">

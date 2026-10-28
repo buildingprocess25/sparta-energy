@@ -44,6 +44,8 @@ export function AdminMasterStoreDialog({
   const [terraceAreaM2, setTerraceAreaM2] = useState<number | "">("")
   const [salesAreaM2, setSalesAreaM2] = useState<number | "">("")
   const [warehouseAreaM2, setWarehouseAreaM2] = useState<number | "">("")
+  const [toiletAreaM2, setToiletAreaM2] = useState<number | "">("")
+  const [corridorAreaM2, setCorridorAreaM2] = useState<number | "">("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Reset/populate fields when dialog opens/closes or store changes
@@ -64,6 +66,8 @@ export function AdminMasterStoreDialog({
       setTerraceAreaM2(store.terraceAreaM2)
       setSalesAreaM2(store.salesAreaM2)
       setWarehouseAreaM2(store.warehouseAreaM2)
+      setToiletAreaM2(store.toiletAreaM2)
+      setCorridorAreaM2(store.corridorAreaM2)
     } else {
       setCode("")
       setName("")
@@ -78,6 +82,8 @@ export function AdminMasterStoreDialog({
       setTerraceAreaM2("")
       setSalesAreaM2("")
       setWarehouseAreaM2("")
+      setToiletAreaM2("")
+      setCorridorAreaM2("")
     }
   }, [open, store])
 
@@ -116,8 +122,14 @@ export function AdminMasterStoreDialog({
     const terrArea = Number(terraceAreaM2)
     const slsArea = Number(salesAreaM2)
     const whArea = Number(warehouseAreaM2)
+    const toiletArea = Number(toiletAreaM2)
+    const corridorArea = Number(corridorAreaM2)
 
-    if (isNaN(parkArea) || parkArea < 0 || isNaN(terrArea) || terrArea < 0 || isNaN(slsArea) || slsArea < 0 || isNaN(whArea) || whArea < 0) {
+    if (
+      [parkArea, terrArea, slsArea, whArea, toiletArea, corridorArea].some(
+        (area) => isNaN(area) || area < 0
+      )
+    ) {
       toast.error("Semua luas area harus berupa angka 0 atau lebih")
       return
     }
@@ -139,6 +151,8 @@ export function AdminMasterStoreDialog({
         terraceAreaM2: terrArea,
         salesAreaM2: slsArea,
         warehouseAreaM2: whArea,
+        toiletAreaM2: toiletArea,
+        corridorAreaM2: corridorArea,
       }
 
       const url = store
@@ -340,26 +354,7 @@ export function AdminMasterStoreDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="store-area-warehouse">Warehouse Area *</Label>
-              <Input
-                id="store-area-warehouse"
-                type="number"
-                min="0"
-                step="any"
-                placeholder="Contoh: 30"
-                value={warehouseAreaM2}
-                onChange={(e) =>
-                  setWarehouseAreaM2(
-                    e.target.value === "" ? "" : Number(e.target.value)
-                  )
-                }
-                disabled={isSubmitting}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="store-area-parking">Parking Area *</Label>
+              <Label htmlFor="store-area-parking">Parkiran *</Label>
               <Input
                 id="store-area-parking"
                 type="number"
@@ -378,7 +373,7 @@ export function AdminMasterStoreDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="store-area-terrace">Terrace Area *</Label>
+              <Label htmlFor="store-area-terrace">Teras *</Label>
               <Input
                 id="store-area-terrace"
                 type="number"
@@ -388,6 +383,63 @@ export function AdminMasterStoreDialog({
                 value={terraceAreaM2}
                 onChange={(e) =>
                   setTerraceAreaM2(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="store-area-warehouse">Gudang *</Label>
+              <Input
+                id="store-area-warehouse"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="Contoh: 30"
+                value={warehouseAreaM2}
+                onChange={(e) =>
+                  setWarehouseAreaM2(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="store-area-toilet">Toilet *</Label>
+              <Input
+                id="store-area-toilet"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="Contoh: 4"
+                value={toiletAreaM2}
+                onChange={(e) =>
+                  setToiletAreaM2(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="store-area-corridor">Selasar *</Label>
+              <Input
+                id="store-area-corridor"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="Contoh: 12"
+                value={corridorAreaM2}
+                onChange={(e) =>
+                  setCorridorAreaM2(
                     e.target.value === "" ? "" : Number(e.target.value)
                   )
                 }

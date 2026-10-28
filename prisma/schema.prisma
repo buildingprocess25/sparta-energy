@@ -19,11 +19,15 @@ model User {
   updatedAt     DateTime  @updatedAt @map("updated_at")
   audits          Audit[]   @relation("AuditAuditor")
   validatedAudits Audit[]   @relation("AuditValidator")
+  auditCorrections AuditCorrection[]
+  deviceAccess     UserDeviceAccess[] @relation("DeviceAccessUser")
+  grantedDeviceAccess UserDeviceAccess[] @relation("DeviceAccessCreator")
   sessions      Session[]
   accounts      Account[]
   acCalculatorLogs    AcCalculatorLog[]
   lightCalculatorLogs LightCalculatorLog[]
   mepSimulationLogs   MepSimulationLog[]
+  energyAudits        EnergyAudit[]
 
   @@map("users")
 }
@@ -76,11 +80,15 @@ model Store {
   terraceAreaM2   Decimal   @map("terrace_area_m2")
   salesAreaM2     Decimal   @map("sales_area_m2")
   warehouseAreaM2 Decimal   @map("warehouse_area_m2")
+  toiletAreaM2    Decimal   @default(0) @map("toilet_area_m2")
+  corridorAreaM2  Decimal   @default(0) @map("corridor_area_m2")
   latitude        Float?    @map("latitude")
   longitude       Float?    @map("longitude")
+  address         String?   @map("address")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   audits          Audit[]
+  energyAudits    EnergyAudit[]
 
   @@map("stores")
 }
@@ -141,14 +149,22 @@ model Audit {
   terraceAreaM2             Decimal?              @map("terrace_area_m2")
   salesAreaM2               Decimal?              @map("sales_area_m2")
   warehouseAreaM2           Decimal?              @map("warehouse_area_m2")
+  toiletAreaM2              Decimal?              @map("toilet_area_m2")
+  corridorAreaM2            Decimal?              @map("corridor_area_m2")
   is24Hours                 Boolean?              @map("is_24_hours")
   openTime                  String?               @map("open_time")
   closeTime                 String?               @map("close_time")
+  // Results as submitted by the store, copied before the first correction during validation
+  originalIsBoros                   Boolean? @map("original_is_boros")
+  originalTotalEstimatedKwhPerMonth Decimal? @map("original_total_estimated_kwh_per_month")
+  originalAvgActualPlnKwhPerMonth   Decimal? @map("original_avg_actual_pln_kwh_per_month")
   createdAt                 DateTime              @default(now()) @map("created_at")
   updatedAt                 DateTime              @updatedAt @map("updated_at")
   items                     AuditItem[]
+  corrections               AuditCorrection[]
   plnHistory                AuditPlnStdHistory[]
   recommendations           AuditRecommendation[]
+  energyAudits              EnergyAudit[]
   auditor                   User                  @relation("AuditAuditor", fields: [auditorId], references: [id])
   validatedBy               User?                 @relation("AuditValidator", fields: [validatedById], references: [id], onDelete: SetNull)
   store                     Store                 @relation(fields: [storeId], references: [id])
@@ -205,6 +221,24 @@ model AuditRecommendation {
 enum Role {
   USER
   ADMIN
+  AUDITOR
+  GS
+  AREA
+}
+
+// Devices (devices.id in DB 2) a GS user may see in smart-energy-monitoring.
+model UserDeviceAccess {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  deviceId  String   @map("device_id")
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User  @relation("DeviceAccessUser", fields: [userId], references: [id], onDelete: Cascade)
+  creator User? @relation("DeviceAccessCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([userId, deviceId])
+  @@map("user_device_access")
 }
 
 enum AuditStatus {
@@ -215,6 +249,74 @@ enum AuditStatus {
 enum AuditValidationStatus {
   PENDING
   VALIDATED
+}
+
+enum AuditCorrectionType {
+  ITEM_ADDED
+  ITEM_UPDATED
+  ITEM_DELETED
+  PLN_UPDATED
+  TECHNICAL_UPDATED
+  ADDRESS_UPDATED
+  RECOMMENDATION_UPDATED
+}
+
+// One row per change a validator makes to a kalkulasi before validating it.
+model AuditCorrection {
+  id          String              @id @default(uuid()) @db.Uuid
+  auditId     String              @map("audit_id") @db.Uuid
+  validatorId String?             @map("validator_id") @db.Uuid
+  type        AuditCorrectionType
+  summary     String
+  before      Json?
+  after       Json?
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  audit     Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  validator User? @relation(fields: [validatorId], references: [id], onDelete: SetNull)
+
+  @@index([auditId, createdAt])
+  @@map("audit_corrections")
+}
+
+enum EnergyAuditCategory {
+  TATA_CAHAYA
+  TATA_UDARA_VENTILASI
+  REFRIGERASI
+  SELUBUNG_BANGUNAN
+  KELISTRIKAN
+  BEBAN_PASIF_STOPKONTAK
+  BEANSPOT
+}
+
+enum EnergyAuditStatus {
+  DRAFT
+  COMPLETED
+}
+
+// Field audit per category. `data` holds the category-specific form, so new
+// categories need no new table; summary columns stay queryable for reports.
+model EnergyAudit {
+  id            String              @id @default(uuid()) @db.Uuid
+  storeId       String              @map("store_id") @db.Uuid
+  sourceAuditId String?             @map("source_audit_id") @db.Uuid
+  category      EnergyAuditCategory
+  status        EnergyAuditStatus   @default(DRAFT)
+  auditorId     String              @map("auditor_id") @db.Uuid
+  auditDate     DateTime            @default(now()) @map("audit_date")
+  summaryStatus String?             @map("summary_status")
+  data          Json
+  completedAt   DateTime?           @map("completed_at")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  store       Store  @relation(fields: [storeId], references: [id])
+  sourceAudit Audit? @relation(fields: [sourceAuditId], references: [id], onDelete: SetNull)
+  auditor     User   @relation(fields: [auditorId], references: [id])
+
+  @@unique([sourceAuditId, category])
+  @@index([category, status])
+  @@map("energy_audits")
 }
 
 enum AreaTarget {
