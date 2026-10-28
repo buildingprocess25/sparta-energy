@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { DEV_ROLE_COOKIE, getHomeUrl, resolveRole } from "@/lib/role-access"
-import { clearCookieHeaders } from "@/lib/sso-cookie"
+import { clearCookieHeaders, ssoSessionCookie } from "@/lib/sso-cookie"
 
 // Guest-only routes: accessible only when not logged in.
 const guestOnlyRoutes = new Set(["/", "/login"])
@@ -93,7 +93,7 @@ export async function proxy(request: NextRequest) {
 
   const hasSsoCookie = cookieHeader.includes("sso_session=")
 
-  let betterAuthSession = await auth.api.getSession({
+  const betterAuthSession = await auth.api.getSession({
     headers: request.headers,
   })
 
@@ -131,7 +131,17 @@ export async function proxy(request: NextRequest) {
 
     // GS only works in the monitoring portal, so every sparta page sends them there.
     if (isGuestOnlyRoute || role === "GS") {
-      return NextResponse.redirect(new URL(getHomeUrl(role), request.url))
+      const response = NextResponse.redirect(new URL(getHomeUrl(role), request.url))
+      // Sessions from before redirect-path set sso_session would otherwise bounce off the portal forever.
+      if (role === "GS" && betterAuthSession?.session && !hasSsoCookie) {
+        response.cookies.set(
+          ssoSessionCookie(
+            betterAuthSession.session.token,
+            new Date(betterAuthSession.session.expiresAt)
+          )
+        )
+      }
+      return response
     }
   }
 

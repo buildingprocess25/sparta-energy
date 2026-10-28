@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth"
 import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
 import { getHomeUrl } from "@/lib/role-access"
+import { ssoSessionCookie } from "@/lib/sso-cookie"
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -18,7 +19,15 @@ export async function GET() {
     select: { role: true },
   })
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     redirectTo: getHomeUrl(await getEffectiveRole(user?.role)),
   })
+  // Email login only sets the host-only better-auth cookie; the monitoring portal reads sso_session.
+  response.cookies.set(
+    ssoSessionCookie(
+      session.session.token,
+      new Date(session.session.expiresAt)
+    )
+  )
+  return response
 }
