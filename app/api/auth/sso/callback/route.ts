@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
 import { getHomeUrl } from "@/lib/role-access";
-import { getSsoCookieDomain } from "@/lib/sso-cookie";
+import { clearBetterAuthCookieHeaders, getSsoCookieDomain } from "@/lib/sso-cookie";
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -81,7 +81,11 @@ export async function GET(request: Request) {
         path: "/",
         domain: getSsoCookieDomain(),
     });
-    
+    // A better-auth cookie left by an earlier login outranks sso_session in sparta, so drop it.
+    for (const header of clearBetterAuthCookieHeaders()) {
+        response.headers.append("Set-Cookie", header);
+    }
+
     console.log("[SSO Callback] Session cookie signed and set, redirecting to /dashboard");
     return response;
 }

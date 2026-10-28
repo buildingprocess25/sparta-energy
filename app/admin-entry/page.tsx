@@ -15,10 +15,10 @@ import { AdminEntryLogoutButton } from "@/components/admin/admin-entry-logout-bu
 import { Logo } from "@/components/logo"
 import { Badge } from "@/components/ui/badge"
 import { auth } from "@/lib/auth"
+import { parseValidationFilters } from "@/lib/audit-validation-filters"
 import {
   getPendingValidationCount,
   getValidationAudits,
-  parseValidationFilters,
 } from "@/lib/audit-validation-queries"
 import { getEnergyMonitoringUrl } from "@/lib/iot-status"
 import { getEffectiveRole } from "@/lib/current-role"

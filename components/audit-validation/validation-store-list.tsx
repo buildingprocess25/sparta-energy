@@ -1,8 +1,5 @@
 import Link from "next/link"
-import {
-  IconChevronRight,
-  IconClipboardCheck,
-} from "@tabler/icons-react"
+import { IconChevronRight, IconClipboardCheck } from "@tabler/icons-react"
 
 import {
   Item,
@@ -19,13 +16,11 @@ import { cn } from "@/lib/utils"
 
 type ValidationStoreListProps = {
   rows: ValidationListRow[]
-  startRank: number
   emptyMessage: string
 }
 
 export function ValidationStoreList({
   rows,
-  startRank,
   emptyMessage,
 }: ValidationStoreListProps) {
   if (rows.length === 0) {
@@ -41,7 +36,7 @@ export function ValidationStoreList({
 
   return (
     <ol className="flex flex-col gap-2">
-      {rows.map((row, index) => (
+      {rows.map((row) => (
         <li key={row.auditId}>
           <Item variant="outline" asChild className="bg-card">
             <Link href={`/audit/validation/${row.auditId}`}>
@@ -49,10 +44,12 @@ export function ValidationStoreList({
                 aria-hidden="true"
                 className="w-6 shrink-0 text-center text-sm font-bold text-muted-foreground tabular-nums"
               >
-                {startRank + index}
+                {row.rank}
               </span>
               <ItemContent className="min-w-0">
-                <ItemTitle className="w-full truncate">{row.storeName}</ItemTitle>
+                <ItemTitle className="w-full truncate">
+                  {row.storeName}
+                </ItemTitle>
                 <ItemDescription className="truncate">
                   {row.storeCode}
                   {row.branch ? ` · ${row.branch}` : ""}

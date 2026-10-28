@@ -1,23 +1,13 @@
 import { Prisma } from "@prisma/client"
 
+import { getAuditGapFilterWhereSql } from "@/lib/audit-gap-filter"
+import type { ValidationListFilters } from "@/lib/audit-validation-filters"
 import { prisma } from "@/lib/prisma"
 
-export const TOP_BOROS_LIMIT = 12
 export const VALIDATION_PAGE_SIZE = 20
 
-export type ValidationView = "all" | "top"
-export type ValidationResultFilter = "all" | "boros" | "hemat"
-export type ValidationStatusFilter = "all" | "pending" | "validated"
-
-export type ValidationListFilters = {
-  view: ValidationView
-  result: ValidationResultFilter
-  status: ValidationStatusFilter
-  q: string
-  page: number
-}
-
 export type ValidationListRow = {
+  rank: number
   auditId: string
   auditDate: string
   storeCode: string
@@ -32,6 +22,7 @@ export type ValidationListRow = {
 }
 
 type RawValidationRow = {
+  rank: bigint
   audit_id: string
   audit_date: Date
   store_code: string
@@ -44,29 +35,6 @@ type RawValidationRow = {
   baseline_kwh: unknown
   gap_percent: unknown
   total_count: bigint
-}
-
-type SearchParamValue = string | string[] | undefined
-
-function firstValue(value: SearchParamValue) {
-  return Array.isArray(value) ? value[0] : value
-}
-
-export function parseValidationFilters(
-  params: Record<string, SearchParamValue>
-): ValidationListFilters {
-  const view = firstValue(params.view)
-  const result = firstValue(params.result)
-  const status = firstValue(params.status)
-  const page = Number(firstValue(params.page))
-
-  return {
-    view: view === "top" ? "top" : "all",
-    result: result === "boros" || result === "hemat" ? result : "all",
-    status: status === "pending" || status === "validated" ? status : "all",
-    q: (firstValue(params.q) ?? "").trim().slice(0, 100),
-    page: Number.isInteger(page) && page > 1 ? page : 1,
-  }
 }
 
 // Each store is represented by its latest completed audit, so a validated
@@ -103,35 +71,49 @@ export async function isSangatBorosAudit(auditId: string) {
 
 export async function getValidationAudits(filters: ValidationListFilters) {
   const conditions = [activeStoreSql]
-  let limit = VALIDATION_PAGE_SIZE
-  let offset = (filters.page - 1) * VALIDATION_PAGE_SIZE
+  const limit = VALIDATION_PAGE_SIZE
+  const offset = (filters.page - 1) * VALIDATION_PAGE_SIZE
 
-  if (filters.view === "top") {
-    conditions.push(Prisma.sql`l.id IN (${sangatBorosIdsSql})`)
-    limit = TOP_BOROS_LIMIT
-    offset = 0
-  } else {
-    if (filters.result === "boros") conditions.push(Prisma.sql`l.is_boros = true`)
-    if (filters.result === "hemat") {
-      conditions.push(Prisma.sql`l.is_boros IS DISTINCT FROM true`)
-    }
-    if (filters.status === "pending") {
-      conditions.push(Prisma.sql`l.validation_status = 'PENDING'`)
-    }
-    if (filters.status === "validated") {
-      conditions.push(Prisma.sql`l.validation_status = 'VALIDATED'`)
-    }
-    if (filters.q) {
-      const pattern = `%${filters.q}%`
-      conditions.push(
-        Prisma.sql`(s.name ILIKE ${pattern} OR s.code ILIKE ${pattern})`
-      )
-    }
+  if (filters.result === "boros") conditions.push(Prisma.sql`l.is_boros = true`)
+  if (filters.result === "hemat") {
+    conditions.push(Prisma.sql`l.is_boros IS DISTINCT FROM true`)
+  }
+  if (filters.status === "pending") {
+    conditions.push(Prisma.sql`l.validation_status = 'PENDING'`)
+  }
+  if (filters.status === "validated") {
+    conditions.push(Prisma.sql`l.validation_status = 'VALIDATED'`)
+  }
+  if (filters.gap !== "all") {
+    const insideGap = Prisma.raw(
+      getAuditGapFilterWhereSql("l", true) ?? "false"
+    )
+    conditions.push(
+      filters.gap === "inside"
+        ? insideGap
+        : Prisma.sql`NOT COALESCE(${insideGap}, false)`
+    )
+  }
+  if (filters.q) {
+    const pattern = `%${filters.q}%`
+    conditions.push(
+      Prisma.sql`(s.name ILIKE ${pattern} OR s.code ILIKE ${pattern})`
+    )
   }
 
+  // Rank over every active store before filtering, so #1 stays the most boros store in any filter.
   const rows = await prisma.$queryRaw<RawValidationRow[]>`
-    ${latestAuditPerStore}
+    ${latestAuditPerStore},
+    ranked AS (
+      SELECT
+        l.id,
+        ROW_NUMBER() OVER (ORDER BY l.gap_percent DESC NULLS LAST, s.name ASC) AS rank
+      FROM latest l
+      JOIN stores s ON s.id = l.store_id
+      WHERE ${activeStoreSql}
+    )
     SELECT
+      r.rank,
       l.id AS audit_id,
       l.audit_date,
       s.code AS store_code,
@@ -146,8 +128,9 @@ export async function getValidationAudits(filters: ValidationListFilters) {
       COUNT(*) OVER() AS total_count
     FROM latest l
     JOIN stores s ON s.id = l.store_id
+    JOIN ranked r ON r.id = l.id
     WHERE ${Prisma.join(conditions, " AND ")}
-    ORDER BY l.gap_percent DESC NULLS LAST, s.name ASC
+    ORDER BY r.rank
     LIMIT ${limit} OFFSET ${offset}
   `
 
@@ -155,6 +138,7 @@ export async function getValidationAudits(filters: ValidationListFilters) {
     total: rows.length > 0 ? Number(rows[0].total_count) : 0,
     rows: rows.map(
       (row): ValidationListRow => ({
+        rank: Number(row.rank),
         auditId: row.audit_id,
         auditDate: row.audit_date.toISOString(),
         storeCode: row.store_code,
@@ -322,8 +306,7 @@ export async function getValidationAudit(id: string) {
     auditDate: audit.auditDate.toISOString(),
     actualKwhPerMonth: Number(audit.avgActualPlnKwhPerMonth ?? 0),
     baselineKwhPerMonth: Number(audit.totalEstimatedKwhPerMonth ?? 0),
-    gapPercent:
-      audit.gapPercent === null ? null : Number(audit.gapPercent),
+    gapPercent: audit.gapPercent === null ? null : Number(audit.gapPercent),
     isValidated: audit.validationStatus === "VALIDATED",
     validatedAt: audit.validatedAt?.toISOString() ?? null,
     validatedBy:
@@ -335,8 +318,12 @@ export async function getValidationAudit(id: string) {
         ? null
         : {
             isBoros: audit.originalIsBoros === true,
-            baselineKwhPerMonth: Number(audit.originalTotalEstimatedKwhPerMonth),
-            actualKwhPerMonth: Number(audit.originalAvgActualPlnKwhPerMonth ?? 0),
+            baselineKwhPerMonth: Number(
+              audit.originalTotalEstimatedKwhPerMonth
+            ),
+            actualKwhPerMonth: Number(
+              audit.originalAvgActualPlnKwhPerMonth ?? 0
+            ),
           },
     corrections: audit.corrections.map((correction) => ({
       id: correction.id,
@@ -377,8 +364,11 @@ export async function getValidationAudit(id: string) {
     items: audit.items.map((item) => ({
       id: item.id,
       areaTarget: item.areaTarget,
-      name: (item.customName ?? item.equipmentType?.name ?? "Alat tanpa nama")
-        .replace(/\s*\[NOTE:.*?\]$/, ""),
+      name: (
+        item.customName ??
+        item.equipmentType?.name ??
+        "Alat tanpa nama"
+      ).replace(/\s*\[NOTE:.*?\]$/, ""),
       brandName: item.brandName,
       qty: item.qty,
       operationalHours: Number(item.operationalHours),
