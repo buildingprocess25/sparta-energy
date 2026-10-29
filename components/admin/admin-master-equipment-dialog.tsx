@@ -487,12 +487,61 @@ export function AdminMasterEquipmentDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Pilih tipe yang sudah ada, atau pilih <strong className="text-primary font-semibold">&quot;+ Buat Tipe Baru...&quot;</strong> jika ingin membuat tipe dengan metode kalkulasi baru.
+                  </p>
                 </div>
               </div>
             ) : (
               <div className="rounded-lg border bg-muted/30 p-3 text-xs">
                 <span className="font-medium text-muted-foreground">ID Tipe:</span>{" "}
                 <code className="font-mono">{equipmentTypeId}</code>
+              </div>
+            )}
+
+            {/* Preview Metode Kalkulasi & Info Tipe saat memilih tipe yang sudah ada di mode Tambah */}
+            {isCreateMode && equipmentTypeId && !isNewTypeSelected && (
+              <div className="rounded-lg border border-border/80 bg-muted/30 p-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between pb-1.5 border-b border-border/50">
+                  <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                    <IconInfoCircle className="size-3.5 text-primary shrink-0" />
+                    <span>Metode Kalkulasi: <strong>{equipmentName}</strong></span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    {calcMethod}
+                  </span>
+                </div>
+
+                <div className="space-y-1 text-muted-foreground">
+                  <div className="flex justify-between">
+                    <span>Rumus Perhitungan:</span>
+                    <span className="font-medium text-foreground">
+                      {calcMethod === "STANDARD" && "Power (kW) × Jam Operasional"}
+                      {calcMethod === "TRANSACTION" && `Transaksi × ${calcDuration || 0} detik/cup`}
+                      {calcMethod === "BATCH" && `Batch × ${calcDuration || 0} menit/baking`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Area Penempatan:</span>
+                    <span className="font-medium text-foreground">
+                      {category === "SALES"
+                        ? "Area Belanja"
+                        : category === "PARKIRAN"
+                        ? "Parkiran"
+                        : category === "TERAS"
+                        ? "Teras"
+                        : category === "GUDANG"
+                        ? "Gudang, Toilet & Selasar"
+                        : category === "BEANSPOT"
+                        ? "Beanspot"
+                        : category || "-"}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-[10.5px] text-muted-foreground/80 pt-1 border-t border-border/40 leading-relaxed">
+                  * Metode kalkulasi ini otomatis terikat pada tipe <strong>{equipmentName}</strong>. Untuk mengubah metode kalkulasi tipe ini, gunakan tombol <em>Ubah</em> pada tabel master data.
+                </p>
               </div>
             )}
 
@@ -699,41 +748,6 @@ export function AdminMasterEquipmentDialog({
                   disabled={isSubmitting}
                   required
                 />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Label htmlFor="eq-area">Area Penempatan *</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
-                        <IconInfoCircle className="h-3.5 w-3.5" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-[220px] text-xs font-normal">
-                          Target lokasi fisik di toko yang digunakan untuk perhitungan beban energi (kWh/m²) pada dashboard statistik.
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <Select
-                  value={area}
-                  onValueChange={(val) =>
-                    setArea(val as "SALES" | "PARKING" | "TERRACE" | "WAREHOUSE")
-                  }
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger id="eq-area">
-                    <SelectValue placeholder="Pilih area..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="SALES">Area Belanja</SelectItem>
-                    <SelectItem value="PARKING">Parkiran</SelectItem>
-                    <SelectItem value="TERRACE">Teras</SelectItem>
-                    <SelectItem value="WAREHOUSE">Gudang, Toilet & Selasar</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
 
               <div className="space-y-2">

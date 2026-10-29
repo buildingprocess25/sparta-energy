@@ -342,23 +342,6 @@ export function AdminMasterEquipmentTable({
               <TableHead>
                 <SortableHeader column="storeType">Tipe Toko</SortableHeader>
               </TableHead>
-              <TableHead>
-                <div className="flex items-center gap-1">
-                  <SortableHeader column="area">Target Area Brand</SortableHeader>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
-                        <IconInfoCircle className="h-3.5 w-3.5" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-[220px] text-xs font-normal">
-                          Target lokasi fisik di toko yang digunakan untuk perhitungan beban energi (kWh/m²) pada dashboard statistik.
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </TableHead>
               <TableHead>Metode Kalkulasi</TableHead>
               <TableHead className="text-right">
                 <div className="flex items-center justify-end gap-1">
@@ -475,14 +458,25 @@ export function AdminMasterEquipmentTable({
                 <TableCell>
                   <Badge variant="secondary">{item.deviceCategory}</Badge>
                 </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {item.category}
+                <TableCell>
+                  {item.category === "BEANSPOT" ? (
+                    <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold">
+                      Beanspot
+                    </Badge>
+                  ) : item.category === "SALES" ? (
+                    <span className="text-xs font-medium text-foreground">Area Belanja</span>
+                  ) : item.category === "GUDANG" ? (
+                    <span className="text-xs font-medium text-foreground">Gudang & Selasar</span>
+                  ) : item.category === "PARKIRAN" ? (
+                    <span className="text-xs font-medium text-foreground">Parkiran</span>
+                  ) : item.category === "TERAS" ? (
+                    <span className="text-xs font-medium text-foreground">Teras</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{item.category}</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {item.storeType ?? "Semua tipe"}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">{item.area}</Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-0.5">
