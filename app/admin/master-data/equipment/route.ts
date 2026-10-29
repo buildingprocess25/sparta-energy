@@ -4,11 +4,14 @@ import { requireUserManager } from "@/lib/admin-auth"
 import { createMasterEquipment } from "@/lib/admin-master-data-mutations"
 
 export async function POST(request: Request) {
-  await requireUserManager()
+  const user = await requireUserManager()
 
   try {
-    const body = await request.json()
-    const result = await createMasterEquipment(body)
+    const body = (await request.json()) as Record<string, unknown>
+    const result = await createMasterEquipment({
+      ...body,
+      createdById: user.id,
+    })
     if (!result.ok) {
       return NextResponse.json(
         { message: result.message },

@@ -16,6 +16,19 @@ function createPrismaClient() {
       console.warn("[DB Auto-Migration] Note: audit_items notes column check:", err?.message)
     })
 
+  // Auto-migration: ensure created_by_id column exists in equipment_types and equipment_brands
+  dbPool
+    .query("ALTER TABLE equipment_types ADD COLUMN IF NOT EXISTS created_by_id UUID;")
+    .catch((err) => {
+      console.warn("[DB Auto-Migration] equipment_types created_by_id check:", err?.message)
+    })
+
+  dbPool
+    .query("ALTER TABLE equipment_brands ADD COLUMN IF NOT EXISTS created_by_id UUID;")
+    .catch((err) => {
+      console.warn("[DB Auto-Migration] equipment_brands created_by_id check:", err?.message)
+    })
+
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],

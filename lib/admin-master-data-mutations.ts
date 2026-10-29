@@ -202,16 +202,23 @@ export async function createMasterEquipment(
   try {
     const equipmentTypeId = getString(data, "equipmentTypeId")
     const brand = getEquipmentBrandPayload(data)
+    const createdById = getOptionalString(data, "createdById")
 
     if (equipmentTypeId === "new") {
       const type = getEquipmentTypePayload(data)
 
       await prisma.$transaction(async (tx) => {
-        const createdType = await tx.equipmentType.create({ data: type })
+        const createdType = await tx.equipmentType.create({
+          data: {
+            ...type,
+            createdById: createdById || undefined,
+          },
+        })
         await tx.equipmentBrand.create({
           data: {
             ...brand,
             equipmentTypeId: createdType.id,
+            createdById: createdById || undefined,
           },
         })
       })
@@ -221,6 +228,7 @@ export async function createMasterEquipment(
         data: {
           ...brand,
           equipmentTypeId,
+          createdById: createdById || undefined,
         },
       })
     }

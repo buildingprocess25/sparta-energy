@@ -13,6 +13,7 @@ import {
   IconPhoto,
   IconFileText,
   IconInfoCircle,
+  IconUser,
 } from "@tabler/icons-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "sonner"
@@ -501,8 +502,18 @@ export function AdminMasterEquipmentTable({
                 <TableCell className="text-right">
                   {formatNumber(item.runningKw)}
                 </TableCell>
-                 <TableCell className="text-muted-foreground">
-                  {formatDate(item.createdAt)}
+                 <TableCell>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-foreground font-medium">
+                      {formatDate(item.createdAt)}
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground" title={item.createdByName || item.createdByEmail || "Sistem"}>
+                      <IconUser className="size-3 shrink-0" />
+                      <span className="truncate max-w-[120px]">
+                        {item.createdByName || item.createdByEmail || "Sistem"}
+                      </span>
+                    </span>
+                  </div>
                 </TableCell>
                 <TableCell className="text-center">
                   <div className="flex items-center justify-center gap-1">

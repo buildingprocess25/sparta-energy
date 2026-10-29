@@ -315,6 +315,7 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
                       equipmentTypeId: type.id,
                       name: bName.trim(),
                       baseKw: bKwsToProcess[i] ?? eq.kw ?? 0,
+                      createdById: userId,
                     },
                   })
                 }

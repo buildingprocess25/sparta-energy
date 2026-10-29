@@ -28,6 +28,8 @@ model User {
   lightCalculatorLogs LightCalculatorLog[]
   mepSimulationLogs   MepSimulationLog[]
   energyAudits        EnergyAudit[]
+  createdEquipmentTypes  EquipmentType[]  @relation("EquipmentTypeCreatedBy")
+  createdEquipmentBrands EquipmentBrand[] @relation("EquipmentBrandCreatedBy")
 
   @@map("users")
 }
@@ -106,6 +108,8 @@ model EquipmentType {
   
   brands      EquipmentBrand[]
   auditItems  AuditItem[]
+  createdById    String?          @map("created_by_id") @db.Uuid
+  createdBy      User?            @relation("EquipmentTypeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("equipment_types")
 }
@@ -124,6 +128,8 @@ model EquipmentBrand {
   
   type            EquipmentType @relation(fields: [equipmentTypeId], references: [id], onDelete: Cascade)
   auditItems      AuditItem[]
+  createdById       String?       @map("created_by_id") @db.Uuid
+  createdBy         User?         @relation("EquipmentBrandCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("equipment_brands")
 }

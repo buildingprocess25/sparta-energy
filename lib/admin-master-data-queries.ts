@@ -92,6 +92,8 @@ export type MasterEquipmentRow = {
   createdAt: string
   calcMethod: string
   calcDuration: number | null
+  createdByName?: string | null
+  createdByEmail?: string | null
 }
 
 export type MasterEquipmentTypeOption = {
@@ -296,6 +298,8 @@ function serializeEquipmentRow(row: RawMasterEquipmentRow): MasterEquipmentRow {
     runningKw: toNumber(row.runningKw),
     createdAt: new Date(row.createdAt).toISOString(),
     calcDuration: row.calcDuration !== null && row.calcDuration !== undefined ? Number(row.calcDuration) : null,
+    createdByName: row.createdByName || null,
+    createdByEmail: row.createdByEmail || null,
   }
 }
 
@@ -463,11 +467,12 @@ function getEquipmentFromSql() {
   return `
     FROM equipment_types et
     INNER JOIN equipment_brands eb ON eb.equipment_type_id = et.id
+    LEFT JOIN users u ON u.id = COALESCE(eb.created_by_id, et.created_by_id)
   `
 }
 
 export async function getMasterDataSummary(): Promise<MasterDataSummary> {
-  const rows = await prisma.$queryRawUnsafe<any[]>(`
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(`
     SELECT
       (SELECT COUNT(*)::int FROM stores s WHERE ${activeStoreWhereSql}) AS total_stores,
       (
@@ -818,7 +823,9 @@ export async function getMasterEquipmentRows({
         eb.nameplate_photo_url AS "nameplatePhotoUrl",
         eb.created_at AS "createdAt",
         et.calc_method AS "calcMethod",
-        et.calc_duration AS "calcDuration"
+        et.calc_duration AS "calcDuration",
+        u.full_name AS "createdByName",
+        u.email AS "createdByEmail"
       ${getEquipmentFromSql()}
       ${whereSql}
       ${orderBySql}
