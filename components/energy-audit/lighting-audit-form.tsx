@@ -54,6 +54,7 @@ import {
   MEASURING_TOOLS,
   formatLuxStandard,
   getCompletionIssues,
+  getLuxLevel,
   getZoneDefinition,
   sanitizeLightingAuditData,
   summarizeLightingAudit,
@@ -61,7 +62,7 @@ import {
   type LightingZoneInput,
   type LightingZoneKey,
   type LpdStatus,
-  type LuxStatus,
+  type LuxLevel,
 } from "@/lib/lighting-audit"
 import {
   PLN_CUSTOMER_ID_MAX_LENGTH,
@@ -111,10 +112,10 @@ const lpdTone: Record<LpdStatus, string> = {
   BELUM_LENGKAP: tone.idle,
 }
 
-const luxTone: Record<LuxStatus, string> = {
-  MEMENUHI: tone.good,
-  KURANG: tone.warn,
-  TERLALU_TERANG: tone.warn,
+const luxTone: Record<LuxLevel, string> = {
+  SESUAI: tone.good,
+  HAMPIR: tone.warn,
+  REDUP: tone.bad,
   BELUM_DIUKUR: tone.idle,
 }
 
@@ -534,7 +535,9 @@ export function LightingAuditForm({
                                 inputMode="numeric"
                                 min={0}
                                 step={1}
-                                value={lamp.qty}
+                                // Empty instead of 0, so typing never leaves a leading zero ("0100").
+                                value={lamp.qty === 0 ? "" : lamp.qty}
+                                placeholder="0"
                                 onChange={(e) =>
                                   updateZone(activeZone, (zone) => ({
                                     ...zone,
@@ -566,7 +569,8 @@ export function LightingAuditForm({
                                 inputMode="decimal"
                                 min={0}
                                 step={0.1}
-                                value={lamp.watt}
+                                value={lamp.watt === 0 ? "" : lamp.watt}
+                                placeholder="0"
                                 onChange={(e) =>
                                   updateZone(activeZone, (zone) => ({
                                     ...zone,
@@ -640,9 +644,7 @@ export function LightingAuditForm({
                       zoneLabel={zoneDefinition.label}
                       rows={zoneSummary.luxRows}
                       subZones={zoneDefinition.subZones}
-                      noteNeededAreas={zoneSummary.lux.areasMissingNote.map(
-                        (area) => area.key
-                      )}
+                      definition={zoneDefinition}
                       photoContext={{
                         sourceAuditId: form.context.sourceAuditId,
                         zone: activeZone,
@@ -756,7 +758,11 @@ export function LightingAuditForm({
                         </span>
                         <StatusBadge
                           label={LUX_STATUS_LABEL[zoneSummary.luxStatus]}
-                          className={luxTone[zoneSummary.luxStatus]}
+                          className={
+                            luxTone[
+                              getLuxLevel(zoneSummary.avgLux, zoneDefinition)
+                            ]
+                          }
                         />
                       </div>
                       {zoneDefinition.subZones && (
@@ -777,7 +783,11 @@ export function LightingAuditForm({
                                 </span>
                                 <StatusBadge
                                   label={LUX_STATUS_LABEL[area.luxStatus]}
-                                  className={luxTone[area.luxStatus]}
+                                  className={
+                                    luxTone[
+                                      getLuxLevel(area.avgLux, zoneDefinition)
+                                    ]
+                                  }
                                 />
                               </span>
                             </li>
@@ -795,7 +805,6 @@ export function LightingAuditForm({
                         {numberFormat.format(Math.round(area.avgLux ?? 0))}{" "}
                         lux), sedangkan rata-rata zona{" "}
                         {LUX_STATUS_LABEL[zoneSummary.luxStatus].toLowerCase()}.
-                        Isi catatan alasannya di baris area ini.
                       </p>
                     ))}
                   </CardContent>
@@ -966,7 +975,14 @@ export function LightingAuditForm({
                           <td className="py-2.5">
                             <StatusBadge
                               label={LUX_STATUS_LABEL[zone.luxStatus]}
-                              className={luxTone[zone.luxStatus]}
+                              className={
+                                luxTone[
+                                  getLuxLevel(
+                                    zone.avgLux,
+                                    getZoneDefinition(zone.key)
+                                  )
+                                ]
+                              }
                             />
                             {zone.lux.unevenAreas.length > 0 && (
                               <p className="mt-1 text-xs text-muted-foreground">

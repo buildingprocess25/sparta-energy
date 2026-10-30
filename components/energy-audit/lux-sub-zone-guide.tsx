@@ -8,10 +8,10 @@ import {
 import {
   LUX_AREAS,
   averageLux,
-  getLuxStatus,
+  getLuxLevel,
   type LightingLuxRow,
   type LightingZoneDefinition,
-  type LuxStatus,
+  type LuxLevel,
   type LuxSubZone,
 } from "@/lib/lighting-audit"
 import { cn } from "@/lib/utils"
@@ -20,13 +20,13 @@ const numberFormat = new Intl.NumberFormat("id-ID", {
   maximumFractionDigits: 0,
 })
 
-const cellTone: Record<LuxStatus, string> = {
-  MEMENUHI:
+const cellTone: Record<LuxLevel, string> = {
+  SESUAI:
     "border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200",
-  KURANG:
+  HAMPIR:
     "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200",
-  TERLALU_TERANG:
-    "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200",
+  REDUP:
+    "border-red-300 bg-red-100 text-red-900 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-200",
   BELUM_DIUKUR: "border-dashed text-muted-foreground",
 }
 
@@ -69,13 +69,13 @@ export function LuxSubZoneGuide({
               {[1, 2, 3].map((position) => {
                 const subZone = `${area.key}${position}` as LuxSubZone
                 const avg = cellAverage(subZone)
-                const status = getLuxStatus(avg, definition)
+                const level = getLuxLevel(avg, definition)
                 return (
                   <div
                     key={subZone}
                     className={cn(
                       "flex min-h-12 flex-col items-center justify-center rounded-lg border text-xs tabular-nums",
-                      cellTone[status]
+                      cellTone[level]
                     )}
                   >
                     <span className="font-semibold">{subZone}</span>
@@ -101,8 +101,7 @@ export function LuxSubZoneGuide({
           </li>
           <li>
             Rata-rata zona diambil dari rata-rata Depan, Tengah, dan Belakang.
-            Kalau satu area statusnya berbeda dari rata-rata zona, isi catatan
-            alasannya di baris area itu.
+            Titik merah berarti redup. Isi alasannya di catatan titik itu.
           </li>
         </ul>
       </CardContent>

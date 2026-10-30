@@ -19,6 +19,7 @@ import {
   MAX_PHOTOS_PER_LUX_ROW,
   type LightingLuxPhoto,
 } from "@/lib/lighting-audit"
+import { cn } from "@/lib/utils"
 
 const PHOTO_ROUTE = "/api/energy-audit/photos"
 const MAX_SIDE_PX = 1600
@@ -38,11 +39,12 @@ type AuditPhotosProps = {
   pointCode: string
   zoneLabel: string
   photos: LightingLuxPhoto[]
-  // The point has a lux value but no photo yet
-  missing: boolean
+  // Marks the button red when a photo is still owed; leave off where the form lists it on completion
+  missing?: boolean
   onChange: (photos: LightingLuxPhoto[]) => void
   // What one photo set belongs to, for the limit note: "titik", "unit" or "ruangan".
   perLabel?: string
+  className?: string
 }
 
 function photoUrl(photo: LightingLuxPhoto) {
@@ -87,6 +89,7 @@ export function AuditPhotos({
   missing,
   onChange,
   perLabel = "titik",
+  className,
 }: AuditPhotosProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -154,7 +157,7 @@ export function AuditPhotos({
       <Button
         type="button"
         variant="outline"
-        className="h-11"
+        className={cn("h-11", className)}
         aria-label={`Foto ${pointLabel} ${zoneLabel}, ${photos.length} foto`}
         aria-invalid={missing || undefined}
         onClick={() => setOpen(true)}

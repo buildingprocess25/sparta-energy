@@ -1728,9 +1728,9 @@
     "semantic_hash": ""
   },
   "AI_CONTEXT.md": {
-    "mtime": 1793342431.3141825,
-    "seen": 1793342543.5074418,
-    "ast_hash": "c810a73aff21f164f25e10c2c440c160",
+    "mtime": 1793343976.952163,
+    "seen": 1793344130.2537053,
+    "ast_hash": "5eae5e6c8e8be89c7cd23c1cc8d6fffc",
     "semantic_hash": ""
   },
   "ARCHITECTURE_PLAN.md": {
@@ -2172,9 +2172,9 @@
     "semantic_hash": ""
   },
   "components/energy-audit/lighting-audit-form.tsx": {
-    "mtime": 1793342225.000098,
-    "seen": 1793342543.472534,
-    "ast_hash": "475c3fc8c128809742669f86dcaeec0e",
+    "mtime": 1793344845.1570177,
+    "seen": 1793344985.4291103,
+    "ast_hash": "ea3063f23a659a4f86d36cf8082f7c1b",
     "semantic_hash": ""
   },
   "lib/energy-audit-categories.ts": {
@@ -2196,15 +2196,15 @@
     "semantic_hash": ""
   },
   "lib/lighting-audit.test.ts": {
-    "mtime": 1793325421.2175188,
-    "seen": 1793325973.937729,
-    "ast_hash": "fa6ee3d341d7af95e1b49b36bd896451",
+    "mtime": 1793343853.4392722,
+    "seen": 1793344130.2391362,
+    "ast_hash": "d0670264308b9f720f571f117f1837b9",
     "semantic_hash": ""
   },
   "lib/lighting-audit.ts": {
-    "mtime": 1793342224.9990895,
-    "seen": 1793342543.494934,
-    "ast_hash": "d56e00612102f7532d51000f07b2ec65",
+    "mtime": 1793343853.4382713,
+    "seen": 1793344130.2391362,
+    "ast_hash": "766a7e5150e49cee36ec7b300dec6136",
     "semantic_hash": ""
   },
   "lib/energy-audit-export.ts": {
@@ -2292,15 +2292,15 @@
     "semantic_hash": ""
   },
   "components/energy-audit/lux-measurement-table.tsx": {
-    "mtime": 1793325421.1770082,
-    "seen": 1793325973.921729,
-    "ast_hash": "e74da1c706e9034f968fc920bacea96d",
+    "mtime": 1793344357.3957603,
+    "seen": 1793344500.3057966,
+    "ast_hash": "a8dc971abeff99e0fa504a09d1bc28ce",
     "semantic_hash": ""
   },
   "components/energy-audit/lux-sub-zone-guide.tsx": {
-    "mtime": 1793075185.4856577,
-    "seen": 1793076355.366835,
-    "ast_hash": "7c490507e114a1977ec25d58f5b5f3ff",
+    "mtime": 1793345035.312109,
+    "seen": 1793345162.764752,
+    "ast_hash": "ce50b47ee76414e355146208b290fb2b",
     "semantic_hash": ""
   },
   "components/audit-validation/add-equipment-dialog.tsx": {
@@ -2556,9 +2556,9 @@
     "semantic_hash": ""
   },
   "components/energy-audit/audit-photos.tsx": {
-    "mtime": 1793325421.1710029,
-    "seen": 1793325973.921729,
-    "ast_hash": "ce6b0869555ebb3026edd134bc11b613",
+    "mtime": 1793343897.227643,
+    "seen": 1793344130.2130926,
+    "ast_hash": "8b624672d42dcadbfc54717319c65b1d",
     "semantic_hash": ""
   },
   "components/energy-audit/photo-row.tsx": {

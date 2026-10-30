@@ -3,6 +3,8 @@ import assert from "node:assert/strict"
 import {
   createEmptyLightingAudit,
   getCompletionIssues,
+  getDimLuxLimit,
+  getLuxLevel,
   getLpdStatus,
   getLuxStatus,
   getZoneDefinition,
@@ -85,6 +87,20 @@ assert.equal(getLuxStatus(null, sales), "BELUM_DIUKUR")
 
 assert.equal(getCompletionIssues(data).length, 0)
 assert.equal(getCompletionIssues(createEmptyLightingAudit()).length, 12)
+
+// A dim point blocks completion until it has a note.
+const withDimSales = (note: string): LightingAuditData => ({
+  ...data,
+  zones: data.zones.map((z) =>
+    z.key === "SALES"
+      ? { ...z, luxRows: [{ ...z.luxRows[0], lux: 120, note }] }
+      : z
+  ),
+})
+assert.deepEqual(getCompletionIssues(withDimSales("")), [
+  "Titik B2 di Area Sales di bawah 240 lux. Isi alasannya di catatan titik itu.",
+])
+assert.equal(getCompletionIssues(withDimSales("Lampu mati")).length, 0)
 
 // A measured point needs at least one photo; toilet points are named by number.
 const withoutPhotos: LightingAuditData = {
@@ -169,20 +185,33 @@ assert.deepEqual(
   uneven.unevenAreas.map((a) => a.key),
   ["A", "C"]
 )
+// Area Sales: amber from 240 to 299 lux, red below 240, green from 300 up (too bright included).
+assert.equal(getDimLuxLimit(sales), 240)
+assert.equal(getLuxLevel(null, sales), "BELUM_DIUKUR")
+assert.equal(getLuxLevel(239, sales), "REDUP")
+assert.equal(getLuxLevel(240, sales), "HAMPIR")
+assert.equal(getLuxLevel(299, sales), "HAMPIR")
+assert.equal(getLuxLevel(300, sales), "SESUAI")
+assert.equal(getLuxLevel(800, sales), "SESUAI")
+
+// Only the red point asks for a note; amber, green and too bright points do not.
 assert.deepEqual(
-  uneven.areasMissingNote.map((a) => a.key),
-  ["A", "C"]
+  uneven.dimPointsMissingNote.map((p) => p.point),
+  ["C1"]
 )
 
 const explained = summarizeLux(
-  [
-    row("A1", 600, "Tidak ada rak"),
-    row("B1", 400),
-    row("C1", 150, "Lampu mati 2"),
-  ],
+  [row("A1", 600), row("B1", 400), row("C1", 150, "Lampu mati 2")],
   sales
 )
-assert.equal(explained.areasMissingNote.length, 0)
+assert.equal(explained.dimPointsMissingNote.length, 0)
+
+// Rows without a sub zona are named by their position.
+const unnamed = summarizeLux([row(null, 400), row(null, 120)], sales)
+assert.deepEqual(
+  unnamed.dimPointsMissingNote.map((p) => p.point),
+  ["2"]
+)
 
 // Version 1 drafts: plain luxPoints become rows without a sub zona.
 const legacy = sanitizeLightingAuditData({

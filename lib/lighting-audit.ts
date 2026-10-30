@@ -260,6 +260,33 @@ export function getLuxStatus(
   return "MEMENUHI"
 }
 
+// Field color for a lux reading: green from the minimum up, amber just below it,
+// red once it drops past the near band. Too bright still counts as green.
+export const LUX_NEAR_RATIO = 0.8
+
+export type LuxLevel = "SESUAI" | "HAMPIR" | "REDUP" | "BELUM_DIUKUR"
+
+export function getDimLuxLimit(zone: LightingZoneDefinition) {
+  return Math.round(zone.luxMin * LUX_NEAR_RATIO)
+}
+
+export function getLuxLevel(
+  lux: number | null,
+  zone: LightingZoneDefinition
+): LuxLevel {
+  if (lux === null) return "BELUM_DIUKUR"
+  if (lux < getDimLuxLimit(zone)) return "REDUP"
+  if (lux < zone.luxMin) return "HAMPIR"
+  return "SESUAI"
+}
+
+export function isDimLuxPoint(
+  lux: number | null,
+  zone: LightingZoneDefinition
+) {
+  return getLuxLevel(lux, zone) === "REDUP"
+}
+
 export function formatLuxStandard(zone: LightingZoneDefinition) {
   const base = `${zone.luxMin} sampai ${zone.luxMax} lux`
   return zone.luxAccent ? `${base} (aksen ${zone.luxAccent})` : base
@@ -310,11 +337,11 @@ export function summarizeLux(
       : areas.filter(
           (area) => area.avgLux !== null && area.luxStatus !== luxStatus
         )
-  const areasMissingNote = unevenAreas.filter(
-    (area) =>
-      !rows.some(
-        (row) => getLuxArea(row.subZone) === area.key && row.note.trim() !== ""
-      )
+  // Only dim points need a reason; normal or too-bright points stay quick to fill.
+  const dimPointsMissingNote = rows.flatMap((row, index) =>
+    isDimLuxPoint(row.lux, definition) && row.note.trim() === ""
+      ? [{ id: row.id, point: row.subZone ?? String(index + 1) }]
+      : []
   )
 
   return {
@@ -325,7 +352,7 @@ export function summarizeLux(
     avgLux,
     luxStatus,
     unevenAreas,
-    areasMissingNote,
+    dimPointsMissingNote,
   }
 }
 
@@ -584,9 +611,9 @@ export function getCompletionIssues(data: LightingAuditData) {
     if (unphotographed.length > 0) {
       issues.push(`Tambah foto untuk ${unphotographed.join(", ")} di ${label}.`)
     }
-    for (const area of lux.areasMissingNote) {
+    for (const { point } of lux.dimPointsMissingNote) {
       issues.push(
-        `Tingkat terang area ${area.label} di ${label} berbeda dari rata-rata zona. Isi catatan di salah satu titik area itu.`
+        `Titik ${point} di ${label} di bawah ${getDimLuxLimit(definition)} lux. Isi alasannya di catatan titik itu.`
       )
     }
   }
