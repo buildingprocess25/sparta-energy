@@ -30,6 +30,7 @@ export type AdminStoreDetailInput = {
     energyAudits?: Array<{
       category: EnergyAuditCategory
       status: EnergyAuditStatus
+      summaryStatus?: string | null
     }>
     totalEstimatedKwhPerMonth: number | string | { toString(): string } | null
     avgActualPlnKwhPerMonth:
@@ -334,7 +335,7 @@ export async function getAdminStoreDetail(storeId: string) {
           isBoros: true,
           validationStatus: true,
           energyAudits: {
-            select: { category: true, status: true },
+            select: { category: true, status: true, summaryStatus: true },
           },
           totalEstimatedKwhPerMonth: true,
           avgActualPlnKwhPerMonth: true,

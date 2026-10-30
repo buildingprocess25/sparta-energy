@@ -12,6 +12,7 @@ import {
 } from "@tabler/icons-react"
 import type { EnergyAuditCategory } from "@prisma/client"
 
+import { CategorySummary } from "@/components/energy-audit/category-summary"
 import { AuditStatusBadge } from "@/components/energy-audit/audit-status-badge"
 import { formatGap } from "@/components/audit-validation/format"
 import { ResultStatusBadge } from "@/components/audit-validation/result-status-badge"
@@ -51,7 +52,7 @@ export default async function EnergyAuditStorePage({ params }: Props) {
   ).length
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-4xl flex-col bg-background px-4 md:px-6 pb-16">
+    <div className="mx-auto flex min-h-svh w-full max-w-md flex-col bg-background px-4 pb-16 md:max-w-4xl md:px-6">
       <Header
         variant="dashboard-back"
         title="Pemeriksaan Energi per Kategori"
@@ -80,14 +81,18 @@ export default async function EnergyAuditStorePage({ params }: Props) {
             )}
           </p>
           <p className="text-xs text-muted-foreground">
-            {store.store.address || "Alamat belum diisi. Bisa diisi di form pemeriksaan."}
+            {store.store.address ||
+              "Alamat belum diisi. Bisa diisi di form pemeriksaan."}
           </p>
           <p className="pt-1 text-xs font-medium tabular-nums">
             {doneCount} dari {ENERGY_AUDIT_CATEGORIES.length} kategori selesai
           </p>
         </section>
 
-        <section aria-label="Kategori pemeriksaan" className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <section
+          aria-label="Kategori pemeriksaan"
+          className="grid grid-cols-1 gap-3 md:grid-cols-2"
+        >
           {ENERGY_AUDIT_CATEGORIES.map((category) => {
             const Icon = categoryIcons[category.key]
             const status = store.statusByCategory[category.key]?.status ?? null
@@ -104,13 +109,25 @@ export default async function EnergyAuditStorePage({ params }: Props) {
                   <Icon aria-hidden="true" className="size-6" />
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="text-sm font-semibold">{category.label}</span>
+                  <span className="text-sm font-semibold">
+                    {category.label}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     {category.description}
                   </span>
-                  <span className="pt-1">
+                  <span className="flex flex-wrap gap-1.5 pt-1">
                     {category.available ? (
-                      <AuditStatusBadge status={status} />
+                      <>
+                        <AuditStatusBadge status={status} />
+                        <CategorySummary
+                          category={category.key}
+                          status={status}
+                          summaryStatus={
+                            store.statusByCategory[category.key]
+                              ?.summaryStatus ?? null
+                          }
+                        />
+                      </>
                     ) : (
                       <Badge variant="secondary">Segera hadir</Badge>
                     )}

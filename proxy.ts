@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { resolveSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { DEV_ROLE_COOKIE, getHomeUrl, resolveRole } from "@/lib/role-access"
+import { deleteSessionsByToken } from "@/lib/session-resolver"
 import {
   clearSessionCookieHeaders,
+  readSsoSessionToken,
   sessionTokensFromCookieHeader,
   ssoSessionCookie,
 } from "@/lib/sso-cookie"
@@ -21,46 +23,28 @@ const publicPrefixes = [
   "/demo",
   "/manifest.json",
   "/sw.js",
-  "/workbox-"
+  "/workbox-",
 ]
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Intercept /api/auth/get-session for client-side useSession() fallback
+  // Client useSession(): answer from sso_session only when better-auth has no session,
+  // the same order the server uses, so browser and server see the same user.
   if (pathname === "/api/auth/get-session") {
-    const cookieHeader = request.headers.get("cookie") || ""
-    const hasSsoCookie = cookieHeader.includes("sso_session=")
-    if (hasSsoCookie) {
-      const ssoMatch = cookieHeader.match(/sso_session=([^;]+)/)
-      if (ssoMatch) {
-        const ssoToken = ssoMatch[1]
-        const dbSession = await prisma.session.findUnique({
-          where: { token: ssoToken },
-          include: { user: true }
-        })
-        if (dbSession && dbSession.expiresAt > new Date()) {
-          console.log("[Proxy] Intercepted get-session and returning sso_session from DB")
-          return NextResponse.json({
-            session: dbSession,
-            user: dbSession.user
-          })
-        }
-      }
+    if (readSsoSessionToken(request.headers.get("cookie") || "")) {
+      const resolved = await resolveSession(request.headers)
+      if (resolved?.source === "sso") return NextResponse.json(resolved.data)
     }
   }
   // Intercept /api/auth/sign-out to clear the fallback sso_session cookie
   if (pathname === "/api/auth/sign-out") {
-    console.log("[Proxy] Hit /api/auth/sign-out")
     const cookieHeader = request.headers.get("cookie") || ""
     // The browser can hold an sso_session and a better-auth cookie from different logins; end both.
     const sessionTokens = sessionTokensFromCookieHeader(cookieHeader)
-    if (cookieHeader.includes("sso_session=")) {
+    if (readSsoSessionToken(cookieHeader)) {
       try {
-        await prisma.session.deleteMany({
-          where: { token: { in: sessionTokens } }
-        })
-        console.log("[Proxy] Deleted sessions from DB on sign-out:", sessionTokens.length)
+        await deleteSessionsByToken(sessionTokens)
       } catch (e) {
         console.error("[Proxy] Failed to delete sessions:", e)
       }
@@ -70,10 +54,12 @@ export async function proxy(request: NextRequest) {
       for (const header of clearSessionCookieHeaders()) {
         response.headers.append("Set-Cookie", header)
       }
-      response.headers.append("Set-Cookie", `${DEV_ROLE_COOKIE}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`)
+      response.headers.append(
+        "Set-Cookie",
+        `${DEV_ROLE_COOKIE}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
+      )
       return response
     } else {
-      console.log("[Proxy] No sso_session cookie found during sign-out")
       const response = NextResponse.next()
       response.cookies.set(DEV_ROLE_COOKIE, "", { path: "/", maxAge: 0 })
       return response
@@ -91,34 +77,11 @@ export async function proxy(request: NextRequest) {
 
   // Resolve session once per request and branch by route intent.
   const cookieHeader = request.headers.get("cookie") || ""
-  const hasSessionCookie = cookieHeader.includes("better-auth.session_token")
-  console.log(`[Proxy] ${pathname} - hasCookie:${hasSessionCookie}`)
 
-  const hasSsoCookie = cookieHeader.includes("sso_session=")
-
-  const betterAuthSession = await auth.api.getSession({
-    headers: request.headers,
-  })
-
-  let userId = betterAuthSession?.user?.id
-
-  // If better-auth fails but we have sso_session, look it up in DB
-  if (!userId && hasSsoCookie) {
-    const ssoMatch = cookieHeader.match(/sso_session=([^;]+)/)
-    if (ssoMatch) {
-      const ssoToken = ssoMatch[1]
-      const dbSession = await prisma.session.findUnique({
-        where: { token: ssoToken },
-        select: { userId: true, expiresAt: true }
-      })
-      if (dbSession && dbSession.expiresAt > new Date()) {
-        userId = dbSession.userId
-      }
-    }
-  }
-
+  // better-auth first, then sso_session (lib/auth.ts resolveSession).
+  const resolved = await resolveSession(request.headers)
+  const userId = resolved?.data.user.id
   const isLoggedIn = Boolean(userId)
-  console.log(`[Proxy] ${pathname} - isLoggedIn:${isLoggedIn}, secret:${process.env.BETTER_AUTH_SECRET ? 'present' : 'MISSING'}`)
 
   const isGuestOnlyRoute = guestOnlyRoutes.has(pathname)
 
@@ -139,9 +102,8 @@ export async function proxy(request: NextRequest) {
         : NextResponse.next()
     // The portal only reads sso_session, so keep it on the session sparta resolved; otherwise
     // a stale cookie from an earlier login shows the portal a different user.
-    const session = betterAuthSession?.session
-    const ssoToken = cookieHeader.match(/sso_session=([^;]+)/)?.[1]
-    if (session && session.token !== ssoToken) {
+    const session = resolved?.data.session
+    if (session && session.token !== readSsoSessionToken(cookieHeader)) {
       response.cookies.set(
         ssoSessionCookie(session.token, new Date(session.expiresAt))
       )

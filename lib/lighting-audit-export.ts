@@ -1,5 +1,12 @@
 import * as XLSX from "xlsx"
 
+import {
+  appendSheet,
+  toBuffer,
+  type Cell,
+  type SheetData,
+} from "@/lib/xlsx-sheet"
+
 import type { getLightingAuditsForExport } from "@/lib/energy-audit-queries"
 import {
   LIGHTING_STANDARD_NOTE,
@@ -13,8 +20,9 @@ import {
   summarizeLightingAudit,
 } from "@/lib/lighting-audit"
 
-type ExportAudit = Awaited<ReturnType<typeof getLightingAuditsForExport>>[number]
-export type Cell = string | number | Date | null
+type ExportAudit = Awaited<
+  ReturnType<typeof getLightingAuditsForExport>
+>[number]
 
 const STATUS_LABEL = { DRAFT: "Draf", COMPLETED: "Selesai" } as const
 const lpdStandard = `${LPD_MIN} - ${LPD_MAX} W/m2`
@@ -25,35 +33,10 @@ function round(value: number | null, digits = 2) {
   return Math.round(value * factor) / factor
 }
 
-function fitColumns(rows: Cell[][]) {
-  const widths: number[] = []
-  for (const row of rows.slice(0, 300)) {
-    row.forEach((cell, index) => {
-      const length = cell instanceof Date ? 12 : cell === null ? 0 : String(cell).length
-      widths[index] = Math.max(widths[index] ?? 10, Math.min(length + 2, 60))
-    })
-  }
-  return widths.map((wch) => ({ wch }))
-}
-
-export function appendSheet(workbook: XLSX.WorkBook, name: string, rows: Cell[][]) {
-  const sheet = XLSX.utils.aoa_to_sheet(rows, { cellDates: true })
-  sheet["!cols"] = fitColumns(rows)
-  rows.forEach((row, r) =>
-    row.forEach((cell, c) => {
-      const target = sheet[XLSX.utils.encode_cell({ r, c })]
-      if (cell instanceof Date && target) target.z = "dd mmm yyyy"
-    })
-  )
-  XLSX.utils.book_append_sheet(workbook, sheet, name)
-}
-
-export function toBuffer(workbook: XLSX.WorkBook) {
-  return XLSX.write(workbook, { bookType: "xlsx", cellDates: true, type: "buffer" }) as Buffer
-}
-
 function lampTypes(lamps: { type: string }[]) {
-  return Array.from(new Set(lamps.map((lamp) => lamp.type).filter(Boolean))).join(", ")
+  return Array.from(
+    new Set(lamps.map((lamp) => lamp.type).filter(Boolean))
+  ).join(", ")
 }
 
 export function buildLightingAuditWorkbook(audit: ExportAudit) {
@@ -79,15 +62,42 @@ export function buildLightingAuditWorkbook(audit: ExportAudit) {
   // Laid out like the "Formulir Audit Sistem Tata Cahaya" sheet.
   appendSheet(workbook, "Ringkasan", [
     ["FORMULIR PEMERIKSAAN SISTEM TATA CAHAYA - FASILITAS RETAIL"],
-    [`Evaluasi kinerja efisiensi energi berdasarkan standar LPD (${LPD_MIN} - ${LPD_MAX} W/m2) & tingkat iluminasi SNI 6197`],
+    [
+      `Evaluasi kinerja efisiensi energi berdasarkan standar LPD (${LPD_MIN} - ${LPD_MAX} W/m2) & tingkat iluminasi SNI 6197`,
+    ],
     [],
-    ["Nama/Kode Toko", `${audit.store.name} (${audit.store.code})`, "Pemeriksa", audit.auditor],
-    ["Cabang", audit.store.branch ?? "-", "Status Pemeriksaan", STATUS_LABEL[audit.status]],
-    ["Alamat", audit.data.address || audit.store.address || "-", "Alat Ukur", audit.data.measuringTools.join(", ") || "-"],
-    ["Tanggal Pemeriksaan", audit.auditDate, "Standar Acuan", LIGHTING_STANDARD_NOTE],
+    [
+      "Nama/Kode Toko",
+      `${audit.store.name} (${audit.store.code})`,
+      "Pemeriksa",
+      audit.auditor,
+    ],
+    [
+      "Cabang",
+      audit.store.branch ?? "-",
+      "Status Pemeriksaan",
+      STATUS_LABEL[audit.status],
+    ],
+    [
+      "Alamat",
+      audit.data.address || audit.store.address || "-",
+      "Alat Ukur",
+      audit.data.measuringTools.join(", ") || "-",
+    ],
+    [
+      "Tanggal Pemeriksaan",
+      audit.auditDate,
+      "Standar Acuan",
+      LIGHTING_STANDARD_NOTE,
+    ],
     ["Catatan", audit.data.notes || "-"],
     [],
-    ["TOTAL LUAS AREA DIPERIKSA (m2)", "TOTAL DAYA LAMPU (kW)", "LPD RATA-RATA GEDUNG (W/m2)", "STATUS KEPATUHAN LPD"],
+    [
+      "TOTAL LUAS AREA DIPERIKSA (m2)",
+      "TOTAL DAYA LAMPU (kW)",
+      "LPD RATA-RATA GEDUNG (W/m2)",
+      "STATUS KEPATUHAN LPD",
+    ],
     [
       round(summary.totalArea),
       round(summary.totalWatt / 1000),
@@ -185,7 +195,14 @@ export function buildLightingAuditWorkbook(audit: ExportAudit) {
   ])
 
   appendSheet(workbook, "Lux per Area", [
-    ["Zona", "Area", "Jumlah Titik", "Rata-rata Lux", "Status", "Berbeda dari Rata-rata Zona"],
+    [
+      "Zona",
+      "Area",
+      "Jumlah Titik",
+      "Rata-rata Lux",
+      "Status",
+      "Berbeda dari Rata-rata Zona",
+    ],
     ...summary.zones
       .filter((zone) => zone.definition.subZones)
       .flatMap((zone) =>
@@ -195,7 +212,9 @@ export function buildLightingAuditWorkbook(audit: ExportAudit) {
           area.count,
           round(area.avgLux, 0),
           LUX_STATUS_LABEL[area.luxStatus],
-          zone.lux.unevenAreas.some((item) => item.key === area.key) ? "Ya" : "Tidak",
+          zone.lux.unevenAreas.some((item) => item.key === area.key)
+            ? "Ya"
+            : "Tidak",
         ])
       ),
   ])
@@ -203,87 +222,99 @@ export function buildLightingAuditWorkbook(audit: ExportAudit) {
   return toBuffer(workbook)
 }
 
-// Adds the Tata Cahaya sheets to a shared recap workbook.
-export function appendLightingRecapSheets(workbook: XLSX.WorkBook, audits: ExportAudit[]) {
-  const summaries = audits.map((audit) => ({ audit, summary: summarizeLightingAudit(audit.data) }))
+// Tata Cahaya sheets of the multi-store recap.
+export function lightingRecapSheets(audits: ExportAudit[]): SheetData[] {
+  const summaries = audits.map((audit) => ({
+    audit,
+    summary: summarizeLightingAudit(audit.data),
+  }))
 
-  appendSheet(workbook, "Tata Cahaya - Rekap", [
-    [
-      "Kode Toko",
-      "Nama Toko",
-      "Cabang",
-      "Alamat",
-      "Status Pemeriksaan",
-      "Tanggal Pemeriksaan",
-      "Tanggal Selesai",
-      "Pemeriksa",
-      "Total Luas (m2)",
-      "Total Daya (W)",
-      "LPD Gedung (W/m2)",
-      "Status LPD Gedung",
-      "Rata-rata Lux",
-      "Zona di Luar Standar LPD",
-      "Zona Lux Tidak Memenuhi",
-      "Zona Paling Boros",
-      "LPD Zona Paling Boros (W/m2)",
-    ],
-    ...summaries.map(({ audit, summary }): Cell[] => [
-      audit.store.code,
-      audit.store.name,
-      audit.store.branch,
-      audit.data.address || audit.store.address,
-      STATUS_LABEL[audit.status],
-      audit.auditDate,
-      audit.completedAt,
-      audit.auditor,
-      round(summary.totalArea),
-      round(summary.totalWatt),
-      round(summary.buildingLpd),
-      LPD_STATUS_LABEL[summary.buildingStatus],
-      round(summary.buildingAvgLux, 0),
-      summary.zonesOutsideLpdCount,
-      summary.zonesLuxNotMetCount,
-      summary.worstZone?.definition.label ?? null,
-      round(summary.worstZone?.lpd ?? null),
-    ]),
-  ])
-
-  appendSheet(workbook, "Tata Cahaya - Zona", [
-    [
-      "Kode Toko",
-      "Nama Toko",
-      "Cabang",
-      "Status Pemeriksaan",
-      "Zona",
-      "Luas (m2)",
-      "Jumlah Lampu",
-      "Total Daya (W)",
-      "LPD (W/m2)",
-      "Status LPD",
-      "Rata-rata Lux",
-      "Status Lux",
-      "Area Tidak Merata",
-      "Peluang Efisiensi",
-    ],
-    ...summaries.flatMap(({ audit, summary }) =>
-      summary.zones.map((zone): Cell[] => [
-        audit.store.code,
-        audit.store.name,
-        audit.store.branch,
-        STATUS_LABEL[audit.status],
-        zone.definition.label,
-        round(zone.areaM2),
-        zone.lampCount,
-        round(zone.totalWatt),
-        round(zone.lpd),
-        LPD_STATUS_LABEL[zone.lpdStatus],
-        round(zone.avgLux, 0),
-        LUX_STATUS_LABEL[zone.luxStatus],
-        zone.lux.unevenAreas
-          .map((area) => `${area.label} (${LUX_STATUS_LABEL[area.luxStatus]})`)
-          .join("; ") || null,
-        [...zone.eco, ...(zone.ecoNote ? [zone.ecoNote] : [])].join("; "),
-      ])
-    ),
-  ])
+  return [
+    {
+      name: "Tata Cahaya - Rekap",
+      rows: [
+        [
+          "Kode Toko",
+          "Nama Toko",
+          "Cabang",
+          "Alamat",
+          "Status Pemeriksaan",
+          "Tanggal Pemeriksaan",
+          "Tanggal Selesai",
+          "Pemeriksa",
+          "Total Luas (m2)",
+          "Total Daya (W)",
+          "LPD Gedung (W/m2)",
+          "Status LPD Gedung",
+          "Rata-rata Lux",
+          "Zona di Luar Standar LPD",
+          "Zona Lux Tidak Memenuhi",
+          "Zona Paling Boros",
+          "LPD Zona Paling Boros (W/m2)",
+        ],
+        ...summaries.map(({ audit, summary }): Cell[] => [
+          audit.store.code,
+          audit.store.name,
+          audit.store.branch,
+          audit.data.address || audit.store.address,
+          STATUS_LABEL[audit.status],
+          audit.auditDate,
+          audit.completedAt,
+          audit.auditor,
+          round(summary.totalArea),
+          round(summary.totalWatt),
+          round(summary.buildingLpd),
+          LPD_STATUS_LABEL[summary.buildingStatus],
+          round(summary.buildingAvgLux, 0),
+          summary.zonesOutsideLpdCount,
+          summary.zonesLuxNotMetCount,
+          summary.worstZone?.definition.label ?? null,
+          round(summary.worstZone?.lpd ?? null),
+        ]),
+      ],
+    },
+    {
+      name: "Tata Cahaya - Zona",
+      rows: [
+        [
+          "Kode Toko",
+          "Nama Toko",
+          "Cabang",
+          "Status Pemeriksaan",
+          "Zona",
+          "Luas (m2)",
+          "Jumlah Lampu",
+          "Total Daya (W)",
+          "LPD (W/m2)",
+          "Status LPD",
+          "Rata-rata Lux",
+          "Status Lux",
+          "Area Tidak Merata",
+          "Peluang Efisiensi",
+        ],
+        ...summaries.flatMap(({ audit, summary }) =>
+          summary.zones.map((zone): Cell[] => [
+            audit.store.code,
+            audit.store.name,
+            audit.store.branch,
+            STATUS_LABEL[audit.status],
+            zone.definition.label,
+            round(zone.areaM2),
+            zone.lampCount,
+            round(zone.totalWatt),
+            round(zone.lpd),
+            LPD_STATUS_LABEL[zone.lpdStatus],
+            round(zone.avgLux, 0),
+            LUX_STATUS_LABEL[zone.luxStatus],
+            zone.lux.unevenAreas
+              .map(
+                (area) => `${area.label} (${LUX_STATUS_LABEL[area.luxStatus]})`
+              )
+              .join("; ") || null,
+            [...zone.eco, ...(zone.ecoNote ? [zone.ecoNote] : [])].join("; "),
+          ])
+        ),
+      ],
+    },
+  ]
 }

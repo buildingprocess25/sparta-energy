@@ -4,6 +4,8 @@ import {
   clearBetterAuthCookieHeaders,
   clearCookieHeaders,
   clearSessionCookieHeaders,
+  cookieHeaderFrom,
+  readSsoSessionToken,
   sessionTokensFromCookieHeader,
   ssoSessionCookie,
 } from "./sso-cookie"
@@ -60,5 +62,22 @@ assert.equal(clearSessionCookieHeaders().length, 3)
 
 env.NODE_ENV = originalNodeEnv
 env.SSO_COOKIE_DOMAIN = originalDomain
+
+// One reader for sso_session everywhere: exact name, decoded value, first cookie wins.
+assert.equal(
+  readSsoSessionToken("theme=dark; sso_session=abc; sso_session=def"),
+  "abc"
+)
+assert.equal(readSsoSessionToken("xsso_session=nope; theme=dark"), null)
+assert.equal(readSsoSessionToken("sso_session="), null)
+assert.equal(readSsoSessionToken("sso_session=a%2Bb"), "a+b")
+
+assert.equal(
+  cookieHeaderFrom(new Headers({ cookie: "sso_session=abc" })),
+  "sso_session=abc"
+)
+assert.equal(cookieHeaderFrom({ cookie: "sso_session=abc" }), "sso_session=abc")
+assert.equal(cookieHeaderFrom(undefined), "")
+assert.equal(cookieHeaderFrom({ cookie: 42 }), "")
 
 console.log("sso-cookie tests passed")

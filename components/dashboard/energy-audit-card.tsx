@@ -26,7 +26,7 @@ function EnergyAuditCard({ readyCount }: EnergyAuditCardProps) {
         <CardDescription>
           {readyCount > 0
             ? "Pemeriksaan langsung di toko boros yang sudah divalidasi."
-            : "Belum ada toko boros tervalidasi yang menunggu pemeriksaan tata cahaya."}
+            : "Belum ada toko boros tervalidasi yang menunggu pemeriksaan."}
         </CardDescription>
         {readyCount > 0 && (
           <CardAction>
