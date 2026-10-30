@@ -1,4 +1,4 @@
-import type { EnergyAuditCategory } from "@prisma/client"
+import type { EnergyAuditCategory, EnergyAuditStatus } from "@prisma/client"
 
 export type EnergyAuditCategoryInfo = {
   key: EnergyAuditCategory
@@ -22,7 +22,7 @@ export const ENERGY_AUDIT_CATEGORIES: EnergyAuditCategoryInfo[] = [
     slug: "tata-udara",
     label: "Sistem Tata Udara & Ventilasi",
     description: "Kecukupan AC, suhu ruang, filter, dan exhaust fan.",
-    available: false,
+    available: true,
   },
   {
     key: "REFRIGERASI",
@@ -60,3 +60,34 @@ export const ENERGY_AUDIT_CATEGORIES: EnergyAuditCategoryInfo[] = [
     available: false,
   },
 ]
+
+// Categories whose form is live; lists, counts and exports follow this, so opening a
+// category is a one-line change above.
+export const AVAILABLE_ENERGY_AUDIT_CATEGORIES = ENERGY_AUDIT_CATEGORIES.filter(
+  (category) => category.available
+)
+
+export type EnergyAuditCategoryProgress = {
+  key: EnergyAuditCategory
+  label: string
+  status: EnergyAuditStatus | null
+  summaryStatus: string | null
+}
+
+// Per-category status as the list query returns it (jsonb keyed by category).
+export type CategoryStatusMap = Record<
+  string,
+  { status: EnergyAuditStatus; summaryStatus: string | null }
+>
+
+// One entry per available category, in menu order; categories without a form are left out.
+export function toCategoryProgress(
+  statuses: CategoryStatusMap | null
+): EnergyAuditCategoryProgress[] {
+  return AVAILABLE_ENERGY_AUDIT_CATEGORIES.map((category) => ({
+    key: category.key,
+    label: category.label,
+    status: statuses?.[category.key]?.status ?? null,
+    summaryStatus: statuses?.[category.key]?.summaryStatus ?? null,
+  }))
+}

@@ -18,19 +18,20 @@ import { Spinner } from "@/components/ui/spinner"
 import {
   MAX_PHOTOS_PER_LUX_ROW,
   type LightingLuxPhoto,
-  type LightingZoneKey,
 } from "@/lib/lighting-audit"
 
 const PHOTO_ROUTE = "/api/energy-audit/photos"
 const MAX_SIDE_PX = 1600
 
-export type LuxPhotoContext = {
+export type AuditPhotoContext = {
   sourceAuditId: string
-  zone: LightingZoneKey
+  // Lighting zone, "AC", or an exhaust room; the upload route checks it per category.
+  zone: string
+  category?: "tata-cahaya" | "tata-udara"
 }
 
-type LuxRowPhotosProps = {
-  context: LuxPhotoContext
+type AuditPhotosProps = {
+  context: AuditPhotoContext
   // Shown to people, e.g. "A1" or "titik 2"
   pointLabel: string
   // Used in the file name, e.g. "A1" or "T2"
@@ -40,6 +41,8 @@ type LuxRowPhotosProps = {
   // The point has a lux value but no photo yet
   missing: boolean
   onChange: (photos: LightingLuxPhoto[]) => void
+  // What one photo set belongs to, for the limit note: "titik", "unit" or "ruangan".
+  perLabel?: string
 }
 
 function photoUrl(photo: LightingLuxPhoto) {
@@ -75,7 +78,7 @@ async function compressPhoto(file: Blob): Promise<Blob> {
   }
 }
 
-export function LuxRowPhotos({
+export function AuditPhotos({
   context,
   pointLabel,
   pointCode,
@@ -83,7 +86,8 @@ export function LuxRowPhotos({
   photos,
   missing,
   onChange,
-}: LuxRowPhotosProps) {
+  perLabel = "titik",
+}: AuditPhotosProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
@@ -107,6 +111,7 @@ export function LuxRowPhotos({
     try {
       const body = new FormData()
       body.set("sourceAuditId", context.sourceAuditId)
+      body.set("category", context.category ?? "tata-cahaya")
       body.set("zone", context.zone)
       body.set("point", pointCode)
       body.set("file", await compressPhoto(file), "foto.jpg")
@@ -175,7 +180,8 @@ export function LuxRowPhotos({
           <SheetHeader>
             <SheetTitle>Foto {pointLabel}</SheetTitle>
             <SheetDescription>
-              {zoneLabel}. Maksimal {MAX_PHOTOS_PER_LUX_ROW} foto per titik.
+              {zoneLabel}. Maksimal {MAX_PHOTOS_PER_LUX_ROW} foto per {perLabel}
+              .
             </SheetDescription>
           </SheetHeader>
 

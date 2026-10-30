@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useMemo, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -17,8 +17,10 @@ import { toast } from "sonner"
 import { saveLightingAudit } from "@/app/actions/energy-audit"
 import { StepActionBar } from "@/components/audit-validation/step-action-bar"
 import { BrandCombobox } from "@/components/audit/brand-combobox"
+import { DraftRestoreAlert } from "@/components/energy-audit/draft-restore-alert"
 import { LuxMeasurementTable } from "@/components/energy-audit/lux-measurement-table"
 import { LuxSubZoneGuide } from "@/components/energy-audit/lux-sub-zone-guide"
+import { useDraftBackup } from "@/components/energy-audit/use-draft-backup"
 import { AuditStepIndicator } from "@/components/audit/step-indicator"
 import { Header } from "@/components/header"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -53,6 +55,7 @@ import {
   formatLuxStandard,
   getCompletionIssues,
   getZoneDefinition,
+  sanitizeLightingAuditData,
   summarizeLightingAudit,
   type LightingAuditData,
   type LightingZoneInput,
@@ -76,7 +79,8 @@ const stepLabels: Record<Step, { label: string; description: string }> = {
   },
   2: {
     label: "Step 2: Data per Zona",
-    description: "Isi luas, daftar lampu, dan hasil ukur lux di setiap zona.",
+    description:
+      "Isi luas, daftar lampu, dan hasil ukur tingkat terang (lux) di setiap zona.",
   },
   3: {
     label: "Step 3: Ringkasan",
@@ -84,7 +88,9 @@ const stepLabels: Record<Step, { label: string; description: string }> = {
   },
 }
 
-const numberFormat = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 })
+const numberFormat = new Intl.NumberFormat("id-ID", {
+  maximumFractionDigits: 2,
+})
 const dateFormat = new Intl.DateTimeFormat("id-ID", { dateStyle: "long" })
 
 const tone = {
@@ -118,7 +124,13 @@ const zoneCategory: Record<LightingZoneKey, string> = {
   TOILET: "GUDANG",
 }
 
-function StatusBadge({ label, className }: { label: string; className: string }) {
+function StatusBadge({
+  label,
+  className,
+}: {
+  label: string
+  className: string
+}) {
   return (
     <Badge variant="outline" className={className}>
       {label}
@@ -138,7 +150,10 @@ function newId() {
     : `lamp-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormProps) {
+export function LightingAuditForm({
+  form,
+  currentAuditor,
+}: LightingAuditFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [data, setData] = useState<LightingAuditData>(form.data)
@@ -153,22 +168,27 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
   const lampOptions = useMemo(() => {
     const category = zoneCategory[activeZone]
     return [...form.lampOptions].sort(
-      (a, b) => Number(b.category === category) - Number(a.category === category)
+      (a, b) =>
+        Number(b.category === category) - Number(a.category === category)
     )
   }, [form.lampOptions, activeZone])
   const basePath = `/audit/kategori/${form.context.sourceAuditId}`
   const isCompleted = form.status === "COMPLETED"
 
-  // Warn before closing the tab with unsaved field data.
-  useEffect(() => {
-    if (!isDirty) return
-    const handler = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ""
-    }
-    window.addEventListener("beforeunload", handler)
-    return () => window.removeEventListener("beforeunload", handler)
-  }, [isDirty])
+  const { backup, clearBackup, dismissBackup } = useDraftBackup(
+    `lighting-audit:${form.context.sourceAuditId}`,
+    data,
+    isDirty,
+    form.updatedAt
+  )
+
+  function restoreBackup() {
+    if (!backup) return
+    setData(sanitizeLightingAuditData(backup.data))
+    setIsDirty(true)
+    dismissBackup()
+    toast.success("Isian dipulihkan. Simpan draf supaya tersimpan di server.")
+  }
 
   function update(next: (current: LightingAuditData) => LightingAuditData) {
     setData(next)
@@ -181,7 +201,9 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
   ) {
     update((current) => ({
       ...current,
-      zones: current.zones.map((zone) => (zone.key === key ? next(zone) : zone)),
+      zones: current.zones.map((zone) =>
+        zone.key === key ? next(zone) : zone
+      ),
     }))
   }
 
@@ -192,7 +214,11 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
 
   function save(complete: boolean) {
     startTransition(async () => {
-      const result = await saveLightingAudit(form.context.sourceAuditId, data, complete)
+      const result = await saveLightingAudit(
+        form.context.sourceAuditId,
+        data,
+        complete
+      )
       setIssues(result.issues ?? [])
       if (!result.success) {
         toast.error(result.message)
@@ -201,6 +227,7 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
       }
       toast.success(result.message)
       setIsDirty(false)
+      clearBackup()
       if (complete) {
         router.push(basePath)
       } else {
@@ -213,7 +240,9 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
   const visibleIssues = issues.length > 0 ? issues : completionIssues
   const { gudang, toilet, selasar } = form.context.areas
   const warehouseHint =
-    (activeZone === "GUDANG" || activeZone === "SELASAR" || activeZone === "TOILET") &&
+    (activeZone === "GUDANG" ||
+      activeZone === "SELASAR" ||
+      activeZone === "TOILET") &&
     gudang > 0 &&
     toilet === 0 &&
     selasar === 0
@@ -221,7 +250,7 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
       : null
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-5xl lg:max-w-6xl flex-col bg-background px-4 md:px-6 lg:px-8 pb-36">
+    <div className="mx-auto flex min-h-svh w-full max-w-md flex-col bg-background px-4 pb-36 md:max-w-5xl md:px-6 lg:max-w-6xl lg:px-8">
       <Header
         variant="dashboard-back"
         title="Pemeriksaan Tata Cahaya"
@@ -232,9 +261,22 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
 
       <main className="flex flex-col gap-5">
         <section className="flex flex-col gap-1.5">
-          <AuditStepIndicator currentStep={step} label={stepLabels[step].label} />
-          <p className="text-sm text-muted-foreground">{stepLabels[step].description}</p>
+          <AuditStepIndicator
+            currentStep={step}
+            label={stepLabels[step].label}
+          />
+          <p className="text-sm text-muted-foreground">
+            {stepLabels[step].description}
+          </p>
         </section>
+
+        {backup && (
+          <DraftRestoreAlert
+            savedAt={backup.savedAt}
+            onRestore={restoreBackup}
+            onDiscard={clearBackup}
+          />
+        )}
 
         {isCompleted && (
           <Alert>
@@ -242,9 +284,11 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
             <AlertTitle>Pemeriksaan sudah selesai</AlertTitle>
             <AlertDescription>
               Diselesaikan
-              {form.completedAt ? ` pada ${dateFormat.format(new Date(form.completedAt))}` : ""}
-              {form.auditor ? ` oleh ${form.auditor}` : ""}. Perubahan masih bisa
-              disimpan kalau ada koreksi.
+              {form.completedAt
+                ? ` pada ${dateFormat.format(new Date(form.completedAt))}`
+                : ""}
+              {form.auditor ? ` oleh ${form.auditor}` : ""}. Perubahan masih
+              bisa disimpan kalau ada koreksi.
             </AlertDescription>
           </Alert>
         )}
@@ -265,8 +309,12 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted-foreground">Tanggal pemeriksaan</dt>
-                    <dd className="font-semibold">{dateFormat.format(new Date(form.auditDate))}</dd>
+                    <dt className="text-xs text-muted-foreground">
+                      Tanggal pemeriksaan
+                    </dt>
+                    <dd className="font-semibold">
+                      {dateFormat.format(new Date(form.auditDate))}
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">Pemeriksa</dt>
@@ -279,19 +327,32 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                   <Textarea
                     id="audit-address"
                     value={data.address}
-                    onChange={(e) => update((current) => ({ ...current, address: e.target.value }))}
+                    onChange={(e) =>
+                      update((current) => ({
+                        ...current,
+                        address: e.target.value,
+                      }))
+                    }
                     placeholder="Contoh: Jl. Sudirman No. 88, Pekanbaru"
                     rows={2}
                   />
-                  <FieldDescription>Tersimpan juga ke data toko.</FieldDescription>
+                  <FieldDescription>
+                    Tersimpan juga ke data toko.
+                  </FieldDescription>
                 </Field>
 
                 <fieldset className="flex flex-col gap-3">
-                  <legend className="mb-1 text-sm font-medium">Alat ukur yang dipakai</legend>
+                  <legend className="mb-1 text-sm font-medium">
+                    Alat ukur yang dipakai
+                  </legend>
                   {MEASURING_TOOLS.map((tool) => {
                     const id = `tool-${tool}`
                     return (
-                      <label key={tool} htmlFor={id} className="flex min-h-11 items-center gap-3 text-sm">
+                      <label
+                        key={tool}
+                        htmlFor={id}
+                        className="flex min-h-11 items-center gap-3 text-sm"
+                      >
                         <Checkbox
                           id={id}
                           checked={data.measuringTools.includes(tool)}
@@ -301,7 +362,9 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                               measuringTools:
                                 checked === true
                                   ? [...current.measuringTools, tool]
-                                  : current.measuringTools.filter((item) => item !== tool),
+                                  : current.measuringTools.filter(
+                                      (item) => item !== tool
+                                    ),
                             }))
                           }
                         />
@@ -316,7 +379,12 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                   <Textarea
                     id="audit-notes"
                     value={data.notes}
-                    onChange={(e) => update((current) => ({ ...current, notes: e.target.value }))}
+                    onChange={(e) =>
+                      update((current) => ({
+                        ...current,
+                        notes: e.target.value,
+                      }))
+                    }
                     placeholder="Kondisi umum pencahayaan toko saat pemeriksaan"
                     rows={3}
                   />
@@ -346,9 +414,13 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                   className="h-11 rounded-full px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground hover:data-[state=on]:bg-primary/90"
                 >
                   {zone.definition.tabLabel}
-                  {zone.lpdStatus !== "BELUM_LENGKAP" && zone.luxStatus !== "BELUM_DIUKUR" && (
-                    <IconCircleCheck aria-label="lengkap" className="size-3.5" />
-                  )}
+                  {zone.lpdStatus !== "BELUM_LENGKAP" &&
+                    zone.luxStatus !== "BELUM_DIUKUR" && (
+                      <IconCircleCheck
+                        aria-label="lengkap"
+                        className="size-3.5"
+                      />
+                    )}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
@@ -356,7 +428,9 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
             <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
               <Card className="lg:col-span-7">
                 <CardHeader>
-                  <CardTitle className="text-sm">{zoneDefinition.label}</CardTitle>
+                  <CardTitle className="text-sm">
+                    {zoneDefinition.label}
+                  </CardTitle>
                   <CardDescription>
                     Standar terang: {formatLuxStandard(zoneDefinition)}
                   </CardDescription>
@@ -379,10 +453,15 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                       }
                       className="h-11"
                     />
-                    {warehouseHint && <FieldDescription>{warehouseHint}</FieldDescription>}
+                    {warehouseHint && (
+                      <FieldDescription>{warehouseHint}</FieldDescription>
+                    )}
                   </Field>
 
-                  <section className="flex flex-col gap-3" aria-labelledby="lamp-heading">
+                  <section
+                    className="flex flex-col gap-3"
+                    aria-labelledby="lamp-heading"
+                  >
                     <h3 id="lamp-heading" className="text-sm font-semibold">
                       Daftar lampu
                     </h3>
@@ -398,7 +477,10 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                             className="grid grid-cols-2 gap-2 rounded-xl bg-muted/40 p-3 sm:grid-cols-[1fr_6rem_7rem_auto] sm:items-end"
                           >
                             <Field className="col-span-2 sm:col-span-1">
-                              <FieldLabel htmlFor={`lamp-type-${lamp.id}`} className="text-xs">
+                              <FieldLabel
+                                htmlFor={`lamp-type-${lamp.id}`}
+                                className="text-xs"
+                              >
                                 Tipe lampu
                               </FieldLabel>
                               <BrandCombobox
@@ -407,7 +489,9 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                                 value={lamp.type}
                                 onChange={(value) => {
                                   const option = lampOptions.find(
-                                    (item) => item.name.toLowerCase() === value.trim().toLowerCase()
+                                    (item) =>
+                                      item.name.toLowerCase() ===
+                                      value.trim().toLowerCase()
                                   )
                                   updateZone(activeZone, (zone) => ({
                                     ...zone,
@@ -417,7 +501,9 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                                             ...item,
                                             type: value,
                                             watt: option
-                                              ? Math.round(option.baseKw * 1000 * 100) / 100
+                                              ? Math.round(
+                                                  option.baseKw * 1000 * 100
+                                                ) / 100
                                               : item.watt,
                                           }
                                         : item
@@ -430,7 +516,10 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                               />
                             </Field>
                             <Field>
-                              <FieldLabel htmlFor={`lamp-qty-${lamp.id}`} className="text-xs">
+                              <FieldLabel
+                                htmlFor={`lamp-qty-${lamp.id}`}
+                                className="text-xs"
+                              >
                                 Jumlah
                               </FieldLabel>
                               <Input
@@ -445,7 +534,12 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                                     ...zone,
                                     lamps: zone.lamps.map((item) =>
                                       item.id === lamp.id
-                                        ? { ...item, qty: Math.round(parseNumber(e.target.value) ?? 0) }
+                                        ? {
+                                            ...item,
+                                            qty: Math.round(
+                                              parseNumber(e.target.value) ?? 0
+                                            ),
+                                          }
                                         : item
                                     ),
                                   }))
@@ -454,7 +548,10 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                               />
                             </Field>
                             <Field>
-                              <FieldLabel htmlFor={`lamp-watt-${lamp.id}`} className="text-xs">
+                              <FieldLabel
+                                htmlFor={`lamp-watt-${lamp.id}`}
+                                className="text-xs"
+                              >
                                 Watt per lampu
                               </FieldLabel>
                               <Input
@@ -469,7 +566,11 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                                     ...zone,
                                     lamps: zone.lamps.map((item) =>
                                       item.id === lamp.id
-                                        ? { ...item, watt: parseNumber(e.target.value) ?? 0 }
+                                        ? {
+                                            ...item,
+                                            watt:
+                                              parseNumber(e.target.value) ?? 0,
+                                          }
                                         : item
                                     ),
                                   }))
@@ -490,7 +591,9 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                                 onClick={() =>
                                   updateZone(activeZone, (zone) => ({
                                     ...zone,
-                                    lamps: zone.lamps.filter((item) => item.id !== lamp.id),
+                                    lamps: zone.lamps.filter(
+                                      (item) => item.id !== lamp.id
+                                    ),
                                   }))
                                 }
                               >
@@ -508,7 +611,10 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                       onClick={() =>
                         updateZone(activeZone, (zone) => ({
                           ...zone,
-                          lamps: [...zone.lamps, { id: newId(), type: "", qty: 1, watt: 0 }],
+                          lamps: [
+                            ...zone.lamps,
+                            { id: newId(), type: "", qty: 1, watt: 0 },
+                          ],
                         }))
                       }
                     >
@@ -517,15 +623,20 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                     </Button>
                   </section>
 
-                  <section className="flex flex-col gap-3" aria-labelledby="lux-heading">
+                  <section
+                    className="flex flex-col gap-3"
+                    aria-labelledby="lux-heading"
+                  >
                     <h3 id="lux-heading" className="text-sm font-semibold">
-                      Titik ukur lux
+                      Titik ukur tingkat terang (lux)
                     </h3>
                     <LuxMeasurementTable
                       zoneLabel={zoneDefinition.label}
                       rows={zoneSummary.luxRows}
                       subZones={zoneDefinition.subZones}
-                      noteNeededAreas={zoneSummary.lux.areasMissingNote.map((area) => area.key)}
+                      noteNeededAreas={zoneSummary.lux.areasMissingNote.map(
+                        (area) => area.key
+                      )}
                       photoContext={{
                         sourceAuditId: form.context.sourceAuditId,
                         zone: activeZone,
@@ -538,11 +649,17 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                   </section>
 
                   <fieldset className="flex flex-col gap-2">
-                    <legend className="mb-1 text-sm font-semibold">Peluang efisiensi</legend>
+                    <legend className="mb-1 text-sm font-semibold">
+                      Peluang efisiensi
+                    </legend>
                     {zoneDefinition.ecoSuggestions.map((suggestion) => {
                       const id = `eco-${activeZone}-${suggestion}`
                       return (
-                        <label key={suggestion} htmlFor={id} className="flex min-h-11 items-center gap-3 text-sm">
+                        <label
+                          key={suggestion}
+                          htmlFor={id}
+                          className="flex min-h-11 items-center gap-3 text-sm"
+                        >
                           <Checkbox
                             id={id}
                             checked={zoneSummary.eco.includes(suggestion)}
@@ -552,7 +669,9 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                                 eco:
                                   checked === true
                                     ? [...zone.eco, suggestion]
-                                    : zone.eco.filter((item) => item !== suggestion),
+                                    : zone.eco.filter(
+                                        (item) => item !== suggestion
+                                      ),
                               }))
                             }
                           />
@@ -563,7 +682,10 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                     <Textarea
                       value={zoneSummary.ecoNote}
                       onChange={(e) =>
-                        updateZone(activeZone, (zone) => ({ ...zone, ecoNote: e.target.value }))
+                        updateZone(activeZone, (zone) => ({
+                          ...zone,
+                          ecoNote: e.target.value,
+                        }))
                       }
                       placeholder="Saran lain untuk zona ini"
                       aria-label="Saran lain untuk zona ini"
@@ -574,90 +696,110 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
               </Card>
 
               <div className="flex flex-col gap-4 lg:sticky lg:top-20 lg:col-span-5">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Hasil zona ini</CardTitle>
-                  <CardDescription>Dihitung otomatis saat angka diisi.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3 tabular-nums">
-                  <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
-                    <span>Jumlah lampu</span>
-                    <span className="font-bold">{numberFormat.format(zoneSummary.lampCount)} unit</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
-                    <span>Total daya lampu</span>
-                    <span className="font-bold">{numberFormat.format(zoneSummary.totalWatt)} W</span>
-                  </div>
-                  <div className="flex flex-col gap-2 rounded-xl bg-muted/50 p-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span>Kepadatan daya lampu (LPD)</span>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Hasil zona ini</CardTitle>
+                    <CardDescription>
+                      Dihitung otomatis saat angka diisi.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3 tabular-nums">
+                    <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
+                      <span>Jumlah lampu</span>
                       <span className="font-bold">
-                        {zoneSummary.lpd === null ? "-" : `${numberFormat.format(zoneSummary.lpd)} W/m²`}
+                        {numberFormat.format(zoneSummary.lampCount)} unit
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        Standar {LPD_MIN} sampai {LPD_MAX} W/m²
-                      </span>
-                      <StatusBadge
-                        label={LPD_STATUS_LABEL[zoneSummary.lpdStatus]}
-                        className={lpdTone[zoneSummary.lpdStatus]}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2 rounded-xl bg-muted/50 p-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span>Rata-rata lux</span>
+                    <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
+                      <span>Total daya lampu</span>
                       <span className="font-bold">
-                        {zoneSummary.avgLux === null ? "-" : `${numberFormat.format(zoneSummary.avgLux)} lux`}
+                        {numberFormat.format(zoneSummary.totalWatt)} W
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {formatLuxStandard(zoneDefinition)}
-                      </span>
-                      <StatusBadge
-                        label={LUX_STATUS_LABEL[zoneSummary.luxStatus]}
-                        className={luxTone[zoneSummary.luxStatus]}
-                      />
+                    <div className="flex flex-col gap-2 rounded-xl bg-muted/50 p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span>Kepadatan daya lampu (LPD)</span>
+                        <span className="font-bold">
+                          {zoneSummary.lpd === null
+                            ? "-"
+                            : `${numberFormat.format(zoneSummary.lpd)} W/m²`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          Standar {LPD_MIN} sampai {LPD_MAX} W/m²
+                        </span>
+                        <StatusBadge
+                          label={LPD_STATUS_LABEL[zoneSummary.lpdStatus]}
+                          className={lpdTone[zoneSummary.lpdStatus]}
+                        />
+                      </div>
                     </div>
-                    {zoneDefinition.subZones && (
-                      <ul className="flex flex-col gap-1.5 border-t pt-2">
-                        {zoneSummary.lux.areas.map((area) => (
-                          <li key={area.key} className="flex items-center justify-between gap-2 text-xs">
-                            <span className="text-muted-foreground">
-                              {area.key} · {area.label}
-                            </span>
-                            <span className="flex items-center gap-2">
-                              <span className="font-semibold">
-                                {area.avgLux === null ? "-" : `${numberFormat.format(Math.round(area.avgLux))} lux`}
+                    <div className="flex flex-col gap-2 rounded-xl bg-muted/50 p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span>Rata-rata tingkat terang</span>
+                        <span className="font-bold">
+                          {zoneSummary.avgLux === null
+                            ? "-"
+                            : `${numberFormat.format(zoneSummary.avgLux)} lux`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {formatLuxStandard(zoneDefinition)}
+                        </span>
+                        <StatusBadge
+                          label={LUX_STATUS_LABEL[zoneSummary.luxStatus]}
+                          className={luxTone[zoneSummary.luxStatus]}
+                        />
+                      </div>
+                      {zoneDefinition.subZones && (
+                        <ul className="flex flex-col gap-1.5 border-t pt-2">
+                          {zoneSummary.lux.areas.map((area) => (
+                            <li
+                              key={area.key}
+                              className="flex items-center justify-between gap-2 text-xs"
+                            >
+                              <span className="text-muted-foreground">
+                                {area.key} · {area.label}
                               </span>
-                              <StatusBadge
-                                label={LUX_STATUS_LABEL[area.luxStatus]}
-                                className={luxTone[area.luxStatus]}
-                              />
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  {zoneSummary.lux.unevenAreas.map((area) => (
-                    <p
-                      key={area.key}
-                      className="rounded-xl bg-amber-100 p-3 text-xs text-amber-900 dark:bg-amber-500/15 dark:text-amber-200"
-                    >
-                      Area {area.label} {LUX_STATUS_LABEL[area.luxStatus].toLowerCase()} (
-                      {numberFormat.format(Math.round(area.avgLux ?? 0))} lux), sedangkan rata-rata zona{" "}
-                      {LUX_STATUS_LABEL[zoneSummary.luxStatus].toLowerCase()}. Isi catatan alasannya di
-                      baris area ini.
-                    </p>
-                  ))}
-                </CardContent>
-              </Card>
-              {zoneDefinition.subZones && (
-                <LuxSubZoneGuide rows={zoneSummary.luxRows} definition={zoneDefinition} />
-              )}
+                              <span className="flex items-center gap-2">
+                                <span className="font-semibold">
+                                  {area.avgLux === null
+                                    ? "-"
+                                    : `${numberFormat.format(Math.round(area.avgLux))} lux`}
+                                </span>
+                                <StatusBadge
+                                  label={LUX_STATUS_LABEL[area.luxStatus]}
+                                  className={luxTone[area.luxStatus]}
+                                />
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    {zoneSummary.lux.unevenAreas.map((area) => (
+                      <p
+                        key={area.key}
+                        className="rounded-xl bg-amber-100 p-3 text-xs text-amber-900 dark:bg-amber-500/15 dark:text-amber-200"
+                      >
+                        Area {area.label}{" "}
+                        {LUX_STATUS_LABEL[area.luxStatus].toLowerCase()} (
+                        {numberFormat.format(Math.round(area.avgLux ?? 0))}{" "}
+                        lux), sedangkan rata-rata zona{" "}
+                        {LUX_STATUS_LABEL[zoneSummary.luxStatus].toLowerCase()}.
+                        Isi catatan alasannya di baris area ini.
+                      </p>
+                    ))}
+                  </CardContent>
+                </Card>
+                {zoneDefinition.subZones && (
+                  <LuxSubZoneGuide
+                    rows={zoneSummary.luxRows}
+                    definition={zoneDefinition}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -665,25 +807,49 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
 
         {step === 3 && (
           <div className="flex flex-col gap-4">
-            <section aria-label="Ringkasan gedung" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <section
+              aria-label="Ringkasan gedung"
+              className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+            >
               {[
-                { label: "Total luas area", value: `${numberFormat.format(summary.totalArea)} m²` },
-                { label: "Total daya lampu", value: `${numberFormat.format(summary.totalWatt / 1000)} kW` },
                 {
-                  label: "LPD rata-rata gedung",
-                  value: summary.buildingLpd === null ? "-" : `${numberFormat.format(summary.buildingLpd)} W/m²`,
+                  label: "Total luas area",
+                  value: `${numberFormat.format(summary.totalArea)} m²`,
+                },
+                {
+                  label: "Total daya lampu",
+                  value: `${numberFormat.format(summary.totalWatt / 1000)} kW`,
+                },
+                {
+                  label: "Kepadatan daya lampu rata-rata (LPD)",
+                  value:
+                    summary.buildingLpd === null
+                      ? "-"
+                      : `${numberFormat.format(summary.buildingLpd)} W/m²`,
                 },
               ].map((metric) => (
-                <div key={metric.label} className="flex flex-col gap-1 rounded-xl border bg-card p-4">
-                  <span className="text-xs text-muted-foreground">{metric.label}</span>
-                  <span className="text-xl font-black tabular-nums">{metric.value}</span>
+                <div
+                  key={metric.label}
+                  className="flex flex-col gap-1 rounded-xl border bg-card p-4"
+                >
+                  <span className="text-xs text-muted-foreground">
+                    {metric.label}
+                  </span>
+                  <span className="text-xl font-black tabular-nums">
+                    {metric.value}
+                  </span>
                 </div>
               ))}
               <div className="flex flex-col gap-2 rounded-xl border bg-card p-4">
-                <span className="text-xs text-muted-foreground">Status kepatuhan LPD</span>
+                <span className="text-xs text-muted-foreground">
+                  Status kepadatan daya lampu
+                </span>
                 <StatusBadge
                   label={LPD_STATUS_LABEL[summary.buildingStatus]}
-                  className={cn("w-fit whitespace-normal", lpdTone[summary.buildingStatus])}
+                  className={cn(
+                    "w-fit whitespace-normal",
+                    lpdTone[summary.buildingStatus]
+                  )}
                 />
               </div>
             </section>
@@ -706,7 +872,12 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                 <CardTitle className="text-sm">Rekapitulasi per zona</CardTitle>
                 <CardAction>
                   {form.status && !isDirty ? (
-                    <Button asChild variant="outline" size="sm" className="h-11">
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="h-11"
+                    >
                       <a href={`${basePath}/tata-cahaya/export`} download>
                         <IconDownload data-icon="inline-start" />
                         Unduh Excel
@@ -725,13 +896,23 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                     <thead>
                       <tr className="border-b text-left text-xs text-muted-foreground">
                         <th className="py-2 pr-3 font-medium">Zona</th>
-                        <th className="py-2 pr-3 text-right font-medium">Luas</th>
-                        <th className="py-2 pr-3 text-right font-medium">Lampu</th>
-                        <th className="py-2 pr-3 text-right font-medium">Daya</th>
-                        <th className="py-2 pr-3 text-right font-medium">LPD</th>
-                        <th className="py-2 pr-3 font-medium">Status LPD</th>
-                        <th className="py-2 pr-3 text-right font-medium">Lux</th>
-                        <th className="py-2 font-medium">Status lux</th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Luas
+                        </th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Lampu
+                        </th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Daya
+                        </th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Kepadatan daya
+                        </th>
+                        <th className="py-2 pr-3 font-medium">Status daya</th>
+                        <th className="py-2 pr-3 text-right font-medium">
+                          Terang (lux)
+                        </th>
+                        <th className="py-2 font-medium">Status terang</th>
                       </tr>
                     </thead>
                     <tbody className="tabular-nums">
@@ -750,12 +931,20 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                             </button>
                           </td>
                           <td className="py-2.5 pr-3 text-right">
-                            {zone.areaM2 === null ? "-" : `${numberFormat.format(zone.areaM2)} m²`}
+                            {zone.areaM2 === null
+                              ? "-"
+                              : `${numberFormat.format(zone.areaM2)} m²`}
                           </td>
-                          <td className="py-2.5 pr-3 text-right">{numberFormat.format(zone.lampCount)}</td>
-                          <td className="py-2.5 pr-3 text-right">{numberFormat.format(zone.totalWatt)} W</td>
                           <td className="py-2.5 pr-3 text-right">
-                            {zone.lpd === null ? "-" : numberFormat.format(zone.lpd)}
+                            {numberFormat.format(zone.lampCount)}
+                          </td>
+                          <td className="py-2.5 pr-3 text-right">
+                            {numberFormat.format(zone.totalWatt)} W
+                          </td>
+                          <td className="py-2.5 pr-3 text-right">
+                            {zone.lpd === null
+                              ? "-"
+                              : numberFormat.format(zone.lpd)}
                           </td>
                           <td className="py-2.5 pr-3">
                             <StatusBadge
@@ -764,7 +953,9 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                             />
                           </td>
                           <td className="py-2.5 pr-3 text-right">
-                            {zone.avgLux === null ? "-" : numberFormat.format(zone.avgLux)}
+                            {zone.avgLux === null
+                              ? "-"
+                              : numberFormat.format(zone.avgLux)}
                           </td>
                           <td className="py-2.5">
                             <StatusBadge
@@ -775,7 +966,10 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
                               <p className="mt-1 text-xs text-muted-foreground">
                                 Tidak merata:{" "}
                                 {zone.lux.unevenAreas
-                                  .map((area) => `${area.label} ${LUX_STATUS_LABEL[area.luxStatus].toLowerCase()}`)
+                                  .map(
+                                    (area) =>
+                                      `${area.label} ${LUX_STATUS_LABEL[area.luxStatus].toLowerCase()}`
+                                  )
                                   .join(", ")}
                               </p>
                             )}
@@ -790,16 +984,21 @@ export function LightingAuditForm({ form, currentAuditor }: LightingAuditFormPro
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Peluang efisiensi energi</CardTitle>
+                <CardTitle className="text-sm">
+                  Peluang efisiensi energi
+                </CardTitle>
                 <CardDescription>
-                  Diisi pemeriksa di Step 2 untuk setiap zona. Klik nama zona untuk
-                  menambah atau mengubah saran.
+                  Diisi pemeriksa di Step 2 untuk setiap zona. Klik nama zona
+                  untuk menambah atau mengubah saran.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="flex flex-col gap-3 text-sm">
                   {summary.zones.map((zone) => {
-                    const items = [...zone.eco, ...(zone.ecoNote ? [zone.ecoNote] : [])]
+                    const items = [
+                      ...zone.eco,
+                      ...(zone.ecoNote ? [zone.ecoNote] : []),
+                    ]
                     return (
                       <li key={zone.key}>
                         <button

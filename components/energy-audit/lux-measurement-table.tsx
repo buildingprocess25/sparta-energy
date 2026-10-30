@@ -3,9 +3,9 @@
 import { IconPlus, IconTrash } from "@tabler/icons-react"
 
 import {
-  LuxRowPhotos,
-  type LuxPhotoContext,
-} from "@/components/energy-audit/lux-row-photos"
+  AuditPhotos,
+  type AuditPhotoContext,
+} from "@/components/energy-audit/audit-photos"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -31,7 +31,7 @@ type LuxMeasurementTableProps = {
   rows: LightingLuxRow[]
   subZones: boolean
   noteNeededAreas: LuxArea[]
-  photoContext: LuxPhotoContext
+  photoContext: AuditPhotoContext
   onChange: (rows: LightingLuxRow[]) => void
   createId: () => string
 }
@@ -70,7 +70,7 @@ export function LuxMeasurementTable({
       >
         <span>No</span>
         {subZones && <span>Sub zona</span>}
-        <span>Lux</span>
+        <span>Terang (lux)</span>
         <span>Catatan</span>
         <span>Foto</span>
         <span />
@@ -139,7 +139,7 @@ export function LuxMeasurementTable({
                     updateRow(row.id, { lux: parseLux(e.target.value) })
                   }
                   placeholder="Lux"
-                  aria-label={`Lux titik ${number} ${zoneLabel}`}
+                  aria-label={`Tingkat terang titik ${number} ${zoneLabel}`}
                   className={cn(
                     "h-11 tabular-nums",
                     !subZones && "col-span-2 sm:col-span-1"
@@ -159,7 +159,7 @@ export function LuxMeasurementTable({
                   className="col-span-2 h-11 sm:col-span-1"
                 />
 
-                <LuxRowPhotos
+                <AuditPhotos
                   context={photoContext}
                   pointLabel={row.subZone ?? `titik ${number}`}
                   pointCode={row.subZone ?? `T${number}`}

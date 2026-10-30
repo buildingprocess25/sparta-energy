@@ -62,6 +62,7 @@ export async function getAdminAuditDetail(id: string) {
         select: {
           category: true,
           status: true,
+          summaryStatus: true,
           completedAt: true,
         },
       },
@@ -196,6 +197,7 @@ export async function getAdminAuditDetail(id: string) {
     energyAudits: audit.energyAudits.map((item) => ({
       category: item.category,
       status: item.status,
+      summaryStatus: item.summaryStatus,
       completedAt: item.completedAt?.toISOString() ?? null,
     })),
     actualPln,
