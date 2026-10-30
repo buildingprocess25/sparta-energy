@@ -3,6 +3,8 @@ import assert from "node:assert/strict"
 import {
   createEmptyLightingAudit,
   getCompletionIssues,
+  getZoneLampLayout,
+  getZoneLampNeed,
   getDimLuxLimit,
   getLuxLevel,
   getLpdStatus,
@@ -267,5 +269,61 @@ assert.deepEqual(
   renamedDraft.zones.find((zone) => zone.key === "TOILET")?.eco,
   ["Wajib sensor gerak (lampu mati otomatis saat kosong)"]
 )
+
+// Lamp need follows the LPD standard: 350 m2 with 15.4 W lamps needs 91 to 114 lamps.
+const lamp = (qty: number, watt: number) => ({ id: "L", type: "TL", qty, watt })
+const need = getZoneLampNeed({ areaM2: 350, lamps: [lamp(13, 15.4)] })
+assert.equal(need?.minLamps, 91)
+assert.equal(need?.maxLamps, 114)
+assert.equal(round2(need?.watt ?? 0), 15.4)
+assert.equal(getZoneLampNeed({ areaM2: null, lamps: [] }), null)
+// No lamps listed yet: the lamp calculator's 13.5 W tube is assumed.
+assert.equal(getZoneLampNeed({ areaM2: 100, lamps: [] })?.watt, 13.5)
+
+// Width and depth turn into the lamp calculator's grid; one lamp position per lamp.
+const layout = getZoneLampLayout({
+  areaM2: 126,
+  lamps: [],
+  widthM: 14,
+  lengthM: 9,
+})
+assert.ok(layout)
+// Same grid the lamp calculator draws for a 14 x 9 m store.
+assert.equal(layout.rows, 4)
+assert.equal(layout.perRow, 10)
+assert.equal(layout.total, layout.rows * layout.perRow)
+assert.equal(layout.positions.length, layout.total)
+assert.equal(layout.estimated, false)
+
+// Without measured sides the plan is estimated from the area as a square.
+const estimate = getZoneLampLayout({
+  areaM2: 350,
+  lamps: [],
+  widthM: 14,
+  lengthM: null,
+})
+assert.equal(estimate?.estimated, true)
+assert.equal(round2(estimate?.widthM ?? 0), 18.71)
+assert.equal(round2(estimate?.lengthM ?? 0), 18.71)
+assert.equal(
+  getZoneLampLayout({ areaM2: null, lamps: [], widthM: null, lengthM: null }),
+  null
+)
+
+// A just-added lamp row (0 W) must not reach the calculator as a 0 W average;
+// that divided by zero and drew lamp rows forever until the browser ran out of memory.
+const withNewRow = { areaM2: 126, widthM: 14, lengthM: 9, lamps: [lamp(1, 0)] }
+assert.equal(getZoneLampNeed(withNewRow)?.watt, 13.5)
+assert.equal(getZoneLampLayout(withNewRow)?.total, 40)
+const mixed = getZoneLampNeed({
+  areaM2: 100,
+  lamps: [lamp(10, 18), lamp(1, 0)],
+})
+assert.equal(mixed?.watt, 18)
+
+// Drafts saved before the size fields existed load with empty sizes.
+const sizeless = sanitizeLightingAuditData({ zones: [{ key: "SALES" }] })
+assert.equal(sizeless.zones[0].widthM, null)
+assert.equal(sizeless.zones[0].lengthM, null)
 
 console.log("lighting-audit tests passed")

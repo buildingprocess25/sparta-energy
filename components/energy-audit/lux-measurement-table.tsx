@@ -198,6 +198,7 @@ export function LuxMeasurementTable({
                 )}
 
                 <Input
+                  id={`lux-input-${row.id}`}
                   type="number"
                   inputMode="decimal"
                   min={0}

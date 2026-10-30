@@ -1,3 +1,10 @@
+import {
+  LAMP_LEN,
+  LAMP_WATT,
+  calcLampRange,
+  calcSimetris,
+  generateGridPositions,
+} from "@/lib/lamp-calculator"
 import { PLN_CUSTOMER_ID_MAX_LENGTH } from "@/lib/pln-customer-id"
 
 // Lighting audit rules, taken from the "Formulir Audit Sistem Tata Cahaya" sheet.
@@ -181,6 +188,9 @@ export type LightingLuxRow = {
 export type LightingZoneInput = {
   key: LightingZoneKey
   areaM2: number | null
+  // Measured on site (no floor plan needed): width along the entrance, depth from entrance to back.
+  widthM: number | null
+  lengthM: number | null
   lamps: LightingLamp[]
   luxRows: LightingLuxRow[]
   eco: string[]
@@ -230,6 +240,79 @@ export function zoneTotalWatt(zone: Pick<LightingZoneInput, "lamps">) {
 
 export function zoneLampCount(zone: Pick<LightingZoneInput, "lamps">) {
   return zone.lamps.reduce((sum, lamp) => sum + Math.max(0, lamp.qty), 0)
+}
+
+// Average watt of the listed lamps; falls back to the lamp calculator's LED tube.
+// Only lamps with both a count and a watt count: a freshly added row starts at 0 W,
+// and a 0 W average would make the lamp calculator divide by zero.
+export function zoneLampWatt(zone: Pick<LightingZoneInput, "lamps">) {
+  const filled = zone.lamps.filter((lamp) => lamp.qty > 0 && lamp.watt > 0)
+  const count = filled.reduce((sum, lamp) => sum + lamp.qty, 0)
+  if (count === 0) return LAMP_WATT
+  return filled.reduce((sum, lamp) => sum + lamp.qty * lamp.watt, 0) / count
+}
+
+// Upper bound on lamp rows we draw; anything past it means the inputs are off.
+const MAX_LAYOUT_ROWS = 200
+
+// How many lamps the LPD standard asks for, from the zone area alone.
+export function getZoneLampNeed(
+  zone: Pick<LightingZoneInput, "areaM2" | "lamps">
+) {
+  if (zone.areaM2 === null || !(zone.areaM2 > 0)) return null
+  const watt = zoneLampWatt(zone)
+  return { ...calcLampRange(zone.areaM2, watt, LPD_MIN, LPD_MAX), watt }
+}
+
+// Width ÷ depth assumed for an estimated plan when only the area is known.
+// 1 = square. Change it here if the team agrees on a typical store proportion.
+export const ESTIMATED_PLAN_RATIO = 1
+
+// Recommended lamp grid from the lamp calculator. Uses the measured width and depth;
+// without them it estimates both from the area, flagged so the UI can say so.
+export function getZoneLampLayout(
+  zone: Pick<LightingZoneInput, "areaM2" | "lamps" | "widthM" | "lengthM">
+) {
+  const hasArea = zone.areaM2 !== null && zone.areaM2 > 0
+  const measured = zone.widthM !== null && zone.lengthM !== null
+  if (!measured && !hasArea) return null
+  const estimated = !measured
+  const widthM = measured
+    ? (zone.widthM as number)
+    : Math.sqrt((zone.areaM2 as number) * ESTIMATED_PLAN_RATIO)
+  const lengthM = measured
+    ? (zone.lengthM as number)
+    : Math.sqrt((zone.areaM2 as number) / ESTIMATED_PLAN_RATIO)
+  if (widthM < LAMP_LEN || lengthM < 1) return null
+  const area = hasArea ? (zone.areaM2 as number) : widthM * lengthM
+  const watt = zoneLampWatt(zone)
+  const layout = calcSimetris(widthM, lengthM, area, watt, LAMP_LEN)
+  if (
+    !Number.isFinite(layout.total) ||
+    layout.baris < 1 ||
+    layout.baris > MAX_LAYOUT_ROWS
+  ) {
+    return null
+  }
+  const { positions } = generateGridPositions(
+    widthM,
+    lengthM,
+    layout.baris,
+    layout.lampuPerbaris,
+    LAMP_LEN
+  )
+  return {
+    estimated,
+    widthM,
+    lengthM,
+    watt,
+    rows: layout.baris,
+    perRow: layout.lampuPerbaris,
+    total: layout.total,
+    rowSpacingM: layout.jarakPerbaris,
+    lampLengthM: LAMP_LEN,
+    positions,
+  }
 }
 
 export function calculateLpd(totalWatt: number, areaM2: number | null) {
@@ -438,6 +521,8 @@ export function createEmptyLightingAudit(): LightingAuditData {
     zones: LIGHTING_ZONES.map((zone) => ({
       key: zone.key,
       areaM2: null,
+      widthM: null,
+      lengthM: null,
       lamps: [],
       luxRows: createDefaultLuxRows(zone),
       eco: [],
@@ -555,6 +640,8 @@ export function sanitizeLightingAuditData(input: unknown): LightingAuditData {
       return {
         key: emptyZone.key,
         areaM2: toNumber(raw.areaM2, 100_000),
+        widthM: raw.widthM == null ? null : toNumber(raw.widthM, 1000),
+        lengthM: raw.lengthM == null ? null : toNumber(raw.lengthM, 1000),
         lamps: lamps.slice(0, 100).flatMap((lamp, index) => {
           const item = (lamp ?? {}) as Partial<
             Record<keyof LightingLamp, unknown>
