@@ -2682,9 +2682,27 @@
     "semantic_hash": ""
   },
   "scripts/backfill-audit-baseline.ts": {
-    "mtime": 1793326478.8326285,
-    "seen": 1793326715.9474156,
-    "ast_hash": "8017dcac68cc5dccae7e520a6e589824",
+    "mtime": 1793327024.8409996,
+    "seen": 1793327322.598002,
+    "ast_hash": "cd5f21d9002ddd4882216bdc25be6ffb",
+    "semantic_hash": ""
+  },
+  "lib/audit-baseline-backfill.test.ts": {
+    "mtime": 1793327071.7391229,
+    "seen": 1793327322.5859432,
+    "ast_hash": "7b1c6a96752dc819de4d9c5f5b0a387c",
+    "semantic_hash": ""
+  },
+  "lib/audit-baseline-backfill.ts": {
+    "mtime": 1793327024.8399916,
+    "seen": 1793327322.5859432,
+    "ast_hash": "78070c5064cae6b92ba4d20e7bd041eb",
+    "semantic_hash": ""
+  },
+  "lib/audit-kalkulator.replay.test.ts": {
+    "mtime": 1793327072.5441265,
+    "seen": 1793327322.5859432,
+    "ast_hash": "93fb932d37c769688b6bf4b3881363c4",
     "semantic_hash": ""
   }
 }

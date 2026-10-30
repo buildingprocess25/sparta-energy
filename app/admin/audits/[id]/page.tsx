@@ -18,6 +18,7 @@ import {
 import { AdminTableScroll } from "@/components/admin/admin-table-scroll"
 import { ConsumptionTrendChart } from "@/components/admin/admin-dashboard-charts"
 import { AdminMetricCard } from "@/components/admin/admin-metric-card"
+import { EquipmentThumbnail } from "@/components/audit/equipment-thumbnail"
 import { IotStatusBadge } from "@/components/admin/iot-status-badge"
 import { SangatBorosBadge } from "@/components/audit-validation/result-status-badge"
 import { ValidationStatusBadge } from "@/components/audit-validation/validation-status-badge"
@@ -649,7 +650,22 @@ export default async function AdminAuditDetailPage({
                 {equipmentRows.map((item, index) => (
                   <TableRow key={`${item.area}-${item.name}-${index}`}>
                     <TableCell>{item.area}</TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2.5">
+                        <EquipmentThumbnail
+                          photoUrl={item.photoUrl}
+                          alt={
+                            item.brand && item.brand !== "-"
+                              ? `${item.name} (${item.brand})`
+                              : item.name
+                          }
+                          deviceCategory={item.deviceCategory}
+                          size="sm"
+                          previewable
+                        />
+                        <span>{item.name}</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {item.brand}
                     </TableCell>

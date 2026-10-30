@@ -12,26 +12,15 @@ import {
   IconPlus,
   IconSearch,
   IconTrash,
-  IconBulb,
-  IconSnowflake,
-  IconFridge,
-  IconCpu,
   IconArrowLeft,
   IconArrowRight,
 } from "@tabler/icons-react"
 import { toast } from "sonner"
 
-const CATEGORY_ICONS: Record<
-  string,
-  React.ComponentType<{ className?: string }>
-> = {
-  Pencahayaan: IconBulb,
-  "Sistem HVAC": IconSnowflake,
-  "Sistem Pendingin Produk": IconFridge,
-  Lainnya: IconCpu,
-}
 import { cn } from "@/lib/utils"
 import { buildAuditItemRows } from "@/lib/audit-kalkulator"
+import { pickBrandPhoto } from "@/lib/equipment-photo"
+import { EquipmentThumbnail } from "@/components/audit/equipment-thumbnail"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -145,8 +134,8 @@ function getAverageDailyRuntime(item: EquipmentItem) {
 
 type EquipmentRowProps = {
   item: EquipmentItem
-  photoToDisplay?: string | null
-  fallbackIcon: React.ComponentType<{ className?: string }>
+  photoUrl?: string | null
+  deviceCategory?: string
   isCustom?: boolean
   onConfigure: () => void
   onDelete: () => void
@@ -154,8 +143,8 @@ type EquipmentRowProps = {
 
 function EquipmentRow({
   item,
-  photoToDisplay,
-  fallbackIcon: FallbackIcon,
+  photoUrl,
+  deviceCategory,
   isCustom = false,
   onConfigure,
   onDelete,
@@ -182,18 +171,11 @@ function EquipmentRow({
           )}
         </div>
 
-        {/* Thumbnail Preview */}
-        <div className="size-10 shrink-0 rounded-xl border border-border bg-muted/40 flex items-center justify-center overflow-hidden">
-          {photoToDisplay ? (
-            <img
-              src={photoToDisplay}
-              alt={item.name}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <FallbackIcon className="size-5 text-primary/70" />
-          )}
-        </div>
+        <EquipmentThumbnail
+          photoUrl={photoUrl}
+          alt={item.brandName ? `${item.name} (${item.brandName})` : item.name}
+          deviceCategory={deviceCategory}
+        />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -766,22 +748,12 @@ export function AuditStep2Detail({
                       {(() => {
                         const activeMaster = masterItems.find((m) => m.name === item.name)
                         const isCustom = !activeMaster
-                        const currentBrandName = item.brandName || ""
-                        const matchedBrand = activeMaster?.brands?.find(
-                          (b) => b.name.toLowerCase() === currentBrandName.toLowerCase().trim()
-                        )
-                        const defaultBrandPhotoUrl = activeMaster?.brands?.find(
-                          (b) => b.productPhotoUrl
-                        )?.productPhotoUrl
-                        const photoToDisplay = matchedBrand?.productPhotoUrl || defaultBrandPhotoUrl
-                        const deviceCategory = activeMaster?.deviceCategory || "Lainnya"
-                        const FallbackIcon = CATEGORY_ICONS[deviceCategory] || IconCpu
 
                         return (
                           <EquipmentRow
                             item={item}
-                            photoToDisplay={photoToDisplay}
-                            fallbackIcon={FallbackIcon}
+                            photoUrl={pickBrandPhoto(activeMaster?.brands, item.brandName)}
+                            deviceCategory={activeMaster?.deviceCategory}
                             isCustom={isCustom}
                             onConfigure={() => handleConfigure(item)}
                             onDelete={() =>
@@ -1007,12 +979,19 @@ export function AuditStep2Detail({
                         setTimeout(() => handleConfigure(newItem as EquipmentItem), 150)
                       }}
                     >
-                      <div>
-                        <div className="text-sm font-semibold text-foreground">
-                          {availEq.name}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Daya: {formatKw(availEq.defaultKw)} kW
+                      <div className="flex min-w-0 items-center gap-3">
+                        <EquipmentThumbnail
+                          photoUrl={pickBrandPhoto(availEq.brands)}
+                          alt={availEq.name}
+                          deviceCategory={availEq.deviceCategory}
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-foreground">
+                            {availEq.name}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Daya: {formatKw(availEq.defaultKw)} kW
+                          </div>
                         </div>
                       </div>
                       <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -1182,31 +1161,21 @@ export function AuditStep2Detail({
                     {/* Merek / Brand input per unit dengan Thumbnail Preview */}
                     {(() => {
                       const currentBrandName = brandNames[idx] || ""
-                      const matchedBrand = activeMaster?.brands?.find(
-                        (b) => b.name.toLowerCase() === currentBrandName.toLowerCase().trim()
-                      )
-                      const defaultBrandPhotoUrl = activeMaster?.brands?.find(
-                        (b) => b.productPhotoUrl
-                      )?.productPhotoUrl
-                      const photoToDisplay = matchedBrand?.productPhotoUrl || defaultBrandPhotoUrl
-                      const deviceCategory = activeMaster?.deviceCategory || "Lainnya"
-                      const FallbackIcon = CATEGORY_ICONS[deviceCategory] || IconCpu
 
                       return (
                         <>
                           <div className="flex gap-4 items-start">
-                            {/* Visual Thumbnail */}
-                            <div className="size-16 shrink-0 rounded-2xl border border-border bg-muted/40 flex items-center justify-center overflow-hidden">
-                              {photoToDisplay ? (
-                                <img
-                                  src={photoToDisplay}
-                                  alt={currentBrandName || activeEquipment.name}
-                                  className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                                />
-                              ) : (
-                                <FallbackIcon className="size-7 text-primary/70" />
-                              )}
-                            </div>
+                            <EquipmentThumbnail
+                              photoUrl={pickBrandPhoto(activeMaster?.brands, currentBrandName)}
+                              alt={
+                                currentBrandName
+                                  ? `${activeEquipment.name} (${currentBrandName})`
+                                  : activeEquipment.name
+                              }
+                              deviceCategory={activeMaster?.deviceCategory}
+                              size="lg"
+                              previewable
+                            />
 
                             {/* Brand Selector */}
                             <div className="flex-1 space-y-1.5">
@@ -1216,6 +1185,7 @@ export function AuditStep2Detail({
                               {activeMaster ? (
                                 <BrandCombobox
                                   brands={activeMaster?.brands || []}
+                                  deviceCategory={activeMaster?.deviceCategory}
                                   value={brandNames[idx] || ""}
                                   onChange={(val) => {
                                     const matchedBrand = activeMaster?.brands?.find(

@@ -261,6 +261,7 @@ export function ItemFormDialog({
               <FieldLabel>Merek</FieldLabel>
               <BrandCombobox
                 brands={brands}
+                deviceCategory={selectedType?.deviceCategory}
                 value={brandName}
                 onChange={handleBrandChange}
                 placeholder="Pilih atau ketik merek"

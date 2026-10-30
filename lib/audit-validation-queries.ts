@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client"
 
 import { getAuditGapFilterWhereSql } from "@/lib/audit-gap-filter"
 import type { ValidationListFilters } from "@/lib/audit-validation-filters"
+import { pickBrandPhoto } from "@/lib/equipment-photo"
 import { prisma } from "@/lib/prisma"
 
 export const VALIDATION_PAGE_SIZE = 20
@@ -250,7 +251,13 @@ export async function getValidationAudit(id: string) {
           notes: true,
           equipmentTypeId: true,
           equipmentType: {
-            select: { name: true, calcMethod: true, calcDuration: true },
+            select: {
+              name: true,
+              calcMethod: true,
+              calcDuration: true,
+              deviceCategory: true,
+              brands: { select: { name: true, productPhotoUrl: true } },
+            },
           },
         },
       },
@@ -379,6 +386,8 @@ export async function getValidationAudit(id: string) {
       equipmentTypeId: item.equipmentTypeId,
       calcMethod: item.equipmentType?.calcMethod ?? "STANDARD",
       calcDuration: item.equipmentType?.calcDuration ?? null,
+      deviceCategory: item.equipmentType?.deviceCategory ?? null,
+      photoUrl: pickBrandPhoto(item.equipmentType?.brands, item.brandName),
     })),
   }
 }
