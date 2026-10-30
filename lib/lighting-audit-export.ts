@@ -84,6 +84,7 @@ export function buildLightingAuditWorkbook(audit: ExportAudit) {
       "Alat Ukur",
       audit.data.measuringTools.join(", ") || "-",
     ],
+    ["ID PLN", audit.store.plnCustomerId || "-"],
     [
       "Tanggal Pemeriksaan",
       audit.auditDate,
@@ -238,6 +239,7 @@ export function lightingRecapSheets(audits: ExportAudit[]): SheetData[] {
           "Nama Toko",
           "Cabang",
           "Alamat",
+          "ID PLN",
           "Status Pemeriksaan",
           "Tanggal Pemeriksaan",
           "Tanggal Selesai",
@@ -257,6 +259,7 @@ export function lightingRecapSheets(audits: ExportAudit[]): SheetData[] {
           audit.store.name,
           audit.store.branch,
           audit.data.address || audit.store.address,
+          audit.store.plnCustomerId,
           STATUS_LABEL[audit.status],
           audit.auditDate,
           audit.completedAt,

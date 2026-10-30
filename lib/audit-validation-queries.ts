@@ -223,6 +223,7 @@ export async function getValidationAudit(id: string) {
           name: true,
           branch: true,
           address: true,
+          plnCustomerId: true,
           type: true,
           plnPowerVa: true,
           salesAreaM2: true,
@@ -351,6 +352,7 @@ export async function getValidationAudit(id: string) {
       name: audit.store.name,
       branch: audit.store.branch,
       address: audit.store.address ?? "",
+      plnCustomerId: audit.store.plnCustomerId ?? "",
     },
     // Audits saved before the technical columns existed fall back to the store row.
     technical: {

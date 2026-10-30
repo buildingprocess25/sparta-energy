@@ -1,3 +1,5 @@
+import { PLN_CUSTOMER_ID_MAX_LENGTH } from "@/lib/pln-customer-id"
+
 // Lighting audit rules, taken from the "Formulir Audit Sistem Tata Cahaya" sheet.
 export const LPD_MIN = 4
 export const LPD_MAX = 5
@@ -188,6 +190,7 @@ export type LightingZoneInput = {
 export type LightingAuditData = {
   version: 2
   address: string
+  plnCustomerId: string
   measuringTools: string[]
   notes: string
   zones: LightingZoneInput[]
@@ -402,6 +405,7 @@ export function createEmptyLightingAudit(): LightingAuditData {
   return {
     version: 2,
     address: "",
+    plnCustomerId: "",
     measuringTools: [...MEASURING_TOOLS],
     notes: "",
     zones: LIGHTING_ZONES.map((zone) => ({
@@ -501,6 +505,7 @@ export function sanitizeLightingAuditData(input: unknown): LightingAuditData {
   return {
     version: 2,
     address: toText(source.address, 300),
+    plnCustomerId: toText(source.plnCustomerId, PLN_CUSTOMER_ID_MAX_LENGTH),
     measuringTools: Array.isArray(source.measuringTools)
       ? Array.from(
           new Set(

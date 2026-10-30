@@ -188,6 +188,7 @@ export async function getEnergyAuditStore(sourceAuditId: string) {
           name: true,
           branch: true,
           address: true,
+          plnCustomerId: true,
           latitude: true,
           longitude: true,
           salesAreaM2: true,
@@ -251,6 +252,7 @@ export async function getEnergyAuditStore(sourceAuditId: string) {
       name: audit.store.name,
       branch: audit.store.branch,
       address: audit.store.address,
+      plnCustomerId: audit.store.plnCustomerId,
       latitude: audit.store.latitude,
       longitude: audit.store.longitude,
     },
@@ -416,6 +418,9 @@ export async function getLightingAuditForm(sourceAuditId: string) {
       })),
     }
   }
+
+  // ID PLN lives on the store, so the form always opens with the current value.
+  data = { ...data, plnCustomerId: context.store.plnCustomerId ?? "" }
 
   return {
     context,
@@ -639,7 +644,13 @@ export async function getHvacAuditsForExport(
       data: true,
       auditor: { select: { fullName: true, email: true } },
       store: {
-        select: { code: true, name: true, branch: true, address: true },
+        select: {
+          code: true,
+          name: true,
+          branch: true,
+          address: true,
+          plnCustomerId: true,
+        },
       },
     },
   })
@@ -672,7 +683,13 @@ export async function getLightingAuditsForExport(
       data: true,
       auditor: { select: { fullName: true, email: true } },
       store: {
-        select: { code: true, name: true, branch: true, address: true },
+        select: {
+          code: true,
+          name: true,
+          branch: true,
+          address: true,
+          plnCustomerId: true,
+        },
       },
     },
   })

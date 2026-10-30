@@ -81,8 +81,9 @@ export default async function EnergyAuditStorePage({ params }: Props) {
             )}
           </p>
           <p className="text-xs text-muted-foreground">
-            {store.store.address ||
-              "Alamat belum diisi. Bisa diisi di form pemeriksaan."}
+            {store.store.plnCustomerId
+              ? `ID PLN ${store.store.plnCustomerId}`
+              : "ID PLN belum diisi. Isi di form pemeriksaan."}
           </p>
           <p className="pt-1 text-xs font-medium tabular-nums">
             {doneCount} dari {ENERGY_AUDIT_CATEGORIES.length} kategori selesai

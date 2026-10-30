@@ -22,6 +22,7 @@ export type HvacExportAudit = {
     name: string
     branch: string | null
     address: string | null
+    plnCustomerId: string | null
   }
   data: HvacAuditData
 }
@@ -126,6 +127,7 @@ function storeHeader(audit: HvacExportAudit): Cell[][] {
       "Alat Ukur",
       audit.data.measuringTools.join(", ") || "-",
     ],
+    ["ID PLN", audit.store.plnCustomerId || "-"],
     [
       "Tanggal Pemeriksaan",
       audit.auditDate,

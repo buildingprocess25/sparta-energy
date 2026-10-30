@@ -229,11 +229,12 @@ Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbed
 
 ### Validasi Kalkulasi (`/audit/validation/[id]`)
 
-- Satu halaman, tanpa step. Kiri: ringkasan status dan perbandingan kWh, plus riwayat koreksi. Kanan: Teknis Toko (tipe, alamat, daya PLN, luas area, jam operasional, riwayat PLN 6 bulan dengan STD), lalu Daftar Peralatan (tambah, ubah, hapus).
-- Koreksi alat langsung tersimpan lewat dialog. Teknis toko, alamat, dan riwayat PLN tersimpan lewat "Simpan Draf" atau saat "Validasi Kalkulasi" (`saveValidationDraft`, `validateAudit` di `app/actions/audit-validation.ts`).
+- Satu halaman, tanpa step. Kiri: ringkasan status dan perbandingan kWh, plus riwayat koreksi. Kanan: Teknis Toko (tipe, ID PLN, daya PLN, luas area, jam operasional, riwayat PLN 6 bulan dengan STD), lalu Daftar Peralatan (tambah, ubah, hapus).
+- Koreksi alat langsung tersimpan lewat dialog. Teknis toko, ID PLN, dan riwayat PLN tersimpan lewat "Simpan Draf" atau saat "Validasi Kalkulasi" (`saveValidationDraft`, `validateAudit` di `app/actions/audit-validation.ts`).
 - Setiap koreksi menghitung ulang standar, aktual (rata-rata PLN, bulan 0 kWh tidak dihitung), gap, **dan status Hemat/Boros** (`BOROS_TOLERANCE` 1,05 di `lib/audit-recalculate.ts`).
 - Sebelum koreksi pertama, hasil anak toko disalin ke `audits.original_*`. Setiap koreksi dicatat di tabel `audit_corrections`. Admin melihat keduanya di Detail Kalkulasi.
-- Alamat disimpan langsung ke `stores.address`. Tipe, daya, luas, dan jam hanya disalin ke data toko kalau kalkulasi ini yang terbaru.
+- ID PLN (`stores.pln_customer_id`) selalu bisa diedit karena tugas validasi memastikan datanya benar. Formatnya tidak dikunci. Perubahannya disimpan langsung ke data toko dan dicatat sebagai `TECHNICAL_UPDATED`. Tipe, daya, luas, dan jam hanya disalin ke data toko kalau kalkulasi ini yang terbaru.
+- Alamat toko disembunyikan di form validasi, form Tata Cahaya, dan header halaman kategori, lalu diganti ID PLN. Data alamat tidak dihapus: `stores.address` dan `address` di data Tata Cahaya tetap ada dan tetap masuk export Excel. Form Tata Cahaya tidak lagi menulis alamat ke data toko, supaya draf lama tidak menimpa alamat yang sudah diperbaiki.
 - Saat "Validasi Kalkulasi", rekomendasi dibuat ulang hanya kalau tipenya tidak cocok lagi dengan status (Hemat butuh `MAINTENANCE`, Boros butuh `TRAINING`/`REPAIR`). AI menerima status awal, status akhir, dan daftar koreksi; batas tunggu 10 detik, lalu teks cadangan. Rekomendasi lama dicatat di `audit_corrections` (`RECOMMENDATION_UPDATED`). "Simpan Draf" tidak memanggil AI.
 - Halaman hasil (`/audit/[id]`) menulis "Status berubah dari … ke …" beserta perubahan kWh-nya, dan memberi label "Diperbarui setelah validasi" pada rekomendasi yang dibuat ulang. Halaman validasi dan admin juga memberi keterangan kalau status berubah setelah koreksi.
 

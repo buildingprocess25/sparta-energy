@@ -113,10 +113,11 @@ export async function saveLightingAudit(
         },
       })
 
-      if (data.address) {
+      // The address field is hidden, so a stale draft must not overwrite the store's address.
+      if (data.plnCustomerId) {
         await tx.store.update({
           where: { id: source.storeId },
-          data: { address: data.address },
+          data: { plnCustomerId: data.plnCustomerId },
         })
       }
     })

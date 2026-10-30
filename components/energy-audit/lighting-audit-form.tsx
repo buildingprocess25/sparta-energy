@@ -63,6 +63,10 @@ import {
   type LpdStatus,
   type LuxStatus,
 } from "@/lib/lighting-audit"
+import {
+  PLN_CUSTOMER_ID_MAX_LENGTH,
+  plnCustomerIdHint,
+} from "@/lib/pln-customer-id"
 import { cn } from "@/lib/utils"
 
 type Step = 1 | 2 | 3
@@ -75,7 +79,7 @@ type LightingAuditFormProps = {
 const stepLabels: Record<Step, { label: string; description: string }> = {
   1: {
     label: "Step 1: Info Pemeriksaan",
-    description: "Lengkapi alamat toko dan alat ukur yang dipakai di lapangan.",
+    description: "Lengkapi ID PLN dan alat ukur yang dipakai di lapangan.",
   },
   2: {
     label: "Step 2: Data per Zona",
@@ -322,22 +326,24 @@ export function LightingAuditForm({
                   </div>
                 </dl>
 
+                {/* The address stays in the audit data; only ID PLN is shown here. */}
                 <Field>
-                  <FieldLabel htmlFor="audit-address">Alamat toko</FieldLabel>
-                  <Textarea
-                    id="audit-address"
-                    value={data.address}
+                  <FieldLabel htmlFor="audit-pln-customer">ID PLN</FieldLabel>
+                  <Input
+                    id="audit-pln-customer"
+                    inputMode="numeric"
+                    value={data.plnCustomerId}
                     onChange={(e) =>
                       update((current) => ({
                         ...current,
-                        address: e.target.value,
+                        plnCustomerId: e.target.value,
                       }))
                     }
-                    placeholder="Contoh: Jl. Sudirman No. 88, Pekanbaru"
-                    rows={2}
+                    placeholder="Ketik ID pelanggan"
+                    maxLength={PLN_CUSTOMER_ID_MAX_LENGTH}
                   />
                   <FieldDescription>
-                    Tersimpan juga ke data toko.
+                    {plnCustomerIdHint(data.plnCustomerId)}
                   </FieldDescription>
                 </Field>
 

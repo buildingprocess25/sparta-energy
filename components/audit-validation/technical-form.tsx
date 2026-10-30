@@ -20,8 +20,11 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import {
+  PLN_CUSTOMER_ID_MAX_LENGTH,
+  plnCustomerIdHint,
+} from "@/lib/pln-customer-id"
 import { STORE_TYPES } from "@/lib/store-types"
 
 export type AreaField =
@@ -35,6 +38,7 @@ export type AreaField =
 export type TechnicalDraft = {
   storeType: string
   address: string
+  plnCustomerId: string
   plnPowerVa: string
   areas: Record<AreaField, string>
   is24Hours: boolean
@@ -125,19 +129,20 @@ export function TechnicalForm({
             )}
           </Field>
 
+          {/* The address stays in the draft and on the store; only ID PLN is shown here. */}
           <Field>
-            <FieldLabel htmlFor="tech-address">Alamat toko</FieldLabel>
-            <Textarea
-              id="tech-address"
-              value={value.address}
-              onChange={(e) => set({ address: e.target.value })}
+            <FieldLabel htmlFor="tech-pln-customer">ID PLN</FieldLabel>
+            <Input
+              id="tech-pln-customer"
+              inputMode="numeric"
+              value={value.plnCustomerId}
+              onChange={(e) => set({ plnCustomerId: e.target.value })}
               disabled={isLocked}
-              placeholder="Contoh: Jl. Sudirman No. 88, Pekanbaru"
-              maxLength={300}
-              rows={2}
+              placeholder="Ketik ID pelanggan"
+              maxLength={PLN_CUSTOMER_ID_MAX_LENGTH}
             />
             <FieldDescription>
-              Langsung disimpan ke data toko saat draf disimpan.
+              {plnCustomerIdHint(value.plnCustomerId)}
             </FieldDescription>
           </Field>
 
