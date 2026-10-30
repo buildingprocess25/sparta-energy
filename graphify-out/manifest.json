@@ -114,9 +114,9 @@
     "semantic_hash": ""
   },
   "app/actions/submit-audit.ts": {
-    "mtime": 1793325704.354133,
-    "seen": 1793325973.894799,
-    "ast_hash": "d5200ecbdd482043e71cdc645c24d319",
+    "mtime": 1793326359.7825131,
+    "seen": 1793326715.8910677,
+    "ast_hash": "30c5ef7582ad33b36fe0175dd2e2b6ca",
     "semantic_hash": ""
   },
   "app/actions/update-user.ts": {
@@ -774,9 +774,9 @@
     "semantic_hash": ""
   },
   "components/audit/step2-detail.tsx": {
-    "mtime": 1792720065.4188306,
-    "seen": 1792721605.2944565,
-    "ast_hash": "bb5221ddb33437d4ead4b801d449b794",
+    "mtime": 1793326398.0176501,
+    "seen": 1793326715.9163444,
+    "ast_hash": "5275b2a147830726eab5cbe055f5cfaf",
     "semantic_hash": ""
   },
   "components/audit/step2.tsx": {
@@ -1290,9 +1290,9 @@
     "semantic_hash": ""
   },
   "lib/audit-kalkulator.ts": {
-    "mtime": 1793075185.6511097,
-    "seen": 1793076355.3772771,
-    "ast_hash": "98e23b5820d0eb6401dc7e8532dad5a0",
+    "mtime": 1793326414.665104,
+    "seen": 1793326715.935898,
+    "ast_hash": "d11e1cb6b61aaf6eb0402223b0d31544",
     "semantic_hash": ""
   },
   "lib/auth-client.ts": {
@@ -1728,9 +1728,9 @@
     "semantic_hash": ""
   },
   "AI_CONTEXT.md": {
-    "mtime": 1793075185.3783026,
-    "seen": 1793076355.3897939,
-    "ast_hash": "cb8844dd4997d886d107a6b42d6a3879",
+    "mtime": 1793326605.3049927,
+    "seen": 1793326715.9554527,
+    "ast_hash": "35a58622d1d266a2912965f5ceff85e7",
     "semantic_hash": ""
   },
   "ARCHITECTURE_PLAN.md": {
@@ -2673,6 +2673,36 @@
     "mtime": 1793325704.3620162,
     "seen": 1793325973.9517303,
     "ast_hash": "4b4f4234ddff6c83da72af89af4c319b",
+    "semantic_hash": ""
+  },
+  "lib/audit-kalkulator.test.ts": {
+    "mtime": 1793326438.0013268,
+    "seen": 1793326715.935898,
+    "ast_hash": "30fc7b6eff30a68d0d20b6e10b3b669d",
+    "semantic_hash": ""
+  },
+  "scripts/backfill-audit-baseline.ts": {
+    "mtime": 1793327024.8409996,
+    "seen": 1793327322.598002,
+    "ast_hash": "cd5f21d9002ddd4882216bdc25be6ffb",
+    "semantic_hash": ""
+  },
+  "lib/audit-baseline-backfill.test.ts": {
+    "mtime": 1793327071.7391229,
+    "seen": 1793327322.5859432,
+    "ast_hash": "7b1c6a96752dc819de4d9c5f5b0a387c",
+    "semantic_hash": ""
+  },
+  "lib/audit-baseline-backfill.ts": {
+    "mtime": 1793327024.8399916,
+    "seen": 1793327322.5859432,
+    "ast_hash": "78070c5064cae6b92ba4d20e7bd041eb",
+    "semantic_hash": ""
+  },
+  "lib/audit-kalkulator.replay.test.ts": {
+    "mtime": 1793327072.5441265,
+    "seen": 1793327322.5859432,
+    "ast_hash": "93fb932d37c769688b6bf4b3881363c4",
     "semantic_hash": ""
   }
 }

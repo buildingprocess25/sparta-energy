@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
-import { calculateAudit, getHoursBetween } from "@/lib/audit-kalkulator"
+import { calculateAudit } from "@/lib/audit-kalkulator"
 import { calculateGapPercent } from "@/lib/audit-recalculate"
 import type { EquipmentState, PlnRowState } from "@/store/use-audit-store"
 import type { AreaTarget, RecommendationType } from "@prisma/client"
@@ -82,7 +82,7 @@ Estimasi Kebutuhan Alat: ${calc.equipmentEstimateKwhPerMonth.toFixed(0)} kWh/bul
 Aktual Rata-rata PLN: ${calc.avgActualPlnKwhPerMonth.toFixed(0)} kWh/bulan
 Tipe Rekomendasi: ${calc.recommendationType}
 Daftar Peralatan:
-${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.quantity * getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00")).toFixed(1)} kWh/hari`).join("\n")}
+${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name} = ${row.estimatedDailyKwh.toFixed(1)} kWh/hari`).join("\n")}
 `
       let rec = {
         type: calc.recommendationType as RecommendationType,
@@ -115,40 +115,14 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
         rec.description = fallback.description
       }
 
-      const selectedEquipments = input.equipments.filter((eq) => eq.selected)
-      const items = selectedEquipments.flatMap((eq) => {
-        const isAC =
-          eq.name.toLowerCase().includes("ac") ||
-          eq.name.toLowerCase().includes("air conditioner")
-        if (isAC && eq.quantity > 1) {
-          return Array.from({ length: eq.quantity }, (_, i) => {
-            const start = eq.startTimes[i] || "08:00"
-            const end = eq.endTimes[i] || "22:00"
-            const hours = getHoursBetween(start, end)
-            return {
-              areaTarget: toAreaTarget(eq.areaName),
-              customName: eq.name,
-              qty: 1,
-              operationalHours: hours,
-              baseKw: eq.kw,
-              estimatedDailyKwh: eq.kw * hours,
-            }
-          })
-        }
-        const start = eq.startTimes[0] || "08:00"
-        const end = eq.endTimes[0] || "22:00"
-        const hours = getHoursBetween(start, end)
-        return [
-          {
-            areaTarget: toAreaTarget(eq.areaName),
-            customName: eq.name,
-            qty: eq.quantity,
-            operationalHours: hours,
-            baseKw: eq.kw,
-            estimatedDailyKwh: eq.kw * eq.quantity * hours,
-          },
-        ]
-      })
+      const items = calc.itemRows.map((row) => ({
+        areaTarget: toAreaTarget(row.equipment.areaName),
+        customName: row.equipment.name,
+        qty: row.qty,
+        operationalHours: row.operationalHours,
+        baseKw: row.baseKw,
+        estimatedDailyKwh: row.estimatedDailyKwh,
+      }))
 
       return {
         demoAuditResult: {
@@ -201,18 +175,29 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
     // below and only copied back to the store when an admin validates.
 
     // ── 4. Run calculation ──────────────────────────────────────────────────────
-    const calc = calculateAudit(input.equipments, input.plnHistory, {
-      is24Hours: input.is24Hours,
-      openTime: input.openTime,
-      closeTime: input.closeTime,
-      areas: {
-        sales: input.areas.sales,
-        parkir: input.areas.parkir,
-        teras: input.areas.teras,
-        gudang: input.areas.gudang,
-      },
-      plnPowerVa: input.plnPowerVa,
+    // calcMethod comes from the equipment master, for both the total and the stored rows.
+    const eqTypes = await prisma.equipmentType.findMany({
+      select: { id: true, name: true, calcMethod: true, calcDuration: true },
     })
+    const eqTypeMap = new Map(eqTypes.map((t) => [t.name.toLowerCase().trim(), t]))
+
+    const calc = calculateAudit(
+      input.equipments,
+      input.plnHistory,
+      {
+        is24Hours: input.is24Hours,
+        openTime: input.openTime,
+        closeTime: input.closeTime,
+        areas: {
+          sales: input.areas.sales,
+          parkir: input.areas.parkir,
+          teras: input.areas.teras,
+          gudang: input.areas.gudang,
+        },
+        plnPowerVa: input.plnPowerVa,
+      },
+      (eq) => eqTypeMap.get(eq.name.toLowerCase().trim())
+    )
 
     const gapPercent = calculateGapPercent(
       calc.avgActualPlnKwhPerMonth,
@@ -276,12 +261,6 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
     // ── 6. Create AuditItems (per equipment unit) ───────────────────────────────
     const selectedEquipments = input.equipments.filter((eq) => eq.selected)
 
-    // Fetch all equipment types to map name -> id, calcMethod, calcDuration
-    const eqTypes = await prisma.equipmentType.findMany({
-      select: { id: true, name: true, calcMethod: true, calcDuration: true },
-    })
-    const eqTypeMap = new Map(eqTypes.map((t) => [t.name.toLowerCase().trim(), t]))
-
     if (selectedEquipments.length > 0) {
       // Resolve brands
       for (const eq of selectedEquipments) {
@@ -330,71 +309,23 @@ ${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.qua
       }
 
       await prisma.auditItem.createMany({
-        data: selectedEquipments.flatMap((eq) => {
-          const typeInfo = eqTypeMap.get(eq.name.toLowerCase().trim())
-          const eqTypeId = typeInfo?.id ?? null
-          const method = typeInfo?.calcMethod ?? eq.calcMethod ?? "STANDARD"
-          const duration = typeInfo?.calcDuration ?? eq.calcDuration ?? 0
-
-          // For AC: create one row per unit with its own hours
-          // For others: one row with qty and average hours
-          const isAC =
-            eq.name.toLowerCase().includes("ac") ||
-            eq.name.toLowerCase().includes("air conditioner")
-
-          if (isAC && eq.quantity > 1) {
-            return Array.from({ length: eq.quantity }, (_, i) => {
-              const start = eq.startTimes[i] || "08:00"
-              const end = eq.endTimes[i] || "22:00"
-              const hours = getHoursBetween(start, end)
-              const bKw = eq.kws?.[i] ?? eq.kw ?? 0
-              return {
-                auditId: audit.id,
-                equipmentTypeId: eqTypeId,
-                areaTarget: toAreaTarget(eq.areaName),
-                customName: eq.name,
-                notes: eq.notes?.trim() || null,
-                brandName: eq.brandNames?.[i] ?? eq.brandName,
-                equipmentBrandId: eq.brandIds?.[i] ?? eq.brandId,
-                qty: 1,
-                operationalHours: hours,
-                baseKw: bKw,
-                estimatedDailyKwh: bKw * hours,
-              }
-            })
+        data: calc.itemRows.map((row) => {
+          const eq = row.equipment
+          return {
+            auditId: audit.id,
+            equipmentTypeId:
+              eqTypeMap.get(eq.name.toLowerCase().trim())?.id ?? null,
+            areaTarget: toAreaTarget(eq.areaName),
+            customName: eq.name,
+            notes: eq.notes?.trim() || null,
+            brandName: eq.brandNames?.[row.unitIndex] ?? eq.brandName,
+            equipmentBrandId: eq.brandIds?.[row.unitIndex] ?? eq.brandId,
+            qty: row.qty,
+            operationalHours: row.operationalHours,
+            baseKw: row.baseKw,
+            estimatedDailyKwh: row.estimatedDailyKwh,
+            usageCount: row.usageCount,
           }
-
-          const start = eq.startTimes[0] || "08:00"
-          const end = eq.endTimes[0] || "22:00"
-          const hours = getHoursBetween(start, end)
-          const bKw = eq.kws?.[0] ?? eq.kw ?? 0
-          const usageVal = eq.usages?.[0] ?? 0
-
-          let estDailyKwh = bKw * eq.quantity * hours
-          if (method === "TRANSACTION" || method === "BATCH") {
-            const hrsRunning = Math.min((usageVal * duration) / 3600, hours)
-            const hrsStandby = Math.max(0, hours - hrsRunning)
-            const runningKwVal = eq.runningKws?.[0] ?? bKw
-            const standbyKwVal = eq.standbyKws?.[0] ?? (runningKwVal * 0.05)
-            estDailyKwh = ((runningKwVal * hrsRunning) + (standbyKwVal * hrsStandby)) * eq.quantity
-          }
-
-          return [
-            {
-              auditId: audit.id,
-              equipmentTypeId: eqTypeId,
-              areaTarget: toAreaTarget(eq.areaName),
-              customName: eq.name,
-              notes: eq.notes?.trim() || null,
-              brandName: eq.brandNames?.[0] ?? eq.brandName,
-              equipmentBrandId: eq.brandIds?.[0] ?? eq.brandId,
-              qty: eq.quantity,
-              operationalHours: hours,
-              baseKw: bKw,
-              estimatedDailyKwh: estDailyKwh,
-              usageCount: (method === "TRANSACTION" || method === "BATCH") ? usageVal : null,
-            },
-          ]
         }),
       })
     }
@@ -423,7 +354,7 @@ Estimasi Kebutuhan Alat: ${calc.equipmentEstimateKwhPerMonth.toFixed(0)} kWh/bul
 Aktual Rata-rata PLN: ${calc.avgActualPlnKwhPerMonth.toFixed(0)} kWh/bulan
 Tipe Rekomendasi (Hard-coded fallback calc): ${calc.recommendationType}
 Daftar Peralatan (Format: Qty x Nama = Est Kwh/hari):
-${input.equipments.map((eq) => `- ${eq.quantity}x ${eq.name} = ${(eq.kw * eq.quantity * getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00")).toFixed(1)} kWh/hari`).join("\n")}
+${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name} = ${row.estimatedDailyKwh.toFixed(1)} kWh/hari`).join("\n")}
 `
 
     let finalRec = {

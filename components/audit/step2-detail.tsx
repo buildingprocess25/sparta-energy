@@ -31,6 +31,7 @@ const CATEGORY_ICONS: Record<
   Lainnya: IconCpu,
 }
 import { cn } from "@/lib/utils"
+import { buildAuditItemRows } from "@/lib/audit-kalkulator"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -401,35 +402,10 @@ export function AuditStep2Detail({
 
   // --- BASELINE TRACKER ---
   React.useEffect(() => {
-    let totalDailyKwh = 0
-    zustandEqs.forEach((eq) => {
-      if (!eq.selected) return
-      const isAC =
-        eq.name.toLowerCase().includes("ac") ||
-        eq.name.toLowerCase().includes("air conditioner")
-      const method = eq.calcMethod || "STANDARD"
-      const duration = eq.calcDuration || 0
-
-      for (let i = 0; i < eq.quantity; i++) {
-        const start = isAC
-          ? eq.startTimes[i] || "08:00"
-          : eq.startTimes[0] || "08:00"
-        const end = isAC ? eq.endTimes[i] || "22:00" : eq.endTimes[0] || "22:00"
-        const hrs = getSingleDuration(start, end)
-        
-        const kwRunning = eq.runningKws?.[i] ?? eq.kws?.[i] ?? eq.kw ?? 0
-        const kwStandby = eq.standbyKws?.[i] ?? (kwRunning * 0.05)
-        const usageVal = eq.usages?.[i] ?? 0
-
-        if (method === "TRANSACTION" || method === "BATCH") {
-          const hrsRunning = Math.min((usageVal * duration) / 3600, hrs)
-          const hrsStandby = Math.max(0, hrs - hrsRunning)
-          totalDailyKwh += (kwRunning * hrsRunning) + (kwStandby * hrsStandby)
-        } else {
-          totalDailyKwh += kwRunning * hrs
-        }
-      }
-    })
+    const totalDailyKwh = buildAuditItemRows(zustandEqs).reduce(
+      (sum, row) => sum + row.estimatedDailyKwh,
+      0
+    )
     console.log("==================================================")
     console.log(
       `[Baseline Tracker] Ada ${zustandEqs.length} equipment disimpan`
@@ -592,19 +568,18 @@ export function AuditStep2Detail({
       const start = eq.startTimes?.[0] || "08:00"
       const end = eq.endTimes?.[0] || "22:00"
       const hrs = getSingleDuration(start, end)
+      const baseKw = eq.kws?.[0] ?? eq.kw ?? 0
 
-      for (let i = 0; i < qty; i++) {
-        const kwRunning = eq.runningKws?.[i] ?? eq.kws?.[i] ?? eq.kw ?? 0
-        const kwStandby = eq.standbyKws?.[i] ?? (kwRunning * 0.05)
-        const usageVal = eq.usages?.[i] ?? 0
-
-        if (method === "TRANSACTION" || method === "BATCH") {
-          const hrsRunning = Math.min((usageVal * duration) / 3600, hrs)
-          const hrsStandby = Math.max(0, hrs - hrsRunning)
-          sumKwh += (kwRunning * hrsRunning) + (kwStandby * hrsStandby)
-        } else {
-          sumKwh += kwRunning * hrs
-        }
+      // Same as buildAuditItemRows(): running/standby kW only for usage-based items.
+      if (method === "TRANSACTION" || method === "BATCH") {
+        const kwRunning = eq.runningKws?.[0] ?? baseKw
+        const kwStandby = eq.standbyKws?.[0] ?? kwRunning * 0.05
+        const usageVal = eq.usages?.[0] ?? 0
+        const hrsRunning = Math.min((usageVal * duration) / 3600, hrs)
+        const hrsStandby = Math.max(0, hrs - hrsRunning)
+        sumKwh += (kwRunning * hrsRunning + kwStandby * hrsStandby) * qty
+      } else {
+        sumKwh += baseKw * hrs * qty
       }
     }
     return sumKwh
