@@ -83,7 +83,6 @@ export function AdminMasterEquipmentTable({
   filters,
   equipmentTypeOptions,
   categories,
-  deviceCategories,
   storeTypes,
 }: {
   initialRows: MasterEquipmentRow[]
@@ -92,7 +91,6 @@ export function AdminMasterEquipmentTable({
   filters: MasterEquipmentFilters
   equipmentTypeOptions: MasterEquipmentTypeOption[]
   categories: string[]
-  deviceCategories: string[]
   storeTypes: string[]
 }) {
   const router = useRouter()
@@ -569,7 +567,6 @@ export function AdminMasterEquipmentTable({
         equipment={editItem}
         equipmentTypeOptions={equipmentTypeOptions}
         categories={categories}
-        deviceCategories={deviceCategories}
         storeTypes={storeTypes}
         onSuccess={() => {
           router.refresh()

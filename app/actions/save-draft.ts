@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
+import { syncCustomEquipmentSubmissions } from "@/lib/custom-equipment"
 import { getServerErrorMessage } from "@/lib/error-handling"
 import type { EquipmentState, PlnRowState, StoreType } from "@/store/use-audit-store"
 import type { AreaTarget } from "@prisma/client"
@@ -120,6 +121,14 @@ export async function saveAuditDraft(input: SaveDraftInput) {
 
       // We only insert items that are configured/selected or present in equipments
       const selectedEquipments = input.equipments.filter((eq) => eq.selected)
+      const customEquipmentIds = await syncCustomEquipmentSubmissions(prisma, {
+        auditId,
+        storeId,
+        userId,
+        equipments: selectedEquipments,
+        masterNames: new Set(eqTypeMap.keys()),
+        toAreaTarget,
+      })
       if (selectedEquipments.length > 0) {
         const itemsToCreate = []
         for (const eq of selectedEquipments) {
@@ -151,6 +160,7 @@ export async function saveAuditDraft(input: SaveDraftInput) {
                 operationalHours: hours,
                 baseKw: bKw,
                 estimatedDailyKwh: bKw * hours,
+                customEquipmentId: customEquipmentIds.get(eq.id) ?? null,
               })
             }
           } else {
@@ -182,6 +192,7 @@ export async function saveAuditDraft(input: SaveDraftInput) {
               baseKw: bKw,
               estimatedDailyKwh: estDailyKwh,
               usageCount: (method === "TRANSACTION" || method === "BATCH") ? usageVal : null,
+              customEquipmentId: customEquipmentIds.get(eq.id) ?? null,
             })
           }
         }
@@ -248,6 +259,9 @@ export async function getAuditDraft(auditId: string) {
           include: {
             equipmentType: true,
             equipmentBrand: true,
+            customEquipment: {
+              select: { deviceCategory: true, productPhotoUrl: true },
+            },
           },
         },
         plnHistory: {
@@ -379,6 +393,8 @@ export async function getAuditDraft(auditId: string) {
         usages: usagesArr,
         runningKws: runningKwsArr,
         standbyKws: standbyKwsArr,
+        customDeviceCategory: first.customEquipment?.deviceCategory,
+        customPhotoUrl: first.customEquipment?.productPhotoUrl,
       })
     })
 
@@ -424,6 +440,8 @@ export async function getAuditDraft(auditId: string) {
         usages: usagesArr,
         runningKws: runningKwsArr,
         standbyKws: standbyKwsArr,
+        customDeviceCategory: item.customEquipment?.deviceCategory,
+        customPhotoUrl: item.customEquipment?.productPhotoUrl,
       })
     })
 

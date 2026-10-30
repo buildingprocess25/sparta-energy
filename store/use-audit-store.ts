@@ -24,6 +24,9 @@ export interface EquipmentState {
   usages?: number[]
   runningKws?: number[]
   standbyKws?: number[]
+  // Only on equipment added through Tambah Alat Kustom; sent to admin for review.
+  customDeviceCategory?: string
+  customPhotoUrl?: string
 }
 
 export interface PlnRowState {

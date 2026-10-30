@@ -20,7 +20,16 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { buildAuditItemRows } from "@/lib/audit-kalkulator"
 import { pickBrandPhoto } from "@/lib/equipment-photo"
+import { DEVICE_CATEGORIES, isDeviceCategory } from "@/lib/equipment-categories"
 import { EquipmentThumbnail } from "@/components/audit/equipment-thumbnail"
+import { PhotoUploadField } from "@/components/audit/photo-upload-field"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -63,6 +72,8 @@ type EquipmentItem = {
   calcMethod?: string
   calcDuration?: number
   notes?: string
+  customDeviceCategory?: string
+  customPhotoUrl?: string
 }
 
 type Step2DetailProps = {
@@ -337,6 +348,8 @@ export function AuditStep2Detail({
         runningKws: e.runningKws,
         standbyKws: e.standbyKws,
         notes: e.notes,
+        customDeviceCategory: e.customDeviceCategory,
+        customPhotoUrl: e.customPhotoUrl,
       }))
     }
     // Fall back to DB master items (no mock fallback)
@@ -378,6 +391,8 @@ export function AuditStep2Detail({
         runningKws: i.runningKws || Array(i.quantity || 1).fill(i.kw ?? 0),
         standbyKws: i.standbyKws || Array(i.quantity || 1).fill((i.kw ?? 0) * 0.05),
         notes: i.notes,
+        customDeviceCategory: i.customDeviceCategory,
+        customPhotoUrl: i.customPhotoUrl,
       }))
     )
   }, [items, areaName, syncEqs])
@@ -409,23 +424,38 @@ export function AuditStep2Detail({
   const [customWatt, setCustomWatt] = React.useState("")
   const [customBrand, setCustomBrand] = React.useState("")
   const [customNotes, setCustomNotes] = React.useState("")
+  const [customCategory, setCustomCategory] = React.useState("")
+  const [customPhotoUrl, setCustomPhotoUrl] = React.useState("")
+  const [isUploadingCustomPhoto, setIsUploadingCustomPhoto] = React.useState(false)
+
+  const resetCustomForm = React.useCallback(() => {
+    setCustomName("")
+    setCustomWatt("")
+    setCustomBrand("")
+    setCustomNotes("")
+    setCustomCategory("")
+    setCustomPhotoUrl("")
+  }, [])
 
   // Reset search & custom form when drawer closes
   React.useEffect(() => {
     if (!isAddOpen) {
       setAddSearch("")
       setIsCustomMode(false)
-      setCustomName("")
-      setCustomWatt("")
-      setCustomBrand("")
-      setCustomNotes("")
+      resetCustomForm()
     }
-  }, [isAddOpen])
+  }, [isAddOpen, resetCustomForm])
+
+  const isCustomFormComplete =
+    Boolean(customName.trim()) &&
+    (parseFloat(customWatt) || 0) > 0 &&
+    isDeviceCategory(customCategory) &&
+    Boolean(customPhotoUrl)
 
   const handleCreateCustomEquipment = React.useCallback(() => {
     const wattVal = parseFloat(customWatt) || 0
-    if (!customName.trim() || wattVal <= 0) {
-      toast.error("Nama peralatan dan daya (Watt) harus diisi dengan benar.")
+    if (!customName.trim() || wattVal <= 0 || !isDeviceCategory(customCategory) || !customPhotoUrl) {
+      toast.error("Isi nama, kategori jenis, daya (Watt), dan foto produk dulu.")
       return
     }
 
@@ -454,18 +484,17 @@ export function AuditStep2Detail({
       runningKws: [kwVal],
       standbyKws: [kwVal * 0.05],
       notes: customNotes.trim() || undefined,
+      customDeviceCategory: customCategory,
+      customPhotoUrl,
     }
 
     setItems((prev) => [...prev, newItem])
     setIsAddOpen(false)
     setIsCustomMode(false)
     setAddSearch("")
-    setCustomName("")
-    setCustomWatt("")
-    setCustomBrand("")
-    setCustomNotes("")
+    resetCustomForm()
 
-    toast.success(`Alat kustom "${newItem.name}" berhasil ditambahkan`)
+    toast.success(`Alat kustom "${newItem.name}" ditambahkan. Admin akan mengeceknya.`)
     setTimeout(() => {
       setActiveEquipmentUid(newItem.uid ?? newItem.name)
       setQuantity(1)
@@ -482,6 +511,9 @@ export function AuditStep2Detail({
     customWatt,
     customBrand,
     customNotes,
+    customCategory,
+    customPhotoUrl,
+    resetCustomForm,
     storeIs24Hours,
     storeOpenTime,
     storeCloseTime,
@@ -752,8 +784,13 @@ export function AuditStep2Detail({
                         return (
                           <EquipmentRow
                             item={item}
-                            photoUrl={pickBrandPhoto(activeMaster?.brands, item.brandName)}
-                            deviceCategory={activeMaster?.deviceCategory}
+                            photoUrl={
+                              item.customPhotoUrl ??
+                              pickBrandPhoto(activeMaster?.brands, item.brandName)
+                            }
+                            deviceCategory={
+                              activeMaster?.deviceCategory ?? item.customDeviceCategory
+                            }
                             isCustom={isCustom}
                             onConfigure={() => handleConfigure(item)}
                             onDelete={() =>
@@ -806,7 +843,7 @@ export function AuditStep2Detail({
                       Tambah Alat Kustom
                     </DrawerTitle>
                     <p className="text-xs text-muted-foreground">
-                      Khusus kalkulasi toko ini (tidak mengubah master data)
+                      Dipakai di kalkulasi ini. Admin akan mengecek alat ini sebelum masuk master data.
                     </p>
                   </div>
                 </div>
@@ -825,6 +862,24 @@ export function AuditStep2Detail({
                     className="h-10 text-xs"
                     autoFocus
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="custom-eq-category" className="text-xs font-semibold">
+                    Kategori Jenis *
+                  </Label>
+                  <Select value={customCategory} onValueChange={setCustomCategory}>
+                    <SelectTrigger id="custom-eq-category" className="h-10 w-full text-xs">
+                      <SelectValue placeholder="Pilih kategori jenis" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEVICE_CATEGORIES.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">
@@ -865,6 +920,17 @@ export function AuditStep2Detail({
                   />
                 </div>
 
+                <PhotoUploadField
+                  id="custom-eq-photo"
+                  label="Foto Produk *"
+                  hint="Foto seluruh alat. Usahakan merek atau stiker dayanya terlihat."
+                  value={customPhotoUrl}
+                  onChange={setCustomPhotoUrl}
+                  endpoint="customEquipmentImage"
+                  fileName={customName || "alat-kustom"}
+                  onUploadingChange={setIsUploadingCustomPhoto}
+                />
+
                 <div className="space-y-1.5">
                   <Label htmlFor="custom-eq-notes" className="text-xs font-semibold">
                     Catatan Tambahan (Opsional)
@@ -891,7 +957,7 @@ export function AuditStep2Detail({
                 <Button
                   type="button"
                   className="h-11 flex-2"
-                  disabled={!customName.trim() || !(parseFloat(customWatt) > 0)}
+                  disabled={!isCustomFormComplete || isUploadingCustomPhoto}
                   onClick={handleCreateCustomEquipment}
                 >
                   Tambahkan ke Kalkulasi
@@ -954,7 +1020,7 @@ export function AuditStep2Detail({
                   )
                   .map((availEq) => (
                     <button
-                      key={availEq.name}
+                      key={availEq.id}
                       type="button"
                       className="flex w-full items-center justify-between rounded-xl border border-border/40 bg-background p-4 text-left transition-colors hover:border-primary/50 active:bg-muted/50"
                       onClick={() => {
@@ -1166,13 +1232,19 @@ export function AuditStep2Detail({
                         <>
                           <div className="flex gap-4 items-start">
                             <EquipmentThumbnail
-                              photoUrl={pickBrandPhoto(activeMaster?.brands, currentBrandName)}
+                              photoUrl={
+                                activeEquipment.customPhotoUrl ??
+                                pickBrandPhoto(activeMaster?.brands, currentBrandName)
+                              }
                               alt={
                                 currentBrandName
                                   ? `${activeEquipment.name} (${currentBrandName})`
                                   : activeEquipment.name
                               }
-                              deviceCategory={activeMaster?.deviceCategory}
+                              deviceCategory={
+                                activeMaster?.deviceCategory ??
+                                activeEquipment.customDeviceCategory
+                              }
                               size="lg"
                               previewable
                             />

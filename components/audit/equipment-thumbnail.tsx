@@ -3,9 +3,10 @@
 import * as React from "react"
 import {
   IconBulb,
+  IconCoffee,
   IconCpu,
   IconFridge,
-  IconSnowflake,
+  IconWind,
 } from "@tabler/icons-react"
 
 import {
@@ -15,15 +16,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { isDeviceCategory, type DeviceCategory } from "@/lib/equipment-categories"
 import { cn } from "@/lib/utils"
 
 export const CATEGORY_ICONS: Record<
-  string,
+  DeviceCategory,
   React.ComponentType<{ className?: string }>
 > = {
-  Pencahayaan: IconBulb,
-  "Sistem HVAC": IconSnowflake,
-  "Sistem Pendingin Produk": IconFridge,
+  "Sistem Tata Cahaya": IconBulb,
+  "Sistem Tata Udara dan Ventilasi": IconWind,
+  "Sistem Refrigerasi": IconFridge,
+  "Sistem Beanspot": IconCoffee,
   Lainnya: IconCpu,
 }
 
@@ -52,7 +55,9 @@ export function EquipmentThumbnail({
   className,
 }: EquipmentThumbnailProps) {
   const [open, setOpen] = React.useState(false)
-  const FallbackIcon = CATEGORY_ICONS[deviceCategory ?? ""] ?? IconCpu
+  const FallbackIcon = isDeviceCategory(deviceCategory)
+    ? CATEGORY_ICONS[deviceCategory]
+    : IconCpu
   const sizing = SIZES[size]
 
   const thumbnail = (

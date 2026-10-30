@@ -237,6 +237,21 @@ Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbed
 - Saat "Validasi Kalkulasi", rekomendasi dibuat ulang hanya kalau tipenya tidak cocok lagi dengan status (Hemat butuh `MAINTENANCE`, Boros butuh `TRAINING`/`REPAIR`). AI menerima status awal, status akhir, dan daftar koreksi; batas tunggu 10 detik, lalu teks cadangan. Rekomendasi lama dicatat di `audit_corrections` (`RECOMMENDATION_UPDATED`). "Simpan Draf" tidak memanggil AI.
 - Halaman hasil (`/audit/[id]`) menulis "Status berubah dari … ke …" beserta perubahan kWh-nya, dan memberi label "Diperbarui setelah validasi" pada rekomendasi yang dibuat ulang. Halaman validasi dan admin juga memberi keterangan kalau status berubah setelah koreksi.
 
+### Kategori Jenis Equipment (diputuskan 30 Oktober 2026)
+
+- `equipment_types.device_category` hanya boleh salah satu dari 5: Sistem Tata Cahaya, Sistem Tata Udara dan Ventilasi, Sistem Refrigerasi, Sistem Beanspot, Lainnya. Daftar ada di `lib/equipment-categories.ts` dan dikunci CHECK constraint di database. Mengubah daftar berarti mengubah keduanya.
+- Semua tipe area Beanspot masuk Sistem Beanspot. Exhaust Fan masuk Sistem Tata Udara dan Ventilasi bersama AC.
+- Form Pemeriksaan memilih master dengan aturan ini: Tata Cahaya mengambil Sistem Tata Cahaya ditambah lampu Beanspot (nama diawali "Lampu"). HVAC mengambil Sistem Tata Udara dan Ventilasi tanpa Exhaust Fan sebagai unit AC (`lib/energy-audit-queries.ts`).
+
+### Alat Kustom dari Anak Toko
+
+- Form "Tambah Alat Kustom" di step 2 mewajibkan nama, kategori jenis, daya (Watt), dan foto produk. Foto diunggah ke UploadThing (`customEquipmentImage`, wajib login).
+- Setiap simpan draf dan submit menyinkronkan tabel `custom_equipment_submissions` (status Menunggu/Disetujui/Ditolak), dan baris `audit_items` terhubung lewat `custom_equipment_id`. Tabel master tidak berubah sampai admin menyetujui.
+- Admin meninjau di Master Data → Equipment → tombol "Validasi Equipment" (angka merah = jumlah yang menunggu). Antrean hanya berisi usulan dari kalkulasi COMPLETED yang alatnya masih ada.
+- "Simpan ke master" membuat tipe baru atau menambah brand di tipe yang ada, foto ikut terbawa, lalu alat di kalkulasi terkait dihubungkan ke master. kWh dan status Hemat/Boros tidak berubah.
+- Alat kustom lama (sebelum 30 Oktober 2026, tanpa kategori dan foto) tidak masuk antrean dan dianggap sudah beres.
+- Upload foto brand dan name plate di admin hanya untuk peran yang boleh mengubah Master Data.
+
 ### Foto Bukti Titik Ukur Lux (Pemeriksaan Tata Cahaya)
 
 - Tiap titik ukur lux bisa punya maksimal 3 foto (`photos` di `LightingLuxRow`, tersimpan di JSON `energy_audits.data`). Titik yang lux-nya terisi wajib punya minimal 1 foto sebelum pemeriksaan diselesaikan; draf boleh tanpa foto.

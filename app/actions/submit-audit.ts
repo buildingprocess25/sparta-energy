@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { calculateAudit } from "@/lib/audit-kalkulator"
 import { calculateGapPercent } from "@/lib/audit-recalculate"
+import { syncCustomEquipmentSubmissions } from "@/lib/custom-equipment"
 import type { EquipmentState, PlnRowState } from "@/store/use-audit-store"
 import type { AreaTarget, RecommendationType } from "@prisma/client"
 import { generateRecommendationWithFallback } from "@/lib/ai-recommendation"
@@ -260,6 +261,14 @@ ${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name} = ${row.estima
 
     // ── 6. Create AuditItems (per equipment unit) ───────────────────────────────
     const selectedEquipments = input.equipments.filter((eq) => eq.selected)
+    const customEquipmentIds = await syncCustomEquipmentSubmissions(prisma, {
+      auditId: audit.id,
+      storeId,
+      userId,
+      equipments: selectedEquipments,
+      masterNames: new Set(eqTypeMap.keys()),
+      toAreaTarget,
+    })
 
     if (selectedEquipments.length > 0) {
       // Resolve brands
@@ -325,6 +334,7 @@ ${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name} = ${row.estima
             baseKw: row.baseKw,
             estimatedDailyKwh: row.estimatedDailyKwh,
             usageCount: row.usageCount,
+            customEquipmentId: customEquipmentIds.get(eq.id) ?? null,
           }
         }),
       })

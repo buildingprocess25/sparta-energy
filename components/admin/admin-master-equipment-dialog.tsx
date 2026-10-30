@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { cn, slugify } from "@/lib/utils"
 import { uploadFiles } from "@/lib/uploadthing"
 import { compressImage } from "@/lib/image-compression"
+import { DEVICE_CATEGORIES, isDeviceCategory } from "@/lib/equipment-categories"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -37,7 +38,6 @@ type AdminMasterEquipmentDialogProps = {
   equipment?: MasterEquipmentRow | null // If null/undefined, we are in Create mode
   equipmentTypeOptions: MasterEquipmentTypeOption[]
   categories: string[]
-  deviceCategories: string[]
   storeTypes: string[]
   onSuccess?: () => void
 }
@@ -48,7 +48,6 @@ export function AdminMasterEquipmentDialog({
   equipment,
   equipmentTypeOptions,
   categories,
-  deviceCategories,
   storeTypes,
   onSuccess,
 }: AdminMasterEquipmentDialogProps) {
@@ -124,8 +123,6 @@ export function AdminMasterEquipmentDialog({
   const [equipmentName, setEquipmentName] = useState("")
   const [category, setCategory] = useState("")
   const [deviceCategory, setDeviceCategory] = useState("")
-  const [selectDeviceCategory, setSelectDeviceCategory] = useState("")
-  const [customDeviceCategory, setCustomDeviceCategory] = useState("")
   const [storeType, setStoreType] = useState("all") // "all" maps to null in DB
   const [defaultKw, setDefaultKw] = useState<number | "">("")
   const [calcMethod, setCalcMethod] = useState("STANDARD")
@@ -140,13 +137,6 @@ export function AdminMasterEquipmentDialog({
 
   const isCreateMode = !equipment
   const isNewTypeSelected = equipmentTypeId === "new"
-
-  const dbCategories = Array.from(new Set(deviceCategories))
-    .map((c) => c.trim())
-    .filter((c) => Boolean(c) && c !== "Lainnya")
-    .sort((a, b) => a.localeCompare(b))
-
-  const uniqueDeviceCategories = [...dbCategories, "Lainnya"]
 
   const getAreaFromCategory = (cat: string) => {
     switch (cat) {
@@ -174,15 +164,8 @@ export function AdminMasterEquipmentDialog({
       setEquipmentName(equipment.equipmentName)
       setCategory(equipment.category)
 
-      const devCat = equipment.deviceCategory || ""
-      setDeviceCategory(devCat)
-      if (uniqueDeviceCategories.includes(devCat)) {
-        setSelectDeviceCategory(devCat)
-        setCustomDeviceCategory("")
-      } else {
-        setSelectDeviceCategory(devCat ? "custom_input" : "")
-        setCustomDeviceCategory(devCat)
-      }
+      // Categories outside the fixed list come up empty so the admin picks one.
+      setDeviceCategory(isDeviceCategory(equipment.deviceCategory) ? equipment.deviceCategory : "")
 
       setStoreType(equipment.storeType || "all")
       setDefaultKw(equipment.defaultKw)
@@ -206,8 +189,6 @@ export function AdminMasterEquipmentDialog({
       setEquipmentName("")
       setCategory("")
       setDeviceCategory("")
-      setSelectDeviceCategory("")
-      setCustomDeviceCategory("")
       setStoreType("all")
       setDefaultKw("")
       setCalcMethod("STANDARD")
@@ -221,18 +202,11 @@ export function AdminMasterEquipmentDialog({
       setProductPhotoUrl("")
       setNameplatePhotoUrl("")
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, equipment])
 
   // Watch for device category selection to filter/reset types
   const handleDeviceCategoryChange = (val: string) => {
-    setSelectDeviceCategory(val)
-    if (val === "custom_input") {
-      setDeviceCategory(customDeviceCategory)
-    } else {
-      setDeviceCategory(val)
-      setCustomDeviceCategory("")
-    }
+    setDeviceCategory(val)
     // Reset type fields
     setEquipmentTypeId("")
     setEquipmentName("")
@@ -252,15 +226,9 @@ export function AdminMasterEquipmentDialog({
         setEquipmentName(selectedType.name)
         setCategory(selectedType.category)
 
-        const devCat = selectedType.deviceCategory || ""
-        setDeviceCategory(devCat)
-        if (uniqueDeviceCategories.includes(devCat)) {
-          setSelectDeviceCategory(devCat)
-          setCustomDeviceCategory("")
-        } else {
-          setSelectDeviceCategory(devCat ? "custom_input" : "")
-          setCustomDeviceCategory(devCat)
-        }
+        setDeviceCategory(
+          isDeviceCategory(selectedType.deviceCategory) ? selectedType.deviceCategory : ""
+        )
 
         setStoreType(selectedType.storeType || "all")
         setDefaultKw(selectedType.defaultKw)
@@ -430,7 +398,7 @@ export function AdminMasterEquipmentDialog({
                 <div className="space-y-2">
                   <Label htmlFor="eq-device-category-top">Kategori Jenis *</Label>
                   <Select
-                    value={selectDeviceCategory}
+                    value={deviceCategory}
                     onValueChange={handleDeviceCategoryChange}
                     disabled={isSubmitting}
                   >
@@ -438,31 +406,13 @@ export function AdminMasterEquipmentDialog({
                       <SelectValue placeholder="Pilih kategori jenis..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {uniqueDeviceCategories.map((c) => (
+                      {DEVICE_CATEGORIES.map((c) => (
                         <SelectItem key={c} value={c}>
                           {c}
                         </SelectItem>
                       ))}
-                      <SelectItem value="custom_input" className="font-semibold text-primary">
-                        + Tulis Kategori Baru...
-                      </SelectItem>
                     </SelectContent>
                   </Select>
-
-                  {selectDeviceCategory === "custom_input" && (
-                    <Input
-                      id="eq-custom-device-category-top"
-                      placeholder="Contoh: Pompa Air, Komputer, dll."
-                      value={customDeviceCategory}
-                      onChange={(e) => {
-                        setCustomDeviceCategory(e.target.value)
-                        setDeviceCategory(e.target.value)
-                      }}
-                      disabled={isSubmitting}
-                      className="mt-2"
-                      required
-                    />
-                  )}
                 </div>
 
                 {/* Tipe Equipment Select */}
@@ -568,46 +518,21 @@ export function AdminMasterEquipmentDialog({
                   <div className="space-y-2">
                     <Label htmlFor="eq-device-category">Kategori Jenis *</Label>
                     <Select
-                      value={selectDeviceCategory}
-                      onValueChange={(val) => {
-                        setSelectDeviceCategory(val)
-                        if (val === "custom_input") {
-                          setDeviceCategory(customDeviceCategory)
-                        } else {
-                          setDeviceCategory(val)
-                        }
-                      }}
+                      value={deviceCategory}
+                      onValueChange={setDeviceCategory}
                       disabled={isSubmitting}
                     >
                       <SelectTrigger id="eq-device-category">
                         <SelectValue placeholder="Pilih kategori jenis..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {uniqueDeviceCategories.map((c) => (
+                        {DEVICE_CATEGORIES.map((c) => (
                           <SelectItem key={c} value={c}>
                             {c}
                           </SelectItem>
                         ))}
-                        <SelectItem value="custom_input" className="font-semibold text-primary">
-                          + Tulis Kategori Baru...
-                        </SelectItem>
                       </SelectContent>
                     </Select>
-
-                    {selectDeviceCategory === "custom_input" && (
-                      <Input
-                        id="eq-custom-device-category"
-                        placeholder="Contoh: Pompa Air, Komputer, dll."
-                        value={customDeviceCategory}
-                        onChange={(e) => {
-                          setCustomDeviceCategory(e.target.value)
-                          setDeviceCategory(e.target.value)
-                        }}
-                        disabled={isSubmitting}
-                        className="mt-2"
-                        required
-                      />
-                    )}
                   </div>
                 )}
 

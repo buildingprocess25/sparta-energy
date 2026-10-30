@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client"
 import { UTApi } from "uploadthing/server"
 
+import { DEVICE_CATEGORIES, isDeviceCategory } from "@/lib/equipment-categories"
 import { prisma } from "@/lib/prisma"
 
 const utapi = new UTApi()
@@ -107,7 +108,9 @@ function getEquipmentTypePayload(data: Record<string, unknown>) {
 
   if (!name) throw new Error("Nama equipment wajib diisi")
   if (!category) throw new Error("Kategori wajib diisi")
-  if (!deviceCategory) throw new Error("Kategori jenis wajib diisi")
+  if (!isDeviceCategory(deviceCategory)) {
+    throw new Error(`Kategori jenis harus salah satu dari: ${DEVICE_CATEGORIES.join(", ")}`)
+  }
 
   return {
     name,
