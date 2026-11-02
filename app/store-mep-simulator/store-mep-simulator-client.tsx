@@ -8064,7 +8064,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
 
         if (line.orientation === "h") {
           const cy = sc.offY + (sc.minY + line.coord) * sc.scale
-          const x1 = sc.offX + sc.minX * sc.scale
+          const x1 = sc.offX + (sc.minX + line.from) * sc.scale
           const x2 = sc.offX + (sc.minX + line.to) * sc.scale
           ctx.beginPath()
           ctx.moveTo(x1, cy)
@@ -8072,7 +8072,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
           ctx.stroke()
         } else {
           const cx = sc.offX + (sc.minX + line.coord) * sc.scale
-          const y1 = sc.offY + sc.minY * sc.scale
+          const y1 = sc.offY + (sc.minY + line.from) * sc.scale
           const y2 = sc.offY + (sc.minY + line.to) * sc.scale
           ctx.beginPath()
           ctx.moveTo(cx, y1)
@@ -8094,8 +8094,8 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
       ctx.lineWidth = 3.5
       ctx.lineJoin = "round"
 
-      // Tag Tepi Kiri & Kanan
-      if (gypsumCalculation.xAxis.borderCutCm > 0) {
+      // Tag Tepi Kiri & Kanan (Hanya untuk denah persegi simetris)
+      if (!gypsumCalculation.isIrregular && gypsumCalculation.xAxis.borderCutCm > 0) {
         ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
         const midY = sc.offY + (sc.minY + sc.rH / 2) * sc.scale
 
@@ -8111,8 +8111,8 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
         ctx.fillText(`${gypsumCalculation.xAxis.borderCutCm}cm`, rightX, midY)
       }
 
-      // Tag Tepi Atas & Bawah
-      if (gypsumCalculation.yAxis.borderCutCm > 0) {
+      // Tag Tepi Atas & Bawah (Hanya untuk denah persegi simetris)
+      if (!gypsumCalculation.isIrregular && gypsumCalculation.yAxis.borderCutCm > 0) {
         ctx.fillStyle = effectiveIsDark ? "#fbbf24" : "#b45309"
         const midX = sc.offX + (sc.minX + sc.rW / 2) * sc.scale
         ctx.textAlign = "center"

@@ -21,6 +21,16 @@ Dokumen ini mencatat hasil analisis file konsep Excel `Perhitungan Gypsum Tile.x
 
 ## 2. Aturan Baku Pemasangan (Golden Rules)
 
+### 0. Penanganan Denah Asimetris / Poligon (Trapesium, Huruf L, Sudut Serong)
+Sistem secara otomatis mendeteksi apakah denah berbentuk **Persegi Panjang Reguler** atau **Poligon Asimetris**:
+* **Klasifikasi Kotak Panel (Cell Classification):**
+  1. **Panel Utuh (FULL):** Panel yang ke-4 sudutnya berada 100% di dalam poligon ruangan (arsiran hijau).
+  2. **Panel Terpotong (BORDER / CUT):** Panel yang memotong garis segmen dinding toko mana pun (arsiran oranye/amber). Seluruh panel yang memotong dinding dihitung sebagai kebutuhan 1 lembar panel potong.
+  3. **Panel Luar (OUTSIDE / VOID):** Panel yang berada 100% di luar ruangan poligon (dieliminasi dan tidak dihitung ke pengadaan).
+* **Grid Lines & Kuantitas Aktual:**
+  - Garis Main Tee & Cross Tee dihitung berdasarkan segmen lintasan riil yang berada di dalam poligon menggunakan uji potong ray-casting.
+  - Luas ruangan dan keliling wall angle dihitung dari koordinat riil poligon (bukan bounding box).
+
 ### A. Grid Simetris (Centering Grid)
 * Grid plafon disusun simetris dari as tengah ruangan.
 * Panel utuh diletakkan di bagian tengah.
@@ -97,11 +107,12 @@ Kalkulator akan menyajikan ringkasan output yang terbedah jelas:
    * **Logika Efisiensi Bahan:** Karena potongan tepi berukuran >= 50% modul, maka 1 lembar panel hanya bisa menghasilkan 1 potongan tepi (sisa potongannya tidak dapat dipakai kembali).
    * **Total Lembar Yang Dipesan:** `Total Panel Utuh + Total Panel Potongan + Safety Margin Waste (5%)`.
 
-3. **Bill of Quantity (BoQ) Estimasi Rangka T-Bar (Fitur Pelengkap):**
-   * **Main Tee 3.6 m:** Dipasang setiap interval bentang 1.2 m.
-   * **Cross Tee 1.2 m:** Dipasang melintang setiap interval 0.6 m.
-   * **Wall Angle 3.0 m:** Dipasang keliling dinding mengikuti perimeter toko.
-   * **Rod Hanger / Penggantung:** Dipasang setiap jarak 1.2 m pada Main Tee.
+3. **Bill of Quantity (BoQ) Estimasi Rangka T-Bar & Aksesoris (Standar AHSP):**
+   * **Main Tee 3.6 m:** Dipasang setiap interval bentang 1.2 m (dihitung dari panjang lintasan bersih modul dibagi 3.6 m, dibulatkan ke atas).
+   * **Cross Tee 1.2 m:** Dipasang melintang setiap interval 0.6 m (dihitung dari jumlah kolom × baris kisi melintang).
+   * **Wall Angle 3.0 m:** Dipasang keliling dinding mengikuti perimeter toko (keliling dibagi 3.0 m, dibulatkan ke atas).
+   * **Aksesoris Gantungan (Spring, Bracket, Rod 3mm):** Mengacu pada koefisien baku AHSP Jayaboard (Koef. 0.7875 dan 0.3938/m²).
+   * *Catatan Kebijakan Waste:* Perhitungan rangka T-bar tidak lagi ditambahkan ekstra pengali 5% manual karena koefisien resmi AHSP Jayaboard sudah mencakup faktor toleransi/kehilangan material (mencegah pemborosan *double-buffering*).
 
 ---
 
