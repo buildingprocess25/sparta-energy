@@ -57,9 +57,9 @@ export function GypsumTileResultCard({
     cornerTiles,
     totalBorderTiles,
     totalTilesNeeded,
-    safetyWasteTiles,
     totalTilesToOrder,
     boq,
+    isIrregular,
   } = data
 
   const isHorizontal = orientation === "horizontal"
@@ -188,49 +188,63 @@ export function GypsumTileResultCard({
               </Badge>
             </div>
 
-            <div className="space-y-2 text-xs">
-              {/* Tepi Kiri & Kanan */}
-              <div className="p-2 rounded-lg border border-border/50 bg-background/90 space-y-1">
+            {isIrregular ? (
+              <div className="p-2.5 rounded-lg border border-border/50 bg-background/90 space-y-1.5 text-xs">
                 <div className="flex items-center justify-between font-semibold">
-                  <span className="text-[11px] text-foreground">Tepi Kiri &amp; Kanan (Sumbu X)</span>
-                  <span className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                    {xAxis.borderCutCm} cm
-                  </span>
+                  <span className="text-[11px] text-foreground">Bentuk Denah Poligon</span>
+                  <Badge variant="outline" className="text-[9px] border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-500/10 font-bold">
+                    Asimetris ({totalBorderTiles} Panel Terpotong)
+                  </Badge>
                 </div>
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>Modul {xAxis.panelDimM} m</span>
-                  <span className="font-medium text-foreground/80">
-                    {Math.round(xAxis.borderCutRatio * 100)}% modul (&ge; {xAxis.minAllowedCutM * 100} cm)
-                  </span>
-                </div>
-                {xAxis.isRevised && (
-                  <p className="text-[9px] text-amber-600 dark:text-amber-400 italic pt-0.5 border-t border-border/30">
-                    *1 panel utuh dikorbankan agar potongan tepi tidak kurang dari 50%.
-                  </p>
-                )}
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Ukuran potongan tepi bervariasi mengikuti kontur dinding poligon (arsiran oranye di kanvas). Seluruh modul yang beririsan dengan dinding dihitung sebagai kebutuhan 1 lembar panel potong.
+                </p>
               </div>
+            ) : (
+              <div className="space-y-2 text-xs">
+                {/* Tepi Kiri & Kanan */}
+                <div className="p-2 rounded-lg border border-border/50 bg-background/90 space-y-1">
+                  <div className="flex items-center justify-between font-semibold">
+                    <span className="text-[11px] text-foreground">Tepi Kiri &amp; Kanan (Sumbu X)</span>
+                    <span className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                      {xAxis.borderCutCm} cm
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>Modul {xAxis.panelDimM} m</span>
+                    <span className="font-medium text-foreground/80">
+                      {Math.round(xAxis.borderCutRatio * 100)}% modul (&ge; {xAxis.minAllowedCutM * 100} cm)
+                    </span>
+                  </div>
+                  {xAxis.isRevised && (
+                    <p className="text-[9px] text-amber-600 dark:text-amber-400 italic pt-0.5 border-t border-border/30">
+                      *1 panel utuh dikorbankan agar potongan tepi tidak kurang dari 50%.
+                    </p>
+                  )}
+                </div>
 
-              {/* Tepi Depan & Belakang */}
-              <div className="p-2 rounded-lg border border-border/50 bg-background/90 space-y-1">
-                <div className="flex items-center justify-between font-semibold">
-                  <span className="text-[11px] text-foreground">Tepi Depan &amp; Belakang (Sumbu Y)</span>
-                  <span className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                    {yAxis.borderCutCm} cm
-                  </span>
+                {/* Tepi Depan & Belakang */}
+                <div className="p-2 rounded-lg border border-border/50 bg-background/90 space-y-1">
+                  <div className="flex items-center justify-between font-semibold">
+                    <span className="text-[11px] text-foreground">Tepi Depan &amp; Belakang (Sumbu Y)</span>
+                    <span className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                      {yAxis.borderCutCm} cm
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>Modul {yAxis.panelDimM} m</span>
+                    <span className="font-medium text-foreground/80">
+                      {Math.round(yAxis.borderCutRatio * 100)}% modul (&ge; {yAxis.minAllowedCutM * 100} cm)
+                    </span>
+                  </div>
+                  {yAxis.isRevised && (
+                    <p className="text-[9px] text-amber-600 dark:text-amber-400 italic pt-0.5 border-t border-border/30">
+                      *1 panel utuh dikorbankan agar potongan tepi tidak kurang dari 50%.
+                    </p>
+                  )}
                 </div>
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span>Modul {yAxis.panelDimM} m</span>
-                  <span className="font-medium text-foreground/80">
-                    {Math.round(yAxis.borderCutRatio * 100)}% modul (&ge; {yAxis.minAllowedCutM * 100} cm)
-                  </span>
-                </div>
-                {yAxis.isRevised && (
-                  <p className="text-[9px] text-amber-600 dark:text-amber-400 italic pt-0.5 border-t border-border/30">
-                    *1 panel utuh dikorbankan agar potongan tepi tidak kurang dari 50%.
-                  </p>
-                )}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Bagian 2: Kebutuhan Material Panel Gyptile */}
@@ -245,19 +259,28 @@ export function GypsumTileResultCard({
                 <span>Panel Utuh di Tengah</span>
                 <span className="font-mono font-semibold text-foreground">{totalFullTiles} Lembar</span>
               </div>
-              <div className="flex justify-between py-0.5 text-muted-foreground">
-                <span>Potongan Tepi Depan &amp; Belakang</span>
-                <span className="font-mono font-semibold text-foreground">{borderTilesTopBottom} Lembar</span>
-              </div>
-              <div className="flex justify-between py-0.5 text-muted-foreground">
-                <span>Potongan Tepi Kiri &amp; Kanan</span>
-                <span className="font-mono font-semibold text-foreground">{borderTilesLeftRight} Lembar</span>
-              </div>
-              {cornerTiles > 0 && (
+              {isIrregular ? (
                 <div className="flex justify-between py-0.5 text-muted-foreground">
-                  <span>Potongan 4 Sudut</span>
-                  <span className="font-mono font-semibold text-foreground">{cornerTiles} Lembar</span>
+                  <span>Panel Terpotong Dinding Poligon</span>
+                  <span className="font-mono font-semibold text-foreground">{totalBorderTiles} Lembar</span>
                 </div>
+              ) : (
+                <>
+                  <div className="flex justify-between py-0.5 text-muted-foreground">
+                    <span>Potongan Tepi Depan &amp; Belakang</span>
+                    <span className="font-mono font-semibold text-foreground">{borderTilesTopBottom} Lembar</span>
+                  </div>
+                  <div className="flex justify-between py-0.5 text-muted-foreground">
+                    <span>Potongan Tepi Kiri &amp; Kanan</span>
+                    <span className="font-mono font-semibold text-foreground">{borderTilesLeftRight} Lembar</span>
+                  </div>
+                  {cornerTiles > 0 && (
+                    <div className="flex justify-between py-0.5 text-muted-foreground">
+                      <span>Potongan 4 Sudut</span>
+                      <span className="font-mono font-semibold text-foreground">{cornerTiles} Lembar</span>
+                    </div>
+                  )}
+                </>
               )}
               <div className="flex justify-between py-1 border-t border-border/40 text-muted-foreground font-medium">
                 <span>Kebutuhan Bersih Terpasang</span>

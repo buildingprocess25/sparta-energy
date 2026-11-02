@@ -21,6 +21,16 @@ Dokumen ini mencatat hasil analisis file konsep Excel `Perhitungan Gypsum Tile.x
 
 ## 2. Aturan Baku Pemasangan (Golden Rules)
 
+### 0. Penanganan Denah Asimetris / Poligon (Trapesium, Huruf L, Sudut Serong)
+Sistem secara otomatis mendeteksi apakah denah berbentuk **Persegi Panjang Reguler** atau **Poligon Asimetris**:
+* **Klasifikasi Kotak Panel (Cell Classification):**
+  1. **Panel Utuh (FULL):** Panel yang ke-4 sudutnya berada 100% di dalam poligon ruangan (arsiran hijau).
+  2. **Panel Terpotong (BORDER / CUT):** Panel yang memotong garis segmen dinding toko mana pun (arsiran oranye/amber). Seluruh panel yang memotong dinding dihitung sebagai kebutuhan 1 lembar panel potong.
+  3. **Panel Luar (OUTSIDE / VOID):** Panel yang berada 100% di luar ruangan poligon (dieliminasi dan tidak dihitung ke pengadaan).
+* **Grid Lines & Kuantitas Aktual:**
+  - Garis Main Tee & Cross Tee dihitung berdasarkan segmen lintasan riil yang berada di dalam poligon menggunakan uji potong ray-casting.
+  - Luas ruangan dan keliling wall angle dihitung dari koordinat riil poligon (bukan bounding box).
+
 ### A. Grid Simetris (Centering Grid)
 * Grid plafon disusun simetris dari as tengah ruangan.
 * Panel utuh diletakkan di bagian tengah.

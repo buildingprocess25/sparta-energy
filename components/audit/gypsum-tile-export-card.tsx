@@ -72,7 +72,6 @@ export function GypsumTileExportCard({ cardRef, data }: Props) {
     cornerTiles,
     totalBorderTiles,
     totalTilesNeeded,
-    safetyWasteTiles,
     totalTilesToOrder,
     boq,
   } = calculation
@@ -409,15 +408,21 @@ export function GypsumTileExportCard({ cardRef, data }: Props) {
                 Pembedahan Kebutuhan Lembar (60x120 cm)
               </div>
               <Row label="Panel Utuh di Tengah" value={`${totalFullTiles} Lembar`} />
-              <Row
-                label={isHorizontal ? "Panel Tepi Depan & Belakang" : "Panel Tepi Kiri & Kanan"}
-                value={`${borderTilesTopBottom} Lembar`}
-              />
-              <Row
-                label={isHorizontal ? "Panel Tepi Kiri & Kanan" : "Panel Tepi Depan & Belakang"}
-                value={`${borderTilesLeftRight} Lembar`}
-              />
-              {cornerTiles > 0 && <Row label="Panel Potongan 4 Sudut" value={`${cornerTiles} Lembar`} />}
+              {data.calculation.isIrregular ? (
+                <Row label="Panel Terpotong Dinding Poligon" value={`${totalBorderTiles} Lembar`} />
+              ) : (
+                <>
+                  <Row
+                    label={isHorizontal ? "Panel Tepi Depan & Belakang" : "Panel Tepi Kiri & Kanan"}
+                    value={`${borderTilesTopBottom} Lembar`}
+                  />
+                  <Row
+                    label={isHorizontal ? "Panel Tepi Kiri & Kanan" : "Panel Tepi Depan & Belakang"}
+                    value={`${borderTilesLeftRight} Lembar`}
+                  />
+                  {cornerTiles > 0 && <Row label="Panel Potongan 4 Sudut" value={`${cornerTiles} Lembar`} />}
+                </>
+              )}
               <Row label="Kebutuhan Bersih Terpasang" value={`${totalTilesNeeded} Lembar`} />
               <Row
                 label="Cadangan Potong & Waste AHSP"
@@ -446,14 +451,23 @@ export function GypsumTileExportCard({ cardRef, data }: Props) {
               >
                 Ukuran Potongan Tepi Dinding (Aturan ≥ 50%)
               </div>
-              <Row
-                label={`Tepi Kiri & Kanan (Modul ${xAxis.panelDimM}m)`}
-                value={`${xAxis.borderCutCm} cm (${Math.round(xAxis.borderCutRatio * 100)}%)`}
-              />
-              <Row
-                label={`Tepi Depan & Belakang (Modul ${yAxis.panelDimM}m)`}
-                value={`${yAxis.borderCutCm} cm (${Math.round(yAxis.borderCutRatio * 100)}%)`}
-              />
+              {data.calculation.isIrregular ? (
+                <Row
+                  label="Kontur Denah Poligon"
+                  value={`Asimetris (${totalBorderTiles} Panel Terpotong Dinding)`}
+                />
+              ) : (
+                <>
+                  <Row
+                    label={`Tepi Kiri & Kanan (Modul ${xAxis.panelDimM}m)`}
+                    value={`${xAxis.borderCutCm} cm (${Math.round(xAxis.borderCutRatio * 100)}%)`}
+                  />
+                  <Row
+                    label={`Tepi Depan & Belakang (Modul ${yAxis.panelDimM}m)`}
+                    value={`${yAxis.borderCutCm} cm (${Math.round(yAxis.borderCutRatio * 100)}%)`}
+                  />
+                </>
+              )}
             </div>
 
             {/* Estimasi Rangka T-Bar & Aksesoris */}
