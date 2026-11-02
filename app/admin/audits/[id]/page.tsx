@@ -320,7 +320,7 @@ export default async function AdminAuditDetailPage({
           >
             <a href={`/admin/audits/${audit.id}/export`} download>
               <IconDownload data-icon="inline-start" />
-              Download .xlsx
+              Unduh Excel
             </a>
           </Button>
           <Button asChild>
@@ -334,7 +334,7 @@ export default async function AdminAuditDetailPage({
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <AdminMetricCard
-          label="Actual PLN"
+          label="Aktual PLN"
           value={formatNumber(audit.actualPln, " kWh")}
           description="Rata-rata PLN dari kalkulasi ini"
           icon={IconBolt}
@@ -390,7 +390,7 @@ export default async function AdminAuditDetailPage({
                 ["Tipe", audit.store.type],
                 ["Total area", formatDecimal(audit.store.totalAreaM2, " m²")],
                 ["Sales", formatDecimal(audit.store.salesAreaM2, " m²")],
-                ["Parkir", formatDecimal(audit.store.parkingAreaM2, " m²")],
+                ["Parkiran", formatDecimal(audit.store.parkingAreaM2, " m²")],
                 ["Teras", formatDecimal(audit.store.terraceAreaM2, " m²")],
                 ["Gudang", formatDecimal(audit.store.warehouseAreaM2, " m²")],
                 ["Toilet", formatDecimal(audit.store.toiletAreaM2, " m²")],
@@ -421,7 +421,7 @@ export default async function AdminAuditDetailPage({
                 ["Tanggal kalkulasi", formatDate(audit.auditDate)],
                 ["Auditor", audit.auditor.name],
                 ["Email auditor", audit.auditor.email],
-                ["Actual PLN", formatNumber(audit.actualPln, " kWh")],
+                ["Aktual PLN", formatNumber(audit.actualPln, " kWh")],
                 ["Baseline", formatNumber(audit.baseline, " kWh")],
                 [
                   "Gap",

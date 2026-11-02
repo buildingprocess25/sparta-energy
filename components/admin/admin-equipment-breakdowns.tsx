@@ -80,7 +80,7 @@ export function AdminEquipmentBreakdowns({
         data={equipment}
         accent="bg-chart-2"
       />
-      <BreakdownList title="Top Brand" data={brand} accent="bg-chart-4" />
+      <BreakdownList title="Top Merek" data={brand} accent="bg-chart-4" />
     </div>
   )
 }

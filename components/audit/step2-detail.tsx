@@ -1252,7 +1252,7 @@ export function AuditStep2Detail({
                             {/* Brand Selector */}
                             <div className="flex-1 space-y-1.5">
                               <Label className="text-xs">
-                                Merek / Brand (Opsional)
+                                Merek (Opsional)
                               </Label>
                               {activeMaster ? (
                                 <BrandCombobox

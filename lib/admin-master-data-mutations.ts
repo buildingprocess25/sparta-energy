@@ -127,7 +127,7 @@ function getEquipmentBrandPayload(data: Record<string, unknown>) {
   const name = getString(data, "brandName")
   const areaTarget = getString(data, "area")
 
-  if (!name) throw new Error("Nama brand wajib diisi")
+  if (!name) throw new Error("Nama merek wajib diisi")
   if (!areaTargets.has(areaTarget)) throw new Error("Area tidak valid")
 
   return {
@@ -259,7 +259,7 @@ export async function updateMasterEquipment(
       },
     })
     if (!existingBrand) {
-      return { ok: false, status: 404, message: "Brand equipment tidak ada" }
+      return { ok: false, status: 404, message: "Merek equipment tidak ada" }
     }
 
     await prisma.$transaction([
@@ -297,7 +297,7 @@ export async function deleteMasterEquipment(
     return {
       ok: false,
       status: 409,
-      message: "Brand equipment sudah dipakai kalkulasi, jadi tidak bisa dihapus",
+      message: "Merek equipment sudah dipakai kalkulasi, jadi tidak bisa dihapus",
     }
   }
 

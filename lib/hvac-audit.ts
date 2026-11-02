@@ -649,7 +649,7 @@ export function getHvacCompletionIssues(data: HvacAuditData) {
     issues.push("Hitung jumlah AC ideal di Step 1.")
   } else if (summary.standardStale) {
     issues.push(
-      "Titik lokasi atau luas sales berubah. Hitung ulang jumlah AC ideal di Step 1."
+      "Titik lokasi atau luas area sales berubah. Hitung ulang jumlah AC ideal di Step 1."
     )
   }
   if (data.installedAcUnits === null) {

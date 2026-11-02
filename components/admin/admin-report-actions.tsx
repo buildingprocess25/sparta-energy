@@ -114,8 +114,8 @@ export function AdminReportActions({
             <DialogDescription>
               {activePreview
                 ? `Menampilkan ${activePreview.previewRows} dari ${activePreview.totalRows} baris.`
-                : "Memuat data yang akan diexport."}
-              {hasMoreRows ? " Download .xlsx berisi seluruh data." : ""}
+                : "Memuat data yang akan diunduh."}
+              {hasMoreRows ? " Unduh Excel berisi seluruh data." : ""}
             </DialogDescription>
           </DialogHeader>
 
@@ -195,7 +195,7 @@ export function AdminReportActions({
       <Button asChild>
         <a href={downloadHref} download data-route-progress="false">
           <IconDownload data-icon="inline-start" />
-          Download .xlsx
+          Unduh Excel
         </a>
       </Button>
     </div>

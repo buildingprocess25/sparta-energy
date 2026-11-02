@@ -85,7 +85,7 @@ export async function approveCustomEquipment(
   const name = input.name.trim()
   const brandName = input.brandName.trim()
   if (!name) throw new CustomEquipmentReviewError("Nama equipment wajib diisi.")
-  if (!brandName) throw new CustomEquipmentReviewError("Nama brand wajib diisi.")
+  if (!brandName) throw new CustomEquipmentReviewError("Nama merek wajib diisi.")
   if (!isDeviceCategory(input.deviceCategory)) {
     throw new CustomEquipmentReviewError("Pilih kategori jenis yang tersedia.")
   }
@@ -109,7 +109,7 @@ export async function approveCustomEquipment(
       })
       if (sameName) {
         throw new CustomEquipmentReviewError(
-          `Tipe "${name}" sudah ada di master. Pilih tipe itu supaya alat ini masuk sebagai brand.`
+          `Tipe "${name}" sudah ada di master. Pilih tipe itu supaya alat ini masuk sebagai merek.`
         )
       }
     }

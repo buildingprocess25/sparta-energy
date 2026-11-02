@@ -98,7 +98,7 @@ function checkTechnical(input: AuditTechnicalInput) {
     throw new ValidationError("Luas area tidak boleh kosong atau negatif.")
   }
   if (!(input.areas.sales > 0)) {
-    throw new ValidationError("Luas sales area harus lebih dari 0 m².")
+    throw new ValidationError("Luas area sales harus lebih dari 0 m².")
   }
   if (
     !input.is24Hours &&
@@ -570,7 +570,7 @@ async function applyDraft(
   const technicalLabels: Record<keyof typeof technical, string> = {
     storeType: "Tipe toko",
     plnPowerVa: "Daya PLN",
-    salesAreaM2: "Luas sales area",
+    salesAreaM2: "Luas area sales",
     parkingAreaM2: "Luas parkiran",
     terraceAreaM2: "Luas teras",
     warehouseAreaM2: "Luas gudang",

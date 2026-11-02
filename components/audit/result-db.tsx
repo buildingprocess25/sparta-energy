@@ -90,7 +90,7 @@ type AuditDB = {
 const areaChartConfig = {
   SALES: { label: "Sales Area", color: "var(--chart-1)" },
   TERRACE: { label: "Teras", color: "var(--chart-2)" },
-  PARKING: { label: "Parkir", color: "var(--chart-4)" },
+  PARKING: { label: "Parkiran", color: "var(--chart-4)" },
   WAREHOUSE: { label: "Gudang, Toilet & Selasar", color: "var(--chart-3)" },
 } satisfies ChartConfig
 
@@ -104,7 +104,7 @@ const numberFormat = new Intl.NumberFormat("id-ID")
 const AREA_LABELS: Record<string, string> = {
   SALES: "Sales Area",
   TERRACE: "Teras",
-  PARKING: "Parkir",
+  PARKING: "Parkiran",
   WAREHOUSE: "Gudang, Toilet & Selasar",
 }
 function getAreaLabel(area: string) {

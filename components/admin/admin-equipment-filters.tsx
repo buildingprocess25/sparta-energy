@@ -29,7 +29,7 @@ type AdminEquipmentFiltersProps = {
 
 const areaOptions = [
   { value: "SALES", label: "Sales" },
-  { value: "PARKING", label: "Parkir" },
+  { value: "PARKING", label: "Parkiran" },
   { value: "TERRACE", label: "Teras" },
   { value: "WAREHOUSE", label: "Gudang, Toilet & Selasar" },
 ]
@@ -89,7 +89,7 @@ export function AdminEquipmentFilters({
       },
       {
         key: "brand",
-        label: "Brand",
+        label: "Merek",
         type: "select",
         icon: <IconTag />,
         options: brands.map((item) => ({ value: item, label: item })),
@@ -171,7 +171,7 @@ export function AdminEquipmentFilters({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Cari toko, equipment, atau brand..."
+            placeholder="Cari toko, equipment, atau merek..."
             className="pl-9"
           />
         </div>

@@ -88,7 +88,7 @@ const stepLabels: Record<Step, { label: string; description: string }> = {
   2: {
     label: "Step 2: Data per Zona",
     description:
-      "Isi luas, daftar lampu, dan hasil ukur tingkat terang (lux) di setiap zona.",
+      "Isi luas lantai, daftar lampu, dan hasil ukur tingkat terang (lux) di setiap zona.",
   },
   3: {
     label: "Step 3: Ringkasan",
@@ -276,7 +276,7 @@ export function LightingAuditForm({
     gudang > 0 &&
     toilet === 0 &&
     selasar === 0
-      ? `Data toko masih mencatat gudang, toilet & selasar sebagai satu luas: ${numberFormat.format(gudang)} m². Ukur luas zona ini terpisah.`
+      ? `Data toko masih mencatat gudang, toilet & selasar sebagai satu luas: ${numberFormat.format(gudang)} m². Ukur luas lantai zona ini terpisah.`
       : null
 
   return (
@@ -515,7 +515,7 @@ export function LightingAuditForm({
                         </Field>
                       </div>
                       <FieldDescription>
-                        Hanya untuk denah lampu, luas zona tidak ikut berubah.
+                        Hanya untuk denah lampu, luas lantai tidak ikut berubah.
                         Tanpa meteran, hitung jumlah plafon di tiap sisi lalu
                         kalikan ukuran satu plafon.
                       </FieldDescription>
@@ -523,7 +523,7 @@ export function LightingAuditForm({
                   )}
 
                   <Field>
-                    <FieldLabel htmlFor="zone-area">Luas zona (m²)</FieldLabel>
+                    <FieldLabel htmlFor="zone-area">Luas lantai (m²)</FieldLabel>
                     <Input
                       id="zone-area"
                       type="number"
@@ -920,7 +920,7 @@ export function LightingAuditForm({
             >
               {[
                 {
-                  label: "Total luas area",
+                  label: "Total luas lantai",
                   value: `${numberFormat.format(summary.totalArea)} m²`,
                 },
                 {
@@ -1004,7 +1004,7 @@ export function LightingAuditForm({
                       <tr className="border-b text-left text-xs text-muted-foreground">
                         <th className="py-2 pr-3 font-medium">Zona</th>
                         <th className="py-2 pr-3 text-right font-medium">
-                          Luas
+                          Luas lantai
                         </th>
                         <th className="py-2 pr-3 text-right font-medium">
                           Lampu

@@ -107,7 +107,7 @@ export function AdminMasterStoreExportFilter({
       </DialogTrigger>
       <DialogContent className="max-h-[90svh] gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="border-b px-6 py-5">
-          <DialogTitle>Atur isi Export Master Toko</DialogTitle>
+          <DialogTitle>Atur isi unduhan Master Toko</DialogTitle>
           <DialogDescription>
             Hasilnya satu sheet, dikelompokkan per cabang.
           </DialogDescription>

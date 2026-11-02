@@ -254,7 +254,7 @@ function ReviewCard({
         )}
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={ids.brand}>Brand</Label>
+          <Label htmlFor={ids.brand}>Merek</Label>
           <Input
             id={ids.brand}
             value={brandName}

@@ -343,7 +343,7 @@ export default async function AdminStoreDetailPage({
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <AdminMetricCard
-          label="Actual PLN"
+          label="Aktual PLN"
           value={
             latestAudit ? formatNumber(latestAudit.actualPln, " kWh") : "-"
           }
@@ -413,7 +413,7 @@ export default async function AdminStoreDetailPage({
                 ["Tipe", identity.type || "-"],
                 ["Total area", formatDecimal(identity.totalAreaM2, " m²")],
                 ["Sales", formatDecimal(identity.salesAreaM2, " m²")],
-                ["Parkir", formatDecimal(identity.parkingAreaM2, " m²")],
+                ["Parkiran", formatDecimal(identity.parkingAreaM2, " m²")],
                 ["Teras", formatDecimal(identity.terraceAreaM2, " m²")],
                 ["Gudang", formatDecimal(identity.warehouseAreaM2, " m²")],
                 ["Toilet", formatDecimal(identity.toiletAreaM2, " m²")],
@@ -449,7 +449,7 @@ export default async function AdminStoreDetailPage({
                   {[
                     ["Tanggal kalkulasi", formatDate(latestAudit.auditDate)],
                     ["Auditor", latestAudit.auditorName],
-                    ["Actual PLN", formatNumber(latestAudit.actualPln, " kWh")],
+                    ["Aktual PLN", formatNumber(latestAudit.actualPln, " kWh")],
                     ["Baseline", formatNumber(latestAudit.baseline, " kWh")],
                     [
                       "Gap",

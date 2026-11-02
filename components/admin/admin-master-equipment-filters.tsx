@@ -88,12 +88,12 @@ export function AdminMasterEquipmentFilters({
       },
       {
         key: "hasBrands",
-        label: "Data Brand",
+        label: "Data Merek",
         type: "select",
         icon: <IconTool />,
         options: [
-          { value: "with-brands", label: "Ada brand" },
-          { value: "without-brands", label: "Belum ada brand" },
+          { value: "with-brands", label: "Ada merek" },
+          { value: "without-brands", label: "Belum ada merek" },
         ],
       },
     ],
@@ -174,7 +174,7 @@ export function AdminMasterEquipmentFilters({
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari equipment, kategori, atau brand..."
+              placeholder="Cari equipment, kategori, atau merek..."
               className="pl-9"
             />
           </div>

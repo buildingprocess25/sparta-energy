@@ -219,10 +219,10 @@ export function LuxPlan({
       <p className="text-xs text-muted-foreground">
         Ketuk kotak untuk mengisi lux titiknya. A depan, B tengah, C belakang.
         {layout?.estimated &&
-          ` Lebar dan panjang belum diisi, jadi denah ini perkiraan dari luas ${numberFormat.format(layout.widthM * layout.lengthM)} m² dengan anggapan toko berbentuk persegi. Posisi lampu hanya gambaran. Isi lebar dan panjang di atas supaya denah sesuai toko.`}
+          ` Lebar dan panjang belum diisi, jadi denah ini perkiraan dari luas lantai ${numberFormat.format(layout.widthM * layout.lengthM)} m² dengan anggapan toko berbentuk persegi. Posisi lampu hanya gambaran. Isi lebar dan panjang di atas supaya denah sesuai toko.`}
         {layout
           ? ` Garis abu-abu adalah lampu rekomendasi: ${layout.rows} baris × ${layout.perRow} lampu (${numberFormat.format(layout.total)} lampu ${decimalFormat.format(layout.watt)} W), jarak antarbaris ${decimalFormat.format(layout.rowSpacingM)} m.`
-          : " Isi luas zona, atau lebar dan panjang, supaya posisi lampu ikut muncul."}
+          : " Isi luas lantai, atau lebar dan panjang, supaya posisi lampu ikut muncul."}
         {layout &&
           listedLampCount > 0 &&
           ` Daftar lampu mencatat ${numberFormat.format(listedLampCount)} lampu.`}

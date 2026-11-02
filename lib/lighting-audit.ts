@@ -683,7 +683,7 @@ export function getCompletionIssues(data: LightingAuditData) {
     const label = definition.label
     const lux = summarizeLux(zone.luxRows, definition)
     if (zone.areaM2 === null || !(zone.areaM2 > 0)) {
-      issues.push(`Luas ${label} belum diisi.`)
+      issues.push(`Luas lantai ${label} belum diisi.`)
     }
     if (lux.avgLux === null) {
       issues.push(`Tingkat terang (lux) ${label} belum diukur.`)

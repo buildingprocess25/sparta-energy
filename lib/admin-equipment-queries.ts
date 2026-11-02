@@ -400,7 +400,7 @@ export async function getAdminEquipmentAreaBreakdown(
         ai.area_target::text AS key,
         CASE ai.area_target::text
           WHEN 'SALES' THEN 'Sales'
-          WHEN 'PARKING' THEN 'Parkir'
+          WHEN 'PARKING' THEN 'Parkiran'
           WHEN 'TERRACE' THEN 'Teras'
           WHEN 'WAREHOUSE' THEN 'Gudang, Toilet & Selasar'
           ELSE ai.area_target::text

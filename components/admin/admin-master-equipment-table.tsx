@@ -186,7 +186,7 @@ export function AdminMasterEquipmentTable({
       if (!response.ok) {
         throw new Error(data.message || "Gagal menghapus equipment")
       }
-      toast.success("Berhasil menghapus brand equipment")
+      toast.success("Berhasil menghapus merek equipment")
       setDeleteDialogOpen(false)
       router.refresh()
     } catch (error) {
@@ -318,7 +318,7 @@ export function AdminMasterEquipmentTable({
                 <SortableHeader column="equipment">Equipment</SortableHeader>
               </TableHead>
               <TableHead>
-                <SortableHeader column="brand">Brand</SortableHeader>
+                <SortableHeader column="brand">Merek</SortableHeader>
               </TableHead>
               <TableHead>Kategori Jenis</TableHead>
               <TableHead>

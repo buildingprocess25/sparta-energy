@@ -490,7 +490,7 @@ ${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name}${eq.notes ? ` 
             <section className="mb-6">
               <AuditStepIndicator
                 currentStep={3}
-                label="Step 3: Data History Konsumsi Energi Berdasarkan PLN"
+                label="Step 3: Data Riwayat Konsumsi Energi Berdasarkan PLN"
               />
             </section>
 

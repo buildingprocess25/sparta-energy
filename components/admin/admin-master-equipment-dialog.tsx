@@ -264,7 +264,7 @@ export function AdminMasterEquipmentDialog({
 
     const cleanBrandName = brandName.trim()
     if (!cleanBrandName) {
-      toast.error("Nama brand wajib diisi")
+      toast.error("Nama merek wajib diisi")
       return
     }
 
@@ -356,7 +356,7 @@ export function AdminMasterEquipmentDialog({
 
       toast.success(
         isCreateMode
-          ? "Berhasil menambahkan brand equipment baru"
+          ? "Berhasil menambahkan merek equipment baru"
           : "Berhasil memperbarui data equipment"
       )
       onOpenChange(false)
@@ -385,8 +385,8 @@ export function AdminMasterEquipmentDialog({
             </DialogTitle>
             <DialogDescription>
               {isCreateMode
-                ? "Masukkan detail tipe dan brand equipment baru."
-                : "Ubah data brand dan kategori untuk equipment."}
+                ? "Masukkan detail tipe dan merek equipment baru."
+                : "Ubah data merek dan kategori untuk equipment."}
             </DialogDescription>
           </DialogHeader>
 
@@ -660,11 +660,11 @@ export function AdminMasterEquipmentDialog({
             {/* ── SECTION 2: Brand Details ── */}
             <div className="border-t pt-3 space-y-3">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Detail Brand Equipment
+                Detail Merek Equipment
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="eq-brand-name">Nama Brand *</Label>
+                <Label htmlFor="eq-brand-name">Nama Merek *</Label>
                 <Input
                   id="eq-brand-name"
                   placeholder="Contoh: Daikin Thailand 1 PK"

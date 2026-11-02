@@ -1,11 +1,24 @@
 import { betterAuth } from "better-auth"
+import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api"
 import { createHash } from "crypto"
 import { dbPool } from "@/lib/db-pool"
+import { createLockout, retryAfterSeconds } from "@/lib/rate-limit"
 import {
   deleteSessionsByToken,
   resolveSsoSession,
 } from "@/lib/session-resolver"
 import { cookieHeaderFrom, readSsoSessionToken } from "@/lib/sso-cookie"
+
+// Five failed sign-ins for one email within 15 minutes hold that email for 2 minutes.
+const signInLockout = createLockout({
+  maxFailures: 5,
+  windowMs: 15 * 60_000,
+  lockMs: 2 * 60_000,
+})
+
+function signInKey(email: unknown) {
+  return typeof email === "string" ? email.trim().toLowerCase() : ""
+}
 
 export const auth = betterAuth({
   database: dbPool,
@@ -64,6 +77,41 @@ export const auth = betterAuth({
         return hash === createHash("sha256").update(password).digest("hex")
       },
     },
+  },
+
+  // The default /sign-in rule (3 per 10 s per IP) would turn away auditors who share one
+  // mobile or store IP. Guessing passwords is stopped per email by the hooks below instead.
+  rateLimit: {
+    enabled: process.env.NODE_ENV === "production",
+    window: 60,
+    max: 300,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 60 },
+    },
+  },
+
+  advanced: {
+    ipAddress: {
+      ipAddressHeaders: ["x-real-ip", "x-forwarded-for"],
+    },
+  },
+
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-in/email") return
+      const lockedMs = signInLockout.lockedForMs(signInKey(ctx.body?.email))
+      if (lockedMs > 0) {
+        throw new APIError("TOO_MANY_REQUESTS", {
+          message: `Terlalu banyak percobaan login gagal. Coba lagi dalam ${retryAfterSeconds(lockedMs)} detik.`,
+        })
+      }
+    }),
+    after: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-in/email") return
+      const key = signInKey(ctx.body?.email)
+      if (isAPIError(ctx.context.returned)) signInLockout.recordFailure(key)
+      else signInLockout.clear(key)
+    }),
   },
 
   trustedOrigins: [

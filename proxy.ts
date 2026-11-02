@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { resolveSession } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { forgetProxySession, getProxySession } from "@/lib/proxy-session-cache"
+import { guardRequestRate } from "@/lib/request-guard"
 import { DEV_ROLE_COOKIE, getHomeUrl, resolveRole } from "@/lib/role-access"
 import { deleteSessionsByToken } from "@/lib/session-resolver"
 import {
@@ -29,6 +30,9 @@ const publicPrefixes = [
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  const rateLimited = guardRequestRate(request)
+  if (rateLimited) return rateLimited
+
   // Client useSession(): answer from sso_session only when better-auth has no session,
   // the same order the server uses, so browser and server see the same user.
   if (pathname === "/api/auth/get-session") {
@@ -42,6 +46,7 @@ export async function proxy(request: NextRequest) {
     const cookieHeader = request.headers.get("cookie") || ""
     // The browser can hold an sso_session and a better-auth cookie from different logins; end both.
     const sessionTokens = sessionTokensFromCookieHeader(cookieHeader)
+    forgetProxySession(sessionTokens)
     if (readSsoSessionToken(cookieHeader)) {
       try {
         await deleteSessionsByToken(sessionTokens)
@@ -78,20 +83,18 @@ export async function proxy(request: NextRequest) {
   // Resolve session once per request and branch by route intent.
   const cookieHeader = request.headers.get("cookie") || ""
 
-  // better-auth first, then sso_session (lib/auth.ts resolveSession).
-  const resolved = await resolveSession(request.headers)
-  const userId = resolved?.data.user.id
-  const isLoggedIn = Boolean(userId)
+  // better-auth first, then sso_session (lib/auth.ts resolveSession), cached briefly.
+  const session = await getProxySession(
+    sessionTokensFromCookieHeader(cookieHeader),
+    request.headers
+  )
+  const isLoggedIn = Boolean(session)
 
   const isGuestOnlyRoute = guestOnlyRoutes.has(pathname)
 
-  if (isLoggedIn) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true },
-    })
+  if (session) {
     const role = resolveRole(
-      user?.role,
+      session.role,
       request.cookies.get(DEV_ROLE_COOKIE)?.value
     )
 
@@ -102,11 +105,8 @@ export async function proxy(request: NextRequest) {
         : NextResponse.next()
     // The portal only reads sso_session, so keep it on the session sparta resolved; otherwise
     // a stale cookie from an earlier login shows the portal a different user.
-    const session = resolved?.data.session
-    if (session && session.token !== readSsoSessionToken(cookieHeader)) {
-      response.cookies.set(
-        ssoSessionCookie(session.token, new Date(session.expiresAt))
-      )
+    if (session.token !== readSsoSessionToken(cookieHeader)) {
+      response.cookies.set(ssoSessionCookie(session.token, session.expiresAt))
     }
     return response
   }

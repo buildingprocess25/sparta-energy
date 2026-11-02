@@ -4,7 +4,7 @@ import { getIotStatusLookup, getStoreIot } from "@/lib/iot-status"
 import { prisma } from "@/lib/prisma"
 
 const areaLabels: Record<string, string> = {
-  PARKING: "Parkir",
+  PARKING: "Parkiran",
   TERRACE: "Teras",
   SALES: "Sales",
   WAREHOUSE: "Gudang, Toilet & Selasar",
