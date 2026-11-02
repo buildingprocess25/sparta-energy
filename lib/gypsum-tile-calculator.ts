@@ -314,20 +314,20 @@ export function calculateGypsumTileLayout(params: {
     })
   }
 
-  // Estimasi BoQ Rangka Plafon T-Bar
-  // 1. Wall Angle: keliling ruangan + waste 5%
-  const wallAngleTotalM = Number((roomPerimeterM * 1.05).toFixed(2))
+  // Estimasi BoQ Rangka Plafon T-Bar (Sesuai volume bersih modul grid & AHSP, dibulatkan ke atas)
+  // 1. Wall Angle: keliling ruangan
+  const wallAngleTotalM = Number(roomPerimeterM.toFixed(2))
   const wallAnglePcs = Math.ceil(wallAngleTotalM / WALL_ANGLE_LENGTH_M)
 
   // 2. Main Tee 3.6m: jalur memanjang searah interval 1.2m
   const mainTeeTracks = Math.max(1, Math.ceil(roomLengthM / 1.2))
-  const mainTeeTotalM = Number((mainTeeTracks * roomWidthM * 1.05).toFixed(2))
+  const mainTeeTotalM = Number((mainTeeTracks * roomWidthM).toFixed(2))
   const mainTeePcs = Math.ceil(mainTeeTotalM / MAIN_TEE_LENGTH_M)
 
   // 3. Cross Tee 1.2m: batang melintang di antara Main Tee setiap interval 0.6m
   const crossTeeColumns = Math.max(1, Math.ceil(roomWidthM / 1.2))
   const crossTeeRows = Math.max(1, Math.ceil(roomLengthM / 0.6))
-  const crossTeeTotalPcs = Math.ceil(crossTeeColumns * crossTeeRows * 1.05)
+  const crossTeeTotalPcs = crossTeeColumns * crossTeeRows
   const crossTeeTotalM = Number((crossTeeTotalPcs * CROSS_TEE_LENGTH_M).toFixed(2))
 
   // 4. Rod Hanger / Penggantung: titik gantung tiap interval 1.2m pada Main Tee
