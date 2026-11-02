@@ -18,10 +18,10 @@
     "semantic_hash": "e1180d0e051636b46b11b2aa4bbf2668"
   },
   "app/ac-estimation/ac-estimation-client.tsx": {
-    "mtime": 1791882998.7600684,
-    "seen": 1792635430.1310863,
+    "mtime": 1793172701.1707897,
+    "seen": 1793172859.4664593,
     "ast_hash": "a5fcaab2107e30f3d9748795c0e91775",
-    "semantic_hash": "a5fcaab2107e30f3d9748795c0e91775"
+    "semantic_hash": ""
   },
   "app/ac-estimation/loading.tsx": {
     "mtime": 1790057425.837639,
@@ -126,8 +126,8 @@
     "semantic_hash": ""
   },
   "app/admin-entry/page.tsx": {
-    "mtime": 1793154819.440104,
-    "seen": 1793154965.9961808,
+    "mtime": 1793156364.5398037,
+    "seen": 1793157888.3362606,
     "ast_hash": "264a31ce1bcd3cab4578c2718ff7c25e",
     "semantic_hash": ""
   },
@@ -300,15 +300,15 @@
     "semantic_hash": "3d17e4e623e050c6b54b3000f8f97bea"
   },
   "app/api/auth/redirect-path/route.ts": {
-    "mtime": 1793152827.9286005,
-    "seen": 1793152997.1292014,
-    "ast_hash": "bb249c9f5d5d8293b73afdb9b1614ba7",
+    "mtime": 1793156364.5403273,
+    "seen": 1793157888.341263,
+    "ast_hash": "ba23eeb98fce5902c555cfb5f46e18dc",
     "semantic_hash": ""
   },
   "app/api/auth/sso/callback/route.ts": {
-    "mtime": 1793155316.5913906,
-    "seen": 1793155500.4658737,
-    "ast_hash": "3db42c9daceac8b2146f7db212066e0f",
+    "mtime": 1793172103.4119232,
+    "seen": 1793172213.6512597,
+    "ast_hash": "d70e680f21c0619d78e1399218d3f0f6",
     "semantic_hash": ""
   },
   "app/api/cron/sync-stores/route.spec.ts": {
@@ -396,9 +396,9 @@
     "semantic_hash": "27c0d9397d43fa30b3c44758aaebb210"
   },
   "app/dashboard/page.tsx": {
-    "mtime": 1793075185.4305089,
-    "seen": 1793076355.3563175,
-    "ast_hash": "600a2111d3bb3113be2399b040553ab5",
+    "mtime": 1793172044.1055741,
+    "seen": 1793172213.6577697,
+    "ast_hash": "a7588d00247c76de2add7c1760e095d7",
     "semantic_hash": ""
   },
   "app/demo/page.tsx": {
@@ -756,10 +756,10 @@
     "semantic_hash": ""
   },
   "components/audit/step-indicator.tsx": {
-    "mtime": 1790057425.9126205,
-    "seen": 1792635430.1310863,
-    "ast_hash": "0f9823f63590a09255168f9fdb17c735",
-    "semantic_hash": "0f9823f63590a09255168f9fdb17c735"
+    "mtime": 1793157426.9024975,
+    "seen": 1793157888.3592603,
+    "ast_hash": "e38de706b71a643313191496f14bd870",
+    "semantic_hash": ""
   },
   "components/audit/step-skeleton.tsx": {
     "mtime": 1792720065.415833,
@@ -1200,9 +1200,9 @@
     "semantic_hash": "563081ac15239c717b30e143497e3ba9"
   },
   "lib/admin-audit-detail.ts": {
-    "mtime": 1793075185.6295698,
-    "seen": 1793076355.3762696,
-    "ast_hash": "6ec8ab4643a616f4ac989e488bb9fe2c",
+    "mtime": 1793157728.6447544,
+    "seen": 1793157888.3732681,
+    "ast_hash": "3be2461446344280167bb023f9b11d44",
     "semantic_hash": ""
   },
   "lib/admin-audit-queries.test.ts": {
@@ -1260,9 +1260,9 @@
     "semantic_hash": ""
   },
   "lib/admin-store-detail.ts": {
-    "mtime": 1793075185.644559,
-    "seen": 1793076355.3772771,
-    "ast_hash": "971407fd3e46426ceb5b7199b8302c42",
+    "mtime": 1793157730.2506065,
+    "seen": 1793157888.375269,
+    "ast_hash": "fd3391a5f2d6777e128fab4875243d6e",
     "semantic_hash": ""
   },
   "lib/admin-store-queries.ts": {
@@ -1302,10 +1302,10 @@
     "semantic_hash": "ea3b466eaf3c208611078d74720bea56"
   },
   "lib/auth.ts": {
-    "mtime": 1790066957.9274461,
-    "seen": 1792635430.1310863,
-    "ast_hash": "7ce901561e379686de9b4f58e557e9b5",
-    "semantic_hash": "7ce901561e379686de9b4f58e557e9b5"
+    "mtime": 1793171796.0316646,
+    "seen": 1793172030.6696727,
+    "ast_hash": "157bf56f61174a132ced5ba3ca8db6a6",
+    "semantic_hash": ""
   },
   "lib/cad/dxf-parser.ts": {
     "mtime": 1791882998.7850976,
@@ -1416,10 +1416,10 @@
     "semantic_hash": "a013fc08f83975cac5057ed0f5e81d6c"
   },
   "package.json": {
-    "mtime": 1790057425.9615717,
-    "seen": 1792635430.1310863,
+    "mtime": 1793161828.799408,
+    "seen": 1793161950.4082315,
     "ast_hash": "2b37999687d6b52ef02fc30b1cececde",
-    "semantic_hash": "2b37999687d6b52ef02fc30b1cececde"
+    "semantic_hash": ""
   },
   "postcss.config.mjs": {
     "mtime": 1790057425.964572,
@@ -1470,9 +1470,9 @@
     "semantic_hash": "9aa98ad95b1b7814507843172e7151da"
   },
   "proxy.ts": {
-    "mtime": 1793155295.948687,
-    "seen": 1793155500.5206673,
-    "ast_hash": "192271e9a7acb943433fa3b319cc2363",
+    "mtime": 1793171859.3314285,
+    "seen": 1793172030.6786954,
+    "ast_hash": "d6faeb8361103631c1af2394a30b5c3f",
     "semantic_hash": ""
   },
   "public/manifest.json": {
@@ -1758,10 +1758,10 @@
     "semantic_hash": "fab60f412cc9016f85fcc1f484d778bc"
   },
   "docs/ac_calculator_logic_analysis.md": {
-    "mtime": 1790057425.9374275,
-    "seen": 1792635430.1320927,
+    "mtime": 1793172701.1718354,
+    "seen": 1793172859.5487204,
     "ast_hash": "11ac8be0e3371c6b3ae3970303409712",
-    "semantic_hash": "11ac8be0e3371c6b3ae3970303409712"
+    "semantic_hash": ""
   },
   "docs/ac_layout_mapping_design_specification.md": {
     "mtime": 1790057425.9374275,
@@ -1968,9 +1968,9 @@
     "semantic_hash": ""
   },
   "app/audit/validation/page.tsx": {
-    "mtime": 1793154858.4028914,
-    "seen": 1793154966.0062058,
-    "ast_hash": "783a5cf6c745f49f10668779fdc7bbcc",
+    "mtime": 1793156364.5419018,
+    "seen": 1793157888.3452609,
+    "ast_hash": "707da4a002f304cccf4768384005c35b",
     "semantic_hash": ""
   },
   "components/audit-validation/format.ts": {
@@ -2016,9 +2016,9 @@
     "semantic_hash": ""
   },
   "lib/audit-validation-queries.ts": {
-    "mtime": 1793154823.11644,
-    "seen": 1793154966.0404284,
-    "ast_hash": "a1af8a9486e022482098a3a5d5831ba8",
+    "mtime": 1793156364.581147,
+    "seen": 1793157888.3762674,
+    "ast_hash": "7d8df762a67883f73b67371f06729a89",
     "semantic_hash": ""
   },
   ".claude/skills/antislop-code/SKILL.md": {
@@ -2058,15 +2058,15 @@
     "semantic_hash": ""
   },
   "components/audit-validation/validation-filters.tsx": {
-    "mtime": 1793154820.2366965,
-    "seen": 1793154966.0197198,
-    "ast_hash": "04a0303dfe2642ad567ba84e9d38737f",
+    "mtime": 1793156364.5430126,
+    "seen": 1793157888.358261,
+    "ast_hash": "a3bb39f3b8e35d75cc147ee716536d49",
     "semantic_hash": ""
   },
   "components/audit-validation/validation-store-list.tsx": {
-    "mtime": 1793154762.0334992,
-    "seen": 1793154966.0197198,
-    "ast_hash": "2d1249c046aa9ca61d9d295890e8ffac",
+    "mtime": 1793156364.5435374,
+    "seen": 1793157888.358261,
+    "ast_hash": "f2cce5b6cac96829366ab6a80e332629",
     "semantic_hash": ""
   },
   "app/actions/delete-audit.ts": {
@@ -2112,15 +2112,15 @@
     "semantic_hash": ""
   },
   "app/actions/energy-audit.ts": {
-    "mtime": 1793075185.3854337,
-    "seen": 1793076355.3528087,
-    "ast_hash": "303341fe4d36be4bf4a005dd482ba85a",
+    "mtime": 1793157482.145815,
+    "seen": 1793157888.3342605,
+    "ast_hash": "bbc251469c0e9f5644ee3a6f9a89b73f",
     "semantic_hash": ""
   },
   "app/audit/kategori/[id]/page.tsx": {
-    "mtime": 1793075185.4199977,
-    "seen": 1793076355.3553152,
-    "ast_hash": "f41b1906a4ffe5cf2be9624a833e0168",
+    "mtime": 1793170170.1655676,
+    "seen": 1793170477.2695317,
+    "ast_hash": "0071f5ca2e9a2d1c9088ad5faae3223f",
     "semantic_hash": ""
   },
   "app/audit/kategori/[id]/tata-cahaya/export/route.ts": {
@@ -2142,9 +2142,9 @@
     "semantic_hash": ""
   },
   "app/audit/kategori/export/route.ts": {
-    "mtime": 1793075185.4235098,
-    "seen": 1793076355.3553152,
-    "ast_hash": "f4c165d3a261308e647af9c7341cb4a6",
+    "mtime": 1793171212.309354,
+    "seen": 1793171660.5150561,
+    "ast_hash": "a01bce9ac8fc8e4713fe3f899af0dbb8",
     "semantic_hash": ""
   },
   "app/audit/kategori/loading.tsx": {
@@ -2154,15 +2154,15 @@
     "semantic_hash": ""
   },
   "app/audit/kategori/page.tsx": {
-    "mtime": 1793075185.4255111,
-    "seen": 1793076355.3553152,
-    "ast_hash": "bf60bf963b94303cc401819f59aafc0b",
+    "mtime": 1793171334.1058123,
+    "seen": 1793171660.5150561,
+    "ast_hash": "56df3fb942330a266aa31a96682a302f",
     "semantic_hash": ""
   },
   "components/dashboard/energy-audit-card.tsx": {
-    "mtime": 1793075185.4645832,
-    "seen": 1793076355.365835,
-    "ast_hash": "b34b66cea36aaadea14466e461da558c",
+    "mtime": 1793170170.1825726,
+    "seen": 1793170477.2905302,
+    "ast_hash": "7c0f8004050f0a54af4e1fa0cbba72d3",
     "semantic_hash": ""
   },
   "components/energy-audit/audit-status-badge.tsx": {
@@ -2172,45 +2172,45 @@
     "semantic_hash": ""
   },
   "components/energy-audit/lighting-audit-form.tsx": {
-    "mtime": 1793075185.4831455,
-    "seen": 1793076355.366835,
-    "ast_hash": "39184175b6b181bb64056bf543bb626e",
+    "mtime": 1793170571.8657274,
+    "seen": 1793170709.8435001,
+    "ast_hash": "d99e8281771ffc24b431143ba34e2dd5",
     "semantic_hash": ""
   },
   "lib/energy-audit-categories.ts": {
-    "mtime": 1793075185.662252,
-    "seen": 1793076355.3782773,
-    "ast_hash": "588affc1b58243de4903b18e5dca192e",
+    "mtime": 1793170361.1729991,
+    "seen": 1793170477.3115356,
+    "ast_hash": "744f1cafe8916326f1bbc4c42a559fa2",
     "semantic_hash": ""
   },
   "lib/energy-audit-queries.ts": {
-    "mtime": 1793075185.6652353,
-    "seen": 1793076355.3782773,
-    "ast_hash": "c12c183c86a14196291870d8f1700afe",
+    "mtime": 1793171191.5190182,
+    "seen": 1793171660.5565765,
+    "ast_hash": "3965ccf1c63fc5a257339f01baa35561",
     "semantic_hash": ""
   },
   "lib/lighting-audit-export.ts": {
-    "mtime": 1793075185.6688235,
-    "seen": 1793076355.379277,
-    "ast_hash": "ad8a89a58dcc2a96064bc34dd790de8a",
+    "mtime": 1793171083.0527775,
+    "seen": 1793171660.5575898,
+    "ast_hash": "e75b90953e521e8ec63479eb4cd221aa",
     "semantic_hash": ""
   },
   "lib/lighting-audit.test.ts": {
-    "mtime": 1793075185.6693342,
-    "seen": 1793076355.379277,
-    "ast_hash": "d33efda8522582663986b07f88906ab6",
+    "mtime": 1793170593.9170341,
+    "seen": 1793170709.8625038,
+    "ast_hash": "c47eebadb77295e3b06a6af5f0d18a34",
     "semantic_hash": ""
   },
   "lib/lighting-audit.ts": {
-    "mtime": 1793075185.6708598,
-    "seen": 1793076355.379277,
-    "ast_hash": "b20596642eb5764d31540df682758cf9",
+    "mtime": 1793170571.6351614,
+    "seen": 1793170709.8625038,
+    "ast_hash": "456ef10d5d498403e013a4ccfc95ad12",
     "semantic_hash": ""
   },
   "lib/energy-audit-export.ts": {
-    "mtime": 1793075185.6632502,
-    "seen": 1793076355.3782773,
-    "ast_hash": "66b29b6aae17c7f4d89119fe551918df",
+    "mtime": 1793171191.561778,
+    "seen": 1793171660.5565765,
+    "ast_hash": "0eadd0b47a90bb7b6d24fac75f761a58",
     "semantic_hash": ""
   },
   "components/audit-validation/result-status-badge.tsx": {
@@ -2220,8 +2220,8 @@
     "semantic_hash": ""
   },
   "docs/integrasi-sangat-boros-monitoring.md": {
-    "mtime": 1793154186.3258524,
-    "seen": 1793154299.2913642,
+    "mtime": 1793156364.5446064,
+    "seen": 1793157888.3953032,
     "ast_hash": "c0cb9273127f30e308e1920dac75f6f9",
     "semantic_hash": ""
   },
@@ -2256,9 +2256,9 @@
     "semantic_hash": ""
   },
   "components/energy-audit/energy-audit-category-status-list.tsx": {
-    "mtime": 1793075185.4665935,
-    "seen": 1793076355.366835,
-    "ast_hash": "7da608a3dcf49f3c60d584b1750cad7a",
+    "mtime": 1793157760.6775064,
+    "seen": 1793157888.3632638,
+    "ast_hash": "d18bf957c1fdbb3598c706da0e62d313",
     "semantic_hash": ""
   },
   "lib/admin-gap-filter.ts": {
@@ -2292,9 +2292,9 @@
     "semantic_hash": ""
   },
   "components/energy-audit/lux-measurement-table.tsx": {
-    "mtime": 1793075185.4846506,
-    "seen": 1793076355.366835,
-    "ast_hash": "e6220e9d6f81bf47425132521928ea06",
+    "mtime": 1793170571.9027288,
+    "seen": 1793170709.8435001,
+    "ast_hash": "a48d1a34405bd9f5d9eed3ab49a0cfff",
     "semantic_hash": ""
   },
   "components/energy-audit/lux-sub-zone-guide.tsx": {
@@ -2364,9 +2364,9 @@
     "semantic_hash": ""
   },
   "lib/sso-cookie.ts": {
-    "mtime": 1793155362.755826,
-    "seen": 1793155500.5186245,
-    "ast_hash": "06c14ea07290392a18f578241f67c7a4",
+    "mtime": 1793171724.9105012,
+    "seen": 1793172030.6766722,
+    "ast_hash": "60da56eeccdf9249b87e1f543eed3319",
     "semantic_hash": ""
   },
   "docs/akses-role-admin-auditor-gs-area.md": {
@@ -2376,15 +2376,9 @@
     "semantic_hash": ""
   },
   "app/api/energy-audit/photos/route.ts": {
-    "mtime": 1793075185.4179976,
-    "seen": 1793076355.3543136,
-    "ast_hash": "f66e5ecb9de6a7f1965d88701b7e38a0",
-    "semantic_hash": ""
-  },
-  "components/energy-audit/lux-row-photos.tsx": {
-    "mtime": 1793075185.4846506,
-    "seen": 1793076355.366835,
-    "ast_hash": "7837f34fc062a2b184f5be59dc26ccde",
+    "mtime": 1793162465.2569373,
+    "seen": 1793162826.747536,
+    "ast_hash": "4cefa47cfd0f5246411cd9a06e0d2e4a",
     "semantic_hash": ""
   },
   "lib/photo-storage/drive.ts": {
@@ -2394,9 +2388,9 @@
     "semantic_hash": ""
   },
   "lib/photo-storage/index.ts": {
-    "mtime": 1793075185.6749198,
-    "seen": 1793076355.379277,
-    "ast_hash": "1da992518ef1d59b9d819852064bd359",
+    "mtime": 1793162465.2077484,
+    "seen": 1793162826.79413,
+    "ast_hash": "b48be0eb3a8f4ad7b3cd12f3f0cba670",
     "semantic_hash": ""
   },
   "lib/photo-storage/local.ts": {
@@ -2448,21 +2442,213 @@
     "semantic_hash": ""
   },
   "lib/sso-cookie.test.ts": {
-    "mtime": 1793155363.5554478,
-    "seen": 1793155500.5186245,
-    "ast_hash": "4586a6d6543228ccd094778784964903",
+    "mtime": 1793171859.2637672,
+    "seen": 1793172030.6766722,
+    "ast_hash": "e4799233361aece1dd8c0b400f0bf787",
     "semantic_hash": ""
   },
   "lib/audit-validation-filters.test.ts": {
-    "mtime": 1793154823.0103428,
-    "seen": 1793154966.0404284,
-    "ast_hash": "f4d35f217b983abae5f43d60a89be82e",
+    "mtime": 1793156364.5801466,
+    "seen": 1793157888.3762674,
+    "ast_hash": "68c5647c467325bf6b090b42e1fd2113",
     "semantic_hash": ""
   },
   "lib/audit-validation-filters.ts": {
-    "mtime": 1793154800.690448,
-    "seen": 1793154966.0404284,
-    "ast_hash": "23d20effedf1a4ecbdb6afe5e32de04a",
+    "mtime": 1793156364.5801466,
+    "seen": 1793157888.3762674,
+    "ast_hash": "7ed9e5c415c35e63e64752252fca7030",
+    "semantic_hash": ""
+  },
+  "app/audit/kategori/[id]/tata-udara/page.tsx": {
+    "mtime": 1793157708.8789794,
+    "seen": 1793157888.3432605,
+    "ast_hash": "66ac1669c74535221e69450e41cf8d97",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/ac-count-flag.tsx": {
+    "mtime": 1793157541.6642084,
+    "seen": 1793157888.3632638,
+    "ast_hash": "9463b66cfa4cd9e51a6252471b51ab84",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/hvac-ac-unit-card.tsx": {
+    "mtime": 1793162464.7850504,
+    "seen": 1793162826.7721303,
+    "ast_hash": "416ee71c05d68298b5e23cbd00a0104d",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/hvac-audit-form.tsx": {
+    "mtime": 1793170807.2780056,
+    "seen": 1793170983.2155638,
+    "ast_hash": "5239eec9d60c86a071f8f3a9702a5344",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/hvac-exhaust-zone-card.tsx": {
+    "mtime": 1793162464.8360553,
+    "seen": 1793162826.7721303,
+    "ast_hash": "15fe9e45e97298c47b81d227e7319b84",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/number-field.tsx": {
+    "mtime": 1793157540.0817568,
+    "seen": 1793157888.3642638,
+    "ast_hash": "e1b0e197f8db76d0dfc1d4368a7105c1",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/result-row.tsx": {
+    "mtime": 1793157540.8650308,
+    "seen": 1793157888.3642638,
+    "ast_hash": "2641adf750c78378452977a02843ca58",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/status-tone.ts": {
+    "mtime": 1793157539.285278,
+    "seen": 1793157888.3642638,
+    "ast_hash": "ded2197c828dc4afd4f92581b145bab6",
+    "semantic_hash": ""
+  },
+  "lib/ac-calculator.test.ts": {
+    "mtime": 1793157263.889009,
+    "seen": 1793157888.3732681,
+    "ast_hash": "1de23dd36b61b101ebc6465ebe905028",
+    "semantic_hash": ""
+  },
+  "lib/ac-calculator.ts": {
+    "mtime": 1793172720.7831721,
+    "seen": 1793172859.5237164,
+    "ast_hash": "e52e368f40e58c78a2d1e9b98a5f0ffa",
+    "semantic_hash": ""
+  },
+  "lib/hvac-audit.test.ts": {
+    "mtime": 1793162626.4622605,
+    "seen": 1793162826.791131,
+    "ast_hash": "c655207fb4f56e3b52a5a495e6a931d0",
+    "semantic_hash": ""
+  },
+  "lib/hvac-audit.ts": {
+    "mtime": 1793169659.7301006,
+    "seen": 1793169804.753622,
+    "ast_hash": "28a4e5ae8c59c840636576559b05b74e",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/suggestion-button.tsx": {
+    "mtime": 1793159324.581275,
+    "seen": 1793159498.814755,
+    "ast_hash": "432fbaf91aa9f58a54c4a3659d12615a",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/hvac-format.ts": {
+    "mtime": 1793159815.1875985,
+    "seen": 1793160009.573953,
+    "ast_hash": "ca68a8968793e4078f7e9554cae618e2",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/draft-restore-alert.tsx": {
+    "mtime": 1793160593.0261598,
+    "seen": 1793160755.1400738,
+    "ast_hash": "9365ed7cef73d5d60584706026e8c3b6",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/use-draft-backup.ts": {
+    "mtime": 1793160635.5962014,
+    "seen": 1793160755.1420748,
+    "ast_hash": "292066867a073a217046348e7ff9f48c",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/audit-photos.tsx": {
+    "mtime": 1793162464.690827,
+    "seen": 1793162826.77113,
+    "ast_hash": "d303b421fb874af825a2e2050e007402",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/photo-row.tsx": {
+    "mtime": 1793162464.7075007,
+    "seen": 1793162826.7731304,
+    "ast_hash": "82899dd211c4a3cf23d749d8d1024ef6",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/category-summary.tsx": {
+    "mtime": 1793170170.0256732,
+    "seen": 1793170477.29253,
+    "ast_hash": "da9e13cb26e452ef96c51536f12404b2",
+    "semantic_hash": ""
+  },
+  "lib/energy-audit-categories.test.ts": {
+    "mtime": 1793170361.2031455,
+    "seen": 1793170477.3115356,
+    "ast_hash": "e74679948ca88e6d2110cb79ba2cf1ad",
+    "semantic_hash": ""
+  },
+  "app/audit/kategori/[id]/tata-udara/export/route.ts": {
+    "mtime": 1793171083.2527263,
+    "seen": 1793171660.5140567,
+    "ast_hash": "e5e29071b5d608843cfe375008218c25",
+    "semantic_hash": ""
+  },
+  "lib/hvac-audit-export.test.ts": {
+    "mtime": 1793171083.2042031,
+    "seen": 1793171660.5565765,
+    "ast_hash": "97bb0f1fcc3fe0283189f42503d8bff2",
+    "semantic_hash": ""
+  },
+  "lib/hvac-audit-export.ts": {
+    "mtime": 1793171083.1612139,
+    "seen": 1793171660.5565765,
+    "ast_hash": "4790ef07d45edc84eeb1e0a7691e3315",
+    "semantic_hash": ""
+  },
+  "app/audit/kategori/export/preview/route.ts": {
+    "mtime": 1793171212.3686397,
+    "seen": 1793171660.5140567,
+    "ast_hash": "99ed0c06d40fc26b17aead13157ef083",
+    "semantic_hash": ""
+  },
+  "components/energy-audit/energy-audit-export-dialog.tsx": {
+    "mtime": 1793172923.797575,
+    "seen": 1793173067.650176,
+    "ast_hash": "5ad7d04018d18b6276081201f3fdae18",
+    "semantic_hash": ""
+  },
+  "lib/energy-audit-export-data.ts": {
+    "mtime": 1793171191.5834897,
+    "seen": 1793171660.5565765,
+    "ast_hash": "d61b93cc7a745650c969c33604a1e675",
+    "semantic_hash": ""
+  },
+  "lib/energy-audit-export-filters.test.ts": {
+    "mtime": 1793171254.185465,
+    "seen": 1793171660.5565765,
+    "ast_hash": "2340de77928f5fd118095a22288e29e5",
+    "semantic_hash": ""
+  },
+  "lib/energy-audit-export-filters.ts": {
+    "mtime": 1793171191.6241596,
+    "seen": 1793171660.5565765,
+    "ast_hash": "791253737ebf8fe6b83fdc64400af80f",
+    "semantic_hash": ""
+  },
+  "lib/energy-audit-export.test.ts": {
+    "mtime": 1793171254.2123451,
+    "seen": 1793171660.5565765,
+    "ast_hash": "c3154932151ccf70324f1a8a1f91bd40",
+    "semantic_hash": ""
+  },
+  "lib/xlsx-sheet.ts": {
+    "mtime": 1793171213.8796227,
+    "seen": 1793171660.5615926,
+    "ast_hash": "10fae47fa836f570eab0388879b0028f",
+    "semantic_hash": ""
+  },
+  "lib/session-resolver.test.ts": {
+    "mtime": 1793171859.2965496,
+    "seen": 1793172030.6766722,
+    "ast_hash": "755c205dbc30235d636b07ed48292a1f",
+    "semantic_hash": ""
+  },
+  "lib/session-resolver.ts": {
+    "mtime": 1793171724.943957,
+    "seen": 1793172030.6766722,
+    "ast_hash": "47223b9f772147edec560aa34af4672f",
     "semantic_hash": ""
   }
 }

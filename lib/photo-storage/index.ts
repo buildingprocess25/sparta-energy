@@ -10,6 +10,7 @@ import { deleteLocalFile, readLocalFile, saveLocalFile } from "./local"
 import { signPhotoRef } from "./signature"
 
 export const LIGHTING_PHOTO_PATH = ["Audit Energi", "Tata Cahaya"]
+export const HVAC_PHOTO_PATH = ["Audit Energi", "Tata Udara"]
 
 type PhotoStore = { code: string; name: string; branch: string | null }
 
@@ -27,6 +28,8 @@ export async function saveLightingPhoto(input: {
   fileName: string
   contentType: string
   body: Buffer
+  // Drive folders under the store folder; defaults to the lighting audit.
+  path?: string[]
 }): Promise<LightingLuxPhoto> {
   const storage = storageFor(input.store)
   let ref: string
@@ -47,7 +50,7 @@ export async function saveLightingPhoto(input: {
         name: input.store.name,
         branch: input.store.branch,
       },
-      [...LIGHTING_PHOTO_PATH, input.dateFolder]
+      [...(input.path ?? LIGHTING_PHOTO_PATH), input.dateFolder]
     )
     ref = await uploadDriveFile(
       folderId,

@@ -17,7 +17,10 @@ const round2 = (value: number | null) =>
   value === null ? null : Math.round(value * 100) / 100
 
 // Figures from the Tata Cahaya CSV sheet (total watt per zone + measured lux).
-const csv: Record<LightingZoneKey, { area: number; watt: number; lux: number }> = {
+const csv: Record<
+  LightingZoneKey,
+  { area: number; watt: number; lux: number }
+> = {
   SALES: { area: 150, watt: 3024, lux: 491 },
   PARKIRAN: { area: 300, watt: 2236, lux: 70 },
   TERAS: { area: 22.5, watt: 536, lux: 168 },
@@ -107,13 +110,22 @@ const sanitizedPhotos = sanitizeLightingAuditData({
           subZone: "A1",
           lux: 300,
           note: "",
-          photos: [photo, { ...photo, ref: "file-2" }, { ...photo, sig: "" }, { ...photo, ref: "file-3" }, { ...photo, ref: "file-4" }],
+          photos: [
+            photo,
+            { ...photo, ref: "file-2" },
+            { ...photo, sig: "" },
+            { ...photo, ref: "file-3" },
+            { ...photo, ref: "file-4" },
+          ],
         },
       ],
     },
   ],
 }).zones.find((z) => z.key === "SALES")!.luxRows[0].photos
-assert.deepEqual(sanitizedPhotos.map((p) => p.ref), ["file-1", "file-2", "file-3"])
+assert.deepEqual(
+  sanitizedPhotos.map((p) => p.ref),
+  ["file-1", "file-2", "file-3"]
+)
 
 // Default template: A1 to C3 plus one spare row; toilet has no sub zona.
 const empty = createEmptyLightingAudit()
@@ -123,10 +135,18 @@ assert.deepEqual(
   salesRows.map((row) => row.subZone),
   ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "C3", null]
 )
-assert.ok(empty.zones.find((z) => z.key === "TOILET")!.luxRows.every((r) => r.subZone === null))
+assert.ok(
+  empty.zones
+    .find((z) => z.key === "TOILET")!
+    .luxRows.every((r) => r.subZone === null)
+)
 
 // A bright front with many points must not hide a dark back.
-const row = (subZone: "A1" | "A2" | "A3" | "B1" | "C1" | null, lux: number, note = "") => ({
+const row = (
+  subZone: "A1" | "A2" | "A3" | "B1" | "C1" | null,
+  lux: number,
+  note = ""
+) => ({
   id: `${subZone}-${lux}`,
   subZone,
   lux,
@@ -134,16 +154,32 @@ const row = (subZone: "A1" | "A2" | "A3" | "B1" | "C1" | null, lux: number, note
   photos: [],
 })
 const uneven = summarizeLux(
-  [row("A1", 600), row("A2", 600), row("A3", 600), row("B1", 400), row("C1", 150)],
+  [
+    row("A1", 600),
+    row("A2", 600),
+    row("A3", 600),
+    row("B1", 400),
+    row("C1", 150),
+  ],
   sales
 )
 assert.equal(uneven.avgLux, (600 + 400 + 150) / 3)
 assert.equal(uneven.luxStatus, "MEMENUHI")
-assert.deepEqual(uneven.unevenAreas.map((a) => a.key), ["A", "C"])
-assert.deepEqual(uneven.areasMissingNote.map((a) => a.key), ["A", "C"])
+assert.deepEqual(
+  uneven.unevenAreas.map((a) => a.key),
+  ["A", "C"]
+)
+assert.deepEqual(
+  uneven.areasMissingNote.map((a) => a.key),
+  ["A", "C"]
+)
 
 const explained = summarizeLux(
-  [row("A1", 600, "Tidak ada rak"), row("B1", 400), row("C1", 150, "Lampu mati 2")],
+  [
+    row("A1", 600, "Tidak ada rak"),
+    row("B1", 400),
+    row("C1", 150, "Lampu mati 2"),
+  ],
   sales
 )
 assert.equal(explained.areasMissingNote.length, 0)
@@ -155,18 +191,52 @@ const legacy = sanitizeLightingAuditData({
     {
       key: "SALES",
       luxPoints: [450, 380],
-      eco: ["Optimalkan relighting gondola", "Pasang zoning switch di area kasir"],
+      eco: [
+        "Optimalkan relighting gondola",
+        "Pasang zoning switch di area kasir",
+      ],
     },
   ],
 })
 const legacySales = legacy.zones.find((z) => z.key === "SALES")!
 assert.deepEqual(legacy.measuringTools, ["Power Clamp Meter / Energy Meter"])
-assert.deepEqual(legacySales.luxRows.map((r) => [r.subZone, r.lux]), [[null, 450], [null, 380]])
+assert.deepEqual(
+  legacySales.luxRows.map((r) => [r.subZone, r.lux]),
+  [
+    [null, 450],
+    [null, 380],
+  ]
+)
 assert.deepEqual(legacySales.eco, ["Optimalisasi layout lampu"])
 assert.ok(
   getCompletionIssues(legacy).includes(
-    "Pilih sub zona untuk setiap titik lux di Area Sales."
+    "Pilih sub zona untuk setiap titik ukur di Area Sales."
   )
+)
+
+// Drafts saved with the earlier technical wording keep their efficiency ticks.
+const renamedDraft = sanitizeLightingAuditData({
+  zones: [
+    {
+      key: "PARKIRAN",
+      eco: ["Pasang sensor radar gerak", "Pasang photocell untuk lampu luar"],
+    },
+    {
+      key: "TOILET",
+      eco: ["Wajib sensor gerak PIR (mati otomatis saat kosong)"],
+    },
+  ],
+})
+assert.deepEqual(
+  renamedDraft.zones.find((zone) => zone.key === "PARKIRAN")?.eco,
+  [
+    "Pasang sensor gerak untuk lampu parkir",
+    "Pasang sensor cahaya otomatis (photocell) untuk lampu luar",
+  ]
+)
+assert.deepEqual(
+  renamedDraft.zones.find((zone) => zone.key === "TOILET")?.eco,
+  ["Wajib sensor gerak (lampu mati otomatis saat kosong)"]
 )
 
 console.log("lighting-audit tests passed")

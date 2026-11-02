@@ -1,6 +1,9 @@
 import { getAuditValidator } from "@/lib/audit-validation-access"
+import { EXHAUST_ZONES } from "@/lib/hvac-audit"
 import { LIGHTING_ZONES, type LightingLuxPhoto } from "@/lib/lighting-audit"
 import {
+  HVAC_PHOTO_PATH,
+  LIGHTING_PHOTO_PATH,
   deleteLightingPhoto,
   readLightingPhoto,
   saveLightingPhoto,
@@ -10,6 +13,18 @@ import { prisma } from "@/lib/prisma"
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 const POINT_LABEL = /^[A-Z0-9-]{1,12}$/
+
+// Each category keeps its own Drive folder and the zones its form can send.
+const PHOTO_CATEGORIES = {
+  "tata-cahaya": {
+    path: LIGHTING_PHOTO_PATH,
+    zones: LIGHTING_ZONES.map((zone) => zone.key as string),
+  },
+  "tata-udara": {
+    path: HVAC_PHOTO_PATH,
+    zones: ["AC", ...EXHAUST_ZONES.map((zone) => zone.key)],
+  },
+} as const
 
 const jakartaDate = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Jakarta",
@@ -45,12 +60,18 @@ export async function POST(request: Request) {
 
   const form = await request.formData()
   const sourceAuditId = String(form.get("sourceAuditId") ?? "")
+  const categoryKey = String(form.get("category") ?? "tata-cahaya")
+  const category =
+    categoryKey in PHOTO_CATEGORIES
+      ? PHOTO_CATEGORIES[categoryKey as keyof typeof PHOTO_CATEGORIES]
+      : null
   const zone = String(form.get("zone") ?? "")
   const point = String(form.get("point") ?? "").toUpperCase()
   const file = form.get("file")
 
   if (
-    !LIGHTING_ZONES.some((item) => item.key === zone) ||
+    !category ||
+    !(category.zones as readonly string[]).includes(zone) ||
     !POINT_LABEL.test(point)
   ) {
     return fail("Zona atau titik foto tidak dikenal.", 400)
@@ -91,6 +112,7 @@ export async function POST(request: Request) {
       fileName: `${zone}_${point}_${time}_${suffix}.jpg`,
       contentType: file.type,
       body: Buffer.from(await file.arrayBuffer()),
+      path: [...category.path],
     })
     return Response.json({ photo })
   } catch (error) {

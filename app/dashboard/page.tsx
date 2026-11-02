@@ -24,29 +24,8 @@ import { getPendingValidationCount } from "@/lib/audit-validation-queries"
 
 export default async function DashboardPage() {
   const requestHeaders = await headers()
-  let session = await auth.api.getSession({ headers: requestHeaders })
-
-
-
-  // Fallback: if better-auth session fails (e.g. from SSO callback), try sso_session cookie
-  if (!session?.user) {
-    const cookieHeader = requestHeaders.get("cookie") || ""
-    const ssoMatch = cookieHeader.match(/sso_session=([^;]+)/)
-    if (ssoMatch) {
-      const ssoToken = ssoMatch[1]
-      const dbSession = await prisma.session.findUnique({
-        where: { token: ssoToken },
-        include: { user: true }
-      })
-      if (dbSession && dbSession.expiresAt > new Date()) {
-        // Valid SSO session - create proper better-auth session
-        session = {
-          session: dbSession as any,
-          user: dbSession.user as any,
-        }
-      }
-    }
-  }
+  // getSession already falls back to sso_session (lib/auth.ts).
+  const session = await auth.api.getSession({ headers: requestHeaders })
 
   if (!session?.user) redirect("/login?reason=session-expired")
 

@@ -4,11 +4,12 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconClipboardCheck,
-  IconDownload,
   IconSearch,
 } from "@tabler/icons-react"
 
 import { AuditStatusBadge } from "@/components/energy-audit/audit-status-badge"
+import { CategorySummary } from "@/components/energy-audit/category-summary"
+import { EnergyAuditExportDialog } from "@/components/energy-audit/energy-audit-export-dialog"
 import { formatGap } from "@/components/audit-validation/format"
 import { ResultStatusBadge } from "@/components/audit-validation/result-status-badge"
 import { BottomNavigation } from "@/components/bottom-navigation"
@@ -26,8 +27,8 @@ import { getAuditValidator } from "@/lib/audit-validation-access"
 import {
   ENERGY_AUDIT_PAGE_SIZE,
   getEnergyAuditCandidates,
+  getEnergyAuditExportOptions,
 } from "@/lib/energy-audit-queries"
-import { LPD_STATUS_LABEL, type LpdStatus } from "@/lib/lighting-audit"
 
 type Props = {
   searchParams: Promise<{ q?: string | string[]; page?: string | string[] }>
@@ -56,11 +57,14 @@ export default async function EnergyAuditListPage({ searchParams }: Props) {
   const pageNumber = Number(first(params.page))
   const page = Number.isInteger(pageNumber) && pageNumber > 1 ? pageNumber : 1
 
-  const { rows, total } = await getEnergyAuditCandidates({ q, page })
+  const [{ rows, total }, exportOptions] = await Promise.all([
+    getEnergyAuditCandidates({ q, page }),
+    getEnergyAuditExportOptions(),
+  ])
   const totalPages = Math.max(1, Math.ceil(total / ENERGY_AUDIT_PAGE_SIZE))
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-md md:max-w-3xl flex-col bg-background px-4 md:px-6 pb-32">
+    <div className="mx-auto flex min-h-svh w-full max-w-md flex-col bg-background px-4 pb-32 md:max-w-3xl md:px-6">
       <Header
         variant="dashboard-back"
         title="Pemeriksaan Energi per Kategori"
@@ -71,12 +75,16 @@ export default async function EnergyAuditListPage({ searchParams }: Props) {
 
       <main className="flex flex-col gap-3">
         <p className="px-1 text-xs text-muted-foreground">
-          Pilih toko untuk mulai pemeriksaan di lapangan. Toko yang tata
-          cahayanya belum selesai diperiksa tampil paling atas.
+          Pilih toko untuk mulai pemeriksaan di lapangan. Toko yang
+          pemeriksaannya belum lengkap tampil paling atas.
         </p>
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          <form action="/audit/kategori" className="relative flex-1" role="search">
+          <form
+            action="/audit/kategori"
+            className="relative flex-1"
+            role="search"
+          >
             <IconSearch
               aria-hidden="true"
               className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -90,12 +98,7 @@ export default async function EnergyAuditListPage({ searchParams }: Props) {
               className="h-11 pl-9"
             />
           </form>
-          <Button asChild variant="outline" className="h-11">
-            <a href="/audit/kategori/export" download>
-              <IconDownload data-icon="inline-start" />
-              Unduh Rekap Pemeriksaan
-            </a>
-          </Button>
+          <EnergyAuditExportDialog options={exportOptions} />
         </div>
 
         {rows.length === 0 ? (
@@ -110,7 +113,8 @@ export default async function EnergyAuditListPage({ searchParams }: Props) {
             </p>
             {!q && (
               <p className="max-w-xs text-xs text-muted-foreground">
-                Validasi kalkulasi toko boros dulu, lalu toko akan muncul di sini.
+                Validasi kalkulasi toko boros dulu, lalu toko akan muncul di
+                sini.
               </p>
             )}
           </div>
@@ -121,7 +125,9 @@ export default async function EnergyAuditListPage({ searchParams }: Props) {
                 <Item variant="outline" asChild className="bg-card">
                   <Link href={`/audit/kategori/${row.sourceAuditId}`}>
                     <ItemContent className="min-w-0">
-                      <ItemTitle className="w-full truncate">{row.storeName}</ItemTitle>
+                      <ItemTitle className="w-full truncate">
+                        {row.storeName}
+                      </ItemTitle>
                       <ItemDescription className="truncate">
                         {row.storeCode}
                         {row.branch ? ` · ${row.branch}` : ""} · kalkulasi{" "}
@@ -131,22 +137,38 @@ export default async function EnergyAuditListPage({ searchParams }: Props) {
                         {row.isSangatBoros && (
                           <ResultStatusBadge isBoros isSangatBoros />
                         )}
-                        <span className="text-xs text-muted-foreground">Tata cahaya:</span>
-                        <AuditStatusBadge status={row.lightingStatus} />
-                        {row.lightingStatus === "COMPLETED" && row.lightingSummaryStatus && (
-                          <span className="text-xs text-muted-foreground">
-                            {LPD_STATUS_LABEL[row.lightingSummaryStatus as LpdStatus] ??
-                              row.lightingSummaryStatus}
-                          </span>
-                        )}
+                        <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                          {row.completedCount} dari {row.categories.length}{" "}
+                          kategori selesai
+                        </span>
                       </div>
+                      <ul className="flex flex-col gap-1 pt-1">
+                        {row.categories.map((category) => (
+                          <li
+                            key={category.key}
+                            className="flex flex-wrap items-center gap-1.5"
+                          >
+                            <span className="text-xs text-muted-foreground">
+                              {category.label.replace("Sistem ", "")}:
+                            </span>
+                            <AuditStatusBadge status={category.status} />
+                            <CategorySummary
+                              category={category.key}
+                              status={category.status}
+                              summaryStatus={category.summaryStatus}
+                            />
+                          </li>
+                        ))}
+                      </ul>
                     </ItemContent>
                     {row.gapPercent !== null && (
                       <ItemActions className="flex-col items-end gap-0.5">
                         <span className="text-sm font-bold text-[#b23f39] tabular-nums dark:text-[#e07a74]">
                           {formatGap(row.gapPercent)}
                         </span>
-                        <span className="text-[11px] text-muted-foreground">dari standar</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          dari standar
+                        </span>
                       </ItemActions>
                     )}
                     <IconChevronRight

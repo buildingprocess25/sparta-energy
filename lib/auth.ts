@@ -1,6 +1,11 @@
 import { betterAuth } from "better-auth"
 import { createHash } from "crypto"
 import { dbPool } from "@/lib/db-pool"
+import {
+  deleteSessionsByToken,
+  resolveSsoSession,
+} from "@/lib/session-resolver"
+import { cookieHeaderFrom, readSsoSessionToken } from "@/lib/sso-cookie"
 
 export const auth = betterAuth({
   database: dbPool,
@@ -71,66 +76,42 @@ export const auth = betterAuth({
 export type Session = typeof auth.$Infer.Session
 export type User = typeof auth.$Infer.Session.user
 
-// ─── ROBUST SSO SESSION FALLBACK ───────────────────────────────────────────
-// Monkey-patch getSession so that Server Actions and Server Components
-// transparently resolve the session from the 'sso_session' cookie if the
-// standard better-auth cookie fails or is missing.
-const originalGetSession = auth.api.getSession;
-// @ts-ignore
-auth.api.getSession = async (options: any) => {
-  const result = await originalGetSession(options);
-  if (result?.user) return result;
+// Server Actions and Server Components fall back to the sso_session cookie when the
+// better-auth cookie is missing or stale (SSO logins only set sso_session).
+const originalGetSession = auth.api.getSession
+type GetSessionResult = Awaited<ReturnType<typeof originalGetSession>>
 
-  if (options?.headers) {
-    let cookieStr = "";
-    if (typeof options.headers.get === 'function') {
-      cookieStr = options.headers.get("cookie") || "";
-    } else if (typeof options.headers === 'object' && 'cookie' in options.headers) {
-      cookieStr = String(options.headers.cookie);
-    }
+auth.api.getSession = (async (
+  options: Parameters<typeof originalGetSession>[0]
+) => {
+  const result = await originalGetSession(options)
+  if (result?.user) return result
+  const sso = await resolveSsoSession(cookieHeaderFrom(options?.headers))
+  return (sso as GetSessionResult) ?? result
+}) as typeof originalGetSession
 
-    const match = cookieStr.match(/sso_session=([^;]+)/);
-    if (match) {
-      const ssoToken = match[1];
-      const { prisma } = await import("@/lib/prisma");
-      const dbSession = await prisma.session.findUnique({
-        where: { token: ssoToken },
-        include: { user: true }
-      });
-      if (dbSession && dbSession.expiresAt > new Date()) {
-        return {
-          session: dbSession as any,
-          user: dbSession.user as any
-        };
-      }
-    }
-  }
-  return result;
+// Where the session came from matters to the proxy: an sso_session-only login needs
+// the client get-session route answered from the database.
+export async function resolveSession(headers: Headers) {
+  const result = await originalGetSession({ headers })
+  if (result?.user) return { data: result, source: "better-auth" as const }
+  const sso = await resolveSsoSession(headers.get("cookie") ?? "")
+  return sso ? { data: sso, source: "sso" as const } : null
 }
 
-const originalSignOut = auth.api.signOut;
-// @ts-ignore
-auth.api.signOut = async (options: any) => {
-  if (options?.headers) {
-    let cookieStr = "";
-    if (typeof options.headers.get === 'function') {
-      cookieStr = options.headers.get("cookie") || "";
-    } else if (typeof options.headers === 'object' && 'cookie' in options.headers) {
-      cookieStr = String(options.headers.cookie);
-    }
-    const match = cookieStr.match(/sso_session=([^;]+)/);
-    if (match) {
-      const ssoToken = match[1];
+const originalSignOut = auth.api.signOut
+
+// The API types signOut as read-only; the property itself is writable, as the old patch relied on.
+Object.assign(auth.api, {
+  signOut: (async (options: Parameters<typeof originalSignOut>[0]) => {
+    const ssoToken = readSsoSessionToken(cookieHeaderFrom(options?.headers))
+    if (ssoToken) {
       try {
-        const { prisma } = await import("@/lib/prisma");
-        await prisma.session.deleteMany({
-          where: { token: ssoToken }
-        });
-        console.log("[Auth] Deleted SSO session from DB on signOut");
-      } catch (e) {
-        // ignore
+        await deleteSessionsByToken([ssoToken])
+      } catch {
+        // better-auth still ends its own session below.
       }
     }
-  }
-  return await originalSignOut(options);
-}
+    return originalSignOut(options)
+  }) as typeof originalSignOut,
+})

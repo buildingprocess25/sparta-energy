@@ -16,10 +16,20 @@ const RENAMED_TOOLS: Record<string, string> = {
 const RENAMED_ECO: Record<string, string | null> = {
   "Optimalkan relighting gondola": "Optimalisasi layout lampu",
   "Pasang zoning switch di area kasir": null,
+  "Pasang sensor radar gerak": "Pasang sensor gerak untuk lampu parkir",
+  "Pasang photocell untuk lampu luar":
+    "Pasang sensor cahaya otomatis (photocell) untuk lampu luar",
+  "Pasang timer switch otomatis sesuai jam operasional toko":
+    "Pasang pengatur waktu otomatis sesuai jam operasional toko",
+  "Pasang sensor okupansi di lorong rak": "Pasang sensor gerak di lorong rak",
+  "Bersihkan diffuser lampu yang kotor": "Bersihkan penutup lampu yang kotor",
+  "Pasang sensor PIR": "Pasang sensor gerak",
+  "Wajib sensor gerak PIR (mati otomatis saat kosong)":
+    "Wajib sensor gerak (lampu mati otomatis saat kosong)",
 }
 
 export const LIGHTING_STANDARD_NOTE =
-  "Target LPD 4,0 sampai 5,0 W/m² | SNI 6197:2020 / IESNA Retail"
+  "Kepadatan daya lampu (LPD) 4,0 sampai 5,0 W/m² · acuan SNI 6197:2020 dan IESNA"
 
 export type LightingZoneKey =
   | "SALES"
@@ -63,8 +73,8 @@ export const LIGHTING_ZONES: LightingZoneDefinition[] = [
     luxMin: 50,
     luxMax: 100,
     ecoSuggestions: [
-      "Pasang sensor radar gerak",
-      "Pasang photocell untuk lampu luar",
+      "Pasang sensor gerak untuk lampu parkir",
+      "Pasang sensor cahaya otomatis (photocell) untuk lampu luar",
       "Ganti lampu ke LED berdaya lebih rendah",
     ],
   },
@@ -76,7 +86,7 @@ export const LIGHTING_ZONES: LightingZoneDefinition[] = [
     luxMin: 150,
     luxMax: 200,
     ecoSuggestions: [
-      "Pasang timer switch otomatis sesuai jam operasional toko",
+      "Pasang pengatur waktu otomatis sesuai jam operasional toko",
       "Ganti lampu ke LED berdaya lebih rendah",
     ],
   },
@@ -88,8 +98,8 @@ export const LIGHTING_ZONES: LightingZoneDefinition[] = [
     luxMin: 100,
     luxMax: 200,
     ecoSuggestions: [
-      "Pasang sensor okupansi di lorong rak",
-      "Bersihkan diffuser lampu yang kotor",
+      "Pasang sensor gerak di lorong rak",
+      "Bersihkan penutup lampu yang kotor",
     ],
   },
   {
@@ -99,10 +109,7 @@ export const LIGHTING_ZONES: LightingZoneDefinition[] = [
     subZones: true,
     luxMin: 100,
     luxMax: 150,
-    ecoSuggestions: [
-      "Pasang sakelar dua tingkat",
-      "Pasang sensor PIR",
-    ],
+    ecoSuggestions: ["Pasang sakelar dua tingkat", "Pasang sensor gerak"],
   },
   {
     key: "TOILET",
@@ -111,7 +118,7 @@ export const LIGHTING_ZONES: LightingZoneDefinition[] = [
     subZones: false,
     luxMin: 100,
     luxMax: 200,
-    ecoSuggestions: ["Wajib sensor gerak PIR (mati otomatis saat kosong)"],
+    ecoSuggestions: ["Wajib sensor gerak (lampu mati otomatis saat kosong)"],
   },
 ]
 
@@ -187,7 +194,11 @@ export type LightingAuditData = {
 }
 
 export type LpdStatus = "SESUAI" | "DI_ATAS" | "DI_BAWAH" | "BELUM_LENGKAP"
-export type LuxStatus = "MEMENUHI" | "KURANG" | "TERLALU_TERANG" | "BELUM_DIUKUR"
+export type LuxStatus =
+  | "MEMENUHI"
+  | "KURANG"
+  | "TERLALU_TERANG"
+  | "BELUM_DIUKUR"
 
 export const LPD_STATUS_LABEL: Record<LpdStatus, string> = {
   SESUAI: "Sesuai standar",
@@ -280,7 +291,9 @@ export function summarizeLux(
     }
   })
   const unassignedAvg = averageLux(
-    measured.filter((row) => row.subZone === null).map((row) => row.lux as number)
+    measured
+      .filter((row) => row.subZone === null)
+      .map((row) => row.lux as number)
   )
   const groupAverages = [
     ...areas.flatMap((area) => (area.avgLux === null ? [] : [area.avgLux])),
@@ -339,7 +352,9 @@ export function summarizeLightingAudit(data: Pick<LightingAuditData, "zones">) {
   const totalWatt = zones.reduce((sum, zone) => sum + zone.totalWatt, 0)
   const buildingLpd = calculateLpd(totalWatt, totalArea)
   const luxZones = zones.filter((zone) => zone.avgLux !== null)
-  const buildingAvgLux = averageLux(luxZones.map((zone) => zone.avgLux as number))
+  const buildingAvgLux = averageLux(
+    luxZones.map((zone) => zone.avgLux as number)
+  )
   const zonesOutsideLpd = zones.filter(
     (zone) => zone.lpdStatus === "DI_ATAS" || zone.lpdStatus === "DI_BAWAH"
   )
@@ -356,7 +371,8 @@ export function summarizeLightingAudit(data: Pick<LightingAuditData, "zones">) {
     buildingAvgLux,
     zonesOutsideLpdCount: zonesOutsideLpd.length,
     zonesLuxNotMetCount: zones.filter(
-      (zone) => zone.luxStatus === "KURANG" || zone.luxStatus === "TERLALU_TERANG"
+      (zone) =>
+        zone.luxStatus === "KURANG" || zone.luxStatus === "TERLALU_TERANG"
     ).length,
     worstZone: worstZone ?? null,
   }
@@ -409,13 +425,17 @@ function toText(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : ""
 }
 
-function sanitizePhotos(value: unknown): LightingLuxPhoto[] {
+// Also used by other categories that attach photos to a unit or room.
+export function sanitizePhotos(value: unknown): LightingLuxPhoto[] {
   if (!Array.isArray(value)) return []
   return value
     .map((photo) => {
-      const item = (photo ?? {}) as Partial<Record<keyof LightingLuxPhoto, unknown>>
+      const item = (photo ?? {}) as Partial<
+        Record<keyof LightingLuxPhoto, unknown>
+      >
       return {
-        storage: item.storage === "local" ? ("local" as const) : ("drive" as const),
+        storage:
+          item.storage === "local" ? ("local" as const) : ("drive" as const),
         ref: toText(item.ref, 300),
         sig: toText(item.sig, 128),
         name: toText(item.name, 200),
@@ -442,7 +462,9 @@ function sanitizeLuxRows(
       return {
         id: toText(item.id, 64) || `${definition.key}-lux-${index}`,
         subZone:
-          definition.subZones && isLuxSubZone(item.subZone) ? item.subZone : null,
+          definition.subZones && isLuxSubZone(item.subZone)
+            ? item.subZone
+            : null,
         lux: toNumber(item.lux, 100_000),
         note: toText(item.note, 300),
         photos: sanitizePhotos(item.photos),
@@ -470,7 +492,9 @@ function sanitizeLuxRows(
 // Normalises form data from the client or the database into a known shape,
 // dropping anything unexpected so stored JSON stays consistent.
 export function sanitizeLightingAuditData(input: unknown): LightingAuditData {
-  const source = (input ?? {}) as Partial<Record<keyof LightingAuditData, unknown>>
+  const source = (input ?? {}) as Partial<
+    Record<keyof LightingAuditData, unknown>
+  >
   const zonesInput = Array.isArray(source.zones) ? source.zones : []
   const empty = createEmptyLightingAudit()
 
@@ -491,24 +515,30 @@ export function sanitizeLightingAuditData(input: unknown): LightingAuditData {
     zones: empty.zones.map((emptyZone) => {
       const raw = (zonesInput.find(
         (zone) => (zone as { key?: unknown })?.key === emptyZone.key
-      ) ?? {}) as Partial<Record<keyof LightingZoneInput | "luxPoints", unknown>>
+      ) ?? {}) as Partial<
+        Record<keyof LightingZoneInput | "luxPoints", unknown>
+      >
       const lamps = Array.isArray(raw.lamps) ? raw.lamps : []
       const eco = Array.isArray(raw.eco) ? raw.eco : []
       return {
         key: emptyZone.key,
         areaM2: toNumber(raw.areaM2, 100_000),
         lamps: lamps.slice(0, 100).flatMap((lamp, index) => {
-          const item = (lamp ?? {}) as Partial<Record<keyof LightingLamp, unknown>>
+          const item = (lamp ?? {}) as Partial<
+            Record<keyof LightingLamp, unknown>
+          >
           const type = toText(item.type, 120)
           const qty = toNumber(item.qty, 10_000)
           const watt = toNumber(item.watt, 100_000)
           if (!type || qty === null || watt === null) return []
-          return [{
-            id: toText(item.id, 64) || `${emptyZone.key}-${index}`,
-            type,
-            qty: Math.round(qty),
-            watt,
-          }]
+          return [
+            {
+              id: toText(item.id, 64) || `${emptyZone.key}-${index}`,
+              type,
+              qty: Math.round(qty),
+              watt,
+            },
+          ]
         }),
         luxRows: sanitizeLuxRows(raw, getZoneDefinition(emptyZone.key)),
         eco: Array.from(
@@ -537,23 +567,21 @@ export function getCompletionIssues(data: LightingAuditData) {
       issues.push(`Luas ${label} belum diisi.`)
     }
     if (lux.avgLux === null) {
-      issues.push(`Lux ${label} belum diukur.`)
+      issues.push(`Tingkat terang (lux) ${label} belum diukur.`)
     }
     if (definition.subZones && lux.unassignedMeasuredCount > 0) {
-      issues.push(`Pilih sub zona untuk setiap titik lux di ${label}.`)
+      issues.push(`Pilih sub zona untuk setiap titik ukur di ${label}.`)
     }
     const unphotographed = zone.luxRows
       .map((row, index) => ({ row, index }))
       .filter(({ row }) => row.lux !== null && row.photos.length === 0)
       .map(({ row, index }) => row.subZone ?? `titik ${index + 1}`)
     if (unphotographed.length > 0) {
-      issues.push(
-        `Tambah foto untuk ${unphotographed.join(", ")} di ${label}.`
-      )
+      issues.push(`Tambah foto untuk ${unphotographed.join(", ")} di ${label}.`)
     }
     for (const area of lux.areasMissingNote) {
       issues.push(
-        `Lux area ${area.label} di ${label} berbeda dari rata-rata zona. Isi catatan di salah satu titik area itu.`
+        `Tingkat terang area ${area.label} di ${label} berbeda dari rata-rata zona. Isi catatan di salah satu titik area itu.`
       )
     }
   }

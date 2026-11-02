@@ -39,21 +39,47 @@ function safeDecode(value: string) {
   }
 }
 
-// Every session token the browser holds, so sign-out can end all of them, not only the first match.
-export function sessionTokensFromCookieHeader(cookieHeader: string) {
-  const tokens = new Set<string>()
+// Name/value pairs of a Cookie header, values URL-decoded.
+function parseCookieHeader(cookieHeader: string) {
+  const cookies: Array<[string, string]> = []
   for (const part of cookieHeader.split(";")) {
     const separator = part.indexOf("=")
     if (separator < 0) continue
-    const name = part.slice(0, separator).trim()
     const value = safeDecode(part.slice(separator + 1).trim())
-    if (!value) continue
+    if (value) cookies.push([part.slice(0, separator).trim(), value])
+  }
+  return cookies
+}
+
+// Every session token the browser holds, so sign-out can end all of them, not only the first match.
+export function sessionTokensFromCookieHeader(cookieHeader: string) {
+  const tokens = new Set<string>()
+  for (const [name, value] of parseCookieHeader(cookieHeader)) {
     if (name === "sso_session") tokens.add(value)
     // better-auth signs the cookie as "<token>.<signature>".
     if (BETTER_AUTH_SESSION_COOKIES.includes(name))
       tokens.add(value.split(".")[0])
   }
   return [...tokens]
+}
+
+// The sso_session token the portal and sparta share; the first one wins if the browser sends two.
+export function readSsoSessionToken(cookieHeader: string) {
+  return (
+    parseCookieHeader(cookieHeader).find(
+      ([name]) => name === "sso_session"
+    )?.[1] ?? null
+  )
+}
+
+// better-auth calls pass headers as a Headers object or a plain record.
+export function cookieHeaderFrom(headers: unknown) {
+  if (!headers || typeof headers !== "object") return ""
+  if (typeof (headers as Headers).get === "function") {
+    return (headers as Headers).get("cookie") ?? ""
+  }
+  const cookie = (headers as Record<string, unknown>).cookie
+  return typeof cookie === "string" ? cookie : ""
 }
 
 // A __Secure- cookie is only overwritten by a Set-Cookie that also carries Secure.
