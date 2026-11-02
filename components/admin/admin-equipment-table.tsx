@@ -36,7 +36,7 @@ const tableLinkClass =
 
 const areaLabels: Record<EquipmentArea, string> = {
   SALES: "Sales",
-  PARKING: "Parkir",
+  PARKING: "Parkiran",
   TERRACE: "Teras",
   WAREHOUSE: "Gudang, Toilet & Selasar",
 }
@@ -191,7 +191,7 @@ export function AdminEquipmentTable({
                 <SortableHeader column="equipment">Equipment</SortableHeader>
               </TableHead>
               <TableHead>
-                <SortableHeader column="brand">Brand</SortableHeader>
+                <SortableHeader column="brand">Merek</SortableHeader>
               </TableHead>
               <TableHead>
                 <SortableHeader column="area">Area</SortableHeader>

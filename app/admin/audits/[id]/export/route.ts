@@ -75,7 +75,7 @@ export async function GET(
       "Luas Area Teras (m2)",
       audit.store.terraceAreaM2,
       "",
-      "Luas Area Parkir (m2)",
+      "Luas Area Parkiran (m2)",
       audit.store.parkingAreaM2,
     ],
     [
@@ -156,7 +156,7 @@ export async function GET(
     "No",
     "Area Penempatan",
     "Nama Peralatan (Equipment)",
-    "Merek / Brand",
+    "Merek",
     "Jumlah (Qty)",
     "Jam Operasional (Jam/Hari)",
     "Daya Dasar (kW)",

@@ -70,7 +70,7 @@ const deltaTone: Record<DeltaTStatus, string> = {
 type HvacAcUnitCardProps = {
   summary: AcUnitSummary
   sourceAuditId: string
-  // AC types and brands from the equipment master ("Sistem HVAC").
+  // AC types and brands from the equipment master ("Sistem Tata Udara dan Ventilasi").
   typeOptions: LampOption[]
   onChange: (next: (unit: HvacAcUnit) => HvacAcUnit) => void
   onRemove: () => void

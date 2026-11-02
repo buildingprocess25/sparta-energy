@@ -40,7 +40,7 @@ type EfficiencyBreakdownDatum = {
 
 const consumptionChartConfig = {
   actualPln: {
-    label: "Actual PLN",
+    label: "Aktual PLN",
     color: "var(--chart-2)",
   },
   baseline: {

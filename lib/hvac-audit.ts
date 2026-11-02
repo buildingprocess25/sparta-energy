@@ -25,8 +25,8 @@ export const HVAC_STANDARD_NOTE =
 
 export const HVAC_MEASURING_TOOLS = [
   "Clamp meter (ukur listrik AC)",
-  "Thermo-hygrometer (ukur suhu dan kelembaban)",
-  "Termometer tembak (infrared)",
+  "Temperatur dan humidity meter",
+  "Anemo meter",
 ] as const
 
 export const HVAC_ECO_SUGGESTIONS = [
@@ -49,7 +49,7 @@ export const NO_MAKE_UP_AIR = "Tidak ada"
 const RENAMED_OPTIONS: Record<string, string> = {
   "Clamp Meter": HVAC_MEASURING_TOOLS[0],
   "Thermo-Hygrometer": HVAC_MEASURING_TOOLS[1],
-  "Infrared Thermometer": HVAC_MEASURING_TOOLS[2],
+  "Thermo-hygrometer (ukur suhu dan kelembaban)": HVAC_MEASURING_TOOLS[1],
   "Naikkan setpoint AC sales ke 24 sampai 25°C": HVAC_ECO_SUGGESTIONS[0],
   "Jaga kelembaban ruang di 50 sampai 60% RH": HVAC_ECO_SUGGESTIONS[1],
   "Pasang sensor PIR untuk exhaust fan toilet": HVAC_ECO_SUGGESTIONS[2],
@@ -649,7 +649,7 @@ export function getHvacCompletionIssues(data: HvacAuditData) {
     issues.push("Hitung jumlah AC ideal di Step 1.")
   } else if (summary.standardStale) {
     issues.push(
-      "Titik lokasi atau luas sales berubah. Hitung ulang jumlah AC ideal di Step 1."
+      "Titik lokasi atau luas area sales berubah. Hitung ulang jumlah AC ideal di Step 1."
     )
   }
   if (data.installedAcUnits === null) {

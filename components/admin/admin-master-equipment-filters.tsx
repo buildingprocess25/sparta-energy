@@ -12,8 +12,10 @@ import {
   IconMapPin,
   IconPlus,
 } from "@tabler/icons-react"
+import { AdminCustomEquipmentReview } from "@/components/admin/admin-custom-equipment-review"
 import { AdminMasterEquipmentDialog } from "@/components/admin/admin-master-equipment-dialog"
 import type { MasterEquipmentTypeOption } from "@/lib/admin-master-data-queries"
+import type { PendingCustomEquipment } from "@/lib/custom-equipment-review"
 
 import {
   createFilter,
@@ -29,6 +31,7 @@ type AdminMasterEquipmentFiltersProps = {
   deviceCategories: string[]
   storeTypes: string[]
   equipmentTypeOptions: MasterEquipmentTypeOption[]
+  pendingCustomEquipment: PendingCustomEquipment[]
 }
 
 const filterParamKeys = ["deviceCategory", "category", "storeType", "hasBrands"] as const
@@ -43,6 +46,7 @@ export function AdminMasterEquipmentFilters({
   deviceCategories,
   storeTypes,
   equipmentTypeOptions,
+  pendingCustomEquipment,
 }: AdminMasterEquipmentFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -84,12 +88,12 @@ export function AdminMasterEquipmentFilters({
       },
       {
         key: "hasBrands",
-        label: "Data Brand",
+        label: "Data Merek",
         type: "select",
         icon: <IconTool />,
         options: [
-          { value: "with-brands", label: "Ada brand" },
-          { value: "without-brands", label: "Belum ada brand" },
+          { value: "with-brands", label: "Ada merek" },
+          { value: "without-brands", label: "Belum ada merek" },
         ],
       },
     ],
@@ -170,7 +174,7 @@ export function AdminMasterEquipmentFilters({
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cari equipment, kategori, atau brand..."
+              placeholder="Cari equipment, kategori, atau merek..."
               className="pl-9"
             />
           </div>
@@ -217,7 +221,11 @@ export function AdminMasterEquipmentFilters({
         </div>
       </div>
 
-      <div className="shrink-0">
+      <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+        <AdminCustomEquipmentReview
+          items={pendingCustomEquipment}
+          equipmentTypeOptions={equipmentTypeOptions}
+        />
         <Button
           type="button"
           onClick={() => setDialogOpen(true)}
@@ -233,7 +241,6 @@ export function AdminMasterEquipmentFilters({
         onOpenChange={setDialogOpen}
         equipmentTypeOptions={equipmentTypeOptions}
         categories={categories}
-        deviceCategories={deviceCategories}
         storeTypes={storeTypes}
         onSuccess={() => router.refresh()}
       />

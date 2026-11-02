@@ -6,6 +6,7 @@ import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { toast } from "sonner"
 
 import { deleteAuditItem } from "@/app/actions/audit-validation"
+import { EquipmentThumbnail } from "@/components/audit/equipment-thumbnail"
 import { AddEquipmentDialog } from "@/components/audit-validation/add-equipment-dialog"
 import {
   areaLabels,
@@ -136,6 +137,12 @@ export function EquipmentList({
                   key={item.id}
                   className="flex items-center gap-2 rounded-xl bg-muted/40 py-1.5 pr-1.5 pl-3"
                 >
+                  <EquipmentThumbnail
+                    photoUrl={item.photoUrl}
+                    alt={item.brandName ? `${item.name} (${item.brandName})` : item.name}
+                    deviceCategory={item.deviceCategory}
+                    previewable
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{item.name}</p>
                     <p className="truncate text-xs text-muted-foreground tabular-nums">

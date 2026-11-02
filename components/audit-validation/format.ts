@@ -18,7 +18,7 @@ export function formatHours(value: number) {
 export const areaLabels = {
   SALES: "Sales Area",
   TERRACE: "Teras",
-  PARKING: "Parkir",
+  PARKING: "Parkiran",
   WAREHOUSE: "Gudang, Toilet & Selasar",
 } as const
 

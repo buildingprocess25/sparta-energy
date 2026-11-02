@@ -1,9 +1,10 @@
 import { isAdminSangatBoros } from "@/lib/admin-sangat-boros"
+import { pickBrandPhoto } from "@/lib/equipment-photo"
 import { getIotStatusLookup, getStoreIot } from "@/lib/iot-status"
 import { prisma } from "@/lib/prisma"
 
 const areaLabels: Record<string, string> = {
-  PARKING: "Parkir",
+  PARKING: "Parkiran",
   TERRACE: "Teras",
   SALES: "Sales",
   WAREHOUSE: "Gudang, Toilet & Selasar",
@@ -108,6 +109,8 @@ export async function getAdminAuditDetail(id: string) {
           equipmentType: {
             select: {
               name: true,
+              deviceCategory: true,
+              brands: { select: { name: true, productPhotoUrl: true } },
             },
           },
           equipmentBrand: {
@@ -240,6 +243,11 @@ export async function getAdminAuditDetail(id: string) {
       area: getAreaLabel(item.areaTarget),
       name: item.equipmentType?.name ?? item.customName ?? "Lainnya",
       brand: item.equipmentBrand?.name ?? item.brandName ?? "-",
+      deviceCategory: item.equipmentType?.deviceCategory ?? null,
+      photoUrl: pickBrandPhoto(
+        item.equipmentType?.brands,
+        item.equipmentBrand?.name ?? item.brandName
+      ),
       qty: item.qty,
       operationalHours: toNumber(item.operationalHours),
       baseKw: toNumber(item.baseKw),

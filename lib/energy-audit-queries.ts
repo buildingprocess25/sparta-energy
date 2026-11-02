@@ -188,6 +188,7 @@ export async function getEnergyAuditStore(sourceAuditId: string) {
           name: true,
           branch: true,
           address: true,
+          plnCustomerId: true,
           latitude: true,
           longitude: true,
           salesAreaM2: true,
@@ -251,6 +252,7 @@ export async function getEnergyAuditStore(sourceAuditId: string) {
       name: audit.store.name,
       branch: audit.store.branch,
       address: audit.store.address,
+      plnCustomerId: audit.store.plnCustomerId,
       latitude: audit.store.latitude,
       longitude: audit.store.longitude,
     },
@@ -280,11 +282,32 @@ export type LampOption = {
 // Lighting types and brands from the equipment master, so auditors pick
 // instead of typing; each brand carries its own power rating.
 // Master equipment types and their brands, offered as picks in the audit forms.
+// Beanspot lamps sit under "Sistem Beanspot" but still belong in Tata Cahaya.
+const LIGHTING_TYPES: Prisma.EquipmentTypeWhereInput = {
+  OR: [
+    { deviceCategory: "Sistem Tata Cahaya" },
+    { category: "BEANSPOT", name: { startsWith: "Lampu", mode: "insensitive" } },
+  ],
+}
+
+// Exhaust fans share "Sistem Tata Udara dan Ventilasi" with AC; only AC are units.
+const AC_TYPES: Prisma.EquipmentTypeWhereInput = {
+  deviceCategory: "Sistem Tata Udara dan Ventilasi",
+  NOT: { name: { contains: "Exhaust", mode: "insensitive" } },
+}
+
+function isAcType(type: { name: string; deviceCategory: string } | null) {
+  return (
+    type?.deviceCategory === "Sistem Tata Udara dan Ventilasi" &&
+    !/exhaust/i.test(type.name)
+  )
+}
+
 async function getEquipmentOptions(
-  deviceCategory: string
+  where: Prisma.EquipmentTypeWhereInput
 ): Promise<LampOption[]> {
   const types = await prisma.equipmentType.findMany({
-    where: { deviceCategory },
+    where,
     orderBy: [{ category: "asc" }, { name: "asc" }],
     select: {
       id: true,
@@ -333,7 +356,7 @@ export async function getLightingAuditForm(sourceAuditId: string) {
     prisma.auditItem.findMany({
       where: {
         auditId: sourceAuditId,
-        equipmentType: { deviceCategory: "Pencahayaan" },
+        equipmentType: LIGHTING_TYPES,
       },
       select: {
         id: true,
@@ -345,7 +368,7 @@ export async function getLightingAuditForm(sourceAuditId: string) {
         equipmentType: { select: { name: true } },
       },
     }),
-    getEquipmentOptions("Pencahayaan"),
+    getEquipmentOptions(LIGHTING_TYPES),
   ])
 
   if (!context) return null
@@ -395,6 +418,9 @@ export async function getLightingAuditForm(sourceAuditId: string) {
       })),
     }
   }
+
+  // ID PLN lives on the store, so the form always opens with the current value.
+  data = { ...data, plnCustomerId: context.store.plnCustomerId ?? "" }
 
   return {
     context,
@@ -446,7 +472,7 @@ export async function getHvacAuditForm(sourceAuditId: string) {
       where: {
         auditId: sourceAuditId,
         OR: [
-          { equipmentType: { deviceCategory: "Sistem HVAC" } },
+          { equipmentType: AC_TYPES },
           {
             equipmentType: {
               name: { contains: "Exhaust", mode: "insensitive" },
@@ -463,14 +489,12 @@ export async function getHvacAuditForm(sourceAuditId: string) {
         equipmentType: { select: { name: true, deviceCategory: true } },
       },
     }),
-    getEquipmentOptions("Sistem HVAC"),
+    getEquipmentOptions(AC_TYPES),
   ])
 
   if (!context) return null
 
-  const acItems = hvacItems.filter(
-    (item) => item.equipmentType?.deviceCategory === "Sistem HVAC"
-  )
+  const acItems = hvacItems.filter((item) => isAcType(item.equipmentType))
   const recordedAcUnits = acItems.reduce((sum, item) => sum + item.qty, 0)
   // One entry per physical unit, named like the master option so the picker shows it selected.
   const recordedAcUnitTypes = acItems.flatMap((item) =>
@@ -620,7 +644,13 @@ export async function getHvacAuditsForExport(
       data: true,
       auditor: { select: { fullName: true, email: true } },
       store: {
-        select: { code: true, name: true, branch: true, address: true },
+        select: {
+          code: true,
+          name: true,
+          branch: true,
+          address: true,
+          plnCustomerId: true,
+        },
       },
     },
   })
@@ -653,7 +683,13 @@ export async function getLightingAuditsForExport(
       data: true,
       auditor: { select: { fullName: true, email: true } },
       store: {
-        select: { code: true, name: true, branch: true, address: true },
+        select: {
+          code: true,
+          name: true,
+          branch: true,
+          address: true,
+          plnCustomerId: true,
+        },
       },
     },
   })

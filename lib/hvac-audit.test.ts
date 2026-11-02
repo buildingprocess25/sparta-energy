@@ -252,16 +252,21 @@ assert.equal(ventilation.actualAch, 11.3)
 
 // Drafts saved with the earlier technical wording keep their ticks after the rename.
 const oldDraft = sanitizeHvacAuditData({
-  measuringTools: ["Clamp Meter", "Infrared Thermometer"],
+  measuringTools: [
+    "Clamp Meter",
+    "Thermo-hygrometer (ukur suhu dan kelembaban)",
+    "Termometer tembak (infrared)",
+  ],
   eco: [
     "Naikkan setpoint AC sales ke 24 sampai 25°C",
     "Jadwalkan cuci filter dan koil kondensor berkala",
   ],
   exhaust: [{ key: "GUDANG", makeUpAir: "Door louver" }],
 })
+// The infrared thermometer was replaced by a different tool, so its tick is dropped.
 assert.deepEqual(oldDraft.measuringTools, [
   HVAC_MEASURING_TOOLS[0],
-  HVAC_MEASURING_TOOLS[2],
+  HVAC_MEASURING_TOOLS[1],
 ])
 assert.deepEqual(oldDraft.eco, [
   HVAC_ECO_SUGGESTIONS[0],

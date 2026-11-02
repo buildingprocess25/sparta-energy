@@ -3,6 +3,10 @@ import assert from "node:assert/strict"
 import {
   createEmptyLightingAudit,
   getCompletionIssues,
+  getZoneLampLayout,
+  getZoneLampNeed,
+  getDimLuxLimit,
+  getLuxLevel,
   getLpdStatus,
   getLuxStatus,
   getZoneDefinition,
@@ -85,6 +89,20 @@ assert.equal(getLuxStatus(null, sales), "BELUM_DIUKUR")
 
 assert.equal(getCompletionIssues(data).length, 0)
 assert.equal(getCompletionIssues(createEmptyLightingAudit()).length, 12)
+
+// A dim point blocks completion until it has a note.
+const withDimSales = (note: string): LightingAuditData => ({
+  ...data,
+  zones: data.zones.map((z) =>
+    z.key === "SALES"
+      ? { ...z, luxRows: [{ ...z.luxRows[0], lux: 120, note }] }
+      : z
+  ),
+})
+assert.deepEqual(getCompletionIssues(withDimSales("")), [
+  "Titik B2 di Area Sales di bawah 240 lux. Isi alasannya di catatan titik itu.",
+])
+assert.equal(getCompletionIssues(withDimSales("Lampu mati")).length, 0)
 
 // A measured point needs at least one photo; toilet points are named by number.
 const withoutPhotos: LightingAuditData = {
@@ -169,20 +187,33 @@ assert.deepEqual(
   uneven.unevenAreas.map((a) => a.key),
   ["A", "C"]
 )
+// Area Sales: amber from 240 to 299 lux, red below 240, green from 300 up (too bright included).
+assert.equal(getDimLuxLimit(sales), 240)
+assert.equal(getLuxLevel(null, sales), "BELUM_DIUKUR")
+assert.equal(getLuxLevel(239, sales), "REDUP")
+assert.equal(getLuxLevel(240, sales), "HAMPIR")
+assert.equal(getLuxLevel(299, sales), "HAMPIR")
+assert.equal(getLuxLevel(300, sales), "SESUAI")
+assert.equal(getLuxLevel(800, sales), "SESUAI")
+
+// Only the red point asks for a note; amber, green and too bright points do not.
 assert.deepEqual(
-  uneven.areasMissingNote.map((a) => a.key),
-  ["A", "C"]
+  uneven.dimPointsMissingNote.map((p) => p.point),
+  ["C1"]
 )
 
 const explained = summarizeLux(
-  [
-    row("A1", 600, "Tidak ada rak"),
-    row("B1", 400),
-    row("C1", 150, "Lampu mati 2"),
-  ],
+  [row("A1", 600), row("B1", 400), row("C1", 150, "Lampu mati 2")],
   sales
 )
-assert.equal(explained.areasMissingNote.length, 0)
+assert.equal(explained.dimPointsMissingNote.length, 0)
+
+// Rows without a sub zona are named by their position.
+const unnamed = summarizeLux([row(null, 400), row(null, 120)], sales)
+assert.deepEqual(
+  unnamed.dimPointsMissingNote.map((p) => p.point),
+  ["2"]
+)
 
 // Version 1 drafts: plain luxPoints become rows without a sub zona.
 const legacy = sanitizeLightingAuditData({
@@ -238,5 +269,61 @@ assert.deepEqual(
   renamedDraft.zones.find((zone) => zone.key === "TOILET")?.eco,
   ["Wajib sensor gerak (lampu mati otomatis saat kosong)"]
 )
+
+// Lamp need follows the LPD standard: 350 m2 with 15.4 W lamps needs 91 to 114 lamps.
+const lamp = (qty: number, watt: number) => ({ id: "L", type: "TL", qty, watt })
+const need = getZoneLampNeed({ areaM2: 350, lamps: [lamp(13, 15.4)] })
+assert.equal(need?.minLamps, 91)
+assert.equal(need?.maxLamps, 114)
+assert.equal(round2(need?.watt ?? 0), 15.4)
+assert.equal(getZoneLampNeed({ areaM2: null, lamps: [] }), null)
+// No lamps listed yet: the lamp calculator's 13.5 W tube is assumed.
+assert.equal(getZoneLampNeed({ areaM2: 100, lamps: [] })?.watt, 13.5)
+
+// Width and depth turn into the lamp calculator's grid; one lamp position per lamp.
+const layout = getZoneLampLayout({
+  areaM2: 126,
+  lamps: [],
+  widthM: 14,
+  lengthM: 9,
+})
+assert.ok(layout)
+// Same grid the lamp calculator draws for a 14 x 9 m store.
+assert.equal(layout.rows, 4)
+assert.equal(layout.perRow, 10)
+assert.equal(layout.total, layout.rows * layout.perRow)
+assert.equal(layout.positions.length, layout.total)
+assert.equal(layout.estimated, false)
+
+// Without measured sides the plan is estimated from the area as a square.
+const estimate = getZoneLampLayout({
+  areaM2: 350,
+  lamps: [],
+  widthM: 14,
+  lengthM: null,
+})
+assert.equal(estimate?.estimated, true)
+assert.equal(round2(estimate?.widthM ?? 0), 18.71)
+assert.equal(round2(estimate?.lengthM ?? 0), 18.71)
+assert.equal(
+  getZoneLampLayout({ areaM2: null, lamps: [], widthM: null, lengthM: null }),
+  null
+)
+
+// A just-added lamp row (0 W) must not reach the calculator as a 0 W average;
+// that divided by zero and drew lamp rows forever until the browser ran out of memory.
+const withNewRow = { areaM2: 126, widthM: 14, lengthM: 9, lamps: [lamp(1, 0)] }
+assert.equal(getZoneLampNeed(withNewRow)?.watt, 13.5)
+assert.equal(getZoneLampLayout(withNewRow)?.total, 40)
+const mixed = getZoneLampNeed({
+  areaM2: 100,
+  lamps: [lamp(10, 18), lamp(1, 0)],
+})
+assert.equal(mixed?.watt, 18)
+
+// Drafts saved before the size fields existed load with empty sizes.
+const sizeless = sanitizeLightingAuditData({ zones: [{ key: "SALES" }] })
+assert.equal(sizeless.zones[0].widthM, null)
+assert.equal(sizeless.zones[0].lengthM, null)
 
 console.log("lighting-audit tests passed")

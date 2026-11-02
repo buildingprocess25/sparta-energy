@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import { IconChevronRight, IconPencilPlus } from "@tabler/icons-react"
 
+import { EquipmentThumbnail } from "@/components/audit/equipment-thumbnail"
 import { areaLabels, type AreaKey } from "@/components/audit-validation/format"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { ValidationAuditItem } from "@/lib/audit-validation-queries"
+import { pickBrandPhoto } from "@/lib/equipment-photo"
 import type { EquipmentMasterItem } from "@/lib/get-equipment-for-area"
 import { usesBeanspotEquipment } from "@/lib/store-types"
 import { cn } from "@/lib/utils"
@@ -107,6 +109,11 @@ export function AddEquipmentDialog({
                       onClick={() => onPick(type)}
                       className="flex min-h-11 w-full items-center gap-3 rounded-xl bg-muted/40 px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
+                      <EquipmentThumbnail
+                        photoUrl={pickBrandPhoto(type.brands)}
+                        alt={type.name}
+                        deviceCategory={type.deviceCategory}
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">
                           {type.name}

@@ -146,18 +146,18 @@ export default async function AdminEquipmentPage({
               ]}
             />
             <AdminMetricCard
-              label="Brand Dominan"
+              label="Merek Dominan"
               value={topBrand}
               icon={IconTag}
               tone="default"
               valueClassName="text-xl"
               rows={[
                 {
-                  label: "Brand kWh/Hari/Toko",
+                  label: "Merek kWh/Hari/Toko",
                   value: formatNumber(avgTopBrandKwhPerStore, " kWh"),
                 },
                 {
-                  label: "Qty Brand/Toko",
+                  label: "Qty Merek/Toko",
                   value: formatNumber(avgTopBrandQtyPerStore),
                 },
               ]}

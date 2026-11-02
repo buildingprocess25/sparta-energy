@@ -53,6 +53,7 @@ function draftFromAudit(audit: ValidationAudit): TechnicalDraft {
   return {
     storeType: technical.storeType ?? "",
     address: audit.store.address,
+    plnCustomerId: audit.store.plnCustomerId,
     plnPowerVa: toInput(technical.plnPowerVa),
     areas: {
       sales: toInput(technical.areas.sales),
@@ -92,6 +93,7 @@ function toDraftInput(draft: TechnicalDraft): ValidationDraftInput {
       closeTime: draft.is24Hours ? null : draft.closeTime,
     },
     address: draft.address,
+    plnCustomerId: draft.plnCustomerId,
     plnHistory: draft.plnHistory.map((row) => ({
       id: row.id,
       billingMonth: row.billingMonth,

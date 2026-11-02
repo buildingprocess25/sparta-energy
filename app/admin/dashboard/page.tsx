@@ -687,13 +687,13 @@ export default async function AdminDashboardPage({
               <Table className="min-w-[1040px] text-xs [&_td]:px-2 [&_td]:py-2 [&_th]:h-9 [&_th]:px-2">
                 <TableHeader className="bg-background shadow-[0_1px_0_var(--border)]">
                   <TableRow>
-                    <TableHead className="pl-6">Code</TableHead>
-                    <TableHead>Store Name</TableHead>
-                    <TableHead>Branch</TableHead>
+                    <TableHead className="pl-6">Kode</TableHead>
+                    <TableHead>Nama Toko</TableHead>
+                    <TableHead>Cabang</TableHead>
                     <TableHead>Tipe</TableHead>
                     <TableHead>Jam Operasional</TableHead>
                     <TableHead className="text-right">Baseline</TableHead>
-                    <TableHead className="text-right">Actual PLN</TableHead>
+                    <TableHead className="text-right">Aktual PLN</TableHead>
                     <TableHead className="text-right">Gap %</TableHead>
                   </TableRow>
                 </TableHeader>

@@ -8,12 +8,20 @@ import {
   IconSearch,
   IconX,
 } from "@tabler/icons-react"
+import { EquipmentThumbnail } from "@/components/audit/equipment-thumbnail"
 import { cn } from "@/lib/utils"
 
-type Brand = { id: string; name: string; baseKw: number }
+type Brand = {
+  id: string
+  name: string
+  baseKw: number
+  productPhotoUrl?: string | null
+}
 
 type BrandComboboxProps = {
   brands: Brand[]
+  // Fallback icon for brands without a photo.
+  deviceCategory?: string
   value: string
   onChange: (val: string) => void
   placeholder?: string
@@ -24,6 +32,7 @@ type BrandComboboxProps = {
 
 export function BrandCombobox({
   brands,
+  deviceCategory,
   value,
   onChange,
   placeholder = "-",
@@ -63,6 +72,9 @@ export function BrandCombobox({
 
   const isSelected = (b: Brand) =>
     b.name.toLowerCase() === value.toLowerCase().trim()
+
+  // Skip thumbnails when no brand has a photo, so the list is not a column of icons.
+  const showPhotos = brands.some((b) => b.productPhotoUrl)
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -181,13 +193,23 @@ export function BrandCombobox({
                   )}
                   onClick={() => handleSelect(brand)}
                 >
-                  <div>
-                    <span className="font-semibold text-foreground">
-                      {brand.name}
-                    </span>
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {brand.baseKw} kW
-                    </span>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    {showPhotos && (
+                      <EquipmentThumbnail
+                        photoUrl={brand.productPhotoUrl}
+                        alt={brand.name}
+                        deviceCategory={deviceCategory}
+                        size="sm"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <span className="font-semibold text-foreground">
+                        {brand.name}
+                      </span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {brand.baseKw} kW
+                      </span>
+                    </div>
                   </div>
                   {sel && (
                     <IconCheck className="ml-2 size-4 shrink-0 text-primary" />

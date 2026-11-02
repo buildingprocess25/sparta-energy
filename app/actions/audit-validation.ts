@@ -12,6 +12,7 @@ import {
   summarizeAuditItems,
 } from "@/lib/audit-recalculate"
 import { parseBillingMonth } from "@/lib/billing-month"
+import { PLN_CUSTOMER_ID_MAX_LENGTH } from "@/lib/pln-customer-id"
 import { prisma } from "@/lib/prisma"
 import { STORE_TYPES } from "@/lib/store-types"
 
@@ -65,6 +66,7 @@ export type PlnHistoryInput = {
 export type ValidationDraftInput = {
   technical: AuditTechnicalInput
   address: string
+  plnCustomerId: string
   plnHistory: PlnHistoryInput[]
 }
 
@@ -96,7 +98,7 @@ function checkTechnical(input: AuditTechnicalInput) {
     throw new ValidationError("Luas area tidak boleh kosong atau negatif.")
   }
   if (!(input.areas.sales > 0)) {
-    throw new ValidationError("Luas sales area harus lebih dari 0 m².")
+    throw new ValidationError("Luas area sales harus lebih dari 0 m².")
   }
   if (
     !input.is24Hours &&
@@ -506,7 +508,7 @@ export async function deleteAuditItem(itemId: string) {
   })
 }
 
-// Saves technical data, the store address and PLN history in one go, logging each change.
+// Saves technical data, the store address, ID PLN and PLN history in one go, logging each change.
 async function applyDraft(
   tx: Prisma.TransactionClient,
   auditId: string,
@@ -519,6 +521,12 @@ async function applyDraft(
   if (address.length > ADDRESS_MAX_LENGTH) {
     throw new ValidationError(
       `Alamat paling panjang ${ADDRESS_MAX_LENGTH} karakter.`
+    )
+  }
+  const plnCustomerId = draft.plnCustomerId.trim()
+  if (plnCustomerId.length > PLN_CUSTOMER_ID_MAX_LENGTH) {
+    throw new ValidationError(
+      `ID PLN paling panjang ${PLN_CUSTOMER_ID_MAX_LENGTH} karakter.`
     )
   }
 
@@ -542,7 +550,7 @@ async function applyDraft(
     }),
     tx.store.findUniqueOrThrow({
       where: { id: storeId },
-      select: { address: true },
+      select: { address: true, plnCustomerId: true },
     }),
     tx.auditPlnStdHistory.findMany({
       where: { auditId },
@@ -562,7 +570,7 @@ async function applyDraft(
   const technicalLabels: Record<keyof typeof technical, string> = {
     storeType: "Tipe toko",
     plnPowerVa: "Daya PLN",
-    salesAreaM2: "Luas sales area",
+    salesAreaM2: "Luas area sales",
     parkingAreaM2: "Luas parkiran",
     terraceAreaM2: "Luas teras",
     warehouseAreaM2: "Luas gudang",
@@ -611,6 +619,21 @@ async function applyDraft(
       summary: store.address ? "Alamat toko diperbarui." : "Alamat toko diisi.",
       before: { address: store.address },
       after: { address: address || null },
+    })
+  }
+
+  if (plnCustomerId !== (store.plnCustomerId ?? "")) {
+    await tx.store.update({
+      where: { id: storeId },
+      data: { plnCustomerId: plnCustomerId || null },
+    })
+    corrections.push({
+      type: "TECHNICAL_UPDATED",
+      summary: store.plnCustomerId
+        ? `ID PLN diubah: ${store.plnCustomerId} → ${plnCustomerId || "-"}`
+        : "ID PLN diisi.",
+      before: { plnCustomerId: store.plnCustomerId },
+      after: { plnCustomerId: plnCustomerId || null },
     })
   }
 

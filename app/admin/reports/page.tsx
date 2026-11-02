@@ -58,41 +58,41 @@ type ReportCard = {
 const reportCards: ReportCard[] = [
   {
     report: "store-data",
-    title: "Export Toko Bulanan",
+    title: "Toko Bulanan",
     description: "PLN kWh, baseline, cabang, dan tipe toko per kalkulasi.",
     icon: IconFileSpreadsheet,
   },
   {
     report: "audit-history",
-    title: "Export Riwayat Kalkulasi",
+    title: "Riwayat Kalkulasi",
     description:
       "Kalkulasi selesai lintas toko dengan status, gap, dan rekomendasi.",
     icon: IconClipboardList,
   },
   {
     report: "equipment",
-    title: "Export Equipment",
+    title: "Equipment",
     description: "Daftar equipment kalkulasi lengkap dengan area dan estimasi kWh.",
     icon: IconTool,
   },
   {
     report: "branch-summary",
-    title: "Export Ringkasan Cabang",
+    title: "Ringkasan Cabang",
     description: "Coverage, toko hemat/boros, boros rate, dan rata-rata gap.",
     icon: IconBuildingBank,
   },
   {
     report: "master-stores",
-    title: "Export Master Toko",
+    title: "Master Toko",
     description:
       "Data induk toko: cabang, tipe, ID PLN, daya, jam operasional, dan luas tiap area.",
     icon: IconBuildingStore,
   },
   {
     report: "master-equipment",
-    title: "Export Master Equipment",
+    title: "Master Equipment",
     description:
-      "Semua equipment dan brand dengan kategori, area, metode kalkulasi, dan kW.",
+      "Semua equipment dan merek dengan kategori, area, metode kalkulasi, dan kW.",
     icon: IconDatabase,
     scope: "Selalu berisi semua equipment. Filter tidak berlaku.",
   },
@@ -188,7 +188,7 @@ export default async function AdminReportsPage({
         <div className="-mx-4 border-y bg-background/60 px-4 py-3 md:-mx-6 md:px-6">
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0 shrink-0">
-              <div className="text-xs font-medium">Scope export</div>
+              <div className="text-xs font-medium">Cakupan unduhan</div>
               <div className="text-xs text-muted-foreground">
                 Mengikuti filter aktif. Tanpa periode, default YTD{" "}
                 {new Date().getFullYear()}.

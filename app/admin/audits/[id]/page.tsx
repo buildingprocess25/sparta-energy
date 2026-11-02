@@ -18,6 +18,7 @@ import {
 import { AdminTableScroll } from "@/components/admin/admin-table-scroll"
 import { ConsumptionTrendChart } from "@/components/admin/admin-dashboard-charts"
 import { AdminMetricCard } from "@/components/admin/admin-metric-card"
+import { EquipmentThumbnail } from "@/components/audit/equipment-thumbnail"
 import { IotStatusBadge } from "@/components/admin/iot-status-badge"
 import { SangatBorosBadge } from "@/components/audit-validation/result-status-badge"
 import { ValidationStatusBadge } from "@/components/audit-validation/validation-status-badge"
@@ -319,7 +320,7 @@ export default async function AdminAuditDetailPage({
           >
             <a href={`/admin/audits/${audit.id}/export`} download>
               <IconDownload data-icon="inline-start" />
-              Download .xlsx
+              Unduh Excel
             </a>
           </Button>
           <Button asChild>
@@ -333,7 +334,7 @@ export default async function AdminAuditDetailPage({
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <AdminMetricCard
-          label="Actual PLN"
+          label="Aktual PLN"
           value={formatNumber(audit.actualPln, " kWh")}
           description="Rata-rata PLN dari kalkulasi ini"
           icon={IconBolt}
@@ -389,7 +390,7 @@ export default async function AdminAuditDetailPage({
                 ["Tipe", audit.store.type],
                 ["Total area", formatDecimal(audit.store.totalAreaM2, " m²")],
                 ["Sales", formatDecimal(audit.store.salesAreaM2, " m²")],
-                ["Parkir", formatDecimal(audit.store.parkingAreaM2, " m²")],
+                ["Parkiran", formatDecimal(audit.store.parkingAreaM2, " m²")],
                 ["Teras", formatDecimal(audit.store.terraceAreaM2, " m²")],
                 ["Gudang", formatDecimal(audit.store.warehouseAreaM2, " m²")],
                 ["Toilet", formatDecimal(audit.store.toiletAreaM2, " m²")],
@@ -420,7 +421,7 @@ export default async function AdminAuditDetailPage({
                 ["Tanggal kalkulasi", formatDate(audit.auditDate)],
                 ["Auditor", audit.auditor.name],
                 ["Email auditor", audit.auditor.email],
-                ["Actual PLN", formatNumber(audit.actualPln, " kWh")],
+                ["Aktual PLN", formatNumber(audit.actualPln, " kWh")],
                 ["Baseline", formatNumber(audit.baseline, " kWh")],
                 [
                   "Gap",
@@ -649,7 +650,22 @@ export default async function AdminAuditDetailPage({
                 {equipmentRows.map((item, index) => (
                   <TableRow key={`${item.area}-${item.name}-${index}`}>
                     <TableCell>{item.area}</TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2.5">
+                        <EquipmentThumbnail
+                          photoUrl={item.photoUrl}
+                          alt={
+                            item.brand && item.brand !== "-"
+                              ? `${item.name} (${item.brand})`
+                              : item.name
+                          }
+                          deviceCategory={item.deviceCategory}
+                          size="sm"
+                          previewable
+                        />
+                        <span>{item.name}</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {item.brand}
                     </TableCell>
