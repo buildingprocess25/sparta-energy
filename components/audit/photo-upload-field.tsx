@@ -17,7 +17,10 @@ type PhotoUploadFieldProps = {
   label: string
   hint?: string
   value: string
-  onChange: (url: string) => void
+  // discardToken is only sent by endpoints that allow the uploader to delete again.
+  onChange: (url: string, discardToken?: string) => void
+  // Called with a photo the user dropped: removed with X, or uploaded after the form closed.
+  onDiscard?: (url: string, discardToken?: string) => void
   endpoint: "customEquipmentImage" | "brandImage" | "nameplateImage"
   // Used to name the uploaded file, e.g. the equipment name.
   fileName?: string
@@ -35,12 +38,21 @@ export function PhotoUploadField({
   fileName,
   disabled = false,
   onUploadingChange,
+  onDiscard,
 }: PhotoUploadFieldProps) {
   const [uploading, setUploading] = React.useState(false)
   const [webcamOpen, setWebcamOpen] = React.useState(false)
   const cameraInputRef = React.useRef<HTMLInputElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const isBusy = uploading || disabled
+  const mountedRef = React.useRef(true)
+
+  React.useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   function setUploadingState(next: boolean) {
     setUploading(next)
@@ -69,16 +81,23 @@ export function PhotoUploadField({
         { type: "image/webp" }
       )
       const res = await uploadFiles(endpoint, { files: [renamed] })
-      if (res?.[0]) {
-        onChange(res[0].url)
-        setWebcamOpen(false)
+      const uploaded = res?.[0]
+      if (!uploaded) return
+      const serverData = uploaded.serverData as { discardToken?: string | null } | null
+      const discardToken = serverData?.discardToken ?? undefined
+      if (!mountedRef.current) {
+        onDiscard?.(uploaded.url, discardToken)
+        return
       }
+      onChange(uploaded.url, discardToken)
+      setWebcamOpen(false)
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Foto gagal diunggah. Coba lagi."
       )
     } finally {
-      setUploadingState(false)
+      if (mountedRef.current) setUploading(false)
+      onUploadingChange?.(false)
     }
   }
 
@@ -97,7 +116,10 @@ export function PhotoUploadField({
             size="icon"
             className="absolute top-1 right-1 size-11 rounded-full"
             aria-label="Hapus foto"
-            onClick={() => onChange("")}
+            onClick={() => {
+              onDiscard?.(value)
+              onChange("")
+            }}
             disabled={disabled}
           >
             <IconX />

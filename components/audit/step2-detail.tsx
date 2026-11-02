@@ -22,6 +22,7 @@ import { buildAuditItemRows } from "@/lib/audit-kalkulator"
 import { pickBrandPhoto } from "@/lib/equipment-photo"
 import { DEVICE_CATEGORIES, isDeviceCategory } from "@/lib/equipment-categories"
 import { EquipmentThumbnail } from "@/components/audit/equipment-thumbnail"
+import { discardCustomEquipmentPhoto } from "@/app/actions/custom-equipment-photo"
 import { PhotoUploadField } from "@/components/audit/photo-upload-field"
 import {
   Select,
@@ -427,6 +428,31 @@ export function AuditStep2Detail({
   const [customCategory, setCustomCategory] = React.useState("")
   const [customPhotoUrl, setCustomPhotoUrl] = React.useState("")
   const [isUploadingCustomPhoto, setIsUploadingCustomPhoto] = React.useState(false)
+  // Uploaded custom photos not yet added to the calculation, keyed by URL.
+  const customPhotoTokensRef = React.useRef(new Map<string, string>())
+
+  const discardCustomPhoto = React.useCallback((url: string, token?: string) => {
+    const discardToken = token ?? customPhotoTokensRef.current.get(url)
+    customPhotoTokensRef.current.delete(url)
+    if (discardToken) {
+      void discardCustomEquipmentPhoto({ url, token: discardToken }).catch(() => {})
+    }
+  }, [])
+
+  const discardUnusedCustomPhotos = React.useCallback(() => {
+    for (const [url, token] of [...customPhotoTokensRef.current]) {
+      discardCustomPhoto(url, token)
+    }
+  }, [discardCustomPhoto])
+
+  const leaveCustomMode = React.useCallback(() => {
+    discardUnusedCustomPhotos()
+    setCustomPhotoUrl("")
+    setIsCustomMode(false)
+  }, [discardUnusedCustomPhotos])
+
+  // Leaving step 2 mid-form drops the photo too.
+  React.useEffect(() => discardUnusedCustomPhotos, [discardUnusedCustomPhotos])
 
   const resetCustomForm = React.useCallback(() => {
     setCustomName("")
@@ -440,11 +466,12 @@ export function AuditStep2Detail({
   // Reset search & custom form when drawer closes
   React.useEffect(() => {
     if (!isAddOpen) {
+      discardUnusedCustomPhotos()
       setAddSearch("")
       setIsCustomMode(false)
       resetCustomForm()
     }
-  }, [isAddOpen, resetCustomForm])
+  }, [isAddOpen, resetCustomForm, discardUnusedCustomPhotos])
 
   const isCustomFormComplete =
     Boolean(customName.trim()) &&
@@ -488,6 +515,8 @@ export function AuditStep2Detail({
       customPhotoUrl,
     }
 
+    // The photo now belongs to the item, so closing the drawer must keep it.
+    customPhotoTokensRef.current.delete(customPhotoUrl)
     setItems((prev) => [...prev, newItem])
     setIsAddOpen(false)
     setIsCustomMode(false)
@@ -834,7 +863,8 @@ export function AuditStep2Detail({
                     variant="ghost"
                     size="icon-sm"
                     className="rounded-full"
-                    onClick={() => setIsCustomMode(false)}
+                    aria-label="Kembali ke daftar equipment"
+                    onClick={leaveCustomMode}
                   >
                     <IconArrowLeft className="size-4" />
                   </Button>
@@ -925,7 +955,11 @@ export function AuditStep2Detail({
                   label="Foto Produk *"
                   hint="Foto seluruh alat. Usahakan merek atau stiker dayanya terlihat."
                   value={customPhotoUrl}
-                  onChange={setCustomPhotoUrl}
+                  onChange={(url, token) => {
+                    if (url && token) customPhotoTokensRef.current.set(url, token)
+                    setCustomPhotoUrl(url)
+                  }}
+                  onDiscard={discardCustomPhoto}
                   endpoint="customEquipmentImage"
                   fileName={customName || "alat-kustom"}
                   onUploadingChange={setIsUploadingCustomPhoto}
@@ -950,7 +984,7 @@ export function AuditStep2Detail({
                   type="button"
                   variant="outline"
                   className="h-11 flex-1"
-                  onClick={() => setIsCustomMode(false)}
+                  onClick={leaveCustomMode}
                 >
                   Batal
                 </Button>

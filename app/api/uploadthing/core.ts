@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth"
 import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
 import { can } from "@/lib/role-access"
+import { signDiscardToken } from "@/lib/upload-discard-token"
 
 const f = createUploadthing()
 
@@ -43,9 +44,15 @@ export const ourFileRouter = {
     .middleware(({ req }) => requireMasterDataManager(req))
     .onUploadComplete(async ({ file }) => ({ url: file.url })),
   // Product photo from the store's Tambah Alat Kustom form, reviewed by an admin later.
-  customEquipmentImage: f(imageOnly, { awaitServerData: false })
+  // The token lets the uploader delete the photo again if they cancel the form.
+  customEquipmentImage: f(imageOnly, { awaitServerData: true })
     .middleware(async ({ req }) => ({ userId: await requireSignedIn(req) }))
-    .onUploadComplete(async ({ file }) => ({ url: file.url })),
+    .onUploadComplete(async ({ file, metadata }) => ({
+      url: file.url,
+      discardToken: process.env.BETTER_AUTH_SECRET
+        ? signDiscardToken(file.key, metadata.userId, process.env.BETTER_AUTH_SECRET)
+        : null,
+    })),
 } satisfies FileRouter
 
 export type OurFileRouter = typeof ourFileRouter
