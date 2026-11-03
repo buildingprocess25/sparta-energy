@@ -6,7 +6,6 @@ import {
   IconArrowRight,
   IconCheck,
   IconClipboardCheck,
-  IconExternalLink,
   IconGauge,
   IconLayoutDashboard,
 } from "@tabler/icons-react"
@@ -92,14 +91,10 @@ function DestinationCard({
 
       <span className="mt-auto inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
         {cta}
-        {external ? (
-          <IconExternalLink aria-hidden="true" className="size-4" />
-        ) : (
-          <IconArrowRight
-            aria-hidden="true"
-            className="size-4 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
-          />
-        )}
+        <IconArrowRight
+          aria-hidden="true"
+          className="size-4 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
+        />
       </span>
     </>
   )
@@ -109,11 +104,11 @@ function DestinationCard({
     className
   )
 
+  // Another app on its own domain: plain <a> in the same tab, so Back returns here.
   if (external) {
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={cardClassName}>
+      <a href={href} className={cardClassName}>
         {content}
-        <span className="sr-only">(terbuka di tab baru)</span>
       </a>
     )
   }
@@ -274,7 +269,7 @@ export default async function AdminEntryPage() {
               "Peta toko yang terpasang alat meter",
               "Grafik tren daya dan kWh per toko",
             ]}
-            cta="Buka di tab baru"
+            cta="Buka Smart Energy Meter"
           />
         </section>
       </div>

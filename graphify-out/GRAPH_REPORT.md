@@ -1,7 +1,7 @@
 # Graph Report - sparta-energy  (2026-11-03)
 
 ## Corpus Check
-- 467 files · ~385,402 words
+- 467 files · ~385,399 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 15 file(s) not represented in the graph (top: (none) 9, .ico 2, .css 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `40a07aea`
+- Built from commit: `f8af7f5b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
