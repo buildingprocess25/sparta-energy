@@ -7,6 +7,12 @@ import { getEffectiveRole } from "@/lib/current-role"
 import { prisma } from "@/lib/prisma"
 import { can } from "@/lib/role-access"
 import { getAdminAuditDetail } from "@/lib/admin-audit-detail"
+import {
+  GAP_ROW_LABEL,
+  gapPercentCell,
+  KW_FORMAT,
+  summaryValueFormat,
+} from "@/lib/audit-export-format"
 
 async function isAdmin() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -98,11 +104,11 @@ export async function GET(
     ["Pemakaian Aktual PLN (kWh/Bulan)", audit.actualPln, "", "Satuan", "kWh/Bulan"],
     ["Estimasi Baseline Standar (kWh/Bulan)", audit.baseline, "", "Satuan", "kWh/Bulan"],
     [
-      "Selisih Beban Listrik / Gap (kWh)",
+      GAP_ROW_LABEL,
       audit.gapKwh,
       "",
       "Persentase Deviasi Gap (%)",
-      audit.gapPercent !== null ? (audit.gapPercent / 100) : 0,
+      gapPercentCell(audit.gapPercent),
     ],
     ["Total Beban Harian Terdata (kWh/Hari)", audit.totalDailyKwh, "", "Satuan", "kWh/Hari"],
     ["Total Beban Bulanan Terdata (kWh/Bulan)", audit.totalMonthlyKwh, "", "Satuan", "kWh/Bulan"],
@@ -143,7 +149,7 @@ export async function GET(
       c1.z = "#,##0.00"
     }
     if (c4 && typeof c4.v === "number") {
-      c4.z = r === 17 ? "+0.0%;-0.0%;0.0%" : "#,##0"
+      c4.z = summaryValueFormat(summaryRows[r]?.[0])
     }
   }
 
@@ -227,7 +233,7 @@ export async function GET(
 
     if (qtyCell && typeof qtyCell.v === "number") qtyCell.z = "#,##0"
     if (hoursCell && typeof hoursCell.v === "number") hoursCell.z = "#,##0.0"
-    if (kwCell && typeof kwCell.v === "number") kwCell.z = "#,##0.000"
+    if (kwCell && typeof kwCell.v === "number") kwCell.z = KW_FORMAT
     if (dailyCell && typeof dailyCell.v === "number") dailyCell.z = "#,##0.00"
     if (monthlyCell && typeof monthlyCell.v === "number") monthlyCell.z = "#,##0.00"
   }
