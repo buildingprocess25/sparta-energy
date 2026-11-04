@@ -1,24 +1,24 @@
 # Graph Report - sparta-energy  (2026-11-04)
 
 ## Corpus Check
-- 467 files · ~385,591 words
+- 469 files · ~386,264 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 15 file(s) not represented in the graph (top: (none) 9, .ico 2, .css 1)
 
 ## Summary
-- 3692 nodes · 10918 edges · 165 communities (147 shown, 18 thin omitted)
+- 3706 nodes · 10943 edges · 170 communities (153 shown, 17 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 94 edges (avg confidence: 0.87)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `558b79eb`
+- Built from commit: `242e4c44`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - hvac-audit-export.ts
 - auth.ts
-- next
+- step2.tsx
 - Input
 - Equipment Admin Queries
 - calculator-logs-client.tsx
@@ -26,14 +26,14 @@
 - ac-mapping-client.tsx
 - map.tsx
 - Package & ESLint Config
-- cn
+- audit-validation-queries.ts
 - admin/dashboard/page.tsx
 - Runtime Dependencies
 - Button
 - admin-master-data-queries.ts
 - AC Mapping Calculator Proposal
 - hvac-audit.ts
-- lighting-audit.test.ts
+- hvac-audit-export.test.ts
 - store-mep-simulator-client.tsx
 - Card
 - audit-validation.ts
@@ -41,13 +41,13 @@
 - Branch Audit Summaries
 - step2-detail.tsx
 - submit-audit.ts
-- ac-estimation-client.tsx
+- validation-detail.tsx
 - admin-master-equipment-dialog.tsx
-- cn
+- breadcrumb.tsx
 - energy-audit-export-dialog.tsx
 - LightEstimationClient
 - lux-measurement-table.tsx
-- audit-kalkulator.test.ts
+- Badge
 - audit-photos.tsx
 - MapDrawControl
 - admin-user-queries.ts
@@ -56,7 +56,7 @@
 - MapDrawShapeButton
 - stores/[id]/page.tsx
 - admin-master-data-mutations.ts
-- lighting-audit.ts
+- lighting-audit-form.tsx
 - audits/[id]/page.tsx
 - Header
 - TypeScript Config
@@ -72,8 +72,8 @@
 - kategori/page.tsx
 - antislop-layoutmobile
 - audits/data/route.ts
-- energy-audit-export.ts
-- lib/custom-equipment.ts
+- lighting-audit-export.ts
+- admin-audit-filters.tsx
 - Temperature BTU Clusters (450 / 600 / 751 BTU/m2)
 - admin-calculator-queries.ts
 - contrast-check.py
@@ -95,7 +95,7 @@
 - PWA Manifest
 - DOCX Generator Script
 - 3-Pillar Ecosystem Architecture
-- admin-users-table.tsx
+- AdminMasterEquipmentTable
 - Landing Hero Illustration
 - antislop-human
 - import-stores.ts
@@ -103,15 +103,15 @@
 - Docs Builder Script
 - Update Password Script
 - Landing Line-Art Illustration
-- lighting-audit-export.ts
+- technical-form.tsx
 - admin-entry/page.tsx
 - change-user-role.ts
-- energy-audit-export-filters.ts
+- admin-equipment-filters.tsx
 - admin-store-detail.ts
 - route.spec.ts
 - PWA Icon Set
 - react
-- admin-master-stores-table.tsx
+- mep-layout-canvas-preview.tsx
 - admin-user-import-dialog.tsx
 - admin-shell.tsx
 - export-store-data.ts
@@ -125,19 +125,19 @@
 - Comments That Add Nothing
 - Group 1: Hard Gate (absolute, no exceptions)
 - Group 2: Purpose-Gate (technique allowed, purpose required)
-- settings/page.tsx
+- state-block.tsx
 - Decorative Elements
 - antislop-ui
 - Layout & Components
 - Visual & Color
-- audit-kalkulator.ts
+- step3.tsx
 - Group 3: Quality Locks (consistency)
 - antislop
 - core.ts
 - reports/preview/route.ts
 - Part 1: AI Slop Patterns (Warning Signs)
 - App & Dashboard
-- toggle-group.tsx
+- utils.ts
 - Rencana Implementasi: Activity Log & Save/Load Layout Store MEP Simulator
 - filters.tsx
 - The Craftsmanship Standard
@@ -146,25 +146,30 @@
 - Part 3: Liveliness Toolkit
 - export-audits.ts
 - Konsep Akses Role: Admin, Auditor, GS General Service, dan Area
-- master-data/stores/data/route.ts
+- reports/page.tsx
 - Changelog - Lamp Estimation Calculator
-- actions/import-users.ts
-- react-leaflet-markercluster
-- MapLayers
+- create-user.ts
+- audit-technical.ts
+- admin-dashboard-filters.tsx
 - admin-audit-detail.ts
 - sync-stores.ts
-- create-user.ts
+- role-access.ts
+- equipment-thumbnail.tsx
+- admin-audit-date-filter.ts
+- Integrasi "12 Toko Sangat Boros" ke Smart Energy Monitoring
+- AdminMasterStoreFilters
+- getMasterEquipmentRows
 - scripts/import-users.ts
+- generate-lamp-simulation.ts
 - create-admin-user.ts
 - AC Restricted Zones (Glass/Door, Open Chiller, Cashier)
 - hvac-audit-form.tsx
 - change-user-role.ts
-- Alert
+- result-db.tsx
 - allowBuilds
 - Store Coordinates Sync Plan
 - Disaster Engine & Store Impact Verification Flow
-- admin-master-categories-list.tsx
-- can
+- lib/admin-gap-filter.ts
 - interface
 - backfill-audit-baseline.ts
 - prisma.ts
@@ -209,90 +214,90 @@
 - **Energy Audit Analysis Pipeline** — claude_audit_creation_flow, claude_energy_calculation, ai_context_pln_std_history, ai_context_hemat_boros_classification, claude_ai_recommendations [INFERRED 0.85]
 - **Sparta Energy PWA / Favicon Icon Set (building shield logo)** — public_assets_building_logo_building_logo, public_assets_android_chrome_192x192_pwa_icon_192, public_assets_android_chrome_512x512_pwa_icon_512, public_assets_apple_touch_icon_apple_touch_icon, public_assets_favicon_16x16_favicon, public_assets_favicon_32x32_favicon [INFERRED 0.85]
 
-## Communities (165 total, 18 thin omitted)
+## Communities (170 total, 17 thin omitted)
 
 ### Community 0 - "hvac-audit-export.ts"
-Cohesion: 0.08
-Nodes (31): Context, GET(), getHvacAuditsForExport(), AC_HEADER, acChecklistRows(), acCountRows(), average(), ecoAndPhotoRows() (+23 more)
+Cohesion: 0.11
+Nodes (26): Context, GET(), AcCountFlag(), AcCountFlagProps, toneByStatus, getHvacAuditsForExport(), AcCountStatus, COP_TARGET (+18 more)
 
 ### Community 1 - "auth.ts"
-Cohesion: 0.14
-Nodes (25): GET(), GET(), resolveSession(), cache, forgetProxySession(), getProxySession(), keyFor(), ProxySession (+17 more)
+Cohesion: 0.16
+Nodes (24): GET(), resolveSession(), cache, forgetProxySession(), getProxySession(), keyFor(), ProxySession, BETTER_AUTH_SESSION_COOKIES (+16 more)
 
-### Community 2 - "next"
-Cohesion: 0.08
-Nodes (33): AcEstimationPage(), excludedBranchNames, AcMappingPage(), excludedBranchNames, getMepSimulationDetail(), excludedBranchNames, getStoreByCodeAction(), searchStoresAction() (+25 more)
+### Community 2 - "step2.tsx"
+Cohesion: 0.11
+Nodes (24): getStoreByCodeAction(), AuditStartClient(), AuditStepNavigate, AuditStepNavigateOptions, AuditStepTarget, Props, StoreData, DemoPage() (+16 more)
 
 ### Community 3 - "Input"
-Cohesion: 0.10
-Nodes (44): AuditFilterStatus, cache, EmptyState(), HistoryPage(), handleConfirmDelete(), BranchCombobox(), BranchComboboxProps, ReviewCard() (+36 more)
+Cohesion: 0.14
+Nodes (32): AuditFilterStatus, cache, EmptyState(), HistoryPage(), AdminCustomEquipmentReviewProps, AREA_LABELS, dateFormat, ReviewCard() (+24 more)
 
 ### Community 4 - "Equipment Admin Queries"
 Cohesion: 0.09
-Nodes (48): GET(), getFilter(), isAdmin(), parseArea(), validAreas, AdminEquipmentPage(), averagePerStore(), formatNumber() (+40 more)
+Nodes (46): GET(), getFilter(), parseArea(), AdminEquipmentPage(), averagePerStore(), formatNumber(), getFilter(), parseArea() (+38 more)
 
 ### Community 5 - "calculator-logs-client.tsx"
-Cohesion: 0.15
-Nodes (23): AdminMasterDataNav(), CalculatorLogsClient(), CalculatorLogsClientProps, formatDateIndo(), MONTH_OPTIONS, EnergyAuditExportDialog(), buildTime(), BuildTimeOptions (+15 more)
+Cohesion: 0.12
+Nodes (26): AdminUserFilters(), handleBranchToggle(), handleClearAllBranches(), handleRoleChange(), handleSearchSubmit(), handleSelectAllBranches(), updateParams(), CalculatorLogsClient() (+18 more)
 
 ### Community 6 - "Report Export Queries"
 Cohesion: 0.09
-Nodes (48): addCommonWhere(), AdminReportCellValue, AdminReportColumn, AdminReportDataset, AdminReportStatus, AdminReportType, allMasterEquipmentFilters, buildAdminReportDataset() (+40 more)
+Nodes (47): addCommonWhere(), AdminReportCellValue, AdminReportColumn, AdminReportDataset, AdminReportStatus, AdminReportType, allMasterEquipmentFilters, buildAuditHistoryDataset() (+39 more)
 
 ### Community 7 - "ac-mapping-client.tsx"
-Cohesion: 0.07
-Nodes (42): AcMappingClientProps, ActiveTool, applyCashierBoxToPolygon(), applyZoneToPolygon(), checkAcPlacementValidation(), ForbiddenInterval, formatDim(), getCashierZonePolygon() (+34 more)
+Cohesion: 0.09
+Nodes (37): AcMappingClient(), AcMappingClientProps, ActiveTool, applyCashierBoxToPolygon(), applyZoneToPolygon(), checkAcPlacementValidation(), ForbiddenInterval, formatDim() (+29 more)
 
 ### Community 8 - "map.tsx"
-Cohesion: 0.06
-Nodes (45): ButtonGroup(), buttonGroupVariants, LeafletCircle, LeafletCircleMarker, LeafletFeatureGroup, LeafletLayerGroup, LeafletMapContainer, LeafletMarker (+37 more)
+Cohesion: 0.05
+Nodes (48): LeafletCircle, LeafletCircleMarker, LeafletFeatureGroup, LeafletLayerGroup, LeafletMapContainer, LeafletMarker, LeafletPolygon, LeafletPolyline (+40 more)
 
 ### Community 9 - "Package & ESLint Config"
 Cohesion: 0.04
 Nodes (63): eslintConfig, devDependencies, eslint@^9.39.4, eslint-config-next@16.1.7, @eslint/eslintrc@^3, jest@^30.3.0, jest-environment-jsdom@^30.3.0, postcss@^8 (+55 more)
 
-### Community 10 - "cn"
-Cohesion: 0.15
-Nodes (19): Command(), CommandEmpty(), CommandGroup(), CommandItem(), CommandList(), CommandSeparator(), CommandShortcut(), buildSearchUrl() (+11 more)
+### Community 10 - "audit-validation-queries.ts"
+Cohesion: 0.08
+Nodes (30): AdminEntryPage(), DestinationCard(), DestinationCardProps, numberFormat, StatLink(), AuditValidationDetailPage(), Props, AdminEntryLogoutButton() (+22 more)
 
 ### Community 11 - "admin/dashboard/page.tsx"
-Cohesion: 0.08
-Nodes (41): AdminDashboardPage(), calculateGapPercent(), compactNumberFormat, CompletedAuditRow, excludedBranchNames, formatCompact(), formatNumber(), formatOperatingHours() (+33 more)
+Cohesion: 0.13
+Nodes (24): AdminDashboardPage(), calculateGapPercent(), compactNumberFormat, CompletedAuditRow, excludedBranchNames, formatCompact(), formatNumber(), formatOperatingHours() (+16 more)
 
 ### Community 12 - "Runtime Dependencies"
 Cohesion: 0.05
-Nodes (42): dependencies, @base-ui/react@^1.4.1, better-auth@^1.6.5, clsx@^2.1.1, cmdk@^1.1.1, date-fns@^4.1.0, @google/genai@^1.50.1, html-to-image@^1.11.13 (+34 more)
+Nodes (41): dependencies, @base-ui/react@^1.4.1, better-auth@^1.6.5, class-variance-authority@^0.7.1, clsx@^2.1.1, cmdk@^1.1.1, date-fns@^4.1.0, @google/genai@^1.50.1 (+33 more)
 
 ### Community 13 - "Button"
-Cohesion: 0.08
-Nodes (69): AcMappingClient(), deleteAuditDraft(), getAuditDraft(), AdminCustomEquipmentReview(), AdminMasterStoreDialog(), AdminMasterStoreExportFilter(), AdminMasterStoreExportFilterProps, numberFormat (+61 more)
+Cohesion: 0.11
+Nodes (49): deleteAuditDraft(), getAuditDraft(), AdminCustomEquipmentReview(), AdminMasterStoreDialog(), AdminMasterStoreDialogProps, AdminMasterStoreExportFilter(), AdminMasterStoreExportFilterProps, numberFormat (+41 more)
 
 ### Community 14 - "admin-master-data-queries.ts"
-Cohesion: 0.09
-Nodes (27): CountRow, defaultMasterDataOrder, defaultMasterEquipmentSort, defaultMasterStoreSort, EquipmentArea, getEquipmentFromSql(), getEquipmentOrderBySql(), getEquipmentWhereSql() (+19 more)
+Cohesion: 0.08
+Nodes (31): GET(), getFilter(), CountRow, defaultMasterDataOrder, defaultMasterEquipmentSort, defaultMasterStoreSort, EquipmentArea, getMasterStoreRows() (+23 more)
 
 ### Community 15 - "AC Mapping Calculator Proposal"
 Cohesion: 0.12
 Nodes (17): components/ac-estimation/ac-placement-canvas.tsx (planned), AC Layout & Mapping Design Specification, AC Layout Tool (/ac-layout), CalculatorGrid, Daikin 2 PK Split Wall Reference Unit (18,000 BTU/h, 1050mm), Daikin Installation Manual / Engineering Data Book (FTKC/FTV), AC Mapping Calculator Proposal, AC Estimation Calculator (/ac-estimation) (+9 more)
 
 ### Community 16 - "hvac-audit.ts"
-Cohesion: 0.04
-Nodes (77): AcCountFlag(), AcCountFlagProps, toneByStatus, copTone, deltaTone, HvacAcUnitCard(), HvacAcUnitCardProps, roomTone (+69 more)
-
-### Community 17 - "lighting-audit.test.ts"
 Cohesion: 0.06
-Nodes (26): detail, getCompletionIssues(), getLuxArea(), getLuxStatus(), getZoneDefinition(), LightingZoneKey, summarizeLux(), csv (+18 more)
+Nodes (59): AcStandardResult, calculateHvacAcStandard(), getAuditableSource(), revalidateEnergyAudit(), saveHvacAudit(), saveLightingAudit(), SaveResult, getTemperature() (+51 more)
+
+### Community 17 - "hvac-audit-export.test.ts"
+Cohesion: 0.09
+Nodes (18): AC_UNIT_BTU, calculateAcUnits(), getClusterBtu(), detail, createAcUnit(), HvacExportAudit, acHeaderIndex, audit (+10 more)
 
 ### Community 18 - "store-mep-simulator-client.tsx"
-Cohesion: 0.10
-Nodes (37): getLatestStoreMepSimulation(), getMepSimulationList(), MepSimulationListFilter, saveMepSimulationLog(), SaveMepSimulationPayload, SaveMepSimulationResult, ActiveTool, applyCashierBoxToPolygon() (+29 more)
+Cohesion: 0.11
+Nodes (33): getLatestStoreMepSimulation(), getMepSimulationList(), saveMepSimulationLog(), ActiveTool, applyCashierBoxToPolygon(), applyZoneToPolygon(), checkAcPlacementValidation(), checkLampObstacle() (+25 more)
 
 ### Community 19 - "Card"
-Cohesion: 0.10
-Nodes (45): AdminReportsPage(), describeList(), describeMasterStoreScope(), formatNumber(), getExportHref(), getPreviewHref(), getReportParams(), ReportCard (+37 more)
+Cohesion: 0.16
+Nodes (30): AuditResultLoading(), AuditValidationDetailLoading(), DashboardLoading(), DemoResultLoading(), AdminMetricCard(), AdminMetricTone, metricToneStyles, AuditResultSkeleton() (+22 more)
 
 ### Community 20 - "audit-validation.ts"
-Cohesion: 0.06
+Cohesion: 0.05
 Nodes (64): ActionResult, addAuditItem(), AddAuditItemInput, applyDraft(), areaTargets, AuditTechnicalInput, checkItemFields(), checkPlnHistory() (+56 more)
 
 ### Community 21 - "admin-dashboard-charts.tsx"
@@ -300,52 +305,52 @@ Cohesion: 0.12
 Nodes (22): consumptionChartConfig, ConsumptionTrendPoint, EfficiencyBreakdownChart(), EfficiencyBreakdownDatum, efficiencyChartConfig, formatK(), formatTooltipValue(), numberFormat (+14 more)
 
 ### Community 22 - "Branch Audit Summaries"
-Cohesion: 0.10
-Nodes (35): AdminBranchesPage(), areaLabels, BranchAuditSummaryRow, BranchDominantRow, BranchSortKey, buildBranchesQueryParts(), calculateGapPercent(), formatKwh() (+27 more)
+Cohesion: 0.11
+Nodes (34): AdminBranchesPage(), areaLabels, BranchAuditSummaryRow, BranchDominantRow, BranchSortKey, buildBranchesQueryParts(), calculateGapPercent(), formatKwh() (+26 more)
 
 ### Community 23 - "step2-detail.tsx"
-Cohesion: 0.12
-Nodes (17): BrandCombobox(), AuditStep2Detail(), EquipmentItem, EquipmentRow(), EquipmentRowProps, formatKw(), getAverageDailyRuntime(), getSingleDuration() (+9 more)
+Cohesion: 0.09
+Nodes (32): AcEstimationClient(), AcEstimationClientProps, MapPicker, EstimationResultCard(), EstimationResultCardData, Props, Row(), BrandCombobox() (+24 more)
 
 ### Community 24 - "submit-audit.ts"
-Cohesion: 0.16
-Nodes (10): AuditHistoryRow, AuditStatus, AuditYearRow, AvailableYearsResponse, HistoryItem, HistoryResponse, SubmitAuditInput, DEMO_EMAIL (+2 more)
+Cohesion: 0.15
+Nodes (13): AuditHistoryRow, AuditStatus, AuditYearRow, AvailableYearsResponse, getAvailableYears(), HistoryItem, HistoryResponse, SubmitAuditInput (+5 more)
 
-### Community 25 - "ac-estimation-client.tsx"
-Cohesion: 0.19
-Nodes (17): AcEstimationClient(), AcEstimationClientProps, MapPicker, EstimationResultCard(), EstimationResultCardData, Props, Row(), Drawer() (+9 more)
+### Community 25 - "validation-detail.tsx"
+Cohesion: 0.10
+Nodes (25): saveValidationDraft(), validateAudit(), AddEquipmentDialogProps, areaCategory, recordedQty(), EquipmentListProps, FormState, AreaKey (+17 more)
 
 ### Community 26 - "admin-master-equipment-dialog.tsx"
-Cohesion: 0.07
-Nodes (37): AdminCustomEquipmentReviewProps, AREA_LABELS, dateFormat, AdminMasterEquipmentDialog(), AdminMasterEquipmentDialogProps, AdminMasterEquipmentFilters(), applyFilterChanges(), applySearch() (+29 more)
+Cohesion: 0.12
+Nodes (25): AdminMasterEquipmentDialog(), AdminMasterEquipmentDialogProps, AdminMasterEquipmentFilters(), applyFilterChanges(), applySearch(), clearFilters(), pushParams(), AdminMasterEquipmentFiltersProps (+17 more)
 
-### Community 27 - "cn"
-Cohesion: 0.13
-Nodes (26): AdminSiteHeader(), AlertAction(), Avatar(), AvatarBadge(), AvatarFallback(), AvatarGroup(), AvatarGroupCount(), AvatarImage() (+18 more)
+### Community 27 - "breadcrumb.tsx"
+Cohesion: 0.36
+Nodes (8): AdminSiteHeader(), Breadcrumb(), BreadcrumbEllipsis(), BreadcrumbItem(), BreadcrumbLink(), BreadcrumbList(), BreadcrumbPage(), BreadcrumbSeparator()
 
 ### Community 28 - "energy-audit-export-dialog.tsx"
-Cohesion: 0.11
-Nodes (31): EnergyAuditExportDialogProps, MultiSelect(), MultiSelectProps, PreviewState, ComboboxChip(), ComboboxChips(), ComboboxChipsInput(), ComboboxClear() (+23 more)
+Cohesion: 0.08
+Nodes (55): EnergyAuditExportDialogProps, MultiSelect(), MultiSelectProps, PreviewState, ComboboxChip(), ComboboxChips(), ComboboxChipsInput(), ComboboxClear() (+47 more)
 
 ### Community 29 - "LightEstimationClient"
-Cohesion: 0.08
-Nodes (48): getRabData(), saveLightEstimationLog(), checkStandards(), formatDim(), getClosestPointOnSegment(), LightEstimationClient(), LightEstimationClientProps, SHAPES (+40 more)
+Cohesion: 0.09
+Nodes (37): getRabData(), saveLightEstimationLog(), checkStandards(), formatDim(), getClosestPointOnSegment(), LightEstimationClient(), LightEstimationClientProps, SHAPES (+29 more)
 
 ### Community 30 - "lux-measurement-table.tsx"
-Cohesion: 0.10
-Nodes (28): AuditPhotoContext, LuxMeasurementTable(), LuxMeasurementTableProps, parseLux(), pointHint(), pointTone, rowAreas(), boxTone (+20 more)
+Cohesion: 0.33
+Nodes (8): LuxMeasurementTable(), LuxMeasurementTableProps, parseLux(), pointHint(), pointTone, rowAreas(), getDimLuxLimit(), getLuxLevel()
 
-### Community 31 - "audit-kalkulator.test.ts"
-Cohesion: 0.12
-Nodes (16): ac, acRows, chiller, chillerCalc, coffee, freezer, lateAc, masterStandard (+8 more)
+### Community 31 - "Badge"
+Cohesion: 0.15
+Nodes (21): categoryIcons, dateFormat, EnergyAuditStorePage(), Props, formatGap(), formatKwh(), ResultStatusBadge(), ResultStatusBadgeProps (+13 more)
 
 ### Community 32 - "audit-photos.tsx"
-Cohesion: 0.21
-Nodes (15): AuditPhotos(), remove(), upload(), AuditPhotosProps, compressPhoto(), photoUrl(), Sheet(), SheetContent() (+7 more)
+Cohesion: 0.15
+Nodes (20): AuditPhotoContext, AuditPhotos(), remove(), upload(), AuditPhotosProps, compressPhoto(), photoUrl(), WebcamCapture() (+12 more)
 
 ### Community 33 - "MapDrawControl"
-Cohesion: 0.83
-Nodes (4): MapDrawControl(), handleDrawCreated(), handleDrawEditedOrDeleted(), updateLayersCount()
+Cohesion: 0.31
+Nodes (9): ButtonGroup(), buttonGroupVariants, MapControlContainer(), MapDrawControl(), handleDrawCreated(), handleDrawEditedOrDeleted(), updateLayersCount(), MapSearchControl() (+1 more)
 
 ### Community 34 - "admin-user-queries.ts"
 Cohesion: 0.14
@@ -360,28 +365,28 @@ Cohesion: 0.10
 Nodes (29): "account", "session", "verification", "account", "audit_items", "audit_pln_std_history", "audit_recommendations", "audits" (+21 more)
 
 ### Community 37 - "MapDrawShapeButton"
-Cohesion: 0.12
-Nodes (20): MapDrawActionButton(), MapDrawCircle(), MapDrawDelete(), MapDrawEdit(), MapDrawMarker(), MapDrawPolygon(), MapDrawPolyline(), MapDrawRectangle() (+12 more)
+Cohesion: 0.13
+Nodes (17): LeafletMarkerClusterGroup, MapDrawActionButton(), MapDrawDelete(), MapDrawEdit(), MapDrawUndo(), MapMarkerClusterGroup(), useLeaflet(), loadLeaflet() (+9 more)
 
 ### Community 38 - "stores/[id]/page.tsx"
-Cohesion: 0.09
-Nodes (40): AdminAuditsTable(), SortableHeader(), updateSort(), calculateGapPercent(), formatDate(), formatKwh(), getNextSortOrder(), getRecommendationLabel() (+32 more)
+Cohesion: 0.08
+Nodes (46): AdminAuditsTable(), SortableHeader(), updateSort(), calculateGapPercent(), formatDate(), formatKwh(), getNextSortOrder(), getRecommendationLabel() (+38 more)
 
 ### Community 39 - "admin-master-data-mutations.ts"
-Cohesion: 0.14
-Nodes (30): ActionResult, deleteUser(), DeleteUserInput, DELETE(), PUT(), POST(), DELETE(), PUT() (+22 more)
+Cohesion: 0.10
+Nodes (37): ActionResult, deleteUser(), DeleteUserInput, ActionResult, updateUser(), UpdateUserInput, DELETE(), PUT() (+29 more)
 
-### Community 40 - "lighting-audit.ts"
-Cohesion: 0.09
-Nodes (33): CategorySummaryProps, restoreBackup(), calculateLpd(), createDefaultLuxRows(), createEmptyLightingAudit(), DEFAULT_LUX_ROWS, ESTIMATED_PLAN_RATIO, lightingRecapSheets() (+25 more)
+### Community 40 - "lighting-audit-form.tsx"
+Cohesion: 0.03
+Nodes (98): CategorySummaryProps, dateFormat, LightingAuditForm(), goToStep(), restoreBackup(), save(), selectLuxPoint(), update() (+90 more)
 
 ### Community 41 - "audits/[id]/page.tsx"
-Cohesion: 0.13
-Nodes (24): AdminAuditDetail, AdminAuditDetailPage(), compareEquipmentRows(), EquipmentRow, EquipmentSortKey, equipmentSortKeys, equipmentSortLabels, formatDate() (+16 more)
+Cohesion: 0.12
+Nodes (25): AdminAuditDetail, AdminAuditDetailPage(), compareEquipmentRows(), EquipmentRow, EquipmentSortKey, equipmentSortKeys, equipmentSortLabels, formatDate() (+17 more)
 
 ### Community 42 - "Header"
-Cohesion: 0.09
-Nodes (42): AcEstimationLoading(), AuditResultLoading(), EnergyAuditListLoading(), AuditStartLoading(), AuditStepNavigate, AuditValidationDetailLoading(), AuditValidationLoading(), DashboardLoading() (+34 more)
+Cohesion: 0.10
+Nodes (33): AcEstimationLoading(), EnergyAuditListLoading(), AuditStartLoading(), AuditValidationLoading(), AuditValidationPage(), pageHref(), Props, HistoryLoading() (+25 more)
 
 ### Community 43 - "TypeScript Config"
 Cohesion: 0.10
@@ -393,55 +398,55 @@ Nodes (16): dynamic, fontMono, geist, metadata, RootLayout(), viewport, isPlainL
 
 ### Community 45 - "energy-audit-queries.ts"
 Cohesion: 0.08
-Nodes (31): LightingAuditPage(), Props, AVAILABLE_ENERGY_AUDIT_CATEGORIES, CategoryStatusMap, ENERGY_AUDIT_CATEGORIES, EnergyAuditCategoryInfo, EnergyAuditCategoryProgress, progress (+23 more)
+Nodes (30): LightingAuditPage(), Props, HvacAuditPage(), Props, AVAILABLE_ENERGY_AUDIT_CATEGORIES, CategoryStatusMap, ENERGY_AUDIT_CATEGORIES, EnergyAuditCategoryInfo (+22 more)
 
 ### Community 46 - "dxf-parser.ts"
-Cohesion: 0.14
-Nodes (20): CadStoreMetrics, CadWallSegment, CadWallType, chainLinesIntoPolygon(), dist(), DxfCodeValue, DxfEntity, DxfHatchEntity (+12 more)
+Cohesion: 0.10
+Nodes (33): HistorySnapshot, PerimeterPathResult, PlacedAcUnit, ValidWallSpan, WallSegment, ZoneSpanResult, HistorySnapshot, PerimeterPathResult (+25 more)
 
 ### Community 47 - "ref_path"
-Cohesion: 0.13
-Nodes (15): calcSimetris(), evaluateDetailed(), run(), calcSimetris(), evaluateStatus(), run(), SimetrisResult, calcSimetris() (+7 more)
+Cohesion: 0.14
+Nodes (13): calcSimetris(), evaluateDetailed(), run(), calcSimetris(), evaluateStatus(), run(), pool, test() (+5 more)
 
 ### Community 48 - "Styling & Theming Rules"
 Cohesion: 0.15
 Nodes (11): CSS Variable Semantic Tokens (OKLCH), shadcn Customization & Theming, Class-based Dark Mode via next-themes, cn() Conditional Class Utility, Styling & Tailwind Rules, Bottom Navigation Pattern, SPARTA Energy Design System, Emerald Primary Palette & Status Colors (+3 more)
 
 ### Community 49 - "admin-store-queries.ts"
-Cohesion: 0.08
-Nodes (44): GET(), getFilter(), AdminStoresPage(), formatNumber(), getFilter(), SearchParams, AdminStoreFilters(), applyFilterChanges() (+36 more)
+Cohesion: 0.10
+Nodes (40): GET(), getFilter(), isAdmin(), AdminStoresPage(), formatNumber(), getFilter(), SearchParams, getAdminGapFilterSql() (+32 more)
 
 ### Community 50 - "Tone & Voice"
 Cohesion: 0.05
 Nodes (38): Actorless Passive, All-Caps Emphasis, antislop-copywriting, Aphorism Formulas, Boldface Overuse, Chatbot Closers, Copywriting Skill Checklist, Draft, audit, final (+30 more)
 
 ### Community 51 - "stores/[id]/page.tsx"
-Cohesion: 0.13
-Nodes (25): AdminStoreDetail, AdminStoreDetailPage(), compareEquipmentRows(), EquipmentRow, EquipmentSortKey, equipmentSortKeys, equipmentSortLabels, formatDate() (+17 more)
+Cohesion: 0.12
+Nodes (26): AdminStoreDetail, AdminStoreDetailPage(), compareEquipmentRows(), EquipmentRow, EquipmentSortKey, equipmentSortKeys, equipmentSortLabels, formatDate() (+18 more)
 
 ### Community 52 - "photos/route.ts"
 Cohesion: 0.09
-Nodes (43): DELETE(), fail(), GET(), jakartaDate, jakartaTime, PHOTO_CATEGORIES, POST(), readPhotoParams() (+35 more)
+Nodes (42): DELETE(), fail(), GET(), jakartaDate, jakartaTime, PHOTO_CATEGORIES, POST(), readPhotoParams() (+34 more)
 
 ### Community 53 - "kategori/page.tsx"
-Cohesion: 0.05
-Nodes (64): categoryIcons, dateFormat, EnergyAuditStorePage(), Props, dateFormat, EnergyAuditListPage(), first(), pageHref() (+56 more)
+Cohesion: 0.16
+Nodes (24): dateFormat, EnergyAuditListPage(), first(), pageHref(), Props, ValidationStoreList(), ValidationStoreListProps, AuditCard() (+16 more)
 
 ### Community 54 - "antislop-layoutmobile"
 Cohesion: 0.06
 Nodes (30): 100vh Sections, antislop-layoutmobile, Bottom Nav That Eats Content, Breakpoint Driven by Device List, Breakpoints, Columns That Don't Collapse, Desktop-Only Layout, Desktop-Sized Everything (+22 more)
 
 ### Community 55 - "audits/data/route.ts"
+Cohesion: 0.09
+Nodes (44): GET(), getFilter(), isAdmin(), parseRecommendation(), parseStatus(), AdminAuditsPage(), formatNumber(), getFilter() (+36 more)
+
+### Community 56 - "lighting-audit-export.ts"
 Cohesion: 0.07
-Nodes (52): GET(), getFilter(), isAdmin(), parseRecommendation(), parseStatus(), AdminAuditsPage(), formatNumber(), getFilter() (+44 more)
+Nodes (49): GET(), GET(), Context, GET(), CATEGORY_RECAP_SHEETS, CategoryExportAudits, buildEnergyAuditRecap(), CATEGORY_EXPORT_LOADERS (+41 more)
 
-### Community 56 - "energy-audit-export.ts"
-Cohesion: 0.19
-Nodes (16): GET(), CATEGORY_RECAP_SHEETS, CategoryExportAudits, buildEnergyAuditRecap(), CATEGORY_EXPORT_LOADERS, loadCategory(), ExportableCategory, isExportableCategory() (+8 more)
-
-### Community 57 - "lib/custom-equipment.ts"
-Cohesion: 0.14
-Nodes (22): getAvailableYears(), getSingleDuration(), saveAuditDraft(), SaveDraftInput, toAreaTarget(), AREA_TYPE_CATEGORY, isUploadThingUrl(), normalizeName() (+14 more)
+### Community 57 - "admin-audit-filters.tsx"
+Cohesion: 0.12
+Nodes (23): AdminAuditFilters(), applyFilterChanges(), applySearch(), clearFilters(), pushParams(), AdminAuditFiltersProps, filterParamKeys, filterParamKeySet (+15 more)
 
 ### Community 58 - "Temperature BTU Clusters (450 / 600 / 751 BTU/m2)"
 Cohesion: 0.29
@@ -456,20 +461,20 @@ Cohesion: 0.12
 Nodes (18): contrast_ratio(), linearize(), luminance(), main(), parse_hex(), parse_pairing(), parse_reference_rows(), reference_doc_path() (+10 more)
 
 ### Community 61 - "calculator-versions.ts"
-Cohesion: 0.13
-Nodes (14): AcMappingResultCard(), AcMappingResultCardData, AcMappingUnitDetail, Props, Row(), GypsumTileExportCardData, Props, LightEstimationResultCard() (+6 more)
+Cohesion: 0.21
+Nodes (8): GypsumTileExportCardData, Props, LightEstimationResultCard(), LightEstimationResultCardData, Props, Row(), GYPSUM_CALCULATOR_VERSION, LAMP_CALCULATOR_VERSION
 
 ### Community 62 - "custom-equipment-review.ts"
-Cohesion: 0.23
-Nodes (13): ActionResult, approveCustomEquipmentAction(), rejectCustomEquipmentAction(), run(), approve(), handleResult(), reject(), approveCustomEquipment() (+5 more)
+Cohesion: 0.13
+Nodes (24): ActionResult, approveCustomEquipmentAction(), rejectCustomEquipmentAction(), run(), approve(), handleResult(), reject(), AREA_TYPE_CATEGORY (+16 more)
 
 ### Community 63 - "shadcn Forms & Composition"
 Cohesion: 0.22
 Nodes (9): shadcn/ui OpenAI Agent Interface Config, asChild (radix) vs render (base) Composition, Base vs Radix API Differences, Field Validation (data-invalid + aria-invalid), FieldGroup + Field Form Layout, Forms & Inputs Rules, InputGroup + InputGroupInput/Addon, ToggleGroup for Option Sets (+1 more)
 
 ### Community 64 - "HvacAuditForm"
-Cohesion: 0.12
-Nodes (29): AcStandardResult, calculateHvacAcStandard(), getAuditableSource(), revalidateEnergyAudit(), saveHvacAudit(), saveLightingAudit(), SaveResult, getTemperature() (+21 more)
+Cohesion: 0.17
+Nodes (20): createUnitLike(), formatCoord(), HvacAuditForm(), addUnit(), calculateStandard(), goToStep(), removeUnit(), restoreBackup() (+12 more)
 
 ### Community 65 - "request-guard.ts"
 Cohesion: 0.17
@@ -480,20 +485,20 @@ Cohesion: 0.21
 Nodes (13): createCustomIcon(), MapCaptureHandler(), MapPicker, MapPickerRef, MapUpdater(), Props, ProtomapsLayer(), SnapshotViewUpdater() (+5 more)
 
 ### Community 67 - "master-data/page.tsx"
-Cohesion: 0.17
-Nodes (22): GET(), getFilter(), AdminMasterDataPage(), formatNumber(), getFilter(), numberFormat, SearchParams, getMasterDataSummary() (+14 more)
+Cohesion: 0.13
+Nodes (28): GET(), getFilter(), AdminMasterDataPage(), formatNumber(), getFilter(), numberFormat, SearchParams, AdminMasterCategoriesList() (+20 more)
 
 ### Community 68 - "npm Scripts"
 Cohesion: 0.18
 Nodes (11): scripts, build, dev, format, lint, prisma:generate, start, test (+3 more)
 
 ### Community 69 - "app/dashboard/page.tsx"
-Cohesion: 0.33
-Nodes (6): DashboardPage(), AcEstimationUnavailableNotice(), CalculatorGrid(), CalculatorGridProps, RecentAuditSection(), getEnergyAuditPendingCount()
+Cohesion: 0.22
+Nodes (10): DashboardPage(), AcEstimationUnavailableNotice(), CalculatorGrid(), CalculatorGridProps, RecentAuditItem, RecentAuditSection(), RecentAuditSectionProps, RecentAuditStatus (+2 more)
 
 ### Community 70 - "gypsum-tile-calculator.ts"
-Cohesion: 0.12
-Nodes (23): GypsumTileResultCardProps, AxisTileResult, calcTile1D(), calculateGypsumTileLayout(), ccw(), checkIsIrregular(), classifyCellAgainstPoly(), CROSS_TEE_LENGTH_M (+15 more)
+Cohesion: 0.11
+Nodes (25): GypsumTileResultCard(), GypsumTileResultCardProps, AxisTileResult, calcTile1D(), calculateGypsumTileLayout(), ccw(), checkIsIrregular(), classifyCellAgainstPoly() (+17 more)
 
 ### Community 71 - "shadcn CLI & MCP"
 Cohesion: 0.25
@@ -527,9 +532,9 @@ Nodes (7): Escape-Xml(), Make-Box(), Make-Bullet(), Make-Heading1(), Make-Headin
 Cohesion: 0.25
 Nodes (6): Auditor/Admin Role & Branch Access Model, smart-energy-meter-vps (IoT Ingestion), smart-energy-monitoring (Visualization Portal), Centralized SSO via sparta_energy users/sessions, 3-Pillar Smart Energy & Audit Ecosystem, better-auth Authentication Flow
 
-### Community 79 - "admin-users-table.tsx"
-Cohesion: 0.16
-Nodes (20): setAdminGapFilter(), AdminGapFilterState, AdminGapFilterToggle(), numberFormat, AdminTableScroll(), AdminUsersTable(), AdminUsersTableProps, BranchCell() (+12 more)
+### Community 79 - "AdminMasterEquipmentTable"
+Cohesion: 0.15
+Nodes (15): setAdminGapFilter(), AdminGapFilterToggle(), numberFormat, AdminMasterEquipmentTable(), SortableHeader(), updateSort(), formatDate(), formatNumber() (+7 more)
 
 ### Community 80 - "Landing Hero Illustration"
 Cohesion: 0.32
@@ -559,25 +564,25 @@ Nodes (7): branchRaw, email, main(), normalizeBranches(), password, pool, sha256
 Cohesion: 0.38
 Nodes (6): Field Auditor Using Tablet, Green Energy Motif (Leaf, Lightning, Power Outlet), HEMAT (Energy Saving) Store Sign, Landing Page Illustration, In-Store Energy Audit, Retail Store Refrigerator and Shelves
 
-### Community 87 - "lighting-audit-export.ts"
+### Community 87 - "technical-form.tsx"
 Cohesion: 0.13
-Nodes (20): Context, GET(), getLightingAuditsForExport(), buildLightingAuditWorkbook(), ExportAudit, lampTypes(), STATUS_LABEL, formatLuxStandard() (+12 more)
+Nodes (20): dateToTimeStr(), TimeRangeCards(), TimeRangeCardsProps, timeStrToDate(), PlnDraftRow, PlnHistoryEditor(), PlnHistoryEditorProps, toNumberOrZero() (+12 more)
 
 ### Community 88 - "admin-entry/page.tsx"
-Cohesion: 0.20
-Nodes (15): findGsUser(), getUserDeviceAccess(), isMissingTable(), LoadResult, SaveResult, saveUserDeviceAccess(), DeviceGroup, groupDevices() (+7 more)
+Cohesion: 0.26
+Nodes (11): findGsUser(), getUserDeviceAccess(), isMissingTable(), LoadResult, SaveResult, saveUserDeviceAccess(), handleSave(), getEnergyMonitoringUrl() (+3 more)
 
 ### Community 89 - "change-user-role.ts"
-Cohesion: 0.15
-Nodes (15): createDbPool(), getPositiveIntegerEnv(), globalForDbPool, getPoolConfig(), pg@^8.20.0, pg, adapter, pool (+7 more)
+Cohesion: 0.21
+Nodes (12): createDbPool(), getPositiveIntegerEnv(), globalForDbPool, getPoolConfig(), pg@^8.20.0, pg, escapeCsv(), main() (+4 more)
 
-### Community 90 - "energy-audit-export-filters.ts"
-Cohesion: 0.19
-Nodes (17): GET(), defaultExportFilters(), EnergyAuditExportFilters, EnergyAuditExportStatus, exportDateRange(), exportFileName(), parseExportFilters(), readAll() (+9 more)
+### Community 90 - "admin-equipment-filters.tsx"
+Cohesion: 0.13
+Nodes (21): AdminEquipmentFilters(), applyFilterChanges(), applySearch(), clearFilters(), pushParams(), AdminEquipmentFiltersProps, areaOptions, filterParamKeys (+13 more)
 
 ### Community 91 - "admin-store-detail.ts"
-Cohesion: 0.21
-Nodes (12): AdminStoreDetailInput, AREA_LABELS, AreaTarget, buildStoreDetailViewModel(), getAdminStoreDetail(), getBrandName(), getEquipmentName(), isNonNegativeNumber() (+4 more)
+Cohesion: 0.22
+Nodes (11): AdminStoreDetailInput, AREA_LABELS, AreaTarget, buildStoreDetailViewModel(), getBrandName(), getEquipmentName(), isNonNegativeNumber(), isPositiveNumber() (+3 more)
 
 ### Community 92 - "route.spec.ts"
 Cohesion: 0.27
@@ -588,20 +593,20 @@ Cohesion: 0.33
 Nodes (6): Android Chrome PWA Icon 192x192, Android Chrome PWA Icon 512x512, Apple Touch Icon, Sparta Energy Building Shield Logo, Favicon 16x16, Favicon 32x32
 
 ### Community 94 - "react"
-Cohesion: 0.10
-Nodes (21): LoginPage(), LoginToastNotice(), AdminMasterStoreDialogProps, Brand, BrandComboboxProps, PhotoUploadFieldProps, DemoLoginButton(), SuggestionButtonProps (+13 more)
+Cohesion: 0.11
+Nodes (21): LoginPage(), LoginToastNotice(), AdminMasterStoreFiltersProps, filterParamKeys, filterParamKeySet, DeviceGroup, groupDevices(), LoadState (+13 more)
 
-### Community 95 - "admin-master-stores-table.tsx"
-Cohesion: 0.18
-Nodes (11): AdminMasterStoresTable(), SortableHeader(), updateSort(), formatDate(), formatHours(), formatNumber(), getNextSortOrder(), numberFormat (+3 more)
+### Community 95 - "mep-layout-canvas-preview.tsx"
+Cohesion: 0.16
+Nodes (17): checkLampObstacle(), formatDim(), getCashierZonePolygon(), getMaxInwardDepth(), getStoreScaleInfo(), MepFloorPlanCanvasPreview(), MepFloorPlanCanvasPreviewProps, PlacedAcUnit (+9 more)
 
 ### Community 96 - "admin-user-import-dialog.tsx"
-Cohesion: 0.31
-Nodes (10): checkExistingEmails(), hashPassword(), importUsersBulk(), CsvUserRow, ImportUserCsvDialog(), handleClose(), handleFileChange(), handleImport() (+2 more)
+Cohesion: 0.53
+Nodes (6): ImportUserCsvDialog(), handleClose(), handleFileChange(), handleImport(), parseCsv(), parseCsvLine()
 
 ### Community 97 - "admin-shell.tsx"
-Cohesion: 0.07
-Nodes (45): Page(), AdminHeaderActions(), AdminNavGroup, AdminNavItem, AdminShell(), AdminShellProps, AdminSidebar(), AdminSidebarItem() (+37 more)
+Cohesion: 0.06
+Nodes (47): Page(), AdminGapFilterState, AdminNavGroup, AdminNavItem, AdminShellProps, AdminSidebar(), AdminSidebarItem(), AdminUser (+39 more)
 
 ### Community 99 - "export-store-data.ts"
 Cohesion: 0.60
@@ -627,9 +632,9 @@ Nodes (18): Group 1: Hard Gate (absolute, no exceptions), R-02 — Copywriting, 
 Cohesion: 0.15
 Nodes (13): Group 2: Purpose-Gate (technique allowed, purpose required), R-01 — Color & Gradients, R-04 — Icons, R-06 — Typography, R-07 — Background, R-08 — Button Arrows, R-09 — Badges, R-10 — Glassmorphism (+5 more)
 
-### Community 115 - "settings/page.tsx"
-Cohesion: 0.28
-Nodes (7): MenuRow(), SectionLabel(), SettingsPage(), Theme, THEMES, next-themes@^0.4.6, next-themes
+### Community 115 - "state-block.tsx"
+Cohesion: 0.25
+Nodes (8): EnergyAuditError(), AuditValidationError(), GlobalError(), Forbidden(), NotFound(), StateBlock(), StateBlockAction, StateBlockProps
 
 ### Community 116 - "Decorative Elements"
 Cohesion: 0.17
@@ -647,9 +652,9 @@ Nodes (11): 4-Column Template Footer, Bento Grid, Copy-Paste Feature Cards, Demo
 Cohesion: 0.18
 Nodes (11): Background Grid, Dark Mode Default for No Reason, Excessive Accent Color, Excessive Border Radius, Excessive Glassmorphism, Generic Blue-Purple Gradient, Glow Everywhere, Overly Soft Shadows (+3 more)
 
-### Community 120 - "audit-kalkulator.ts"
-Cohesion: 0.15
-Nodes (21): submitAudit(), toAreaTarget(), handleSubmit(), buildDemoAuditResult(), toAreaTarget(), AuditItemRow, buildAuditItemRows(), CalcMethodInfo (+13 more)
+### Community 120 - "step3.tsx"
+Cohesion: 0.08
+Nodes (39): getDemoAiRecommendation(), getSingleDuration(), saveAuditDraft(), SaveDraftInput, toAreaTarget(), submitAudit(), AreaTarget, AuditStep3() (+31 more)
 
 ### Community 121 - "Group 3: Quality Locks (consistency)"
 Cohesion: 0.20
@@ -661,11 +666,11 @@ Nodes (8): Already installed, and the user asks how to update, antislop, Core Pr
 
 ### Community 123 - "core.ts"
 Cohesion: 0.14
-Nodes (18): discardCustomEquipmentPhoto(), f, imageOnly, ourFileRouter, OurFileRouter, requireMasterDataManager(), requireSignedIn(), GET (+10 more)
+Nodes (17): discardCustomEquipmentPhoto(), f, imageOnly, ourFileRouter, OurFileRouter, requireMasterDataManager(), requireSignedIn(), GET (+9 more)
 
 ### Community 124 - "reports/preview/route.ts"
 Cohesion: 0.30
-Nodes (13): applyColumnFormats(), buildWorkbookBuffer(), GET(), getColumnWidths(), isAdmin(), GET(), isAdmin(), serializeCell() (+5 more)
+Nodes (14): applyColumnFormats(), buildWorkbookBuffer(), GET(), getColumnWidths(), isAdmin(), GET(), isAdmin(), serializeCell() (+6 more)
 
 ### Community 125 - "Part 1: AI Slop Patterns (Warning Signs)"
 Cohesion: 0.25
@@ -675,17 +680,17 @@ Nodes (8): Accessibility, Copywriting & Content, Decorative Elements, Functional
 Cohesion: 0.25
 Nodes (8): App & Dashboard, Charts Without a Question, Default Dashboard Shell, Filler Activity Feed, Filler Data in Fields and Columns, Generic Table Columns, Placeholder Empty and Loading States, Stat Cards With Invented Numbers
 
-### Community 127 - "toggle-group.tsx"
-Cohesion: 0.43
-Nodes (5): ToggleGroupContext, Toggle(), toggleVariants, class-variance-authority@^0.7.1, class-variance-authority
+### Community 127 - "utils.ts"
+Cohesion: 0.10
+Nodes (21): BranchCombobox(), BranchComboboxProps, Brand, BrandComboboxProps, ButtonGroupSeparator(), ButtonGroupText(), FieldSeparator(), ItemSeparator() (+13 more)
 
 ### Community 128 - "Rencana Implementasi: Activity Log & Save/Load Layout Store MEP Simulator"
 Cohesion: 0.22
 Nodes (8): 1. Arsitektur & Model Database (Prisma), 2. Struktur `layoutData` (JSON Snapshot), 3. Server Actions yang Akan Dibuat, 4. Rencana Perubahan Tampilan (UI / UX), 5. Checklist Eksekusi (Nanti Sore Jam 16:00), A. Di Halaman Simulator (`app/store-mep-simulator/`), B. Di Halaman Admin (`app/admin/calculator-logs/`), Rencana Implementasi: Activity Log & Save/Load Layout Store MEP Simulator
 
 ### Community 129 - "filters.tsx"
-Cohesion: 0.04
-Nodes (86): AdminAuditFilters(), applyFilterChanges(), applySearch(), clearFilters(), pushParams(), AdminAuditFiltersProps, filterParamKeys, filterParamKeySet (+78 more)
+Cohesion: 0.13
+Nodes (32): AdminHeaderActions(), HeaderProfileMenu(), ThemeModeToggle(), AdminUserActions(), AdminUserActionsProps, FilterI18nConfig, FilterOperator, FilterOption (+24 more)
 
 ### Community 130 - "The Craftsmanship Standard"
 Cohesion: 0.33
@@ -711,57 +716,85 @@ Nodes (4): escapeCsv(), formatDate(), main(), pool
 Cohesion: 0.15
 Nodes (15): 10. Keputusan (26 Oktober 2026), 11. Simulasi role untuk testing lokal, 1. Siapa masuk ke mana, 2. Kondisi sekarang, 3. Login: satu cookie untuk semua subdomain, 4. Data izin (di DB 1, dibuat oleh sparta-energy), 5. Pembagian kerja, 6. Alur (+7 more)
 
-### Community 136 - "master-data/stores/data/route.ts"
-Cohesion: 0.29
-Nodes (9): GET(), getFilter(), getMasterStoreBranchCounts(), getMasterStoreRows(), getStoreOrderBySql(), getStoreWhereSql(), masterStoresPageSize, parseMasterStoreHours() (+1 more)
+### Community 136 - "reports/page.tsx"
+Cohesion: 0.27
+Nodes (12): AdminReportsPage(), describeList(), describeMasterStoreScope(), formatNumber(), getExportHref(), getPreviewHref(), getReportParams(), ReportCard (+4 more)
 
 ### Community 137 - "Changelog - Lamp Estimation Calculator"
+Cohesion: 0.29
+Nodes (5): Light Calculator Excel Analysis, KALKULATOR LAMPU ASIMETRIS sheet, KALKULATOR LAMPU SIMETRIS sheet, calculatePenalties (weighted 100x/10x/1x), JB Distribution Analysis (40,401 room combinations, 84% ideal)
+
+### Community 138 - "create-user.ts"
+Cohesion: 0.12
+Nodes (15): ActionResult, createUser(), CreateUserInput, hashPassword(), ActionResult, checkExistingEmails(), hashPassword(), ImportUserInput (+7 more)
+
+### Community 139 - "audit-technical.ts"
 Cohesion: 0.18
-Nodes (10): Changelog - Lamp Estimation Calculator, placeLamps (targetLpb fitting fix v1.1.1), Polygon Ray-Intersection Lamp Placement, Light Calculator Excel Analysis, KALKULATOR LAMPU ASIMETRIS sheet, Lamps-per-Row Trial Sampling (Max/Min/Min-1), KALKULATOR LAMPU SIMETRIS sheet, Proposal: Hierarchical Optimization Lamp Calculator (v1.2.0) (+2 more)
+Nodes (11): AuditTechnicalColumns, DecimalLike, readDraftTechnical(), TechnicalInput, TechnicalSource, allDay, areas, legacy (+3 more)
 
-### Community 138 - "actions/import-users.ts"
-Cohesion: 0.25
-Nodes (4): ActionResult, ImportUserInput, hash, password
-
-### Community 139 - "react-leaflet-markercluster"
-Cohesion: 0.50
-Nodes (4): LeafletMarkerClusterGroup, MapMarkerClusterGroup(), react-leaflet-markercluster@5.0.0-rc.0, react-leaflet-markercluster
+### Community 140 - "admin-dashboard-filters.tsx"
+Cohesion: 0.24
+Nodes (10): AdminDashboardFilters(), applyFilterChanges(), clearFilters(), pushParams(), AdminDashboardFiltersProps, filterParamKeys, filterParamKeySet, getParam() (+2 more)
 
 ### Community 141 - "admin-audit-detail.ts"
-Cohesion: 0.20
-Nodes (13): areaLabels, calculateGapPercent(), getAdminAuditDetail(), getAreaLabel(), toNumber(), buildIotLookup(), getIotStatusLookup(), getStoreIot() (+5 more)
+Cohesion: 0.19
+Nodes (14): areaLabels, calculateGapPercent(), getAdminAuditDetail(), getAreaLabel(), toNumber(), buildIotLookup(), getIotStatusLookup(), getStoreIot() (+6 more)
 
 ### Community 142 - "sync-stores.ts"
 Cohesion: 0.26
 Nodes (12): fetchAccessToken(), fetchStoreSheet(), findHeaderIndex(), HEADER_ALIASES, isRecord(), normalizeHeader(), parseCoordinates(), parseStoreSheetRows() (+4 more)
 
-### Community 143 - "create-user.ts"
-Cohesion: 0.10
-Nodes (30): ActionResult, createUser(), CreateUserInput, hashPassword(), ActionResult, updateUser(), UpdateUserInput, AdminEntryPage() (+22 more)
+### Community 143 - "role-access.ts"
+Cohesion: 0.11
+Nodes (32): ActionResult, deleteAudit(), getAuditHistory(), deleteMepSimulationLog(), MepSimulationListFilter, SaveMepSimulationPayload, SaveMepSimulationResult, GET() (+24 more)
+
+### Community 144 - "equipment-thumbnail.tsx"
+Cohesion: 0.27
+Nodes (8): CATEGORY_ICONS, EquipmentThumbnailProps, SIZES, DEVICE_CATEGORIES, DeviceCategory, isDeviceCategory(), mapLegacyDeviceCategory(), rows
+
+### Community 145 - "admin-audit-date-filter.ts"
+Cohesion: 0.31
+Nodes (8): AuditDateRange, getAdminAuditDateWhere(), getMonthDateRange(), getYearDateRange(), parseMonth(), parseYear(), addAuditWhereAnd(), getAdminAuditWhere()
+
+### Community 146 - "Integrasi "12 Toko Sangat Boros" ke Smart Energy Monitoring"
+Cohesion: 0.29
+Nodes (7): 1. Tujuan, 2. Kontrak data: view `v_toko_sangat_boros`, 4. Pekerjaan di smart-energy-monitoring, 5. Tahap berikutnya: Rekomendasi Audit, 6. Keputusan terbuka, Integrasi "12 Toko Sangat Boros" ke Smart Energy Monitoring, getSangatBorosStores()
+
+### Community 147 - "AdminMasterStoreFilters"
+Cohesion: 0.53
+Nodes (6): AdminMasterStoreFilters(), applyFilterChanges(), applySearch(), clearFilters(), pushParams(), getParam()
+
+### Community 148 - "getMasterEquipmentRows"
+Cohesion: 0.50
+Nodes (5): getEquipmentFromSql(), getEquipmentOrderBySql(), getEquipmentWhereSql(), getMasterEquipmentCount(), getMasterEquipmentRows()
 
 ### Community 149 - "scripts/import-users.ts"
 Cohesion: 0.60
 Nodes (4): main(), parseBranches(), pool, sha256()
 
+### Community 150 - "generate-lamp-simulation.ts"
+Cohesion: 0.60
+Nodes (4): SimetrisResult, calcSimetris(), evaluateStatus(), run()
+
 ### Community 151 - "create-admin-user.ts"
-Cohesion: 0.38
-Nodes (6): dotenv@^17.4.2, dotenv, main(), pool, printUsage(), sha256()
+Cohesion: 0.60
+Nodes (4): main(), pool, printUsage(), sha256()
 
 ### Community 152 - "AC Restricted Zones (Glass/Door, Open Chiller, Cashier)"
 Cohesion: 0.22
 Nodes (5): ASHRAE Handbook / Standard 55 / Standard 72, Dead Zone Detection (<20% intensity), Foster et al. - Effect of ambient air movement on refrigerated display cabinets, Throw Distance Zones (0-2.5 / 2.5-5.5 / 5.5-7.5 m), Cooling Circles Visualization
 
 ### Community 153 - "hvac-audit-form.tsx"
-Cohesion: 0.08
-Nodes (42): AboutPage(), InfoRow(), AreaField, areaFields, TechnicalForm(), TechnicalFormProps, UnitInput(), areaFormat (+34 more)
+Cohesion: 0.06
+Nodes (56): AboutPage(), InfoRow(), copTone, deltaTone, HvacAcUnitCard(), HvacAcUnitCardProps, roomTone, areaFormat (+48 more)
 
 ### Community 154 - "change-user-role.ts"
-Cohesion: 0.29
-Nodes (7): @prisma/adapter-pg@^7.7.0, @prisma/adapter-pg, adapter, main(), pool, printUsage(), prisma
+Cohesion: 0.15
+Nodes (12): @prisma/adapter-pg@^7.7.0, dotenv@^17.4.2, dotenv, @prisma/adapter-pg, adapter, main(), pool, printUsage() (+4 more)
 
-### Community 155 - "Alert"
-Cohesion: 0.06
-Nodes (56): DemoResultPage(), AREA_LABELS, areaChartConfig, AuditDB, AuditItemDB, AuditResultDB(), AuditStore, AuditValidationInfo (+48 more)
+### Community 155 - "result-db.tsx"
+Cohesion: 0.12
+Nodes (26): AuditResultPage(), DemoResultPage(), AREA_LABELS, areaChartConfig, AuditDB, AuditItemDB, AuditResultDB(), AuditStore (+18 more)
 
 ### Community 156 - "allowBuilds"
 Cohesion: 0.18
@@ -775,13 +808,9 @@ Nodes (5): Store Coordinates Sync Plan, parseCoordinates, searchStoresAction / g
 Cohesion: 0.25
 Nodes (7): Disaster Early Warning Proposal, BMKG Open Data (TEWS earthquake feeds), Disaster Engine & Store Impact Verification Flow, DisasterAlert / StoreDisasterImpact tables (planned), GDACS (UN Global Disaster Alert System), Haversine Radius Matching, USGS Earthquake API
 
-### Community 162 - "admin-master-categories-list.tsx"
-Cohesion: 0.40
-Nodes (5): AdminMasterCategoriesList(), AdminMasterCategoriesListProps, CategoryItem, formatNumber(), numberFormat
-
-### Community 163 - "can"
-Cohesion: 0.19
-Nodes (16): ActionResult, deleteAudit(), getAuditHistory(), deleteMepSimulationLog(), GET(), isAdmin(), excludedBranchNames, GET() (+8 more)
+### Community 163 - "lib/admin-gap-filter.ts"
+Cohesion: 0.26
+Nodes (12): AdminLayout(), AdminShell(), SidebarInset(), getAdminGapFilterEnabled, getAdminGapHiddenCount(), gapFilteredAuditIdsSql(), getSangatBorosAuditIdsSql(), isAdminSangatBoros() (+4 more)
 
 ### Community 166 - "interface"
 Cohesion: 0.33
@@ -792,8 +821,8 @@ Cohesion: 0.13
 Nodes (20): BackfillAuditRow, BackfillChange, backfillCsv(), csvCell(), MIN_DIFF_KWH, planBaselineBackfill(), statusLabel(), csv (+12 more)
 
 ### Community 168 - "prisma.ts"
-Cohesion: 0.07
-Nodes (27): fetchAccessToken(), getEnvOptional(), saveAcEstimationLog(), SaveAcEstimationPayload, SaveAcEstimationResult, SaveLightEstimationPayload, SaveLightEstimationResult, GET (+19 more)
+Cohesion: 0.06
+Nodes (46): AcEstimationPage(), excludedBranchNames, AcMappingPage(), excludedBranchNames, getMepSimulationDetail(), fetchAccessToken(), getEnvOptional(), saveAcEstimationLog() (+38 more)
 
 ### Community 169 - "scripts/get-temperature.ts"
 Cohesion: 0.40
@@ -821,22 +850,22 @@ Nodes (3): fmt(), main(), url
 
 ## Knowledge Gaps
 - **46 isolated node(s):** `{ signIn, signOut, useSession }`, `Toast via sonner`, `Alfamart Emblem (small)`, `Alfamart Wordmark Logo`, `shadcn Presets (named, code, URL)` (+41 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1232 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **18 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1241 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **17 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `next` connect `next` to `hvac-audit-export.ts`, `auth.ts`, `filters.tsx`, `Input`, `Equipment Admin Queries`, `calculator-logs-client.tsx`, `master-data/stores/data/route.ts`, `Package & ESLint Config`, `actions/import-users.ts`, `admin/dashboard/page.tsx`, `Runtime Dependencies`, `Button`, `create-user.ts`, `store-mep-simulator-client.tsx`, `Card`, `audit-validation.ts`, `Branch Audit Summaries`, `submit-audit.ts`, `ac-estimation-client.tsx`, `hvac-audit-form.tsx`, `Alert`, `admin-master-equipment-dialog.tsx`, `LightEstimationClient`, `admin-user-queries.ts`, `can`, `stores/[id]/page.tsx`, `admin-master-data-mutations.ts`, `prisma.ts`, `audits/[id]/page.tsx`, `Header`, `Root Layout & Theme`, `energy-audit-queries.ts`, `stores/[id]/page.tsx`, `kategori/page.tsx`, `audits/data/route.ts`, `energy-audit-export.ts`, `lib/custom-equipment.ts`, `custom-equipment-review.ts`, `HvacAuditForm`, `master-data/page.tsx`, `app/dashboard/page.tsx`, `admin-users-table.tsx`, `lighting-audit-export.ts`, `admin-entry/page.tsx`, `energy-audit-export-filters.ts`, `route.spec.ts`, `react`, `admin-master-stores-table.tsx`, `admin-shell.tsx`, `settings/page.tsx`, `core.ts`, `reports/preview/route.ts`?**
-  _High betweenness centrality (0.102) - this node is a cross-community bridge._
+- **Why does `next` connect `admin-master-data-mutations.ts` to `hvac-audit-export.ts`, `auth.ts`, `step2.tsx`, `Input`, `filters.tsx`, `calculator-logs-client.tsx`, `Package & ESLint Config`, `create-user.ts`, `admin/dashboard/page.tsx`, `audit-validation-queries.ts`, `admin-dashboard-filters.tsx`, `admin-master-data-queries.ts`, `role-access.ts`, `hvac-audit.ts`, `Button`, `Runtime Dependencies`, `Card`, `audit-validation.ts`, `Branch Audit Summaries`, `step2-detail.tsx`, `submit-audit.ts`, `hvac-audit-form.tsx`, `admin-master-equipment-dialog.tsx`, `result-db.tsx`, `validation-detail.tsx`, `LightEstimationClient`, `Badge`, `admin-user-queries.ts`, `lib/admin-gap-filter.ts`, `stores/[id]/page.tsx`, `prisma.ts`, `audits/[id]/page.tsx`, `Header`, `lighting-audit-form.tsx`, `Root Layout & Theme`, `energy-audit-queries.ts`, `admin-store-queries.ts`, `stores/[id]/page.tsx`, `kategori/page.tsx`, `audits/data/route.ts`, `lighting-audit-export.ts`, `admin-audit-filters.tsx`, `custom-equipment-review.ts`, `master-data/page.tsx`, `app/dashboard/page.tsx`, `admin-entry/page.tsx`, `admin-equipment-filters.tsx`, `route.spec.ts`, `react`, `admin-shell.tsx`, `state-block.tsx`, `step3.tsx`, `core.ts`, `reports/preview/route.ts`?**
+  _High betweenness centrality (0.103) - this node is a cross-community bridge._
 - **What connects `{ signIn, signOut, useSession }`, `Toast via sonner`, `Alfamart Emblem (small)` to the rest of the system?**
   _46 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `hvac-audit-export.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.08232118758434548 - nodes in this community are weakly interconnected._
-- **Why does `cn()` connect `cn` to `filters.tsx`, `next`, `Input`, `Equipment Admin Queries`, `calculator-logs-client.tsx`, `map.tsx`, `cn`, `Button`, `create-user.ts`, `hvac-audit.ts`, `Card`, `audit-validation.ts`, `admin-dashboard-charts.tsx`, `step2-detail.tsx`, `ac-estimation-client.tsx`, `admin-master-equipment-dialog.tsx`, `Alert`, `hvac-audit-form.tsx`, `energy-audit-export-dialog.tsx`, `lux-measurement-table.tsx`, `audit-photos.tsx`, `MapDrawControl`, `MapDrawShapeButton`, `stores/[id]/page.tsx`, `audits/[id]/page.tsx`, `Header`, `Root Layout & Theme`, `stores/[id]/page.tsx`, `kategori/page.tsx`, `HvacAuditForm`, `map-picker.tsx`, `admin-users-table.tsx`, `react`, `admin-master-stores-table.tsx`, `admin-shell.tsx`, `settings/page.tsx`, `toggle-group.tsx`?**
+  _Cohesion score 0.10967741935483871 - nodes in this community are weakly interconnected._
+- **Why does `cn()` connect `energy-audit-export-dialog.tsx` to `hvac-audit-export.ts`, `filters.tsx`, `step2.tsx`, `Input`, `Equipment Admin Queries`, `calculator-logs-client.tsx`, `map.tsx`, `audit-validation-queries.ts`, `Button`, `equipment-thumbnail.tsx`, `Card`, `admin-dashboard-charts.tsx`, `step2-detail.tsx`, `validation-detail.tsx`, `admin-master-equipment-dialog.tsx`, `result-db.tsx`, `hvac-audit-form.tsx`, `breadcrumb.tsx`, `lux-measurement-table.tsx`, `Badge`, `audit-photos.tsx`, `MapDrawControl`, `lib/admin-gap-filter.ts`, `MapDrawShapeButton`, `stores/[id]/page.tsx`, `lighting-audit-form.tsx`, `audits/[id]/page.tsx`, `Header`, `Root Layout & Theme`, `stores/[id]/page.tsx`, `kategori/page.tsx`, `HvacAuditForm`, `map-picker.tsx`, `AdminMasterEquipmentTable`, `technical-form.tsx`, `react`, `admin-shell.tsx`, `step3.tsx`, `utils.ts`?**
   _High betweenness centrality (0.082) - this node is a cross-community bridge._
-- **Should `auth.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.14408602150537633 - nodes in this community are weakly interconnected._
+- **Should `step2.tsx` be split into smaller, more focused modules?**
+  _Cohesion score 0.1140819964349376 - nodes in this community are weakly interconnected._
 
 ### Low-confidence Hints
 _AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._
