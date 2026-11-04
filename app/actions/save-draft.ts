@@ -6,6 +6,7 @@ import { headers } from "next/headers"
 import { syncCustomEquipmentSubmissions } from "@/lib/custom-equipment"
 import { getServerErrorMessage } from "@/lib/error-handling"
 import { getHoursBetween, isAirConditioner } from "@/lib/audit-kalkulator"
+import { readDraftTechnical, toAuditTechnical } from "@/lib/audit-technical"
 import type { EquipmentState, PlnRowState, StoreType } from "@/store/use-audit-store"
 import type { AreaTarget } from "@prisma/client"
 
@@ -74,17 +75,33 @@ export async function saveAuditDraft(input: SaveDraftInput) {
     }
 
     const storeId = store.id
+    const technical = toAuditTechnical(input)
 
     // 3. Create or update Audit record
     let audit
     if (input.auditId) {
+      // Only the auditor's own unsent draft may be overwritten; a submitted or
+      // validated audit must never turn back into a draft.
+      const existing = await prisma.audit.findFirst({
+        where: { id: input.auditId, auditorId: userId, status: "DRAFT" },
+        select: { id: true },
+      })
+      if (!existing) {
+        return {
+          error: {
+            type: "validation",
+            message:
+              "Draf ini sudah dikirim atau bukan milik Anda. Mulai kalkulasi baru dari dashboard.",
+          },
+        }
+      }
+
       audit = await prisma.audit.update({
-        where: { id: input.auditId },
+        where: { id: existing.id },
         data: {
           storeId,
-          auditorId: userId,
-          status: "DRAFT",
           auditDate: new Date(),
+          ...technical,
         },
       })
     } else {
@@ -94,6 +111,7 @@ export async function saveAuditDraft(input: SaveDraftInput) {
           auditorId: userId,
           status: "DRAFT",
           auditDate: new Date(),
+          ...technical,
         },
       })
     }
@@ -278,8 +296,8 @@ export async function getAuditDraft(auditId: string) {
       return "Gudang, Toilet & Selasar"
     }
 
-    const storeIs24Hours = Boolean(audit.store.is24Hours)
-    const storeOpenTime = audit.store.openTime || "07:00"
+    const technical = readDraftTechnical(audit, audit.store)
+    const storeOpenTime = technical.openTime
 
     const formatTime = (hours: number) => {
       // 24 hours detection: only when the equipment itself operates ~24 hours
@@ -445,19 +463,8 @@ export async function getAuditDraft(auditId: string) {
       auditId: audit.id,
       storeCode: audit.store.code,
       storeName: audit.store.name,
-      storeType: audit.store.type as StoreType,
-      is24Hours: audit.store.is24Hours,
-      openTime: audit.store.openTime || "07:00",
-      closeTime: audit.store.closeTime || "22:00",
-      plnPowerVa: audit.store.plnPowerVa,
-      areas: {
-        sales: Number(audit.store.salesAreaM2),
-        parkir: Number(audit.store.parkingAreaM2),
-        teras: Number(audit.store.terraceAreaM2),
-        gudang: Number(audit.store.warehouseAreaM2),
-        toilet: Number(audit.store.toiletAreaM2),
-        selasar: Number(audit.store.corridorAreaM2),
-      },
+      ...technical,
+      storeType: technical.storeType as StoreType,
       equipments,
       savedAreas: Array.from(savedAreasSet),
       plnHistory,

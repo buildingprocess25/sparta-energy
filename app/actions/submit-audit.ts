@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { calculateAudit } from "@/lib/audit-kalkulator"
 import { calculateGapPercent } from "@/lib/audit-recalculate"
+import { toAuditTechnical } from "@/lib/audit-technical"
 import { syncCustomEquipmentSubmissions } from "@/lib/custom-equipment"
 import type { EquipmentState, PlnRowState } from "@/store/use-audit-store"
 import type { AreaTarget, RecommendationType } from "@prisma/client"
@@ -204,19 +205,7 @@ ${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name} = ${row.estima
       calc.avgActualPlnKwhPerMonth,
       calc.equipmentEstimateKwhPerMonth
     )
-    const storeTechnical = {
-      storeType: input.storeType || null,
-      plnPowerVa: input.plnPowerVa,
-      salesAreaM2: input.areas.sales,
-      parkingAreaM2: input.areas.parkir,
-      terraceAreaM2: input.areas.teras,
-      warehouseAreaM2: input.areas.gudang,
-      toiletAreaM2: input.areas.toilet,
-      corridorAreaM2: input.areas.selasar,
-      is24Hours: input.is24Hours,
-      openTime: input.is24Hours ? null : input.openTime,
-      closeTime: input.is24Hours ? null : input.closeTime,
-    }
+    const storeTechnical = toAuditTechnical(input)
 
     // ── 5. Create or Update Audit record ─────────────────────────────────────────
     let audit
