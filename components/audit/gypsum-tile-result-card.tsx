@@ -293,11 +293,11 @@ export function GypsumTileResultCard({
                 </span>
               </div>
 
-              {/* Total Pengadaan Terstandar AHSP */}
+              {/* Total Pengadaan Terstandar */}
               <div className="flex justify-between items-center p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-950 dark:text-emerald-200 mt-1">
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Total Pengadaan Panel</span>
-                  <span className="text-[10px] text-muted-foreground font-normal">Standar AHSP 1.75 lembar/m²</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">Standar 1.75 lembar/m²</span>
                 </div>
                 <span className="font-mono text-lg font-extrabold text-emerald-700 dark:text-emerald-300">
                   {totalTilesToOrder} Lembar
@@ -306,7 +306,7 @@ export function GypsumTileResultCard({
             </div>
           </div>
 
-          {/* Bagian 3: Estimasi Rangka T-Bar & Aksesoris (AHSP) */}
+          {/* Bagian 3: Estimasi Rangka T-Bar & Aksesoris */}
           <div className="rounded-xl border border-border/70 p-3 bg-muted/10 space-y-2">
             <button
               type="button"
@@ -315,7 +315,7 @@ export function GypsumTileResultCard({
             >
               <span className="flex items-center gap-1.5">
                 <IconBuildingStore className="size-3.5 text-indigo-600 dark:text-indigo-400" />
-                Rangka T-Bar &amp; Aksesoris (AHSP)
+                Rangka T-Bar &amp; Aksesoris
               </span>
               {showBoqDetails ? (
                 <IconChevronUp className="size-3.5 text-muted-foreground" />
@@ -370,10 +370,6 @@ export function GypsumTileResultCard({
                       </div>
                     </div>
                   </div>
-                </div>
-
-                <div className="p-2 rounded-lg bg-muted/40 border border-border/40 text-[10px] text-muted-foreground leading-relaxed">
-                  <span className="font-semibold text-foreground">Catatan:</span> Kuantitas mengacu pada standar volume AHSP Jayaboard. Harga satuan bervariasi mengikuti pasar daerah.
                 </div>
               </div>
             )}

@@ -9938,50 +9938,15 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
                         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5 border-b border-border/50 bg-amber-500/10 shrink-0">
                           <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
                             <IconLock className="size-3.5 text-amber-500" />
-                            <span>Denah terkunci dalam Mode Hasil Lampu (LED Tube T8 {lampWatt}W, Target 4–5 W/m²)</span>
+                            <span>Hasil Simulasi Lampu ({lampWatt}W)</span>
                           </div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {/* Snap Rangka Toggle */}
-                            <Button
-                              size="sm"
-                              variant={lampSnapToGypsum ? "default" : "outline"}
-                              onClick={() => {
-                                setLampSnapToGypsum((prev) => {
-                                  const next = !prev
-                                  toast.info(next ? "Kunci Rangka Main Tee (1.8m) diaktifkan." : "Distribusi manual bebas aktif.")
-                                  return next
-                                })
-                              }}
-                              className={`h-6 text-[11px] font-bold gap-1 px-2 cursor-pointer shrink-0 ${
-                                lampSnapToGypsum
-                                  ? "bg-sky-600 hover:bg-sky-700 text-white"
-                                  : "border-sky-500/40 text-sky-700 dark:text-sky-300"
-                              }`}
-                              title="Kunci posisi baris lampu ke rangka Main Tee plafon gypsum (interval 1.8m)"
-                            >
-                              <IconMagnet className="size-3" />
-                              <span>Snap Rangka: {lampSnapToGypsum ? "Terkunci (1.8m)" : "OFF"}</span>
-                            </Button>
-
-                            {lampSnapToGypsum && (
-                              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-background/80 border border-border/70 text-[10.5px] font-medium text-foreground">
-                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">★ Layout Terbaik</span>
-                                <span className="text-muted-foreground/60">•</span>
-                                <span>{lightingCalculation.baris} Baris</span>
-                                <span className="text-muted-foreground/60">•</span>
-                                <span>JS: {lightingCalculation.jarakSamping}m</span>
-                                <span className="text-muted-foreground/60">•</span>
-                                <span>Atas: {lightingCalculation.gypsumSnap?.dTop}m / Bwh: {lightingCalculation.gypsumSnap?.dBottom}m</span>
-                              </div>
-                            )}
-
-                            {/* Watermark toggle */}
+                          <div className="flex items-center gap-1.5">
                             <Button
                               size="sm"
                               variant={showGypsumInLighting ? "secondary" : "ghost"}
                               onClick={() => setShowGypsumInLighting((prev) => !prev)}
                               className="h-6 text-[11px] font-medium gap-1 px-2 cursor-pointer shrink-0"
-                              title="Tampilkan / sembunyikan bayangan garis rangka plafon gypsum"
+                              title="Tampilkan / sembunyikan garis rangka plafon"
                             >
                               <IconLayoutGrid className="size-3" />
                               <span>Rangka: {showGypsumInLighting ? "Tampil" : "Sembunyi"}</span>
@@ -10005,7 +9970,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
                         <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-b border-border/50 bg-emerald-500/10 shrink-0">
                           <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                             <IconLock className="size-3.5 text-emerald-500" />
-                            <span>Denah terkunci dalam Mode Hasil Plafon Gypsum (Modul 60x120 cm)</span>
+                            <span>Hasil Plafon Gypsum (Modul 60x120 cm)</span>
                           </div>
                           <Button
                             size="sm"
@@ -10726,17 +10691,8 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
                         </div>
                       )}
                       <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/40">
-                        <span className="text-muted-foreground font-medium flex items-center gap-1">
-                          <IconMagnet className="size-3 text-sky-500" />
-                          <span>Snap Rangka Gypsum:</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setLampSnapToGypsum((p) => !p)}
-                          className="font-bold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
-                        >
-                          {lampSnapToGypsum ? "Terkunci (1.8m)" : "Distribusi Bebas"}
-                        </button>
+                        <span className="text-muted-foreground font-medium">Rangka Plafon:</span>
+                        <span className="font-semibold text-foreground font-mono">Main Tee (1.80m)</span>
                       </div>
                     </div>
 
@@ -11059,86 +11015,30 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
                         </div>
                       </div>
 
-                      {/* Panel Kunci Rangka Plafon Gypsum - Single Best Locked */}
-                      <div className="bg-sky-500/10 dark:bg-sky-950/20 rounded-xl p-3 border border-sky-500/30 text-xs space-y-2.5">
-                        <div className="flex items-center justify-between font-bold text-foreground">
-                          <span className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300">
-                            <IconMagnet className="size-4 text-sky-500" />
-                            <span>Kunci ke Rangka Gypsum</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setLampSnapToGypsum((prev) => !prev)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                              lampSnapToGypsum
-                                ? "bg-sky-600 text-white"
-                                : "bg-muted text-muted-foreground hover:bg-muted/80"
-                            }`}
-                          >
-                            {lampSnapToGypsum ? "TERKUNCI (1.8m)" : "NONAKTIF"}
-                          </button>
+                      {/* Jarak Dinding Belakang & Depan */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2.5 rounded-xl border bg-muted/20 text-center flex flex-col justify-between">
+                          <span className="text-[9.5px] font-bold text-muted-foreground uppercase">Dinding Belakang</span>
+                          <span className="text-base font-black text-sky-600 dark:text-sky-400 font-mono">{lightingCalculation.gypsumSnap?.dTop ?? 0} <span className="text-[10px] font-normal">m</span></span>
                         </div>
-
-                        {lampSnapToGypsum && (
-                          <div className="space-y-2 pt-1.5 border-t border-sky-500/20">
-                            {/* Card Info Ringkasan Layout Terbaik Terkunci */}
-                            <div className="bg-background/80 rounded-lg p-2.5 border border-sky-500/30 space-y-1.5">
-                              <div className="flex items-center justify-between font-bold">
-                                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                  <span>★ Layout Terkunci Otomatis</span>
-                                </span>
-                                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-700 dark:text-sky-300 font-bold">
-                                  Interval 1.80m
-                                </span>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10.5px] pt-1 border-t border-border/40 font-medium">
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Jarak Samping (JS):</span>
-                                  <strong className="text-foreground font-mono">{lightingCalculation.jarakSamping}m</strong>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Status Rentang:</span>
-                                  <strong className="text-emerald-600 dark:text-emerald-400 font-bold">Lolos Target</strong>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Dinding Atas (Start):</span>
-                                  <strong className="text-sky-600 dark:text-sky-400 font-mono">{lightingCalculation.gypsumSnap?.dTop}m</strong>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Dinding Bawah:</span>
-                                  <strong className="text-sky-600 dark:text-sky-400 font-mono">{lightingCalculation.gypsumSnap?.dBottom}m</strong>
-                                </div>
-                              </div>
-
-                              <p className="text-[10px] text-muted-foreground pt-1 leading-relaxed border-t border-border/30">
-                                {lightingCalculation.gypsumSnap?.asymmetry === 0 ? (
-                                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                                    Posisi baris lampu terbagi simetris sempurna antara dinding belakang dan depan toko.
-                                  </span>
-                                ) : (
-                                  <span>
-                                    Selisih jarak tepi: <strong className="font-mono text-foreground">{lightingCalculation.gypsumSnap?.asymmetry}m</strong>. Jarak samping ({lightingCalculation.jarakSamping}m) dan jarak dinding aman terjaga sesuai standar ritel.
-                                  </span>
-                                )}
-                              </p>
-                            </div>
-
-                            {/* Watermark toggle checkbox */}
-                            <label className="flex items-center gap-2 text-[11px] font-medium text-foreground cursor-pointer pt-0.5">
-                              <input
-                                type="checkbox"
-                                checked={showGypsumInLighting}
-                                onChange={(e) => setShowGypsumInLighting(e.target.checked)}
-                                className="rounded border-border text-sky-600 focus:ring-sky-500"
-                              />
-                              <span>Tampilkan bayangan rangka plafon gypsum di kanvas</span>
-                            </label>
-                          </div>
-                        )}
+                        <div className="p-2.5 rounded-xl border bg-muted/20 text-center flex flex-col justify-between">
+                          <span className="text-[9.5px] font-bold text-muted-foreground uppercase">Dinding Depan</span>
+                          <span className="text-base font-black text-sky-600 dark:text-sky-400 font-mono">{lightingCalculation.gypsumSnap?.dBottom ?? 0} <span className="text-[10px] font-normal">m</span></span>
+                        </div>
                       </div>
 
-                      {/* Penyesuaian Titik Lampu Kanvas *}
+                      {/* Checkbox Rangka Plafon */}
+                      <label className="flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer px-1">
+                        <input
+                          type="checkbox"
+                          checked={showGypsumInLighting}
+                          onChange={(e) => setShowGypsumInLighting(e.target.checked)}
+                          className="rounded border-border text-sky-600 focus:ring-sky-500 cursor-pointer"
+                        />
+                        <span>Tampilkan rangka plafon di kanvas</span>
+                      </label>
+
+                      {/* Penyesuaian Titik Lampu Kanvas */}
                       <div className="bg-muted/20 rounded-xl p-3 border border-border/60 text-xs space-y-2">
                         <div className="font-bold flex items-center gap-1.5 text-foreground">
                           <IconBulb className="size-3.5 text-sky-500" />

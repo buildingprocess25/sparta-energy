@@ -201,13 +201,64 @@ function segmentsIntersect(a: Point, b: Point, c: Point, d: Point): boolean {
   )
 }
 
+export function simplifyPolygon(pts?: Point[]): Point[] {
+  if (!pts || pts.length < 3) return pts ? [...pts] : []
+
+  // 1. Remove consecutive duplicates
+  const cleaned: Point[] = []
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]
+    if (cleaned.length === 0) {
+      cleaned.push(p)
+    } else {
+      const prev = cleaned[cleaned.length - 1]
+      if (Math.hypot(p.x - prev.x, p.y - prev.y) > 0.02) {
+        cleaned.push(p)
+      }
+    }
+  }
+
+  // 2. Remove closing duplicate if equal to first point
+  if (cleaned.length > 2) {
+    const first = cleaned[0]
+    const last = cleaned[cleaned.length - 1]
+    if (Math.hypot(first.x - last.x, first.y - last.y) < 0.02) {
+      cleaned.pop()
+    }
+  }
+
+  // 3. Remove collinear points (points lying on the same straight wall segment)
+  let simplified = [...cleaned]
+  let changed = true
+  while (changed && simplified.length > 3) {
+    changed = false
+    const n = simplified.length
+    for (let i = 0; i < n; i++) {
+      const prev = simplified[(i - 1 + n) % n]
+      const curr = simplified[i]
+      const next = simplified[(i + 1) % n]
+
+      const cross = Math.abs((curr.x - prev.x) * (next.y - curr.y) - (curr.y - prev.y) * (next.x - curr.x))
+      const dist = Math.hypot(next.x - prev.x, next.y - prev.y)
+      if (dist > 0.001 && cross / dist < 0.02) {
+        simplified.splice(i, 1)
+        changed = true
+        break
+      }
+    }
+  }
+
+  return simplified
+}
+
 function checkIsIrregular(pts: Point[] | undefined): boolean {
   if (!pts || pts.length < 3) return false
-  if (pts.length !== 4) return true
+  const cleanPts = simplifyPolygon(pts)
+  if (cleanPts.length !== 4) return true
 
   for (let i = 0; i < 4; i++) {
-    const p1 = pts[i]
-    const p2 = pts[(i + 1) % 4]
+    const p1 = cleanPts[i]
+    const p2 = cleanPts[(i + 1) % 4]
     const dx = Math.abs(p2.x - p1.x)
     const dy = Math.abs(p2.y - p1.y)
     if (dx > 0.02 && dy > 0.02) {
@@ -344,18 +395,19 @@ export function calculateGypsumTileLayout(params: {
   const tileDimX = orientation === "horizontal" ? tileLengthM : tileWidthM
   const tileDimY = orientation === "horizontal" ? tileWidthM : tileLengthM
 
-  const isIrregular = checkIsIrregular(pts)
+  const cleanPts = simplifyPolygon(pts)
+  const isIrregular = checkIsIrregular(cleanPts)
 
   let normPts: Point[] | null = null
   let roomAreaM2 = Number((roomWidthM * roomLengthM).toFixed(2))
   let roomPerimeterM = Number((2 * (roomWidthM + roomLengthM)).toFixed(2))
 
-  if (pts && pts.length >= 3) {
-    const xs = pts.map((p) => p.x)
-    const ys = pts.map((p) => p.y)
+  if (cleanPts && cleanPts.length >= 3) {
+    const xs = cleanPts.map((p) => p.x)
+    const ys = cleanPts.map((p) => p.y)
     const minX = Math.min(...xs)
     const minY = Math.min(...ys)
-    normPts = pts.map((p) => ({ x: p.x - minX, y: p.y - minY }))
+    normPts = cleanPts.map((p) => ({ x: p.x - minX, y: p.y - minY }))
 
     roomAreaM2 = Number(calcPolygonArea(normPts).toFixed(2))
 
@@ -423,11 +475,13 @@ export function calculateGypsumTileLayout(params: {
           continue // Abaikan panel yang 100% di luar ruangan
         }
 
+        const isCutTile = segX.isBorder || segY.isBorder || status === "BORDER"
+
         cells.push({
           id: `tile_${c}_${r}`,
           col: c,
           row: r,
-          type: status === "FULL" ? "FULL" : "BORDER",
+          type: !isCutTile && status === "FULL" ? "FULL" : "BORDER",
           ...cellRect,
         })
       } else {
