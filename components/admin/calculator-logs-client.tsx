@@ -334,7 +334,7 @@ export function CalculatorLogsClient({
       if (isAc) {
         const sourceData = acLogs.data
         if (sourceData.length === 0) {
-          toast.error("Tidak ada data log AC untuk diekspor.")
+          toast.error("Tidak ada data log AC untuk diunduh.")
           return
         }
 
@@ -345,7 +345,7 @@ export function CalculatorLogsClient({
           "Kode Toko",
           "Nama Toko",
           "Cabang",
-          "Luas Sales (m²)",
+          "Luas Area Sales (m²)",
           "Suhu Max (°C)",
           "Cluster BTU/m²",
           "Total Kebutuhan BTU",
@@ -381,7 +381,7 @@ export function CalculatorLogsClient({
           { wch: 12 }, // Kode Toko
           { wch: 28 }, // Nama Toko
           { wch: 16 }, // Cabang
-          { wch: 14 }, // Luas Sales
+          { wch: 20 }, // Luas Area Sales
           { wch: 14 }, // Suhu Max
           { wch: 16 }, // Cluster BTU
           { wch: 18 }, // Total BTU
@@ -396,7 +396,7 @@ export function CalculatorLogsClient({
       } else if (activeTab === "light") {
         const sourceData = lightLogs.data
         if (sourceData.length === 0) {
-          toast.error("Tidak ada data log Lampu untuk diekspor.")
+          toast.error("Tidak ada data log Lampu untuk diunduh.")
           return
         }
 
@@ -407,7 +407,7 @@ export function CalculatorLogsClient({
           "Kode Toko",
           "Nama Toko",
           "Cabang",
-          "Luas Sales (m²)",
+          "Luas Area Sales (m²)",
           "Bentuk Area",
           "Dimensi (P x L)",
           "Daya Lampu (Watt)",
@@ -451,7 +451,7 @@ export function CalculatorLogsClient({
           { wch: 12 }, // Kode Toko
           { wch: 28 }, // Nama Toko
           { wch: 16 }, // Cabang
-          { wch: 14 }, // Luas Sales
+          { wch: 20 }, // Luas Area Sales
           { wch: 16 }, // Bentuk Area
           { wch: 16 }, // Dimensi
           { wch: 16 }, // Watt
@@ -470,7 +470,7 @@ export function CalculatorLogsClient({
       } else {
         const sourceData = mepLogs.data
         if (sourceData.length === 0) {
-          toast.error("Tidak ada data log MEP Simulator untuk diekspor.")
+          toast.error("Tidak ada data log MEP Simulator untuk diunduh.")
           return
         }
 
@@ -481,7 +481,7 @@ export function CalculatorLogsClient({
           "Kode Toko",
           "Nama Toko",
           "Cabang",
-          "Luas Sales (m²)",
+          "Luas Area Sales (m²)",
           "Suhu Max (°C)",
           "Cluster BTU",
           "Total BTU",
@@ -520,7 +520,7 @@ export function CalculatorLogsClient({
       }
     } catch (err) {
       console.error("[handleExportExcel] Error:", err)
-      toast.error("Gagal mengekspor file Excel.")
+      toast.error("Gagal mengunduh file Excel.")
     }
   }
 
@@ -577,7 +577,7 @@ export function CalculatorLogsClient({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72 p-2">
               <DropdownMenuLabel className="text-xs font-bold text-muted-foreground px-2 py-1">
-                Pilihan Ekspor Excel ({activeTab === "ac" ? "Log AC" : "Log Lampu"})
+                Pilihan Unduh Excel ({activeTab === "ac" ? "Log AC" : "Log Lampu"})
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -1115,7 +1115,7 @@ export function CalculatorLogsClient({
                     <tr>
                       <th className="px-4 py-3.5 w-44">Waktu & Auditor</th>
                       <th className="px-4 py-3.5 min-w-[220px]">Toko & Cabang</th>
-                      <th className="px-4 py-3.5 text-left w-36">Luas Sales</th>
+                      <th className="px-4 py-3.5 text-left w-36">Luas Area Sales</th>
                       <th className="px-4 py-3.5 min-w-[160px]">Bentuk & Dimensi</th>
                       <th className="px-4 py-3.5 text-center w-44">Titik Lampu (Unit)</th>
                       <th className="px-4 py-3.5 text-center w-36">Rasio & Status</th>
@@ -1167,7 +1167,7 @@ export function CalculatorLogsClient({
                             </div>
                           </td>
 
-                          {/* Luas Sales */}
+                          {/* Luas Area Sales */}
                           <td className="px-4 py-3 text-left align-top">
                             <div className="font-bold text-foreground font-mono text-sm">
                               {row.salesArea.toLocaleString("id-ID")} m²
@@ -1250,7 +1250,7 @@ export function CalculatorLogsClient({
                     <tr>
                       <th className="px-4 py-3">Waktu & Auditor</th>
                       <th className="px-4 py-3">Toko & Cabang</th>
-                      <th className="px-4 py-3">Luas Sales</th>
+                      <th className="px-4 py-3">Luas Area Sales</th>
                       <th className="px-4 py-3 text-center">Sistem AC</th>
                       <th className="px-4 py-3 text-center">Sistem Lampu</th>
                       <th className="px-4 py-3 text-right">Aksi</th>
@@ -1301,7 +1301,7 @@ export function CalculatorLogsClient({
                             </div>
                           </td>
 
-                          {/* Luas Sales */}
+                          {/* Luas Area Sales */}
                           <td className="px-4 py-3 align-top">
                             <div className="font-bold text-foreground font-mono text-sm">
                               {row.salesArea.toLocaleString("id-ID")} m²

@@ -320,12 +320,12 @@ export function AdminMasterStoresTable({
                 </SortableHeader>
               </TableHead>
               <TableHead className="text-right">Sales</TableHead>
-              <TableHead className="text-right">Parkir</TableHead>
+              <TableHead className="text-right">Parkiran</TableHead>
               <TableHead className="text-right">Teras</TableHead>
               <TableHead className="text-right">Gudang</TableHead>
               <TableHead className="text-right">Toilet</TableHead>
               <TableHead className="text-right">Selasar</TableHead>
-              <TableHead>Completeness</TableHead>
+              <TableHead>Kelengkapan</TableHead>
               <TableHead>
                 <SortableHeader column="updatedAt">Update</SortableHeader>
               </TableHead>

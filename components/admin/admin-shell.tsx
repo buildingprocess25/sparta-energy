@@ -150,7 +150,7 @@ const navGroups: AdminNavGroup[] = [
     label: "Output",
     items: [
       {
-        label: "Reports & Export",
+        label: "Laporan & Unduhan",
         href: "/admin/reports",
         icon: IconFileExport,
       },

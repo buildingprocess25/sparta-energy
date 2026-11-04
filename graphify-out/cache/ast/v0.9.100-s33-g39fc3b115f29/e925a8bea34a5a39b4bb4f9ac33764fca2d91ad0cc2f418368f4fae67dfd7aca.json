@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_prisma_migrations_20261027030000_add_recommendation_updated_correction_migration_sql", "label": "migration.sql", "file_type": "code", "source_file": "prisma/migrations/20261027030000_add_recommendation_updated_correction/migration.sql", "source_location": null}], "edges": []}

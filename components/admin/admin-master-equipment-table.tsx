@@ -83,7 +83,6 @@ export function AdminMasterEquipmentTable({
   filters,
   equipmentTypeOptions,
   categories,
-  deviceCategories,
   storeTypes,
 }: {
   initialRows: MasterEquipmentRow[]
@@ -92,7 +91,6 @@ export function AdminMasterEquipmentTable({
   filters: MasterEquipmentFilters
   equipmentTypeOptions: MasterEquipmentTypeOption[]
   categories: string[]
-  deviceCategories: string[]
   storeTypes: string[]
 }) {
   const router = useRouter()
@@ -188,7 +186,7 @@ export function AdminMasterEquipmentTable({
       if (!response.ok) {
         throw new Error(data.message || "Gagal menghapus equipment")
       }
-      toast.success("Berhasil menghapus brand equipment")
+      toast.success("Berhasil menghapus merek equipment")
       setDeleteDialogOpen(false)
       router.refresh()
     } catch (error) {
@@ -320,7 +318,7 @@ export function AdminMasterEquipmentTable({
                 <SortableHeader column="equipment">Equipment</SortableHeader>
               </TableHead>
               <TableHead>
-                <SortableHeader column="brand">Brand</SortableHeader>
+                <SortableHeader column="brand">Merek</SortableHeader>
               </TableHead>
               <TableHead>Kategori Jenis</TableHead>
               <TableHead>
@@ -569,7 +567,6 @@ export function AdminMasterEquipmentTable({
         equipment={editItem}
         equipmentTypeOptions={equipmentTypeOptions}
         categories={categories}
-        deviceCategories={deviceCategories}
         storeTypes={storeTypes}
         onSuccess={() => {
           router.refresh()

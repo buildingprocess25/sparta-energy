@@ -77,7 +77,7 @@ function SheetContent({
             >
               <IconX
               />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">Tutup</span>
             </Button>
           </SheetPrimitive.Close>
         )}

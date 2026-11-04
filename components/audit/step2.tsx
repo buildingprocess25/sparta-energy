@@ -283,7 +283,7 @@ export function AuditStep2({
             disabled={completedAreas < totalAreas || showSkeleton || isSavingDraft}
             onClick={() => onNavigate("step-3")}
           >
-            Lanjut ke History kWh
+            Lanjut ke Riwayat kWh
             <IconArrowRight data-icon="inline-end" />
           </Button>
         </div>

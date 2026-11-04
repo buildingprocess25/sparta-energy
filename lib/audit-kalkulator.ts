@@ -17,6 +17,103 @@ export function getHoursBetween(start: string, end: string): number {
   return diff
 }
 
+export function isAirConditioner(name: string) {
+  const lower = name.toLowerCase()
+  return lower.includes("ac") || lower.includes("air conditioner")
+}
+
+export type CalcMethodInfo = {
+  calcMethod?: string | null
+  calcDuration?: number | null
+}
+
+export type AuditItemRow = {
+  equipment: EquipmentState
+  // Index into the per-unit arrays (brand, kW, times) this row was built from.
+  unitIndex: number
+  isAC: boolean
+  qty: number
+  operationalHours: number
+  baseKw: number
+  calcMethod: string
+  usageCount: number | null
+  estimatedDailyKwh: number
+}
+
+function isUsageBased(method: string) {
+  return method === "TRANSACTION" || method === "BATCH"
+}
+
+// The rows stored as audit_items. Totals are summed from these rows so the
+// submitted standard always equals what validation recalculates from the items.
+export function buildAuditItemRows(
+  equipments: EquipmentState[],
+  resolveMethod?: (eq: EquipmentState) => CalcMethodInfo | undefined
+): AuditItemRow[] {
+  return equipments
+    .filter((eq) => eq.selected)
+    .flatMap((eq) => {
+      const isAC = isAirConditioner(eq.name)
+      const resolved = resolveMethod?.(eq)
+      const method = resolved?.calcMethod ?? eq.calcMethod ?? "STANDARD"
+      const duration = resolved?.calcDuration ?? eq.calcDuration ?? 0
+
+      // AC units each have their own hours and brand, so they get one row per unit.
+      if (isAC && eq.quantity > 1) {
+        return Array.from({ length: eq.quantity }, (_, i) => {
+          const hours = getHoursBetween(
+            eq.startTimes[i] || "08:00",
+            eq.endTimes[i] || "22:00"
+          )
+          const baseKw = eq.kws?.[i] ?? eq.kw ?? 0
+          return {
+            equipment: eq,
+            unitIndex: i,
+            isAC,
+            qty: 1,
+            operationalHours: hours,
+            baseKw,
+            calcMethod: "STANDARD",
+            usageCount: null,
+            estimatedDailyKwh: baseKw * hours,
+          }
+        })
+      }
+
+      const hours = getHoursBetween(
+        eq.startTimes[0] || "08:00",
+        eq.endTimes[0] || "22:00"
+      )
+      const baseKw = eq.kws?.[0] ?? eq.kw ?? 0
+      const usageVal = eq.usages?.[0] ?? 0
+
+      // Running/standby kW only apply to usage-based items; STANDARD uses base kW.
+      let estimatedDailyKwh = baseKw * eq.quantity * hours
+      if (isUsageBased(method)) {
+        const hrsRunning = Math.min((usageVal * duration) / 3600, hours)
+        const hrsStandby = Math.max(0, hours - hrsRunning)
+        const runningKw = eq.runningKws?.[0] ?? baseKw
+        const standbyKw = eq.standbyKws?.[0] ?? runningKw * 0.05
+        estimatedDailyKwh =
+          (runningKw * hrsRunning + standbyKw * hrsStandby) * eq.quantity
+      }
+
+      return [
+        {
+          equipment: eq,
+          unitIndex: 0,
+          isAC,
+          qty: eq.quantity,
+          operationalHours: hours,
+          baseKw,
+          calcMethod: method,
+          usageCount: isUsageBased(method) ? usageVal : null,
+          estimatedDailyKwh,
+        },
+      ]
+    })
+}
+
 export function calculateAudit(
   equipments: EquipmentState[],
   plnHistories: PlnRowState[],
@@ -26,11 +123,13 @@ export function calculateAudit(
     closeTime: string
     areas: Record<string, number>
     plnPowerVa: number
-  }
+  },
+  resolveMethod?: (eq: EquipmentState) => CalcMethodInfo | undefined
 ) {
   const { is24Hours, openTime, closeTime, areas } = storeIdentity
   const storeOpenHours = is24Hours ? 24 : getHoursBetween(openTime, closeTime)
 
+  const itemRows = buildAuditItemRows(equipments, resolveMethod)
   let equipmentEstimateKwhPerDay = 0
 
   const areaBreakdowns: Record<string, number> = {
@@ -42,48 +141,27 @@ export function calculateAudit(
 
   let trainingNeededCount = 0
 
-  equipments.forEach((eq) => {
-    if (!eq.selected) return
-    let eqKwhPerDay = 0
-    const isAC = eq.name.toLowerCase().includes("ac") || eq.name.toLowerCase().includes("air conditioner")
-    
-    const method = eq.calcMethod || "STANDARD"
-    const duration = eq.calcDuration || 0
+  itemRows.forEach((row) => {
+    equipmentEstimateKwhPerDay += row.estimatedDailyKwh
 
-    for (let i = 0; i < eq.quantity; i++) {
-      const start = isAC ? (eq.startTimes[i] || "08:00") : (eq.startTimes[0] || "08:00")
-      const end = isAC ? (eq.endTimes[i] || "22:00") : (eq.endTimes[0] || "22:00")
-      const hrs = getHoursBetween(start, end)
-
-      const kwRunning = eq.runningKws?.[i] ?? eq.kws?.[i] ?? eq.kw ?? 0
-      const kwStandby = eq.standbyKws?.[i] ?? (kwRunning * 0.05)
-      const usageVal = eq.usages?.[i] ?? 0
-
-      if (method === "TRANSACTION" || method === "BATCH") {
-        const hrsRunning = Math.min((usageVal * duration) / 3600, hrs)
-        const hrsStandby = Math.max(0, hrs - hrsRunning)
-        eqKwhPerDay += (kwRunning * hrsRunning) + (kwStandby * hrsStandby)
-      } else {
-        eqKwhPerDay += kwRunning * hrs
-      }
-
-      // Check training logic: e.g. AC nyala >> store open hours
-      if (isAC && hrs >= storeOpenHours + 2 && storeOpenHours < 24) {
-        trainingNeededCount++
-      }
+    // Check training logic: e.g. AC nyala >> store open hours
+    if (
+      row.isAC &&
+      row.operationalHours >= storeOpenHours + 2 &&
+      storeOpenHours < 24
+    ) {
+      trainingNeededCount += row.qty
     }
 
-    equipmentEstimateKwhPerDay += eqKwhPerDay
-
-    // Map to specific categories for the charts
-    if (eq.areaName?.toLowerCase().includes("sales")) {
-      areaBreakdowns["Sales Area"] += eqKwhPerDay
-    } else if (eq.areaName?.toLowerCase().includes("teras")) {
-      areaBreakdowns["Teras"] += eqKwhPerDay
-    } else if (eq.areaName?.toLowerCase().includes("parkir")) {
-      areaBreakdowns["Parkir"] += eqKwhPerDay
+    const areaName = row.equipment.areaName?.toLowerCase() ?? ""
+    if (areaName.includes("sales")) {
+      areaBreakdowns["Sales Area"] += row.estimatedDailyKwh
+    } else if (areaName.includes("teras")) {
+      areaBreakdowns["Teras"] += row.estimatedDailyKwh
+    } else if (areaName.includes("parkir")) {
+      areaBreakdowns["Parkir"] += row.estimatedDailyKwh
     } else {
-      areaBreakdowns["Gudang"] += eqKwhPerDay
+      areaBreakdowns["Gudang"] += row.estimatedDailyKwh
     }
   })
 
@@ -124,5 +202,6 @@ export function calculateAudit(
     actualKwhPerM2,
     estKwhPerM2,
     totalAreaM2,
+    itemRows,
   }
 }

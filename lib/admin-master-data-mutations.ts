@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client"
 import { UTApi } from "uploadthing/server"
 
+import { DEVICE_CATEGORIES, isDeviceCategory } from "@/lib/equipment-categories"
 import { prisma } from "@/lib/prisma"
 
 const utapi = new UTApi()
@@ -107,7 +108,9 @@ function getEquipmentTypePayload(data: Record<string, unknown>) {
 
   if (!name) throw new Error("Nama equipment wajib diisi")
   if (!category) throw new Error("Kategori wajib diisi")
-  if (!deviceCategory) throw new Error("Kategori jenis wajib diisi")
+  if (!isDeviceCategory(deviceCategory)) {
+    throw new Error(`Kategori jenis harus salah satu dari: ${DEVICE_CATEGORIES.join(", ")}`)
+  }
 
   return {
     name,
@@ -124,7 +127,7 @@ function getEquipmentBrandPayload(data: Record<string, unknown>) {
   const name = getString(data, "brandName")
   const areaTarget = getString(data, "area")
 
-  if (!name) throw new Error("Nama brand wajib diisi")
+  if (!name) throw new Error("Nama merek wajib diisi")
   if (!areaTargets.has(areaTarget)) throw new Error("Area tidak valid")
 
   return {
@@ -256,7 +259,7 @@ export async function updateMasterEquipment(
       },
     })
     if (!existingBrand) {
-      return { ok: false, status: 404, message: "Brand equipment tidak ada" }
+      return { ok: false, status: 404, message: "Merek equipment tidak ada" }
     }
 
     await prisma.$transaction([
@@ -294,7 +297,7 @@ export async function deleteMasterEquipment(
     return {
       ok: false,
       status: 409,
-      message: "Brand equipment sudah dipakai kalkulasi, jadi tidak bisa dihapus",
+      message: "Merek equipment sudah dipakai kalkulasi, jadi tidak bisa dihapus",
     }
   }
 

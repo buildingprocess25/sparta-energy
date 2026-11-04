@@ -30,6 +30,8 @@ model User {
   energyAudits        EnergyAudit[]
   createdEquipmentTypes  EquipmentType[]  @relation("EquipmentTypeCreatedBy")
   createdEquipmentBrands EquipmentBrand[] @relation("EquipmentBrandCreatedBy")
+  submittedCustomEquipment CustomEquipmentSubmission[] @relation("CustomEquipmentSubmittedBy")
+  reviewedCustomEquipment  CustomEquipmentSubmission[] @relation("CustomEquipmentReviewedBy")
 
   @@map("users")
 }
@@ -91,6 +93,7 @@ model Store {
   updatedAt       DateTime  @updatedAt @map("updated_at")
   audits          Audit[]
   energyAudits    EnergyAudit[]
+  customEquipment CustomEquipmentSubmission[]
 
   @@map("stores")
 }
@@ -108,6 +111,7 @@ model EquipmentType {
   
   brands      EquipmentBrand[]
   auditItems  AuditItem[]
+  customEquipment CustomEquipmentSubmission[]
   createdById    String?          @map("created_by_id") @db.Uuid
   createdBy      User?            @relation("EquipmentTypeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
@@ -128,6 +132,7 @@ model EquipmentBrand {
   
   type            EquipmentType @relation(fields: [equipmentTypeId], references: [id], onDelete: Cascade)
   auditItems      AuditItem[]
+  customEquipment CustomEquipmentSubmission[]
   createdById       String?       @map("created_by_id") @db.Uuid
   createdBy         User?         @relation("EquipmentBrandCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
@@ -171,6 +176,7 @@ model Audit {
   plnHistory                AuditPlnStdHistory[]
   recommendations           AuditRecommendation[]
   energyAudits              EnergyAudit[]
+  customEquipment           CustomEquipmentSubmission[]
   auditor                   User                  @relation("AuditAuditor", fields: [auditorId], references: [id])
   validatedBy               User?                 @relation("AuditValidator", fields: [validatedById], references: [id], onDelete: SetNull)
   store                     Store                 @relation(fields: [storeId], references: [id])
@@ -197,8 +203,51 @@ model AuditItem {
   audit             Audit           @relation(fields: [auditId], references: [id])
   equipmentType     EquipmentType?  @relation(fields: [equipmentTypeId], references: [id])
   equipmentBrand    EquipmentBrand? @relation(fields: [equipmentBrandId], references: [id])
+  // Set when the item came from a store-added custom equipment (Tambah Alat Kustom).
+  customEquipmentId String?         @map("custom_equipment_id") @db.Uuid
+  customEquipment   CustomEquipmentSubmission? @relation(fields: [customEquipmentId], references: [id], onDelete: SetNull)
 
   @@map("audit_items")
+}
+
+// Custom equipment added by stores, kept out of the master until an admin approves it.
+model CustomEquipmentSubmission {
+  id               String                @id @default(uuid()) @db.Uuid
+  auditId          String                @map("audit_id") @db.Uuid
+  storeId          String                @map("store_id") @db.Uuid
+  submittedById    String?               @map("submitted_by_id") @db.Uuid
+  name             String
+  deviceCategory   String                @map("device_category")
+  areaTarget       AreaTarget            @map("area_target")
+  baseKw           Decimal               @map("base_kw")
+  brandName        String                @default("") @map("brand_name")
+  notes            String?
+  productPhotoUrl  String                @map("product_photo_url")
+  status           CustomEquipmentStatus @default(PENDING)
+  reviewedById     String?               @map("reviewed_by_id") @db.Uuid
+  reviewedAt       DateTime?             @map("reviewed_at")
+  // Master records created or chosen on approval.
+  equipmentTypeId  String?               @map("equipment_type_id") @db.Uuid
+  equipmentBrandId String?               @map("equipment_brand_id") @db.Uuid
+  createdAt        DateTime              @default(now()) @map("created_at")
+
+  audit          Audit           @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  store          Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  submittedBy    User?           @relation("CustomEquipmentSubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  reviewedBy     User?           @relation("CustomEquipmentReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  equipmentType  EquipmentType?  @relation(fields: [equipmentTypeId], references: [id], onDelete: SetNull)
+  equipmentBrand EquipmentBrand? @relation(fields: [equipmentBrandId], references: [id], onDelete: SetNull)
+  auditItems     AuditItem[]
+
+  @@index([status, createdAt])
+  @@index([auditId])
+  @@map("custom_equipment_submissions")
+}
+
+enum CustomEquipmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model AuditPlnStdHistory {

@@ -83,7 +83,7 @@ type RawBranchDominantRow = BranchDominantRow
 const numberFormat = new Intl.NumberFormat("id-ID")
 
 const areaLabels: Record<string, string> = {
-  PARKING: "Parkir",
+  PARKING: "Parkiran",
   TERRACE: "Teras",
   SALES: "Sales",
   WAREHOUSE: "Gudang, Toilet & Selasar",

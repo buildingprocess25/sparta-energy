@@ -4,9 +4,9 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const internalKey = req.headers.get("x-sparta-internal-key");
-    const expectedKey = process.env.SPARTA_INTERNAL_API_KEY || "sparta-internal-sync-key-2026";
+    const expectedKey = process.env.SPARTA_INTERNAL_API_KEY;
 
-    if (internalKey !== expectedKey) {
+    if (!expectedKey || internalKey !== expectedKey) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

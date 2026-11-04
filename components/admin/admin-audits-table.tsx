@@ -242,7 +242,7 @@ export function AdminAuditsTable({
               <TableHead>Validasi</TableHead>
               <TableHead className="text-right">
                 <SortableHeader column="actualPln" align="right">
-                  Actual PLN
+                  Aktual PLN
                 </SortableHeader>
               </TableHead>
               <TableHead className="text-right">

@@ -9,6 +9,7 @@ import { Pool } from "pg"
 import * as crypto from "crypto"
 import "dotenv/config"
 import { getPoolConfig } from "../lib/db-utils"
+import { mapLegacyDeviceCategory } from "../lib/equipment-categories"
 
 const pool = new Pool(getPoolConfig())
 const adapter = new PrismaPg(pool)
@@ -113,7 +114,7 @@ async function main() {
         where: { id: existingType.id },
         data: {
           category: eq.category,
-          deviceCategory: eq.deviceCategory,
+          deviceCategory: mapLegacyDeviceCategory(eq),
           defaultKw: eq.defaultKw,
           storeType: eq.storeType,
           calcMethod: eq.calcMethod,
@@ -125,7 +126,7 @@ async function main() {
         data: {
           name: eq.name,
           category: eq.category,
-          deviceCategory: eq.deviceCategory,
+          deviceCategory: mapLegacyDeviceCategory(eq),
           defaultKw: eq.defaultKw,
           storeType: eq.storeType,
           calcMethod: eq.calcMethod,

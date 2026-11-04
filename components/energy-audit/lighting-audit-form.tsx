@@ -19,7 +19,7 @@ import { StepActionBar } from "@/components/audit-validation/step-action-bar"
 import { BrandCombobox } from "@/components/audit/brand-combobox"
 import { DraftRestoreAlert } from "@/components/energy-audit/draft-restore-alert"
 import { LuxMeasurementTable } from "@/components/energy-audit/lux-measurement-table"
-import { LuxSubZoneGuide } from "@/components/energy-audit/lux-sub-zone-guide"
+import { LuxPlan } from "@/components/energy-audit/lux-plan"
 import { useDraftBackup } from "@/components/energy-audit/use-draft-backup"
 import { AuditStepIndicator } from "@/components/audit/step-indicator"
 import { Header } from "@/components/header"
@@ -54,15 +54,23 @@ import {
   MEASURING_TOOLS,
   formatLuxStandard,
   getCompletionIssues,
+  getLuxLevel,
   getZoneDefinition,
+  getZoneLampLayout,
+  getZoneLampNeed,
   sanitizeLightingAuditData,
   summarizeLightingAudit,
   type LightingAuditData,
   type LightingZoneInput,
   type LightingZoneKey,
   type LpdStatus,
-  type LuxStatus,
+  type LuxLevel,
+  type LuxSubZone,
 } from "@/lib/lighting-audit"
+import {
+  PLN_CUSTOMER_ID_MAX_LENGTH,
+  plnCustomerIdHint,
+} from "@/lib/pln-customer-id"
 import { cn } from "@/lib/utils"
 
 type Step = 1 | 2 | 3
@@ -75,12 +83,12 @@ type LightingAuditFormProps = {
 const stepLabels: Record<Step, { label: string; description: string }> = {
   1: {
     label: "Step 1: Info Pemeriksaan",
-    description: "Lengkapi alamat toko dan alat ukur yang dipakai di lapangan.",
+    description: "Lengkapi ID PLN dan alat ukur yang dipakai di lapangan.",
   },
   2: {
     label: "Step 2: Data per Zona",
     description:
-      "Isi luas, daftar lampu, dan hasil ukur tingkat terang (lux) di setiap zona.",
+      "Isi luas lantai, daftar lampu, dan hasil ukur tingkat terang (lux) di setiap zona.",
   },
   3: {
     label: "Step 3: Ringkasan",
@@ -107,10 +115,10 @@ const lpdTone: Record<LpdStatus, string> = {
   BELUM_LENGKAP: tone.idle,
 }
 
-const luxTone: Record<LuxStatus, string> = {
-  MEMENUHI: tone.good,
-  KURANG: tone.warn,
-  TERLALU_TERANG: tone.warn,
+const luxTone: Record<LuxLevel, string> = {
+  SESUAI: tone.good,
+  HAMPIR: tone.warn,
+  REDUP: tone.bad,
   BELUM_DIUKUR: tone.idle,
 }
 
@@ -165,6 +173,7 @@ export function LightingAuditForm({
   const summary = useMemo(() => summarizeLightingAudit(data), [data])
   const zoneSummary = summary.zones.find((zone) => zone.key === activeZone)!
   const zoneDefinition = getZoneDefinition(activeZone)
+  const lampNeed = getZoneLampNeed(zoneSummary)
   const lampOptions = useMemo(() => {
     const category = zoneCategory[activeZone]
     return [...form.lampOptions].sort(
@@ -207,6 +216,27 @@ export function LightingAuditForm({
     }))
   }
 
+  // Tapping a point on the plan jumps to its lux field, adding the row if it is missing.
+  function selectLuxPoint(subZone: LuxSubZone) {
+    const existing = zoneSummary.luxRows.find((row) => row.subZone === subZone)
+    const id = existing?.id ?? newId()
+    if (!existing) {
+      updateZone(activeZone, (zone) => ({
+        ...zone,
+        luxRows: [
+          ...zone.luxRows,
+          { id, subZone, lux: null, note: "", photos: [] },
+        ],
+      }))
+    }
+    // A click commits React's update before the next frame, so a new row exists by then.
+    requestAnimationFrame(() => {
+      const input = document.getElementById(`lux-input-${id}`)
+      input?.scrollIntoView({ behavior: "smooth", block: "center" })
+      input?.focus({ preventScroll: true })
+    })
+  }
+
   function goToStep(target: Step) {
     setStep(target)
     window.scrollTo({ top: 0 })
@@ -246,7 +276,7 @@ export function LightingAuditForm({
     gudang > 0 &&
     toilet === 0 &&
     selasar === 0
-      ? `Data toko masih mencatat gudang, toilet & selasar sebagai satu luas: ${numberFormat.format(gudang)} m². Ukur luas zona ini terpisah.`
+      ? `Data toko masih mencatat gudang, toilet & selasar sebagai satu luas: ${numberFormat.format(gudang)} m². Ukur luas lantai zona ini terpisah.`
       : null
 
   return (
@@ -322,22 +352,24 @@ export function LightingAuditForm({
                   </div>
                 </dl>
 
+                {/* The address stays in the audit data; only ID PLN is shown here. */}
                 <Field>
-                  <FieldLabel htmlFor="audit-address">Alamat toko</FieldLabel>
-                  <Textarea
-                    id="audit-address"
-                    value={data.address}
+                  <FieldLabel htmlFor="audit-pln-customer">ID PLN</FieldLabel>
+                  <Input
+                    id="audit-pln-customer"
+                    inputMode="numeric"
+                    value={data.plnCustomerId}
                     onChange={(e) =>
                       update((current) => ({
                         ...current,
-                        address: e.target.value,
+                        plnCustomerId: e.target.value,
                       }))
                     }
-                    placeholder="Contoh: Jl. Sudirman No. 88, Pekanbaru"
-                    rows={2}
+                    placeholder="Ketik ID pelanggan"
+                    maxLength={PLN_CUSTOMER_ID_MAX_LENGTH}
                   />
                   <FieldDescription>
-                    Tersimpan juga ke data toko.
+                    {plnCustomerIdHint(data.plnCustomerId)}
                   </FieldDescription>
                 </Field>
 
@@ -436,8 +468,62 @@ export function LightingAuditForm({
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-6">
+                  {zoneDefinition.subZones && (
+                    <div className="flex flex-col gap-2">
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field>
+                          <FieldLabel htmlFor="zone-width">
+                            Lebar sisi pintu (m)
+                          </FieldLabel>
+                          <Input
+                            id="zone-width"
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step={0.1}
+                            value={zoneSummary.widthM ?? ""}
+                            onChange={(e) =>
+                              updateZone(activeZone, (zone) => ({
+                                ...zone,
+                                widthM: parseNumber(e.target.value),
+                              }))
+                            }
+                            placeholder="Opsional"
+                            className="h-11"
+                          />
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor="zone-length">
+                            Panjang ke belakang (m)
+                          </FieldLabel>
+                          <Input
+                            id="zone-length"
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step={0.1}
+                            value={zoneSummary.lengthM ?? ""}
+                            onChange={(e) =>
+                              updateZone(activeZone, (zone) => ({
+                                ...zone,
+                                lengthM: parseNumber(e.target.value),
+                              }))
+                            }
+                            placeholder="Opsional"
+                            className="h-11"
+                          />
+                        </Field>
+                      </div>
+                      <FieldDescription>
+                        Hanya untuk denah lampu, luas lantai tidak ikut berubah.
+                        Tanpa meteran, hitung jumlah plafon di tiap sisi lalu
+                        kalikan ukuran satu plafon.
+                      </FieldDescription>
+                    </div>
+                  )}
+
                   <Field>
-                    <FieldLabel htmlFor="zone-area">Luas zona (m²)</FieldLabel>
+                    <FieldLabel htmlFor="zone-area">Luas lantai (m²)</FieldLabel>
                     <Input
                       id="zone-area"
                       type="number"
@@ -528,7 +614,9 @@ export function LightingAuditForm({
                                 inputMode="numeric"
                                 min={0}
                                 step={1}
-                                value={lamp.qty}
+                                // Empty instead of 0, so typing never leaves a leading zero ("0100").
+                                value={lamp.qty === 0 ? "" : lamp.qty}
+                                placeholder="0"
                                 onChange={(e) =>
                                   updateZone(activeZone, (zone) => ({
                                     ...zone,
@@ -560,7 +648,8 @@ export function LightingAuditForm({
                                 inputMode="decimal"
                                 min={0}
                                 step={0.1}
-                                value={lamp.watt}
+                                value={lamp.watt === 0 ? "" : lamp.watt}
+                                placeholder="0"
                                 onChange={(e) =>
                                   updateZone(activeZone, (zone) => ({
                                     ...zone,
@@ -630,13 +719,20 @@ export function LightingAuditForm({
                     <h3 id="lux-heading" className="text-sm font-semibold">
                       Titik ukur tingkat terang (lux)
                     </h3>
+                    {zoneDefinition.subZones && (
+                      <LuxPlan
+                        rows={zoneSummary.luxRows}
+                        definition={zoneDefinition}
+                        layout={getZoneLampLayout(zoneSummary)}
+                        listedLampCount={zoneSummary.lampCount}
+                        onSelectPoint={selectLuxPoint}
+                      />
+                    )}
                     <LuxMeasurementTable
                       zoneLabel={zoneDefinition.label}
                       rows={zoneSummary.luxRows}
                       subZones={zoneDefinition.subZones}
-                      noteNeededAreas={zoneSummary.lux.areasMissingNote.map(
-                        (area) => area.key
-                      )}
+                      definition={zoneDefinition}
                       photoContext={{
                         sourceAuditId: form.context.sourceAuditId,
                         zone: activeZone,
@@ -704,11 +800,21 @@ export function LightingAuditForm({
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-3 tabular-nums">
-                    <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
-                      <span>Jumlah lampu</span>
-                      <span className="font-bold">
-                        {numberFormat.format(zoneSummary.lampCount)} unit
-                      </span>
+                    <div className="flex flex-col gap-2 rounded-xl bg-muted/50 p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span>Jumlah lampu</span>
+                        <span className="font-bold">
+                          {numberFormat.format(zoneSummary.lampCount)} unit
+                        </span>
+                      </div>
+                      {lampNeed && (
+                        <span className="text-xs text-muted-foreground">
+                          Standar butuh {numberFormat.format(lampNeed.minLamps)}{" "}
+                          sampai {numberFormat.format(lampNeed.maxLamps)} lampu{" "}
+                          {numberFormat.format(lampNeed.watt)} W untuk{" "}
+                          {numberFormat.format(zoneSummary.areaM2 ?? 0)} m²
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
                       <span>Total daya lampu</span>
@@ -750,7 +856,11 @@ export function LightingAuditForm({
                         </span>
                         <StatusBadge
                           label={LUX_STATUS_LABEL[zoneSummary.luxStatus]}
-                          className={luxTone[zoneSummary.luxStatus]}
+                          className={
+                            luxTone[
+                              getLuxLevel(zoneSummary.avgLux, zoneDefinition)
+                            ]
+                          }
                         />
                       </div>
                       {zoneDefinition.subZones && (
@@ -771,7 +881,11 @@ export function LightingAuditForm({
                                 </span>
                                 <StatusBadge
                                   label={LUX_STATUS_LABEL[area.luxStatus]}
-                                  className={luxTone[area.luxStatus]}
+                                  className={
+                                    luxTone[
+                                      getLuxLevel(area.avgLux, zoneDefinition)
+                                    ]
+                                  }
                                 />
                               </span>
                             </li>
@@ -789,17 +903,10 @@ export function LightingAuditForm({
                         {numberFormat.format(Math.round(area.avgLux ?? 0))}{" "}
                         lux), sedangkan rata-rata zona{" "}
                         {LUX_STATUS_LABEL[zoneSummary.luxStatus].toLowerCase()}.
-                        Isi catatan alasannya di baris area ini.
                       </p>
                     ))}
                   </CardContent>
                 </Card>
-                {zoneDefinition.subZones && (
-                  <LuxSubZoneGuide
-                    rows={zoneSummary.luxRows}
-                    definition={zoneDefinition}
-                  />
-                )}
               </div>
             </div>
           </div>
@@ -813,7 +920,7 @@ export function LightingAuditForm({
             >
               {[
                 {
-                  label: "Total luas area",
+                  label: "Total luas lantai",
                   value: `${numberFormat.format(summary.totalArea)} m²`,
                 },
                 {
@@ -897,7 +1004,7 @@ export function LightingAuditForm({
                       <tr className="border-b text-left text-xs text-muted-foreground">
                         <th className="py-2 pr-3 font-medium">Zona</th>
                         <th className="py-2 pr-3 text-right font-medium">
-                          Luas
+                          Luas lantai
                         </th>
                         <th className="py-2 pr-3 text-right font-medium">
                           Lampu
@@ -960,7 +1067,14 @@ export function LightingAuditForm({
                           <td className="py-2.5">
                             <StatusBadge
                               label={LUX_STATUS_LABEL[zone.luxStatus]}
-                              className={luxTone[zone.luxStatus]}
+                              className={
+                                luxTone[
+                                  getLuxLevel(
+                                    zone.avgLux,
+                                    getZoneDefinition(zone.key)
+                                  )
+                                ]
+                              }
                             />
                             {zone.lux.unevenAreas.length > 0 && (
                               <p className="mt-1 text-xs text-muted-foreground">

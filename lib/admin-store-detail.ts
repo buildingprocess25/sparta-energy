@@ -69,7 +69,7 @@ export type AdminStoreDetailInput = {
 
 const AREA_LABELS: Record<AreaTarget, string> = {
   SALES: "Sales Area",
-  PARKING: "Parkir",
+  PARKING: "Parkiran",
   TERRACE: "Teras",
   WAREHOUSE: "Gudang, Toilet & Selasar",
 }
@@ -86,7 +86,7 @@ const requiredStoreFields: Array<{
   { key: "plnCustomerId", label: "ID pelanggan PLN", isComplete: Boolean },
   { key: "plnPowerVa", label: "Daya PLN", isComplete: isPositiveNumber },
   { key: "salesAreaM2", label: "Sales area", isComplete: isPositiveNumber },
-  { key: "parkingAreaM2", label: "Area parkir", isComplete: isNonNegativeNumber },
+  { key: "parkingAreaM2", label: "Area parkiran", isComplete: isNonNegativeNumber },
   { key: "terraceAreaM2", label: "Area teras", isComplete: isNonNegativeNumber },
   {
     key: "warehouseAreaM2",

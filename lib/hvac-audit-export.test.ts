@@ -57,6 +57,7 @@ const audit: HvacExportAudit = {
     name: "Alfamart Demo 1",
     branch: "DEMO",
     address: null,
+    plnCustomerId: "123456789012",
   },
   data: {
     ...createEmptyHvacAudit(),
@@ -146,6 +147,10 @@ assert.equal(total[col("Kapasitas Riil (Btu/h)")], 77625)
 assert.equal(total[col("COP Aktual")], 3.32)
 assert.equal(total[col("Status Performa AC")], "NORMAL")
 assert.equal(total[col("Delta T (C)")], 9.3)
+
+// Store header lists ID PLN next to the address.
+const plnRow = sheets[0].rows.find((row) => row[0] === "ID PLN")
+assert.deepEqual(plnRow, ["ID PLN", "123456789012"])
 
 // Exhaust sheet: rows and TOTAL VENTILASI EXHAUST as in the sheet.
 const ex = sheets[2].rows

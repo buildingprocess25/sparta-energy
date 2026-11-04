@@ -40,6 +40,7 @@ import {
   type MasterStoreFilters,
 } from "@/lib/admin-master-data-queries"
 import { requireUserManager } from "@/lib/admin-auth"
+import { getPendingCustomEquipment } from "@/lib/custom-equipment-review"
 
 type SearchParams = Promise<{
   tab?: string
@@ -133,7 +134,8 @@ export default async function AdminMasterDataPage({
             offset: 0,
             limit: masterEquipmentPageSize,
           }),
-        ])
+          getPendingCustomEquipment(),
+        ] as const)
       : null
 
   return (
@@ -237,6 +239,7 @@ export default async function AdminMasterDataPage({
                   deviceCategories={equipmentDeviceCategories}
                   storeTypes={equipmentStoreTypes}
                   equipmentTypeOptions={equipmentTypeOptions}
+                  pendingCustomEquipment={equipmentData[2]}
                 />
               </div>
               <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-3 md:px-4">
@@ -252,7 +255,6 @@ export default async function AdminMasterDataPage({
                     filters={equipmentFilters}
                     equipmentTypeOptions={equipmentTypeOptions}
                     categories={equipmentCategories}
-                    deviceCategories={equipmentDeviceCategories}
                     storeTypes={equipmentStoreTypes}
                   />
                 </div>

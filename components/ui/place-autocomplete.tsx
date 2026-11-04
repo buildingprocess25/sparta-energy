@@ -300,7 +300,7 @@ function PlaceAutocomplete({
                         <SearchIcon />
                     </InputGroupAddon>
                     <InputGroupInput
-                        placeholder="Search"
+                        placeholder="Cari"
                         value={displayValue}
                         onChange={(event) => {
                             const newValue = event.target.value

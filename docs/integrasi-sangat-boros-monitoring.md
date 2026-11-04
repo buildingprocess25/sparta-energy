@@ -23,7 +23,7 @@ Satu view read-only di DB 1. Aturan pemilihan 12 toko hanya ditulis di sini, seh
 
 | Kolom | Tipe | Isi |
 |---|---|---|
-| `peringkat` | int | 1 sampai 12, urut gap terbesar |
+| `peringkat` | int | 1 sampai 12, urut gap terbesar. Toko DEMO punya urutan sendiri |
 | `store_code` | text | Kode toko, sama dengan `stores.code` |
 | `store_name` | text | Nama toko |
 | `branch` | text | Cabang |
@@ -42,11 +42,11 @@ Aturan:
 - Setiap toko diwakili oleh kalkulasi `COMPLETED` terbarunya.
 - Yang diambil hanya kalkulasi berstatus Boros dengan gap terisi, lalu diurutkan dari gap terbesar dan diambil 12 teratas.
 - Status validasi tidak memengaruhi urutan, jadi toko tidak keluar dari daftar hanya karena sudah divalidasi.
-- Cabang `Head Office` tidak ikut. Cabang `DEMO` ikut untuk uji coba dan ditandai `is_demo = true` (lihat bagian 6, keputusan nomor 1).
+- Cabang `Head Office` tidak ikut. Cabang `DEMO` ikut untuk uji coba dan ditandai `is_demo = true`, tetapi diberi peringkat terpisah sehingga 12 slot selalu berisi toko asli (lihat bagian 6, keputusan nomor 1).
 - Kalau gap sama persis, urutan ditentukan oleh `audit_id`, supaya peringkat tidak berubah-ubah.
 - Nama kolom adalah kontrak antar-repo. Mengubah atau menghapus kolom harus dikoordinasikan dengan smart-energy-monitoring. Menambah kolom aman.
 
-SQL final ada di `prisma/migrations/20261023010000_add_view_toko_sangat_boros/migration.sql`:
+SQL awal ada di `prisma/migrations/20261023010000_add_view_toko_sangat_boros/migration.sql` (di bawah). Versi yang berlaku sekarang ada di `prisma/migrations/20261103000000_rank_sangat_boros_without_demo/migration.sql`; bedanya hanya `ROW_NUMBER()` yang memakai `PARTITION BY` cabang DEMO:
 
 ```sql
 CREATE OR REPLACE VIEW v_toko_sangat_boros AS
@@ -99,7 +99,7 @@ Referensi dari repo itu (dicek 23 Oktober 2026): akses DB 1 lewat `getSpartaPool
 
 1. **Service baru** `getSangatBorosStores()` di `lib/services/`, beserta tipenya di `lib/types.ts`:
    ```sql
-   SELECT * FROM v_toko_sangat_boros ORDER BY peringkat
+   SELECT * FROM v_toko_sangat_boros ORDER BY is_demo DESC, peringkat
    ```
    Query lewat `getSpartaPool()`, tanpa Prisma dan tanpa migrasi.
 
@@ -135,7 +135,7 @@ Kotak paling bawah diagram menggabungkan konsumsi listrik dari IoT dan hasil pem
 
 1. **Toko DEMO di view:** dikecualikan (usulan) atau tetap dimasukkan untuk uji coba? Kalau dikecualikan, toko DEM1 tidak lagi bertanda Sangat Boros di mode dev sparta.
    - **Diputuskan 23 Oktober 2026:** tetap dimasukkan untuk uji coba, ditandai kolom `is_demo`.
-   - **Sebelum production:** buat migrasi baru yang mengganti filter cabang di view menjadi `lower(s.branch) NOT IN ('demo', 'head office')`. Kolom `is_demo` tetap ada (selalu `false`) supaya kontrak tidak berubah. Di halaman validasi sparta, filter `activeStoreSql` sudah menyembunyikan DEMO saat production, jadi tampilan 12 teratas bisa berisi 11 toko sampai migrasi ini dijalankan.
+   - **Diputuskan 3 November 2026:** DEMO tetap ada di view, tetapi diberi peringkat sendiri (migrasi `20261103000000_rank_sangat_boros_without_demo`). Sebelumnya DEMO memakai satu dari 12 slot, sehingga production hanya menampilkan 11 toko asli. Di production, sparta (`activeStoreSql`, `lib/admin-sangat-boros.ts`) dan portal monitoring (`getSangatBorosStores()`) membuang baris `is_demo`. Di development keduanya tetap menampilkan DEMO.
 2. **User database production:** di lingkungan lokal, kedua repo memakai user yang sama (`aku-sparta`, database `energy`, host yang sama), sehingga view dimiliki user itu dan `GRANT SELECT` tidak diperlukan. Env production di Dokploy belum dicek. Kalau di sana portal monitoring memakai user lain, jalankan `GRANT SELECT ON v_toko_sangat_boros TO "<user>";` (pakai tanda kutip kalau nama user mengandung tanda hubung).
 3. **Jumlah toko:** tetap 12, atau bisa berubah? Kalau berubah, cukup ubah angka di view.
    - **Diputuskan 23 Oktober 2026:** untuk sementara 12. Kalau berubah, ubah angka di view lewat migrasi baru. Tab "12 Paling Boros" di halaman validasi dihapus pada 28 Oktober 2026; daftar sangat boros sekarang hanya tampil sebagai badge "Sangat Boros" di kartu toko.

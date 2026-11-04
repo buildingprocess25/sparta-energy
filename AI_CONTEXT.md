@@ -197,6 +197,8 @@ Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbed
 - Metode hitung per equipment (`calcMethod`):
   - `STANDARD`: kW × jam operasional.
   - `TRANSACTION` / `BATCH`: jam running = (usage × durasi) / 3600, dibatasi jam operasional; sisa jam dihitung sebagai standby (default 5% dari kW running).
+- kW yang dipakai: `STANDARD` memakai base kW brand (`kws`), bukan running kW. Running/standby kW hanya untuk `TRANSACTION` / `BATCH`. `calcMethod` diambil dari master tipe equipment saat submit.
+- Standar kalkulasi dijumlah dari baris `audit_items` yang dibangun `buildAuditItemRows()`, fungsi yang sama yang menyimpan baris itu. Jadi standar saat anak toko submit selalu sama dengan jumlah alat dan dengan hasil hitung ulang di halaman validasi. Kalkulasi lama yang tersimpan sebelum perbaikan ini (30 Okt 2026) dihitung ulang lewat `scripts/backfill-audit-baseline.ts`.
 - Rata-rata PLN hanya dihitung dari bulan yang kWh-nya > 0.
 - Status **Boros** jika rata-rata aktual PLN > Estimasi Bulanan × **1.05** (toleransi 5%). Selain itu **Hemat**.
 - Tipe rekomendasi:
@@ -227,17 +229,35 @@ Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbed
 
 ### Validasi Kalkulasi (`/audit/validation/[id]`)
 
-- Satu halaman, tanpa step. Kiri: ringkasan status dan perbandingan kWh, plus riwayat koreksi. Kanan: Teknis Toko (tipe, alamat, daya PLN, luas area, jam operasional, riwayat PLN 6 bulan dengan STD), lalu Daftar Peralatan (tambah, ubah, hapus).
-- Koreksi alat langsung tersimpan lewat dialog. Teknis toko, alamat, dan riwayat PLN tersimpan lewat "Simpan Draf" atau saat "Validasi Kalkulasi" (`saveValidationDraft`, `validateAudit` di `app/actions/audit-validation.ts`).
+- Satu halaman, tanpa step. Kiri: ringkasan status dan perbandingan kWh, plus riwayat koreksi. Kanan: Teknis Toko (tipe, ID PLN, daya PLN, luas area, jam operasional, riwayat PLN 6 bulan dengan STD), lalu Daftar Peralatan (tambah, ubah, hapus).
+- Koreksi alat langsung tersimpan lewat dialog. Teknis toko, ID PLN, dan riwayat PLN tersimpan lewat "Simpan Draf" atau saat "Validasi Kalkulasi" (`saveValidationDraft`, `validateAudit` di `app/actions/audit-validation.ts`).
 - Setiap koreksi menghitung ulang standar, aktual (rata-rata PLN, bulan 0 kWh tidak dihitung), gap, **dan status Hemat/Boros** (`BOROS_TOLERANCE` 1,05 di `lib/audit-recalculate.ts`).
 - Sebelum koreksi pertama, hasil anak toko disalin ke `audits.original_*`. Setiap koreksi dicatat di tabel `audit_corrections`. Admin melihat keduanya di Detail Kalkulasi.
-- Alamat disimpan langsung ke `stores.address`. Tipe, daya, luas, dan jam hanya disalin ke data toko kalau kalkulasi ini yang terbaru.
+- ID PLN (`stores.pln_customer_id`) selalu bisa diedit karena tugas validasi memastikan datanya benar. Formatnya tidak dikunci. Perubahannya disimpan langsung ke data toko dan dicatat sebagai `TECHNICAL_UPDATED`. Tipe, daya, luas, dan jam hanya disalin ke data toko kalau kalkulasi ini yang terbaru.
+- Alamat toko disembunyikan di form validasi, form Tata Cahaya, dan header halaman kategori, lalu diganti ID PLN. Data alamat tidak dihapus: `stores.address` dan `address` di data Tata Cahaya tetap ada dan tetap masuk export Excel. Form Tata Cahaya tidak lagi menulis alamat ke data toko, supaya draf lama tidak menimpa alamat yang sudah diperbaiki.
 - Saat "Validasi Kalkulasi", rekomendasi dibuat ulang hanya kalau tipenya tidak cocok lagi dengan status (Hemat butuh `MAINTENANCE`, Boros butuh `TRAINING`/`REPAIR`). AI menerima status awal, status akhir, dan daftar koreksi; batas tunggu 10 detik, lalu teks cadangan. Rekomendasi lama dicatat di `audit_corrections` (`RECOMMENDATION_UPDATED`). "Simpan Draf" tidak memanggil AI.
 - Halaman hasil (`/audit/[id]`) menulis "Status berubah dari … ke …" beserta perubahan kWh-nya, dan memberi label "Diperbarui setelah validasi" pada rekomendasi yang dibuat ulang. Halaman validasi dan admin juga memberi keterangan kalau status berubah setelah koreksi.
+
+### Kategori Jenis Equipment (diputuskan 30 Oktober 2026)
+
+- `equipment_types.device_category` hanya boleh salah satu dari 5: Sistem Tata Cahaya, Sistem Tata Udara dan Ventilasi, Sistem Refrigerasi, Sistem Beanspot, Lainnya. Daftar ada di `lib/equipment-categories.ts` dan dikunci CHECK constraint di database. Mengubah daftar berarti mengubah keduanya.
+- Semua tipe area Beanspot masuk Sistem Beanspot. Exhaust Fan masuk Sistem Tata Udara dan Ventilasi bersama AC.
+- Form Pemeriksaan memilih master dengan aturan ini: Tata Cahaya mengambil Sistem Tata Cahaya ditambah lampu Beanspot (nama diawali "Lampu"). HVAC mengambil Sistem Tata Udara dan Ventilasi tanpa Exhaust Fan sebagai unit AC (`lib/energy-audit-queries.ts`).
+
+### Alat Kustom dari Anak Toko
+
+- Form "Tambah Alat Kustom" di step 2 mewajibkan nama, kategori jenis, daya (Watt), dan foto produk. Foto diunggah ke UploadThing (`customEquipmentImage`, wajib login).
+- Setiap simpan draf dan submit menyinkronkan tabel `custom_equipment_submissions` (status Menunggu/Disetujui/Ditolak), dan baris `audit_items` terhubung lewat `custom_equipment_id`. Tabel master tidak berubah sampai admin menyetujui.
+- Admin meninjau di Master Data → Equipment → tombol "Validasi Equipment" (angka merah = jumlah yang menunggu). Antrean hanya berisi usulan dari kalkulasi COMPLETED yang alatnya masih ada.
+- "Simpan ke master" membuat tipe baru atau menambah brand di tipe yang ada, foto ikut terbawa, lalu alat di kalkulasi terkait dihubungkan ke master. kWh dan status Hemat/Boros tidak berubah.
+- Alat kustom lama (sebelum 30 Oktober 2026, tanpa kategori dan foto) tidak masuk antrean dan dianggap sudah beres.
+- Upload foto brand dan name plate di admin hanya untuk peran yang boleh mengubah Master Data.
 
 ### Foto Bukti Titik Ukur Lux (Pemeriksaan Tata Cahaya)
 
 - Tiap titik ukur lux bisa punya maksimal 3 foto (`photos` di `LightingLuxRow`, tersimpan di JSON `energy_audits.data`). Titik yang lux-nya terisi wajib punya minimal 1 foto sebelum pemeriksaan diselesaikan; draf boleh tanpa foto.
+- Warna lux (per titik, rata-rata zona, per area, dan panduan sub zona) memakai `getLuxLevel` di `lib/lighting-audit.ts`: hijau dari `luxMin` ke atas (terlalu terang tetap hijau, teksnya "Di atas … lux"), kuning kalau masih dalam 20% di bawah `luxMin` (`LUX_NEAR_RATIO` 0,8; Area Sales 240 sampai 299), merah di bawah batas itu. Catatan hanya muncul dan wajib di titik merah (`dimPointsMissingNote`); titik hijau dan kuning tidak meminta catatan, supaya form cepat diisi di lapangan. Catatan lama di titik normal tetap ditampilkan tapi tidak wajib. Label status (`LUX_STATUS_LABEL`) dan export tetap memakai `getLuxStatus`. Tombol Foto di tabel lux tidak lagi bergaris merah; foto yang kurang disebut di daftar saat Selesai.
+- Integrasi kalkulator lampu (`lib/lamp-calculator.ts`, milik Wardan; dipakai tanpa diubah): kartu "Hasil zona ini" menampilkan kebutuhan lampu menurut standar LPD dari luas zona (`getZoneLampNeed`, watt rata-rata daftar lampu, atau 13,5 W kalau daftar kosong). Area Sales punya kotak opsional lebar sisi pintu dan panjang ke belakang (`widthM`, `lengthM` di JSON zona). Ukuran ini hanya untuk denah dan tidak mengubah luas zona. Kalau keduanya diisi, denah titik ukur (`components/energy-audit/lux-plan.tsx`, di atas tabel lux) menggambar lampu rekomendasi `calcSimetris` (`getZoneLampLayout`) dengan titik ukur A1 sampai C3 di sela baris lampu. Mengetuk titik memindahkan fokus ke kotak lux-nya, dan baris dibuat kalau belum ada. Tanpa lebar dan panjang tapi luas zona ada, denah digambar sebagai "Denah perkiraan" dari luas dengan perbandingan `ESTIMATED_PLAN_RATIO` (1 = persegi; tim bisa menggantinya), sisi ditulis "±… m (perkiraan)", garis lampu dibuat pudar, dan ukuran perkiraan tidak disimpan ke data. Tanpa luas, denah berupa kotak 3×3 yang juga bisa diketuk. Kode kalkulator lampu Wardan tidak boleh diubah. Toko belum punya denah, jadi ukuran diambil auditor di lapangan (meteran atau hitung plafon). Ukuran belum disimpan ke tabel `stores`.
 - Foto dikecilkan di HP (sisi terpanjang 1600 px, JPEG) lalu diunggah ke `POST /api/energy-audit/photos`. Baca dan hapus lewat `GET`/`DELETE` route yang sama. Semua butuh akses validator.
 - Penyimpanan (`lib/photo-storage/`): toko branch `DEMO` disimpan di disk lokal `.local-uploads/energy-audit/<KODE>/<tanggal>/` (di-ignore git). Toko lain ke Google Drive: `GOOGLE_DRIVE_ROOT_FOLDER_ID` (DOKUMEN SPARTA) / folder cabang (dicocokkan tanpa beda huruf besar, spasi, garis bawah) / `Toko` / folder toko (segmen nama yang sama dengan kode toko) / `Audit Energi/Tata Cahaya/<tanggal WIB>`. Folder cabang atau toko yang belum ada dibuat otomatis (`NAMA - KODE`).
 - Referensi foto ditandatangani HMAC (`BETTER_AUTH_SECRET`), jadi route foto hanya melayani file yang diunggah aplikasi ini. Env: `DRIVE_CDN_CLIENT_ID`, `DRIVE_CDN_CLIENT_SECRET`, `DRIVE_CDN_REFRESH_TOKEN`, `GOOGLE_DRIVE_ROOT_FOLDER_ID`.
