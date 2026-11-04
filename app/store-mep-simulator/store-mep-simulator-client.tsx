@@ -23,6 +23,7 @@ import {
   IconX,
   IconRuler,
   IconLock,
+  IconMagnet,
   IconLockOpen,
   IconEdit,
   IconFileCode,
@@ -1422,6 +1423,9 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
   const [isLightCalculated, setIsLightCalculated] = useState<boolean>(false)
   const [showLightingDimensions, setShowLightingDimensions] = useState<boolean>(true)
   const [showLightingGlow, setShowLightingGlow] = useState<boolean>(true)
+  const [lampSnapToGypsum, setLampSnapToGypsum] = useState<boolean>(true)
+  const [lampGridShiftPhase, setLampGridShiftPhase] = useState<number>(0)
+  const [showGypsumInLighting, setShowGypsumInLighting] = useState<boolean>(true)
   const [lightExportCardData, setLightExportCardData] = useState<LightEstimationResultCardData | null>(null)
   const exportLightCardRef = useRef<HTMLDivElement | null>(null)
   const [gypsumExportCardData, setGypsumExportCardData] = useState<GypsumTileExportCardData | null>(null)
@@ -1773,6 +1777,35 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
   // Backward compatibility alias: effectiveArea menggunakan Luas Kotor untuk AC
   const effectiveArea = grossCalculationArea
 
+  const storeDimensions = useMemo(() => {
+    if (activeCadMetadata) {
+      return {
+        lengthM: activeCadMetadata.dimensions.widthM,
+        widthM: activeCadMetadata.dimensions.lengthM,
+        grossArea: activeCadMetadata.metrics.grossArea,
+      }
+    }
+    if (customPts.length === 0) return { widthM: 0, lengthM: 0, grossArea: 0 }
+    const xs = customPts.map((p) => p.x)
+    const ys = customPts.map((p) => p.y)
+    const widthM = Number((Math.max(...xs) - Math.min(...xs)).toFixed(2))
+    const lengthM = Number((Math.max(...ys) - Math.min(...ys)).toFixed(2))
+    const grossArea = Number(polygonAreaM2.toFixed(1))
+    return { widthM, lengthM, grossArea }
+  }, [activeCadMetadata, customPts, polygonAreaM2])
+
+  // ─── Kalkulasi Dinamis Plafon Gypsum Tile ──────────────────────────────────
+  const gypsumCalculation = useMemo<GypsumTileCalculationResult>(() => {
+    const w = storeDimensions.widthM
+    const l = storeDimensions.lengthM
+    return calculateGypsumTileLayout({
+      roomWidthM: w,
+      roomLengthM: l,
+      pts: customPts,
+      orientation: gypsumOrientation,
+    })
+  }, [storeDimensions.widthM, storeDimensions.lengthM, customPts, gypsumOrientation])
+
   // ─── Kalkulasi Dinamis Lighting Berdasarkan Luas Bersih & Poligon Aktif ───
   const lightingCalculation = useMemo(() => {
     if (!customClosed || customPts.length < 3) {
@@ -1795,6 +1828,21 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
         standardEval: checkStandards(0, 0, 0),
         placedLampsList: [] as { x: number; y: number; dir: "h" | "v" }[],
         simResult: null,
+        gypsumSnap: {
+          isSnapped: false,
+          activePhase: 0,
+          recommendedPhase: 0,
+          dTop: 0,
+          dBottom: 0,
+          asymmetry: 0,
+          phaseOptions: [] as {
+            phase: number
+            dTop: number
+            dBottom: number
+            asymmetry: number
+            rowCount: number
+          }[],
+        },
       }
     }
 
@@ -1804,7 +1852,8 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
     const xs = pts.map((p) => p.x)
     const ys = pts.map((p) => p.y)
     const W2 = (Math.max(...xs) - Math.min(...xs)) || 1
-    const H2 = (Math.max(...ys) - Math.min(...ys)) || 1
+    const minY = Math.min(...ys)
+    const H2 = (Math.max(...ys) - minY) || 1
 
     const simResult = calcIregular(luas, W2, H2, lampWatt, lampLen)
     const range = calcLampRange(luas, lampWatt, MIN_RATIO, MAX_RATIO)
@@ -1812,13 +1861,65 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
     const baseBaris = simResult ? simResult.baris : Math.max(1, Math.round(H2 / 1.9) - 1)
     const baseLpb = simResult ? simResult.lampuPerbaris : Math.max(1, Math.floor(W2 / lampLen))
 
-    const activeBaris = baseBaris
-    const activeLpb = baseLpb
+    const rawGridYCoords = Array.from(
+      new Set(
+        gypsumCalculation.gridLines
+          .filter((l) => l.orientation === "h")
+          .map((l) => Number(l.coord.toFixed(4)))
+      )
+    ).sort((a, b) => a - b)
 
-    const usedJarak = H2 / (activeBaris + 1)
+    // Evaluasi 3 fase pergeseran tulangan (Modulo 3: lompati 2 tulangan / interval 1.8m)
+    const phaseOptions = [0, 1, 2].map((p) => {
+      const selectedOffsets = rawGridYCoords.filter((_, idx) => idx % 3 === p)
+      const absYCoords = selectedOffsets.map((off) => minY + off)
+      const dTop = selectedOffsets.length > 0 ? selectedOffsets[0] : 0
+      const dBottom = selectedOffsets.length > 0 ? H2 - selectedOffsets[selectedOffsets.length - 1] : 0
+      const asymmetry = Math.abs(dTop - dBottom)
+      return {
+        phase: p,
+        absYCoords,
+        rawOffsets: selectedOffsets,
+        dTop: Number(dTop.toFixed(2)),
+        dBottom: Number(dBottom.toFixed(2)),
+        asymmetry: Number(asymmetry.toFixed(2)),
+        rowCount: selectedOffsets.length,
+      }
+    })
+
+    const recommendedPhase =
+      phaseOptions.length > 0
+        ? [...phaseOptions].sort((a, b) => a.asymmetry - b.asymmetry)[0]?.phase ?? 0
+        : 0
+    const activePhaseData = phaseOptions[lampGridShiftPhase] || phaseOptions[0]
+
+    let customYRows: number[] | undefined = undefined
+    let activeBaris = baseBaris
+    let usedJarak = H2 / (activeBaris + 1)
+
+    if (lampSnapToGypsum && activePhaseData && activePhaseData.absYCoords.length > 0) {
+      customYRows = activePhaseData.absYCoords
+      activeBaris = customYRows.length
+      usedJarak =
+        activeBaris > 1
+          ? Number(((customYRows[customYRows.length - 1] - customYRows[0]) / (activeBaris - 1)).toFixed(2))
+          : 1.8
+    }
+
+    const activeLpb = baseLpb
     const usedMargin = Math.max(0.2, (W2 - activeLpb * lampLen) / 2)
 
-    const rawLamps = placeLamps(pts, usedJarak, usedMargin, lampOrient, lampLen, lampSpasi, activeBaris, activeLpb)
+    const rawLamps = placeLamps(
+      pts,
+      usedJarak,
+      usedMargin,
+      lampOrient,
+      lampLen,
+      lampSpasi,
+      activeBaris,
+      activeLpb,
+      customYRows
+    )
 
     // Deteksi & Filter: Hanya tempatkan lampu pada area bersih ruang sales (bebas pilar, kasir, chiller)
     const validCleanLamps: { x: number; y: number; dir: "h" | "v" }[] = []
@@ -1862,6 +1963,21 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
       standardEval,
       placedLampsList: validCleanLamps,
       simResult,
+      gypsumSnap: {
+        isSnapped: lampSnapToGypsum,
+        activePhase: lampGridShiftPhase,
+        recommendedPhase,
+        dTop: activePhaseData?.dTop ?? 0,
+        dBottom: activePhaseData?.dBottom ?? 0,
+        asymmetry: activePhaseData?.asymmetry ?? 0,
+        phaseOptions: phaseOptions.map((po) => ({
+          phase: po.phase,
+          dTop: po.dTop,
+          dBottom: po.dBottom,
+          asymmetry: po.asymmetry,
+          rowCount: po.rowCount,
+        })),
+      },
     }
   }, [
     customClosed,
@@ -1875,6 +1991,9 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
     pillars,
     wallSegments,
     cashierDepths,
+    gypsumCalculation,
+    lampSnapToGypsum,
+    lampGridShiftPhase,
   ])
 
   // ─── 10B. Perhitungan Simulasi Lampu Otomatis ──────────────────────────────
@@ -1927,34 +2046,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
     return Math.round(grossCalculationArea * targetBtuPerM2)
   }, [grossCalculationArea, targetBtuPerM2])
 
-  const storeDimensions = useMemo(() => {
-    if (activeCadMetadata) {
-      return {
-        lengthM: activeCadMetadata.dimensions.widthM,
-        widthM: activeCadMetadata.dimensions.lengthM,
-        grossArea: activeCadMetadata.metrics.grossArea,
-      }
-    }
-    if (customPts.length === 0) return { widthM: 0, lengthM: 0, grossArea: 0 }
-    const xs = customPts.map((p) => p.x)
-    const ys = customPts.map((p) => p.y)
-    const widthM = Number((Math.max(...xs) - Math.min(...xs)).toFixed(2))
-    const lengthM = Number((Math.max(...ys) - Math.min(...ys)).toFixed(2))
-    const grossArea = Number(polygonAreaM2.toFixed(1))
-    return { widthM, lengthM, grossArea }
-  }, [activeCadMetadata, customPts, polygonAreaM2])
-
-  // ─── Kalkulasi Dinamis Plafon Gypsum Tile ──────────────────────────────────
-  const gypsumCalculation = useMemo<GypsumTileCalculationResult>(() => {
-    const w = storeDimensions.widthM
-    const l = storeDimensions.lengthM
-    return calculateGypsumTileLayout({
-      roomWidthM: w,
-      roomLengthM: l,
-      pts: customPts,
-      orientation: gypsumOrientation,
-    })
-  }, [storeDimensions.widthM, storeDimensions.lengthM, customPts, gypsumOrientation])
+  // (storeDimensions & gypsumCalculation dideklarasikan di atas sebelum lightingCalculation)
 
   // Maksimum batas unit chiller dinamis berdasarkan sisi terpanjang denah toko (PT / LT / Dinding Terpanjang)
   const maxStoreSideM = useMemo(() => {
@@ -7651,6 +7743,54 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
       const lampLen_px = lampLen * sc.scale
       const lampW_px = Math.max(3.5, LAMP_TUBE_W * sc.scale)
 
+      // 0. Watermark / Ghost Grid Plafon Gypsum Tile (Latar Belakang Halus)
+      if (showGypsumInLighting && gypsumCalculation && gypsumCalculation.gridLines.length > 0) {
+        ctx.save()
+        ctx.beginPath()
+        customPts.forEach((p, idx) => {
+          const cp = toC(p)
+          if (idx === 0) ctx.moveTo(cp.cx, cp.cy)
+          else ctx.lineTo(cp.cx, cp.cy)
+        })
+        ctx.closePath()
+        ctx.clip()
+
+        gypsumCalculation.gridLines.forEach((line) => {
+          ctx.save()
+          if (line.type === "border") {
+            ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.22)" : "rgba(217, 119, 6, 0.22)"
+            ctx.setLineDash([4, 3])
+            ctx.lineWidth = 0.8
+          } else {
+            ctx.strokeStyle = line.type === "main"
+              ? (effectiveIsDark ? "rgba(226, 232, 240, 0.22)" : "rgba(71, 85, 105, 0.20)")
+              : (effectiveIsDark ? "rgba(148, 163, 184, 0.10)" : "rgba(100, 116, 139, 0.10)")
+            ctx.setLineDash([])
+            ctx.lineWidth = line.type === "main" ? 1.2 : 0.6
+          }
+
+          if (line.orientation === "h") {
+            const cy = sc.offY + (sc.minY + line.coord) * sc.scale
+            const x1 = sc.offX + (sc.minX + line.from) * sc.scale
+            const x2 = sc.offX + (sc.minX + line.to) * sc.scale
+            ctx.beginPath()
+            ctx.moveTo(x1, cy)
+            ctx.lineTo(x2, cy)
+            ctx.stroke()
+          } else {
+            const cx = sc.offX + (sc.minX + line.coord) * sc.scale
+            const y1 = sc.offY + (sc.minY + line.from) * sc.scale
+            const y2 = sc.offY + (sc.minY + line.to) * sc.scale
+            ctx.beginPath()
+            ctx.moveTo(cx, y1)
+            ctx.lineTo(cx, y2)
+            ctx.stroke()
+          }
+          ctx.restore()
+        })
+        ctx.restore()
+      }
+
       // Arrow helper function for dimension lines attached to lamps
       const drawArrow = (x1: number, y1: number, x2: number, y2: number, color: string, label: string) => {
         ctx.save()
@@ -8276,7 +8416,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
 
       ctx.restore()
     }
-  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, isLightCalculated, isGypsumCalculated, gypsumCalculation, gypsumOrientation, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, chillerPlacement, chillerAlignments, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions, pillars, selectedPillarId, activeDragPillarId, pillarSizeM, pillarWidthInput, pillarLengthInput, pillarDistXInput, pillarDistYInput, magneticSnapFeedback, zoom, panOffset, isFullscreenCanvas, activeMepTab, lampWatt, lampLen, lampOrient, lampSpasi, irregDisabledLamps, showLightingDimensions, showLightingGlow, lightingCalculation])
+  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, isLightCalculated, isGypsumCalculated, gypsumCalculation, gypsumOrientation, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, chillerPlacement, chillerAlignments, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions, pillars, selectedPillarId, activeDragPillarId, pillarSizeM, pillarWidthInput, pillarLengthInput, pillarDistXInput, pillarDistYInput, magneticSnapFeedback, zoom, panOffset, isFullscreenCanvas, activeMepTab, lampWatt, lampLen, lampOrient, lampSpasi, irregDisabledLamps, showLightingDimensions, showLightingGlow, lightingCalculation, lampSnapToGypsum, lampGridShiftPhase, showGypsumInLighting])
 
   useEffect(() => {
     drawCanvas()
@@ -9743,23 +9883,84 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
                           </Button>
                         </div>
                       ) : activeMepTab === "lighting" && isLightCalculated ? (
-                        <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-b border-border/50 bg-amber-500/10 shrink-0">
+                        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5 border-b border-border/50 bg-amber-500/10 shrink-0">
                           <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
                             <IconLock className="size-3.5 text-amber-500" />
                             <span>Denah terkunci dalam Mode Hasil Lampu (LED Tube T8 {lampWatt}W, Target 4–5 W/m²)</span>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => {
-                              setIsLightCalculated(false)
-                              toast.info("Mode Edit Denah aktif.")
-                            }}
-                            className="h-6 text-[11px] font-bold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-xs cursor-pointer shrink-0"
-                            title="Edit denah dan zona toko"
-                          >
-                            <IconEdit className="size-3 text-white" /> Edit Denah
-                          </Button>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {/* Snap Rangka Toggle Button */}
+                            <Button
+                              size="sm"
+                              variant={lampSnapToGypsum ? "default" : "outline"}
+                              onClick={() => {
+                                setLampSnapToGypsum((prev) => {
+                                  const next = !prev
+                                  toast.info(next ? "Snap ke Rangka Main Tee (1.8m) diaktifkan." : "Distribusi lampu manual bebas aktif.")
+                                  return next
+                                })
+                              }}
+                              className={`h-6 text-[11px] font-bold gap-1 px-2 cursor-pointer shrink-0 ${
+                                lampSnapToGypsum
+                                  ? "bg-sky-600 hover:bg-sky-700 text-white"
+                                  : "border-sky-500/40 text-sky-700 dark:text-sky-300"
+                              }`}
+                              title="Kunci posisi baris lampu ke rangka Main Tee plafon gypsum (interval 1.8m)"
+                            >
+                              <IconMagnet className="size-3" />
+                              <span>Snap Rangka: {lampSnapToGypsum ? "ON (1.8m)" : "OFF"}</span>
+                            </Button>
+
+                            {/* Cycle Shift Phase Button (Modulo 3) */}
+                            {lampSnapToGypsum && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setLampGridShiftPhase((prev) => {
+                                    const next = (prev + 1) % 3
+                                    toast.info(`Fase tulangan rangka digeser ke Fase ${next + 1}/3`)
+                                    return next
+                                  })
+                                }}
+                                className="h-6 text-[11px] font-bold gap-1 px-2 border-border/80 bg-background/80 hover:bg-accent text-foreground cursor-pointer shrink-0"
+                                title="Geser fase awal tulangan Main Tee (Fase 1, 2, atau 3)"
+                              >
+                                <IconRotateRectangle className="size-3 text-sky-500" />
+                                <span>Fase Rangka {(lampGridShiftPhase % 3) + 1}/3</span>
+                                {lightingCalculation.gypsumSnap?.recommendedPhase === lampGridShiftPhase && (
+                                  <span className="text-[9px] bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-1 py-0.2 rounded font-extrabold">
+                                    Seimbang
+                                  </span>
+                                )}
+                              </Button>
+                            )}
+
+                            {/* Faint Watermark Grid Toggle */}
+                            <Button
+                              size="sm"
+                              variant={showGypsumInLighting ? "secondary" : "ghost"}
+                              onClick={() => setShowGypsumInLighting((prev) => !prev)}
+                              className="h-6 text-[11px] font-medium gap-1 px-2 cursor-pointer shrink-0"
+                              title="Tampilkan / sembunyikan bayangan garis rangka plafon gypsum"
+                            >
+                              <IconLayoutGrid className="size-3" />
+                              <span>Rangka: {showGypsumInLighting ? "Tampil" : "Sembunyi"}</span>
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => {
+                                setIsLightCalculated(false)
+                                toast.info("Mode Edit Denah aktif.")
+                              }}
+                              className="h-6 text-[11px] font-bold gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-xs cursor-pointer shrink-0"
+                              title="Edit denah dan zona toko"
+                            >
+                              <IconEdit className="size-3 text-white" /> Edit Denah
+                            </Button>
+                          </div>
                         </div>
                       ) : activeMepTab === "gypsum" && isGypsumCalculated ? (
                         <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-b border-border/50 bg-emerald-500/10 shrink-0">
@@ -10485,6 +10686,19 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
                           <span>R. Chiller (Luar): +{outsideChillerAreaM2} m²</span>
                         </div>
                       )}
+                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/40">
+                        <span className="text-muted-foreground font-medium flex items-center gap-1">
+                          <IconMagnet className="size-3 text-sky-500" />
+                          <span>Snap Rangka Gypsum:</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setLampSnapToGypsum((p) => !p)}
+                          className="font-bold text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                        >
+                          {lampSnapToGypsum ? "Terkunci (1.8m)" : "Distribusi Bebas"}
+                        </button>
+                      </div>
                     </div>
 
                     {/* Action Hitung & Simulasikan Lampu */}
@@ -10804,6 +11018,107 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
                           <span className="text-[9.5px] font-bold text-muted-foreground uppercase">Margin Samping (W2)</span>
                           <span className="text-base font-black text-sky-600 dark:text-sky-400">{lightingCalculation.jarakSamping} <span className="text-[10px] font-normal">m</span></span>
                         </div>
+                      </div>
+
+                      {/* Kontrol Penyelarasan Rangka Plafon Gypsum (Main Tee) */}
+                      <div className="bg-sky-500/10 dark:bg-sky-950/20 rounded-xl p-3 border border-sky-500/30 text-xs space-y-2.5">
+                        <div className="flex items-center justify-between font-bold text-foreground">
+                          <span className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300">
+                            <IconMagnet className="size-4 text-sky-500" />
+                            <span>Kunci ke Rangka Gypsum</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setLampSnapToGypsum((prev) => !prev)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                              lampSnapToGypsum
+                                ? "bg-sky-600 text-white"
+                                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            }`}
+                          >
+                            {lampSnapToGypsum ? "AKTIF (1.8m)" : "NONAKTIF"}
+                          </button>
+                        </div>
+
+                        {lampSnapToGypsum && (
+                          <div className="space-y-2 pt-1 border-t border-sky-500/20">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-muted-foreground font-medium">Pilihan Fase Start Tulangan:</span>
+                              <span className="text-[10px] font-mono text-sky-700 dark:text-sky-300 font-semibold">
+                                Interval ~1.80m (Lompati 2 Tulangan)
+                              </span>
+                            </div>
+
+                            {/* 3-Phase Toggle Buttons */}
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {[0, 1, 2].map((p) => {
+                                const opt = lightingCalculation.gypsumSnap?.phaseOptions.find((po) => po.phase === p)
+                                const isSelected = lampGridShiftPhase === p
+                                const isBest = lightingCalculation.gypsumSnap?.recommendedPhase === p
+                                return (
+                                  <button
+                                    key={p}
+                                    type="button"
+                                    onClick={() => setLampGridShiftPhase(p)}
+                                    className={`p-1.5 rounded-lg border text-center transition-all cursor-pointer relative ${
+                                      isSelected
+                                        ? "border-sky-500 bg-sky-600 text-white shadow-xs font-bold"
+                                        : "border-border/70 bg-background/80 hover:bg-muted/50 text-foreground"
+                                    }`}
+                                  >
+                                    <div className="text-[10.5px] font-bold">Fase {p + 1}</div>
+                                    <div className={`text-[9px] font-mono ${isSelected ? "text-sky-100" : "text-muted-foreground"}`}>
+                                      {opt ? `${opt.dTop}m / ${opt.dBottom}m` : "—"}
+                                    </div>
+                                    {isBest && (
+                                      <span
+                                        className={`absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] font-extrabold px-1 rounded shadow-xs whitespace-nowrap ${
+                                          isSelected
+                                            ? "bg-amber-400 text-slate-900"
+                                            : "bg-emerald-600 text-white"
+                                        }`}
+                                      >
+                                        Seimbang
+                                      </span>
+                                    )}
+                                  </button>
+                                )
+                              })}
+                            </div>
+
+                            {/* Keterangan Asimetri Jarak Dinding */}
+                            {lightingCalculation.gypsumSnap && (
+                              <div className="text-[10.5px] text-muted-foreground leading-tight bg-background/60 p-2 rounded-lg border border-border/50 space-y-1">
+                                <div className="flex justify-between items-center text-[11px] font-medium text-foreground">
+                                  <span>Dinding Belakang: <strong className="font-mono text-sky-600 dark:text-sky-400">{lightingCalculation.gypsumSnap.dTop}m</strong></span>
+                                  <span>Dinding Depan: <strong className="font-mono text-sky-600 dark:text-sky-400">{lightingCalculation.gypsumSnap.dBottom}m</strong></span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {lightingCalculation.gypsumSnap.asymmetry === 0 ? (
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                      Posisi lampu terbagi simetris sempurna antara dinding depan dan belakang.
+                                    </span>
+                                  ) : (
+                                    <span>
+                                      Selisih jarak tepi: <strong className="font-mono text-foreground">{lightingCalculation.gypsumSnap.asymmetry}m</strong>. Baris lampu presisi menempel di rangka Main Tee 1.8m.
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Watermark toggle checkbox */}
+                            <label className="flex items-center gap-2 text-[11px] font-medium text-foreground cursor-pointer pt-0.5">
+                              <input
+                                type="checkbox"
+                                checked={showGypsumInLighting}
+                                onChange={(e) => setShowGypsumInLighting(e.target.checked)}
+                                className="rounded border-border text-sky-600 focus:ring-sky-500"
+                              />
+                              <span>Tampilkan bayangan rangka plafon gypsum di kanvas</span>
+                            </label>
+                          </div>
+                        )}
                       </div>
 
                       {/* Penyesuaian Titik Lampu Kanvas */}

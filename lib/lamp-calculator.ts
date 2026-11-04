@@ -37,7 +37,8 @@ export function placeLamps(
   lampLen: number = LAMP_LEN,
   spasiLampu: number = 0,
   targetBaris?: number,
-  targetLpb?: number
+  targetLpb?: number,
+  customYRows?: number[]
 ): PlacedLamp[] {
   if (!pts || pts.length < 3) return []
   const xs = pts.map((p) => p.x),
@@ -56,10 +57,13 @@ export function placeLamps(
       ? targetBaris
       : Math.max(1, jarak > 0 ? Math.round(H / jarak) - 1 : 1)
     const dY = H / (nY + 1)
+    const yRows: number[] = customYRows && customYRows.length > 0
+      ? customYRows
+      : Array.from({ length: nY }, (_, r) => minY + (r + 1) * dY)
     const nPts = pts.length
 
-    for (let r = 0; r < nY; r++) {
-      const y = minY + (r + 1) * dY
+    for (const y of yRows) {
+      // Snapped or distributed row Y
 
       // Exact analytic horizontal ray intersection with polygon edges
       const intersections: number[] = []
