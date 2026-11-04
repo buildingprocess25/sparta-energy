@@ -13,6 +13,8 @@ import {
   IconPlus,
 } from "@tabler/icons-react"
 import { AdminCustomEquipmentReview } from "@/components/admin/admin-custom-equipment-review"
+import { AdminUnregisteredBrandsReview } from "@/components/admin/admin-unregistered-brands-review"
+import type { UnregisteredBrand } from "@/lib/unregistered-brands"
 import { AdminMasterEquipmentDialog } from "@/components/admin/admin-master-equipment-dialog"
 import type { MasterEquipmentTypeOption } from "@/lib/admin-master-data-queries"
 import type { PendingCustomEquipment } from "@/lib/custom-equipment-review"
@@ -32,6 +34,7 @@ type AdminMasterEquipmentFiltersProps = {
   storeTypes: string[]
   equipmentTypeOptions: MasterEquipmentTypeOption[]
   pendingCustomEquipment: PendingCustomEquipment[]
+  unregisteredBrands: UnregisteredBrand[]
 }
 
 const filterParamKeys = ["deviceCategory", "category", "storeType", "hasBrands"] as const
@@ -47,6 +50,7 @@ export function AdminMasterEquipmentFilters({
   storeTypes,
   equipmentTypeOptions,
   pendingCustomEquipment,
+  unregisteredBrands,
 }: AdminMasterEquipmentFiltersProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -226,6 +230,7 @@ export function AdminMasterEquipmentFilters({
           items={pendingCustomEquipment}
           equipmentTypeOptions={equipmentTypeOptions}
         />
+        <AdminUnregisteredBrandsReview items={unregisteredBrands} />
         <Button
           type="button"
           onClick={() => setDialogOpen(true)}

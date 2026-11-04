@@ -41,6 +41,7 @@ import {
 } from "@/lib/admin-master-data-queries"
 import { requireUserManager } from "@/lib/admin-auth"
 import { getPendingCustomEquipment } from "@/lib/custom-equipment-review"
+import { getUnregisteredBrands } from "@/lib/unregistered-brands-review"
 
 type SearchParams = Promise<{
   tab?: string
@@ -135,6 +136,7 @@ export default async function AdminMasterDataPage({
             limit: masterEquipmentPageSize,
           }),
           getPendingCustomEquipment(),
+          getUnregisteredBrands(),
         ] as const)
       : null
 
@@ -240,6 +242,7 @@ export default async function AdminMasterDataPage({
                   storeTypes={equipmentStoreTypes}
                   equipmentTypeOptions={equipmentTypeOptions}
                   pendingCustomEquipment={equipmentData[2]}
+                  unregisteredBrands={equipmentData[3]}
                 />
               </div>
               <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-3 md:px-4">

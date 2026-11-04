@@ -112,10 +112,26 @@ model EquipmentType {
   brands      EquipmentBrand[]
   auditItems  AuditItem[]
   customEquipment CustomEquipmentSubmission[]
+  dismissedBrands UnregisteredBrandDismissal[]
   createdById    String?          @map("created_by_id") @db.Uuid
   createdBy      User?            @relation("EquipmentTypeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("equipment_types")
+}
+
+// Field brand names an admin chose not to add to the master ("Abaikan" in
+// Merek dari lapangan). brandName is stored normalized (lib/brand-match.ts).
+model UnregisteredBrandDismissal {
+  id              String        @id @default(uuid()) @db.Uuid
+  equipmentTypeId String        @map("equipment_type_id") @db.Uuid
+  brandName       String        @map("brand_name")
+  dismissedById   String?       @map("dismissed_by_id") @db.Uuid
+  dismissedAt     DateTime      @default(now()) @map("dismissed_at")
+
+  equipmentType   EquipmentType @relation(fields: [equipmentTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([equipmentTypeId, brandName])
+  @@map("unregistered_brand_dismissals")
 }
 
 model EquipmentBrand {

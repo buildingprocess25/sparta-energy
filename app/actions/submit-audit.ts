@@ -7,6 +7,7 @@ import { calculateAudit } from "@/lib/audit-kalkulator"
 import { calculateGapPercent } from "@/lib/audit-recalculate"
 import { toAuditTechnical } from "@/lib/audit-technical"
 import { getFallbackRecommendation } from "@/lib/recommendation-fallback"
+import { matchMasterBrand } from "@/lib/brand-match"
 import { syncCustomEquipmentSubmissions } from "@/lib/custom-equipment"
 import type { EquipmentState, PlnRowState } from "@/store/use-audit-store"
 import type { AreaTarget, RecommendationType } from "@prisma/client"
@@ -277,6 +278,14 @@ ${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name} = ${row.estima
         })
 
         if (selectedEquipments.length > 0) {
+          const usedTypeIds = selectedEquipments
+            .map((eq) => eqTypeMap.get(eq.name.toLowerCase().trim())?.id)
+            .filter((id): id is string => Boolean(id))
+          const masterBrands = await tx.equipmentBrand.findMany({
+            where: { equipmentTypeId: { in: usedTypeIds } },
+            select: { id: true, equipmentTypeId: true, name: true },
+          })
+
           for (const eq of selectedEquipments) {
             const bNamesToProcess = eq.brandNames?.length
               ? eq.brandNames
@@ -292,29 +301,12 @@ ${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name} = ${row.estima
 
             const type = eqTypeMap.get(eq.name.toLowerCase().trim())
             if (type) {
+              // A brand typed in the field is never added to the master here: unknown
+              // names stay on this audit's rows and wait in "Merek dari lapangan".
               for (let i = 0; i < bNamesToProcess.length; i++) {
-                const bName = bNamesToProcess[i]
-                if (bName && bName.trim() !== "") {
-                  if (!bIdsToProcess[i]) {
-                    let brand = await tx.equipmentBrand.findFirst({
-                      where: {
-                        equipmentTypeId: type.id,
-                        name: { equals: bName.trim(), mode: "insensitive" },
-                      },
-                    })
-                    if (!brand) {
-                      brand = await tx.equipmentBrand.create({
-                        data: {
-                          equipmentTypeId: type.id,
-                          name: bName.trim(),
-                          baseKw: bKwsToProcess[i] ?? eq.kw ?? 0,
-                          createdById: userId,
-                        },
-                      })
-                    }
-                    bIdsToProcess[i] = brand.id
-                  }
-                }
+                if (bIdsToProcess[i]) continue
+                const brand = matchMasterBrand(masterBrands, type.id, bNamesToProcess[i])
+                if (brand) bIdsToProcess[i] = brand.id
               }
             }
             eq.brandNames = bNamesToProcess
@@ -368,7 +360,7 @@ ${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name} = ${row.estima
 
         return audit
       },
-      // Brands are looked up one by one, which can pass Prisma's 5 s default.
+      // A large store's custom equipment and item writes can pass Prisma's 5 s default.
       { timeout: 15_000 }
     )
 

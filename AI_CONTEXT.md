@@ -199,6 +199,8 @@ Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbed
   - `TRANSACTION` / `BATCH`: jam running = (usage × durasi) / 3600, dibatasi jam operasional; sisa jam dihitung sebagai standby (default 5% dari kW running).
 - kW yang dipakai: `STANDARD` memakai base kW brand (`kws`), bukan running kW. Running/standby kW hanya untuk `TRANSACTION` / `BATCH`. `calcMethod` diambil dari master tipe equipment saat submit.
 - Standar kalkulasi dijumlah dari baris `audit_items` yang dibangun `buildAuditItemRows()`, fungsi yang sama yang menyimpan baris itu. Jadi standar saat anak toko submit selalu sama dengan jumlah alat dan dengan hasil hitung ulang di halaman validasi. Kalkulasi lama yang tersimpan sebelum perbaikan ini (30 Okt 2026) dihitung ulang lewat `scripts/backfill-audit-baseline.ts`.
+- Jam 00:00–23:59 dihitung **24 jam** di form, draf, dan submit (`getHoursBetween()`).
+- Merek yang diketik anak toko dan belum ada di master **tidak** ditambahkan ke master saat submit (sejak 4 Nov 2026). Nama dan kW-nya hanya tersimpan di baris audit itu. Admin meninjaunya di Master Data → Equipment → "Merek dari Lapangan" (`lib/unregistered-brands-review.ts`): simpan ke master, atau abaikan (tabel `unregistered_brand_dismissals`). Pencocokan nama merek memakai `normalizeBrandName()` di `lib/brand-match.ts`.
 - Rata-rata PLN hanya dihitung dari bulan yang kWh-nya > 0.
 - Status **Boros** jika rata-rata aktual PLN > Estimasi Bulanan × **1.05** (toleransi 5%). Selain itu **Hemat**.
 - Tipe rekomendasi:

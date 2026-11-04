@@ -29,15 +29,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { MasterEquipmentTypeOption } from "@/lib/admin-master-data-queries"
+import { AREA_LABELS, AREA_TARGET_OPTIONS } from "@/lib/area-labels"
 import type { PendingCustomEquipment } from "@/lib/custom-equipment-review"
 import { DEVICE_CATEGORIES } from "@/lib/equipment-categories"
-
-const AREA_LABELS: Record<AreaTarget, string> = {
-  SALES: "Area Belanja",
-  PARKING: "Parkiran",
-  TERRACE: "Teras",
-  WAREHOUSE: "Gudang, Toilet & Selasar",
-}
 
 const dateFormat = new Intl.DateTimeFormat("id-ID", {
   day: "numeric",
@@ -283,7 +277,7 @@ function ReviewCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(Object.keys(AREA_LABELS) as AreaTarget[]).map((area) => (
+              {AREA_TARGET_OPTIONS.map((area) => (
                 <SelectItem key={area} value={area}>
                   {AREA_LABELS[area]}
                 </SelectItem>

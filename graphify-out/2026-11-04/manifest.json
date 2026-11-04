@@ -60,10 +60,10 @@
     "semantic_hash": ""
   },
   "app/actions/get-demo-ai-recommendation.ts": {
-    "mtime": 1790057425.8419178,
-    "seen": 1792635430.1310863,
-    "ast_hash": "a2a16136c68639a8fdf99fc517b3256d",
-    "semantic_hash": "a2a16136c68639a8fdf99fc517b3256d"
+    "mtime": 1793761144.9196155,
+    "seen": 1793761343.005516,
+    "ast_hash": "aa76976c2921459fa70e1b58cf739877",
+    "semantic_hash": ""
   },
   "app/actions/get-history.ts": {
     "mtime": 1793075185.3854337,
@@ -114,9 +114,9 @@
     "semantic_hash": ""
   },
   "app/actions/submit-audit.ts": {
-    "mtime": 1793760092.6932576,
-    "seen": 1793760273.7208717,
-    "ast_hash": "89f58ea5815b717984894d1497954202",
+    "mtime": 1793761139.5245035,
+    "seen": 1793761343.0075157,
+    "ast_hash": "cd314e0b1ac8233c81a422ae2e423750",
     "semantic_hash": ""
   },
   "app/actions/update-user.ts": {
@@ -2889,6 +2889,18 @@
     "mtime": 1793760046.8897789,
     "seen": 1793760273.7823944,
     "ast_hash": "e7dd9bd373b512c836bbff73a20871cf",
+    "semantic_hash": ""
+  },
+  "lib/recommendation-fallback.test.ts": {
+    "mtime": 1793761154.7330077,
+    "seen": 1793761343.0815618,
+    "ast_hash": "54ac7dc60bc628d201647445893aa837",
+    "semantic_hash": ""
+  },
+  "lib/recommendation-fallback.ts": {
+    "mtime": 1793761079.7817805,
+    "seen": 1793761343.0815618,
+    "ast_hash": "5575898b829e8a715bc0b4b06fa3580a",
     "semantic_hash": ""
   },
   "package-lock.json": {
