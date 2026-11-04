@@ -1424,7 +1424,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
   const [showLightingDimensions, setShowLightingDimensions] = useState<boolean>(true)
   const [showLightingGlow, setShowLightingGlow] = useState<boolean>(true)
   const [lampSnapToGypsum, setLampSnapToGypsum] = useState<boolean>(true)
-  const [lampGridShiftPhase, setLampGridShiftPhase] = useState<number>(0)
+  const [userShiftPhaseOverride, setUserShiftPhaseOverride] = useState<number | null>(null)
   const [showGypsumInLighting, setShowGypsumInLighting] = useState<boolean>(true)
   const [lightExportCardData, setLightExportCardData] = useState<LightEstimationResultCardData | null>(null)
   const exportLightCardRef = useRef<HTMLDivElement | null>(null)
@@ -1841,6 +1841,11 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
             dBottom: number
             asymmetry: number
             rowCount: number
+            lpb: number
+            activeCount: number
+            ratio: number
+            isInRange: boolean
+            score: number
           }[],
         },
       }
@@ -1869,70 +1874,153 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
       )
     ).sort((a, b) => a - b)
 
+    // Helper pra-simulasi penempatan lampu dan filter obstacle per kandidat baris & LPB
+    const simulateCandidate = (
+      yRows: number[],
+      targetBaris: number,
+      targetLpb: number
+    ) => {
+      const margin = Math.max(0.2, (W2 - targetLpb * lampLen) / 2)
+      const jarak = targetBaris > 1
+        ? Number(((yRows[yRows.length - 1] - yRows[0]) / (targetBaris - 1)).toFixed(2))
+        : 1.8
+      const raw = placeLamps(pts, jarak, margin, lampOrient, lampLen, lampSpasi, targetBaris, targetLpb, yRows)
+      const valid: { x: number; y: number; dir: "h" | "v" }[] = []
+      let blocked = 0
+      raw.forEach((lamp) => {
+        const obstacle = checkLampObstacle(lamp, lampLen, pillars, wallSegments, cashierDepths, pts)
+        if (obstacle.isBlocked) {
+          blocked++
+        } else {
+          valid.push(lamp)
+        }
+      })
+      const activeCount = valid.filter((_, idx) => !irregDisabledLamps.has(idx.toString())).length
+      const totalWatt = activeCount * lampWatt
+      const ratio = luas > 0 ? Number((totalWatt / luas).toFixed(2)) : 0
+      const inRange = activeCount >= range.minLamps && activeCount <= range.maxLamps
+      return { raw, valid, blocked, activeCount, totalWatt, ratio, margin, jarak, inRange }
+    }
+
     // Evaluasi 3 fase pergeseran tulangan (Modulo 3: lompati 2 tulangan / interval 1.8m)
+    // dengan Multi-Criteria Optimization (Range Daya > Kesimetrisan > Jarak Aman)
     const phaseOptions = [0, 1, 2].map((p) => {
       const selectedOffsets = rawGridYCoords.filter((_, idx) => idx % 3 === p)
       const absYCoords = selectedOffsets.map((off) => minY + off)
       const dTop = selectedOffsets.length > 0 ? selectedOffsets[0] : 0
       const dBottom = selectedOffsets.length > 0 ? H2 - selectedOffsets[selectedOffsets.length - 1] : 0
       const asymmetry = Math.abs(dTop - dBottom)
+      const rowCount = selectedOffsets.length
+
+      if (rowCount === 0) {
+        return {
+          phase: p,
+          absYCoords: [],
+          dTop: 0,
+          dBottom: 0,
+          asymmetry: 0,
+          rowCount: 0,
+          lpb: baseLpb,
+          activeCount: 0,
+          totalWatt: 0,
+          ratio: 0,
+          isInRange: false,
+          score: -999,
+          sim: null,
+        }
+      }
+
+      // Uji baseLpb terlebih dahulu, lalu cari LPB adaptif jika over-watt
+      let bestSim = simulateCandidate(absYCoords, rowCount, baseLpb)
+      let chosenLpb = baseLpb
+      let bestDev = Math.abs(bestSim.ratio - 4.5)
+
+      for (let l = baseLpb - 1; l >= Math.max(1, baseLpb - 3); l--) {
+        const candidate = simulateCandidate(absYCoords, rowCount, l)
+        const dev = Math.abs(candidate.ratio - 4.5)
+        if (candidate.inRange) {
+          if (!bestSim.inRange || dev < bestDev) {
+            bestSim = candidate
+            bestDev = dev
+            chosenLpb = l
+          }
+        } else if (!bestSim.inRange && dev < bestDev) {
+          bestSim = candidate
+          bestDev = dev
+          chosenLpb = l
+        }
+      }
+
+      // Multi-Criteria Scoring:
+      // Prioritas 1: Kepatuhan rentang daya ritel 4.0 - 5.0 W/m² (+100)
+      let score = 0
+      if (bestSim.inRange || (bestSim.ratio >= MIN_RATIO && bestSim.ratio <= MAX_RATIO)) {
+        score += 100
+        score += Math.max(0, 20 - Math.abs(bestSim.ratio - 4.5) * 40)
+      } else if (bestSim.ratio > MAX_RATIO) {
+        score -= (bestSim.ratio - MAX_RATIO) * 60
+      } else {
+        score -= (MIN_RATIO - bestSim.ratio) * 60
+      }
+
+      // Prioritas 2: Kesimetrisan jarak dinding (+30 untuk asimetri 0)
+      score += Math.max(0, 30 - asymmetry * 25)
+
+      // Prioritas 3: Jarak bebas dinding tepi (+15 jika >= 0.5m)
+      if (dTop >= 0.5 && dBottom >= 0.5) {
+        score += 15
+      } else if (dTop < 0.35 || dBottom < 0.35) {
+        score -= 20
+      }
+
       return {
         phase: p,
         absYCoords,
-        rawOffsets: selectedOffsets,
         dTop: Number(dTop.toFixed(2)),
         dBottom: Number(dBottom.toFixed(2)),
         asymmetry: Number(asymmetry.toFixed(2)),
-        rowCount: selectedOffsets.length,
+        rowCount,
+        lpb: chosenLpb,
+        activeCount: bestSim.activeCount,
+        totalWatt: bestSim.totalWatt,
+        ratio: bestSim.ratio,
+        isInRange: bestSim.inRange,
+        score: Number(score.toFixed(1)),
+        sim: bestSim,
       }
     })
 
-    const recommendedPhase =
-      phaseOptions.length > 0
-        ? [...phaseOptions].sort((a, b) => a.asymmetry - b.asymmetry)[0]?.phase ?? 0
-        : 0
-    const activePhaseData = phaseOptions[lampGridShiftPhase] || phaseOptions[0]
+    const sortedPhases = [...phaseOptions].filter((po) => po.rowCount > 0).sort((a, b) => b.score - a.score)
+    const recommendedPhase = sortedPhases[0]?.phase ?? 0
+    const activePhase = userShiftPhaseOverride !== null ? userShiftPhaseOverride : recommendedPhase
+    const activePhaseData = phaseOptions[activePhase] || phaseOptions[0]
 
-    let customYRows: number[] | undefined = undefined
-    let activeBaris = baseBaris
-    let usedJarak = H2 / (activeBaris + 1)
-
-    if (lampSnapToGypsum && activePhaseData && activePhaseData.absYCoords.length > 0) {
-      customYRows = activePhaseData.absYCoords
-      activeBaris = customYRows.length
-      usedJarak =
-        activeBaris > 1
-          ? Number(((customYRows[customYRows.length - 1] - customYRows[0]) / (activeBaris - 1)).toFixed(2))
-          : 1.8
-    }
-
-    const activeLpb = baseLpb
-    const usedMargin = Math.max(0.2, (W2 - activeLpb * lampLen) / 2)
-
-    const rawLamps = placeLamps(
-      pts,
-      usedJarak,
-      usedMargin,
-      lampOrient,
-      lampLen,
-      lampSpasi,
-      activeBaris,
-      activeLpb,
-      customYRows
-    )
-
-    // Deteksi & Filter: Hanya tempatkan lampu pada area bersih ruang sales (bebas pilar, kasir, chiller)
-    const validCleanLamps: { x: number; y: number; dir: "h" | "v" }[] = []
+    let validCleanLamps: { x: number; y: number; dir: "h" | "v" }[] = []
     let blockedCount = 0
+    let activeBaris = baseBaris
+    let activeLpb = baseLpb
+    let usedJarak = H2 / (activeBaris + 1)
+    let usedMargin = Math.max(0.2, (W2 - activeLpb * lampLen) / 2)
 
-    rawLamps.forEach((lamp) => {
-      const obstacle = checkLampObstacle(lamp, lampLen, pillars, wallSegments, cashierDepths, pts)
-      if (obstacle.isBlocked) {
-        blockedCount++
-      } else {
-        validCleanLamps.push(lamp)
-      }
-    })
+    if (lampSnapToGypsum && activePhaseData?.sim) {
+      validCleanLamps = activePhaseData.sim.valid
+      blockedCount = activePhaseData.sim.blocked
+      activeBaris = activePhaseData.rowCount
+      activeLpb = activePhaseData.lpb
+      usedJarak = activePhaseData.sim.jarak
+      usedMargin = activePhaseData.sim.margin
+    } else {
+      // Manual free distribution
+      const raw = placeLamps(pts, usedJarak, usedMargin, lampOrient, lampLen, lampSpasi, activeBaris, activeLpb)
+      raw.forEach((lamp) => {
+        const obstacle = checkLampObstacle(lamp, lampLen, pillars, wallSegments, cashierDepths, pts)
+        if (obstacle.isBlocked) {
+          blockedCount++
+        } else {
+          validCleanLamps.push(lamp)
+        }
+      })
+    }
 
     const activeLamps = validCleanLamps.filter((_, idx) => !irregDisabledLamps.has(idx.toString())).length
     const manuallyDisabledCount = validCleanLamps.filter((_, idx) => irregDisabledLamps.has(idx.toString())).length
@@ -1965,7 +2053,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
       simResult,
       gypsumSnap: {
         isSnapped: lampSnapToGypsum,
-        activePhase: lampGridShiftPhase,
+        activePhase,
         recommendedPhase,
         dTop: activePhaseData?.dTop ?? 0,
         dBottom: activePhaseData?.dBottom ?? 0,
@@ -1976,6 +2064,11 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
           dBottom: po.dBottom,
           asymmetry: po.asymmetry,
           rowCount: po.rowCount,
+          lpb: po.lpb,
+          activeCount: po.activeCount,
+          ratio: po.ratio,
+          isInRange: po.isInRange,
+          score: po.score,
         })),
       },
     }
@@ -1993,7 +2086,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
     cashierDepths,
     gypsumCalculation,
     lampSnapToGypsum,
-    lampGridShiftPhase,
+    userShiftPhaseOverride,
   ])
 
   // ─── 10B. Perhitungan Simulasi Lampu Otomatis ──────────────────────────────
@@ -2779,6 +2872,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
     setIsCalculated(false)
     setIsLightCalculated(false)
     setCalculatedTemp(null)
+    setUserShiftPhaseOverride(null)
     setDetectedLatestLog(null)
 
     if (store) {
@@ -8416,7 +8510,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
 
       ctx.restore()
     }
-  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, isLightCalculated, isGypsumCalculated, gypsumCalculation, gypsumOrientation, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, chillerPlacement, chillerAlignments, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions, pillars, selectedPillarId, activeDragPillarId, pillarSizeM, pillarWidthInput, pillarLengthInput, pillarDistXInput, pillarDistYInput, magneticSnapFeedback, zoom, panOffset, isFullscreenCanvas, activeMepTab, lampWatt, lampLen, lampOrient, lampSpasi, irregDisabledLamps, showLightingDimensions, showLightingGlow, lightingCalculation, lampSnapToGypsum, lampGridShiftPhase, showGypsumInLighting])
+  }, [customClosed, customPts, isDark, wallSegments, segmentLengths, isCalculated, isLightCalculated, isGypsumCalculated, gypsumCalculation, gypsumOrientation, placedUnits, activeSnapGuides, activeDragIdx, activeDragAcId, selectedNodeIdx, hoverEdge, cursorPos, pendingZoneStart, pendingCashierDepth, cashierDepths, chillerPlacement, chillerAlignments, activeTool, activeCadMetadata, showZoneLabels, showWallDimensions, showTotalDimensions, pillars, selectedPillarId, activeDragPillarId, pillarSizeM, pillarWidthInput, pillarLengthInput, pillarDistXInput, pillarDistYInput, magneticSnapFeedback, zoom, panOffset, isFullscreenCanvas, activeMepTab, lampWatt, lampLen, lampOrient, lampSpasi, irregDisabledLamps, showLightingDimensions, showLightingGlow, lightingCalculation, lampSnapToGypsum, userShiftPhaseOverride, showGypsumInLighting])
 
   useEffect(() => {
     drawCanvas()
@@ -9917,20 +10011,24 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
                                 size="sm"
                                 variant="outline"
                                 onClick={() => {
-                                  setLampGridShiftPhase((prev) => {
-                                    const next = (prev + 1) % 3
-                                    toast.info(`Fase tulangan rangka digeser ke Fase ${next + 1}/3`)
-                                    return next
-                                  })
+                                  const current = lightingCalculation.gypsumSnap?.activePhase ?? 0
+                                  const next = (current + 1) % 3
+                                  setUserShiftPhaseOverride(next)
+                                  const nextOpt = lightingCalculation.gypsumSnap?.phaseOptions.find((po) => po.phase === next)
+                                  toast.info(`Fase rangka digeser ke Fase ${next + 1}/3 (${nextOpt?.activeCount ?? 0} Titik, ${nextOpt?.ratio ?? 0} W/m²)`)
                                 }}
                                 className="h-6 text-[11px] font-bold gap-1 px-2 border-border/80 bg-background/80 hover:bg-accent text-foreground cursor-pointer shrink-0"
                                 title="Geser fase awal tulangan Main Tee (Fase 1, 2, atau 3)"
                               >
                                 <IconRotateRectangle className="size-3 text-sky-500" />
-                                <span>Fase Rangka {(lampGridShiftPhase % 3) + 1}/3</span>
-                                {lightingCalculation.gypsumSnap?.recommendedPhase === lampGridShiftPhase && (
-                                  <span className="text-[9px] bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-1 py-0.2 rounded font-extrabold">
-                                    Seimbang
+                                <span>Fase Rangka {(lightingCalculation.gypsumSnap?.activePhase ?? 0) + 1}/3</span>
+                                {lightingCalculation.gypsumSnap?.recommendedPhase === lightingCalculation.gypsumSnap?.activePhase ? (
+                                  <span className="text-[9px] bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-1 py-0.2 rounded font-extrabold flex items-center gap-0.5">
+                                    ★ Terbaik ({lightingCalculation.activeLamps} Titik)
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] text-muted-foreground">
+                                    ({lightingCalculation.activeLamps} Titik)
                                   </span>
                                 )}
                               </Button>
@@ -11049,42 +11147,72 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
                               </span>
                             </div>
 
-                            {/* 3-Phase Toggle Buttons */}
+                            {/* 3-Phase Toggle Buttons with Rich Indicators */}
                             <div className="grid grid-cols-3 gap-1.5">
                               {[0, 1, 2].map((p) => {
                                 const opt = lightingCalculation.gypsumSnap?.phaseOptions.find((po) => po.phase === p)
-                                const isSelected = lampGridShiftPhase === p
+                                const isSelected = lightingCalculation.gypsumSnap?.activePhase === p
                                 const isBest = lightingCalculation.gypsumSnap?.recommendedPhase === p
+                                if (!opt) return null
+
                                 return (
                                   <button
                                     key={p}
                                     type="button"
-                                    onClick={() => setLampGridShiftPhase(p)}
-                                    className={`p-1.5 rounded-lg border text-center transition-all cursor-pointer relative ${
+                                    onClick={() => setUserShiftPhaseOverride(p)}
+                                    className={`p-2 rounded-xl border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
                                       isSelected
-                                        ? "border-sky-500 bg-sky-600 text-white shadow-xs font-bold"
-                                        : "border-border/70 bg-background/80 hover:bg-muted/50 text-foreground"
+                                        ? "border-sky-500 bg-sky-600 text-white shadow-sm font-bold ring-2 ring-sky-400/30"
+                                        : "border-border/70 bg-card hover:bg-muted/50 text-foreground"
                                     }`}
                                   >
-                                    <div className="text-[10.5px] font-bold">Fase {p + 1}</div>
-                                    <div className={`text-[9px] font-mono ${isSelected ? "text-sky-100" : "text-muted-foreground"}`}>
-                                      {opt ? `${opt.dTop}m / ${opt.dBottom}m` : "—"}
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className="text-[11px] font-bold">Fase {p + 1}</span>
+                                      {isBest && (
+                                        <span
+                                          className={`text-[8px] font-extrabold px-1.5 py-0.2 rounded shadow-xs whitespace-nowrap ${
+                                            isSelected ? "bg-amber-400 text-slate-900" : "bg-emerald-600 text-white"
+                                          }`}
+                                        >
+                                          ★ Terbaik
+                                        </span>
+                                      )}
                                     </div>
-                                    {isBest && (
-                                      <span
-                                        className={`absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] font-extrabold px-1 rounded shadow-xs whitespace-nowrap ${
-                                          isSelected
-                                            ? "bg-amber-400 text-slate-900"
-                                            : "bg-emerald-600 text-white"
-                                        }`}
-                                      >
-                                        Seimbang
-                                      </span>
-                                    )}
+                                    <div
+                                      className={`text-[10.5px] font-bold mt-1.5 ${
+                                        isSelected
+                                          ? "text-sky-100"
+                                          : opt.isInRange
+                                          ? "text-emerald-600 dark:text-emerald-400"
+                                          : "text-amber-500"
+                                      }`}
+                                    >
+                                      {opt.activeCount} Titik
+                                      <span className="text-[9px] font-normal ml-0.5">({opt.ratio} W/m²)</span>
+                                    </div>
+                                    <div className={`text-[9px] font-mono mt-0.5 ${isSelected ? "text-sky-200" : "text-muted-foreground"}`}>
+                                      {opt.rowCount} Baris • Asim: {opt.asymmetry}m
+                                    </div>
+                                    <div className={`text-[8.5px] mt-0.5 ${isSelected ? "text-sky-200/90" : "text-muted-foreground/80"}`}>
+                                      Atas: {opt.dTop}m / Bwh: {opt.dBottom}m
+                                    </div>
                                   </button>
                                 )
                               })}
                             </div>
+
+                            {userShiftPhaseOverride !== null &&
+                              userShiftPhaseOverride !== lightingCalculation.gypsumSnap?.recommendedPhase && (
+                                <div className="flex justify-end pt-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setUserShiftPhaseOverride(null)}
+                                    className="text-[10px] text-sky-600 dark:text-sky-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <span>Kembalikan ke Pilihan Rekomendasi Otomatis (Fase {(lightingCalculation.gypsumSnap?.recommendedPhase ?? 0) + 1})</span>
+                                  </button>
+                                </div>
+                              )}
 
                             {/* Keterangan Asimetri Jarak Dinding */}
                             {lightingCalculation.gypsumSnap && (
