@@ -18,7 +18,7 @@ import {
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
-import { buildAuditItemRows } from "@/lib/audit-kalkulator"
+import { buildAuditItemRows, isAirConditioner } from "@/lib/audit-kalkulator"
 import { pickBrandPhoto } from "@/lib/equipment-photo"
 import { DEVICE_CATEGORIES, isDeviceCategory } from "@/lib/equipment-categories"
 import { EquipmentThumbnail } from "@/components/audit/equipment-thumbnail"
@@ -126,9 +126,7 @@ const formatKw = (kw: number): string => {
 }
 
 function getAverageDailyRuntime(item: EquipmentItem) {
-  const isAC =
-    (item.name || "").toLowerCase().includes("ac") ||
-    (item.name || "").toLowerCase().includes("air conditioner")
+  const isAC = isAirConditioner(item.name)
   const qty = item.quantity || 1
   const starts = item.startTimes || Array(qty).fill("08:00")
   const ends = item.endTimes || Array(qty).fill("22:00")
@@ -586,15 +584,11 @@ export function AuditStep2Detail({
     return masterItems.find((m) => m.name === activeEquipment.name)
   }, [masterItems, activeEquipment.name])
 
-  const isAC =
-    (activeEquipment.name || "").toLowerCase().includes("ac") ||
-    (activeEquipment.name || "").toLowerCase().includes("air conditioner")
+  const isAC = isAirConditioner(activeEquipment.name)
   const timesToRender = isAC ? quantity : 1
 
   const calcEqDailyKwh = (eq: EquipmentItem) => {
-    const isEqAC =
-      (eq.name || "").toLowerCase().includes("ac") ||
-      (eq.name || "").toLowerCase().includes("air conditioner")
+    const isEqAC = isAirConditioner(eq.name)
     const qty = eq.quantity || 1
     const method = eq.calcMethod || "STANDARD"
     const duration = eq.calcDuration || 0

@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { syncCustomEquipmentSubmissions } from "@/lib/custom-equipment"
 import { getServerErrorMessage } from "@/lib/error-handling"
+import { isAirConditioner } from "@/lib/audit-kalkulator"
 import type { EquipmentState, PlnRowState, StoreType } from "@/store/use-audit-store"
 import type { AreaTarget } from "@prisma/client"
 
@@ -137,9 +138,7 @@ export async function saveAuditDraft(input: SaveDraftInput) {
           const method = typeInfo?.calcMethod ?? eq.calcMethod ?? "STANDARD"
           const duration = typeInfo?.calcDuration ?? eq.calcDuration ?? 0
 
-          const isAC =
-            eq.name.toLowerCase().includes("ac") ||
-            eq.name.toLowerCase().includes("air conditioner")
+          const isAC = isAirConditioner(eq.name)
 
           if (isAC && eq.quantity > 1) {
             for (let i = 0; i < eq.quantity; i++) {
@@ -327,9 +326,7 @@ export async function getAuditDraft(auditId: string) {
 
     audit.items.forEach((item) => {
       const { cleanName } = parseNameAndNotes(item.customName)
-      const isAC =
-        cleanName.toLowerCase().includes("ac") ||
-        cleanName.toLowerCase().includes("air conditioner")
+      const isAC = isAirConditioner(cleanName)
       if (isAC) {
         const key = `${item.areaTarget}-${item.customName}`
         if (!acGroups[key]) {

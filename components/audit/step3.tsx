@@ -11,7 +11,11 @@ import {
 } from "@/store/use-audit-store"
 import { submitAudit } from "@/app/actions/submit-audit"
 import { saveAuditDraft } from "@/app/actions/save-draft"
-import { calculateAudit, getHoursBetween } from "@/lib/audit-kalkulator"
+import {
+  calculateAudit,
+  getHoursBetween,
+  isAirConditioner,
+} from "@/lib/audit-kalkulator"
 import { getDemoAiRecommendation } from "@/app/actions/get-demo-ai-recommendation"
 
 import { AuditStepSkeleton } from "@/components/audit/step-skeleton"
@@ -109,9 +113,7 @@ function buildDemoAuditResult(
   const items = auditState.equipments
     .filter((eq) => eq.selected)
     .flatMap((eq) => {
-      const isAC =
-        eq.name.toLowerCase().includes("ac") ||
-        eq.name.toLowerCase().includes("air conditioner")
+      const isAC = isAirConditioner(eq.name)
 
       if (isAC && eq.quantity > 1) {
         return Array.from({ length: eq.quantity }, (_, i) => {

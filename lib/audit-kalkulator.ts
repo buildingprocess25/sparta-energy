@@ -17,9 +17,10 @@ export function getHoursBetween(start: string, end: string): number {
   return diff
 }
 
-export function isAirConditioner(name: string) {
-  const lower = name.toLowerCase()
-  return lower.includes("ac") || lower.includes("air conditioner")
+// Whole word only: a bare "ac" substring also matched "Rack on freezer" and "Track Light".
+export function isAirConditioner(name: string | null | undefined) {
+  if (!name) return false
+  return /\bac\b/i.test(name) || /\bair\s*conditioner/i.test(name)
 }
 
 export type CalcMethodInfo = {

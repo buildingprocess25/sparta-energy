@@ -1,6 +1,10 @@
 import assert from "node:assert/strict"
 
-import { buildAuditItemRows, calculateAudit } from "./audit-kalkulator"
+import {
+  buildAuditItemRows,
+  calculateAudit,
+  isAirConditioner,
+} from "./audit-kalkulator"
 import { summarizeAuditItems } from "./audit-recalculate"
 import type { EquipmentState } from "@/store/use-audit-store"
 
@@ -129,6 +133,61 @@ assert.equal(
   calculateAudit([lateAc], [{ month: "Jan", kwh: 99999, std: 0 }], store)
     .recommendationType,
   "TRAINING"
+)
+
+// AC is matched as a whole word, so names that merely contain "ac" stay regular equipment.
+for (const name of ["Air Conditioner", "AC", "AC Split 2 PK", "Unit AC", "AC-Standing", "air  conditioner"]) {
+  assert.equal(isAirConditioner(name), true, name)
+}
+for (const name of [
+  "Rack on freezer",
+  "Lampu Sorot (Track Light)",
+  "Vacuum Cleaner",
+  "Ice Pack",
+  "Mesin Packaging",
+  "Snack Display",
+  "",
+  null,
+  undefined,
+]) {
+  assert.equal(isAirConditioner(name), false, String(name))
+}
+
+// A non-AC "rack" with qty 3 stays one row and keeps its master calcMethod.
+const rack = equipment({
+  name: "Rack on freezer",
+  quantity: 3,
+  kw: 0.65,
+  kws: [0.65],
+  startTimes: ["05:00"],
+  endTimes: ["23:59"],
+})
+const rackRows = buildAuditItemRows([rack])
+assert.equal(rackRows.length, 1)
+assert.equal(rackRows[0].qty, 3)
+assert.equal(rackRows[0].isAC, false)
+
+const packer = equipment({
+  name: "Mesin Packaging",
+  quantity: 2,
+  kw: 1,
+  kws: [1],
+  runningKws: [2],
+  standbyKws: [0.1],
+  usages: [60],
+  calcMethod: "TRANSACTION",
+  calcDuration: 60,
+})
+const packerRows = buildAuditItemRows([packer])
+assert.equal(packerRows.length, 1)
+assert.equal(packerRows[0].calcMethod, "TRANSACTION")
+assert.equal(packerRows[0].estimatedDailyKwh, (2 * 1 + 0.1 * 15) * 2)
+
+// Running past store hours only flags TRAINING for a real AC.
+assert.equal(
+  calculateAudit([rack], [{ month: "Jan", kwh: 99999, std: 0 }], store)
+    .recommendationType,
+  "REPAIR"
 )
 
 console.log("audit-kalkulator tests passed")
