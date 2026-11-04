@@ -4914,7 +4914,7 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
             ctx.closePath()
             ctx.strokeStyle = "#f59e0b"
             ctx.lineWidth = 1.8
-            ctx.setLineDash([5, 3])
+            ctx.setLineDash([3, 2])
             ctx.stroke()
             ctx.setLineDash([])
 
@@ -8053,13 +8053,15 @@ export function StoreMepSimulatorClient({ stores, initialLoadedLog, isAdmin = fa
       gypsumCalculation.gridLines.forEach((line) => {
         ctx.save()
         if (line.type === "border") {
-          ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.55)" : "rgba(217, 119, 6, 0.55)"
-          ctx.setLineDash([3, 2])
-          ctx.lineWidth = 1.0
+          ctx.strokeStyle = effectiveIsDark ? "rgba(245, 158, 11, 0.75)" : "rgba(217, 119, 6, 0.80)"
+          ctx.setLineDash([5, 3])
+          ctx.lineWidth = 1.5
         } else {
-          ctx.strokeStyle = effectiveIsDark ? "rgba(148, 163, 184, 0.40)" : "rgba(100, 116, 139, 0.40)"
+          ctx.strokeStyle = line.type === "main"
+            ? (effectiveIsDark ? "rgba(226, 232, 240, 0.85)" : "rgba(51, 65, 85, 0.85)")
+            : (effectiveIsDark ? "rgba(148, 163, 184, 0.40)" : "rgba(100, 116, 139, 0.40)")
           ctx.setLineDash([])
-          ctx.lineWidth = line.type === "main" ? 1.1 : 0.8
+          ctx.lineWidth = line.type === "main" ? 2.0 : 0.8
         }
 
         if (line.orientation === "h") {
