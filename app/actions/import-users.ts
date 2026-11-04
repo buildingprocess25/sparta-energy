@@ -1,10 +1,10 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import * as crypto from "crypto"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 
 import { requireUserManager } from "@/lib/admin-auth"
+import { hashUserPassword, legacySha256 } from "@/lib/password"
 import { prisma } from "@/lib/prisma"
 
 type ActionResult = {
@@ -19,9 +19,6 @@ type ImportUserInput = {
   password: string
 }
 
-function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex")
-}
 
 /**
  * Checks which emails from a given list are already registered in the database.
@@ -115,16 +112,23 @@ export async function importUsersBulk(
     }
 
     // Step 4: Perform bulk insertion in a transaction
+    // scrypt is slow on purpose, so hashing runs before the transaction opens.
+    const accountHashes = await Promise.all(
+      newUsersToInsert.map((u) => hashUserPassword(u.password))
+    )
+
     await prisma.$transaction(async (tx) => {
-      for (const u of newUsersToInsert) {
+      for (const [index, u] of newUsersToInsert.entries()) {
         const emailNorm = u.email.trim().toLowerCase()
-        const hashed = hashPassword(u.password)
+        // users.password_hash stays SHA-256 until the other repos are checked; sign-in reads account.password.
+        const legacyHash = legacySha256(u.password)
+        const accountHash = accountHashes[index]
 
         // Create User
         const newUser = await tx.user.create({
           data: {
             email: emailNorm,
-            passwordHash: hashed,
+            passwordHash: legacyHash,
             role: "USER",
             fullName: u.fullName.trim().toUpperCase(),
             branch: u.branch ? u.branch.trim() : null,
@@ -139,7 +143,7 @@ export async function importUsersBulk(
             accountId: newUser.id,
             providerId: "credential",
             userId: newUser.id,
-            password: hashed,
+            password: accountHash,
             createdAt: new Date(),
             updatedAt: new Date(),
           },

@@ -6,9 +6,10 @@
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
-import * as crypto from "crypto"
 import "dotenv/config"
 import { getPoolConfig } from "../lib/db-utils"
+// users.password_hash stays SHA-256 until the other repos are checked; sign-in reads account.password.
+import { hashUserPassword, legacySha256 } from "../lib/password"
 import { mapLegacyDeviceCategory } from "../lib/equipment-categories"
 
 const pool = new Pool(getPoolConfig())
@@ -88,9 +89,6 @@ const equipmentData: { name: string; category: string; deviceCategory: string; d
   { name: "Sliding Flat Glass Freezer", category: "BEANSPOT", deviceCategory: "Sistem Pendingin Produk", defaultKw: "0.1377012771", storeType: "Beanspot", brands: [], calcMethod: "STANDARD", calcDuration: null },
 ]
 
-function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex")
-}
 
 async function main() {
   console.log("🌱 Starting seed...")
@@ -266,7 +264,7 @@ async function main() {
     update: { branch: "Head Office" },
     create: {
       email: "auditor@sparta.id",
-      passwordHash: hashPassword("sparta123"),
+      passwordHash: legacySha256("sparta123"),
       role: "USER",
       fullName: "Auditor SPARTA",
       branch: "Head Office",
@@ -279,14 +277,14 @@ async function main() {
       id: `credential-${user.id}`,
     },
     update: {
-      password: hashPassword("sparta123"),
+      password: await hashUserPassword("sparta123"),
     },
     create: {
       id: `credential-${user.id}`,
       accountId: user.id,
       providerId: "credential",
       userId: user.id,
-      password: hashPassword("sparta123"),
+      password: await hashUserPassword("sparta123"),
       createdAt: new Date(),
       updatedAt: new Date(),
     },
@@ -352,7 +350,7 @@ async function main() {
     update: { branch: "DEMO" },
     create: {
       email: "demo@sparta.app",
-      passwordHash: hashPassword(DEMO_PASSWORD),
+      passwordHash: legacySha256(DEMO_PASSWORD),
       role: "USER",
       fullName: "Demo User",
       branch: "DEMO",
@@ -361,13 +359,13 @@ async function main() {
 
   await prisma.account.upsert({
     where: { id: `credential-${demoUser.id}` },
-    update: { password: hashPassword(DEMO_PASSWORD) },
+    update: { password: await hashUserPassword(DEMO_PASSWORD) },
     create: {
       id: `credential-${demoUser.id}`,
       accountId: demoUser.id,
       providerId: "credential",
       userId: demoUser.id,
-      password: hashPassword(DEMO_PASSWORD),
+      password: await hashUserPassword(DEMO_PASSWORD),
       createdAt: new Date(),
       updatedAt: new Date(),
     },

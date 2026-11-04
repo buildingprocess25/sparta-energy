@@ -1,7 +1,8 @@
 import { betterAuth } from "better-auth"
 import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api"
-import { createHash } from "crypto"
 import { dbPool } from "@/lib/db-pool"
+import { checkUserPassword, hashUserPassword } from "@/lib/password"
+import { prisma } from "@/lib/prisma"
 import { createLockout, retryAfterSeconds } from "@/lib/rate-limit"
 import {
   deleteSessionsByToken,
@@ -15,6 +16,19 @@ const signInLockout = createLockout({
   windowMs: 15 * 60_000,
   lockMs: 2 * 60_000,
 })
+
+// Users who shared one legacy hash share the password too, so all of them move
+// to scrypt together. A failed upgrade never blocks the sign-in itself.
+async function upgradeLegacyPassword(legacyHash: string, password: string) {
+  try {
+    await prisma.account.updateMany({
+      where: { providerId: "credential", password: legacyHash },
+      data: { password: await hashUserPassword(password) },
+    })
+  } catch (error) {
+    console.error("[Auth] Could not upgrade a legacy password hash", error)
+  }
+}
 
 function signInKey(email: unknown) {
   return typeof email === "string" ? email.trim().toLowerCase() : ""
@@ -70,11 +84,11 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     password: {
-      hash: async (password) => {
-        return createHash("sha256").update(password).digest("hex")
-      },
+      hash: hashUserPassword,
       verify: async ({ hash, password }) => {
-        return hash === createHash("sha256").update(password).digest("hex")
+        const result = await checkUserPassword(hash, password)
+        if (result.needsUpgrade) await upgradeLegacyPassword(hash, password)
+        return result.valid
       },
     },
   },

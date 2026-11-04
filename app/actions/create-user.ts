@@ -5,6 +5,7 @@ import * as crypto from "crypto"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 
 import { requireUserManager } from "@/lib/admin-auth"
+import { hashUserPassword, legacySha256 } from "@/lib/password"
 import { prisma } from "@/lib/prisma"
 import { isRole, usesBranch } from "@/lib/role-access"
 import type { Role } from "@prisma/client"
@@ -21,9 +22,6 @@ type CreateUserInput = {
   branch: string | null
 }
 
-function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex")
-}
 
 export async function createUser(
   input: CreateUserInput
@@ -72,13 +70,16 @@ export async function createUser(
     const trimmedFullName = fullName?.trim() || null
     const normalizedBranch = usesBranch(role) ? branch?.trim() || null : null
     const dummyPassword = crypto.randomBytes(16).toString("hex")
+    // users.password_hash stays SHA-256 until the other repos are checked; sign-in reads account.password.
+    const legacyHash = legacySha256(dummyPassword)
+    const accountHash = await hashUserPassword(dummyPassword)
 
     // Execute in a transaction to create both User and Account
     await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
           email: normalizedEmail,
-          passwordHash: hashPassword(dummyPassword),
+          passwordHash: legacyHash,
           role,
           fullName: trimmedFullName,
           branch: normalizedBranch,
@@ -92,7 +93,7 @@ export async function createUser(
           accountId: newUser.id,
           providerId: "credential",
           userId: newUser.id,
-          password: hashPassword(dummyPassword),
+          password: accountHash,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
