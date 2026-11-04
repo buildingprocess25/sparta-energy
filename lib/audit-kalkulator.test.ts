@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import {
   buildAuditItemRows,
   calculateAudit,
+  getHoursBetween,
   isAirConditioner,
 } from "./audit-kalkulator"
 import { summarizeAuditItems } from "./audit-recalculate"
@@ -51,9 +52,18 @@ const chiller = equipment({
 })
 const chillerCalc = calculateAudit([chiller], [], store)
 assert.ok(
-  Math.abs(chillerCalc.equipmentEstimateKwhPerMonth - 0.494 * 5 * (23 + 59 / 60) * 30) <
-    1e-9
+  Math.abs(chillerCalc.equipmentEstimateKwhPerMonth - 0.494 * 5 * 24 * 30) < 1e-9
 )
+
+// 00:00-23:59 is "24 jam"; every other range keeps its exact length.
+assert.equal(getHoursBetween("00:00", "23:59"), 24)
+assert.equal(getHoursBetween("00:00", "00:00"), 24)
+assert.equal(getHoursBetween("00:00", "24:00"), 24)
+assert.equal(getHoursBetween("08:00", "08:00"), 24)
+assert.equal(getHoursBetween("08:00", "22:00"), 14)
+assert.equal(getHoursBetween("22:00", "06:00"), 8)
+assert.equal(getHoursBetween("17:30", "07:00"), 13.5)
+assert.ok(Math.abs(getHoursBetween("10:00", "09:59") - (23 + 59 / 60)) < 1e-9)
 
 // Non-AC with qty > 1 and a single brand kW: every unit uses that kW, not the type default.
 const freezer = equipment({

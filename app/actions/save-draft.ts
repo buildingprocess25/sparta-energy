@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { syncCustomEquipmentSubmissions } from "@/lib/custom-equipment"
 import { getServerErrorMessage } from "@/lib/error-handling"
-import { isAirConditioner } from "@/lib/audit-kalkulator"
+import { getHoursBetween, isAirConditioner } from "@/lib/audit-kalkulator"
 import type { EquipmentState, PlnRowState, StoreType } from "@/store/use-audit-store"
 import type { AreaTarget } from "@prisma/client"
 
@@ -20,14 +20,7 @@ function toAreaTarget(areaName: string): AreaTarget {
 
 function getSingleDuration(start: string, end: string) {
   if (!start || !end) return 14
-  if (start === "00:00" && (end === "23:59" || end === "00:00" || end === "24:00")) {
-    return 24
-  }
-  const [sh, sm] = start.split(":").map(Number)
-  const [eh, em] = end.split(":").map(Number)
-  let diffMinutes = eh * 60 + em - (sh * 60 + sm)
-  if (diffMinutes <= 0) diffMinutes += 24 * 60
-  return diffMinutes / 60
+  return getHoursBetween(start, end)
 }
 
 type SaveDraftInput = {

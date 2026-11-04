@@ -73,6 +73,11 @@ function endTimeFor(hours: number) {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`
 }
 
+// Exports were stored with 00:00-23:59 as 23.983 h; the form now stores 24 h for those rows.
+function expectedMonthly(row: ExportRow) {
+  return row[3] === 23.98 ? (row[5] * 24) / (23 + 59 / 60) : row[5]
+}
+
 // Rebuilds the form state. Every item gets a brand running kW that differs from
 // its base kW, which is what pushed the old submit total away from the items.
 function toEquipments(rows: ExportRow[]): EquipmentState[] {
@@ -126,7 +131,8 @@ function replay(label: string, rows: ExportRow[], manualTotal: number, avgPln: n
   const equipments = toEquipments(rows)
   const calc = calculateAudit(equipments, [{ month: "Jan", kwh: avgPln, std: 0 }], store)
   const rowsMonthly = buildAuditItemRows(equipments).map((row) => row.estimatedDailyKwh * 30)
-  const exportedTotal = rows.reduce((sum, row) => sum + row[5], 0)
+  const exported = rows.map(expectedMonthly)
+  const exportedTotal = exported.reduce((sum, kwh) => sum + kwh, 0)
   const rowsTotal = rowsMonthly.reduce((sum, kwh) => sum + kwh, 0)
 
   // Submitted standard equals the stored rows exactly.
@@ -135,11 +141,11 @@ function replay(label: string, rows: ExportRow[], manualTotal: number, avgPln: n
   // Stored rows match the export row by row (export rounds to 2 decimals).
   assert.equal(rowsMonthly.length, rows.length, label)
   rows.forEach((row, i) => {
-    assert.ok(Math.abs(rowsMonthly[i] - row[5]) <= 0.006, `${label} row ${i} ${row[1]}`)
+    assert.ok(Math.abs(rowsMonthly[i] - exported[i]) <= 0.006, `${label} row ${i} ${row[1]}`)
   })
   assert.ok(Math.abs(calc.equipmentEstimateKwhPerMonth - exportedTotal) < 0.01 * rows.length, label)
 
-  // Manual sheet uses 23.98 h instead of 23:59, so it sits a little lower.
+  // Manual sheet uses 23.98 h where the form now counts 24 h, so it sits a little lower.
   const drift = (calc.equipmentEstimateKwhPerMonth - manualTotal) / manualTotal
   assert.ok(drift >= 0 && drift < 0.001, `${label} drift ${drift}`)
 
@@ -152,7 +158,8 @@ function replay(label: string, rows: ExportRow[], manualTotal: number, avgPln: n
 // W441 PLN average 5.956 kWh: Hemat against the corrected standard (screenshot left side).
 const w441 = replay("W441", W441, 6562.0644, 5956)
 assert.equal(w441.isBoros, false)
-assert.equal(Math.round(w441.equipmentEstimateKwhPerMonth), 6562)
+// 6562 when stored with 23.98 h; 24 h rows add about 2.4 kWh.
+assert.equal(Math.round(w441.equipmentEstimateKwhPerMonth), 6565)
 
 replay("TF67", TF67, 10682.1558, 10000)
 

@@ -2,6 +2,8 @@ import { BOROS_TOLERANCE } from "@/lib/audit-recalculate"
 import { type EquipmentState, type PlnRowState } from "@/store/use-audit-store"
 
 export function getHoursBetween(start: string, end: string): number {
+  // The time picker stops at 23:59, so 00:00-23:59 is the form's "24 jam".
+  if (start === "00:00" && end === "23:59") return 24
   const [h1, m1] = start.split(":").map(Number)
   const [h2, m2] = end.split(":").map(Number)
   let totalH = h2 - h1

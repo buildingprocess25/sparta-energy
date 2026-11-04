@@ -18,7 +18,11 @@ import {
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
-import { buildAuditItemRows, isAirConditioner } from "@/lib/audit-kalkulator"
+import {
+  buildAuditItemRows,
+  getHoursBetween,
+  isAirConditioner,
+} from "@/lib/audit-kalkulator"
 import { pickBrandPhoto } from "@/lib/equipment-photo"
 import { DEVICE_CATEGORIES, isDeviceCategory } from "@/lib/equipment-categories"
 import { EquipmentThumbnail } from "@/components/audit/equipment-thumbnail"
@@ -106,14 +110,7 @@ type Step2DetailProps = {
 
 const getSingleDuration = (start: string, end: string) => {
   if (!start || !end) return 14
-  if (start === "00:00" && (end === "23:59" || end === "00:00" || end === "24:00")) {
-    return 24
-  }
-  const [sh, sm] = (start || "08:00").split(":").map(Number)
-  const [eh, em] = (end || "22:00").split(":").map(Number)
-  let diffMinutes = eh * 60 + em - (sh * 60 + sm)
-  if (diffMinutes <= 0) diffMinutes += 24 * 60
-  return diffMinutes / 60
+  return getHoursBetween(start, end)
 }
 
 /** Format kW untuk tampilan UI: max 3 desimal, tanpa trailing zero */
