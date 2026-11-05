@@ -11,11 +11,7 @@ import {
 } from "@/store/use-audit-store"
 import { submitAudit } from "@/app/actions/submit-audit"
 import { saveAuditDraft } from "@/app/actions/save-draft"
-import {
-  calculateAudit,
-  getHoursBetween,
-  isAirConditioner,
-} from "@/lib/audit-kalkulator"
+import { calculateAudit } from "@/lib/audit-kalkulator"
 import { getDemoAiRecommendation } from "@/app/actions/get-demo-ai-recommendation"
 
 import { AuditStepSkeleton } from "@/components/audit/step-skeleton"
@@ -110,41 +106,15 @@ function buildDemoAuditResult(
     plnPowerVa: auditState.plnPowerVa,
   })
 
-  const items = auditState.equipments
-    .filter((eq) => eq.selected)
-    .flatMap((eq) => {
-      const isAC = isAirConditioner(eq.name)
-
-      if (isAC && eq.quantity > 1) {
-        return Array.from({ length: eq.quantity }, (_, i) => {
-          const start = eq.startTimes[i] || "08:00"
-          const end = eq.endTimes[i] || "22:00"
-          const hours = getHoursBetween(start, end)
-          return {
-            areaTarget: toAreaTarget(eq.areaName),
-            customName: eq.name,
-            qty: 1,
-            operationalHours: hours,
-            baseKw: eq.kw,
-            estimatedDailyKwh: eq.kw * hours,
-          }
-        })
-      }
-
-      const start = eq.startTimes[0] || "08:00"
-      const end = eq.endTimes[0] || "22:00"
-      const hours = getHoursBetween(start, end)
-      return [
-        {
-          areaTarget: toAreaTarget(eq.areaName),
-          customName: eq.name,
-          qty: eq.quantity,
-          operationalHours: hours,
-          baseKw: eq.kw,
-          estimatedDailyKwh: eq.kw * eq.quantity * hours,
-        },
-      ]
-    })
+  // Same rows as submit, so the demo shows what a real calculation would store.
+  const items = calc.itemRows.map((row) => ({
+    areaTarget: toAreaTarget(row.equipment.areaName),
+    customName: row.equipment.name,
+    qty: row.qty,
+    operationalHours: row.operationalHours,
+    baseKw: row.baseKw,
+    estimatedDailyKwh: row.estimatedDailyKwh,
+  }))
 
   return {
     id: "demo",
@@ -359,7 +329,7 @@ Estimasi Kebutuhan Alat: ${calc.equipmentEstimateKwhPerMonth.toFixed(0)} kWh/bul
 Aktual Rata-rata PLN: ${calc.avgActualPlnKwhPerMonth.toFixed(0)} kWh/bulan
 Tipe Rekomendasi (Hard-coded fallback calc): ${calc.recommendationType}
 Daftar Peralatan (Format: Qty x Nama = Est Kwh/hari):
-${auditState.equipments.map((eq) => `- ${eq.quantity}x ${eq.name}${eq.notes ? ` (Ket: ${eq.notes})` : ""} = ${(eq.kw * eq.quantity * getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00")).toFixed(1)} kWh/hari`).join("\n")}
+${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name}${row.equipment.notes ? ` (Ket: ${row.equipment.notes})` : ""} = ${row.estimatedDailyKwh.toFixed(1)} kWh/hari`).join("\n")}
 `
         const aiResult = await getDemoAiRecommendation(
           auditSummary,

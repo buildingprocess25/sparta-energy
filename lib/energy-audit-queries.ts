@@ -35,6 +35,7 @@ import {
   type EnergyAuditExportFilters,
 } from "@/lib/energy-audit-export-filters"
 import { prisma } from "@/lib/prisma"
+import { AC_DEVICE_CATEGORIES, LIGHTING_DEVICE_CATEGORIES } from "@/lib/equipment-categories"
 
 export const ENERGY_AUDIT_PAGE_SIZE = 20
 
@@ -282,24 +283,25 @@ export type LampOption = {
 // Lighting types and brands from the equipment master, so auditors pick
 // instead of typing; each brand carries its own power rating.
 // Master equipment types and their brands, offered as picks in the audit forms.
-// Beanspot lamps sit under "Sistem Beanspot" but still belong in Tata Cahaya.
+// Beanspot lamps sit under the Beanspot category but still belong in Tata Cahaya.
 const LIGHTING_TYPES: Prisma.EquipmentTypeWhereInput = {
   OR: [
-    { deviceCategory: "Sistem Tata Cahaya" },
+    { deviceCategory: { in: LIGHTING_DEVICE_CATEGORIES } },
     { category: "BEANSPOT", name: { startsWith: "Lampu", mode: "insensitive" } },
   ],
 }
 
-// Exhaust fans share "Sistem Tata Udara dan Ventilasi" with AC; only AC are units.
+// Exhaust fans share the VAC category with AC; only AC are units.
 const AC_TYPES: Prisma.EquipmentTypeWhereInput = {
-  deviceCategory: "Sistem Tata Udara dan Ventilasi",
+  deviceCategory: { in: AC_DEVICE_CATEGORIES },
   NOT: { name: { contains: "Exhaust", mode: "insensitive" } },
 }
 
 function isAcType(type: { name: string; deviceCategory: string } | null) {
   return (
-    type?.deviceCategory === "Sistem Tata Udara dan Ventilasi" &&
-    !/exhaust/i.test(type.name)
+    Boolean(type) &&
+    (AC_DEVICE_CATEGORIES as string[]).includes(type!.deviceCategory) &&
+    !/exhaust/i.test(type!.name)
   )
 }
 

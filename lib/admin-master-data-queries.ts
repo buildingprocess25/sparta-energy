@@ -92,6 +92,12 @@ export type MasterEquipmentRow = {
   createdAt: string
   calcMethod: string
   calcDuration: number | null
+  operationType: string
+  nameplateKw: number | null
+  runningPctOfNameplate: number | null
+  standbyPctOfNameplate: number | null
+  runningTimePct: number | null
+  standbyTimePct: number | null
   createdByName?: string | null
   createdByEmail?: string | null
 }
@@ -105,6 +111,7 @@ export type MasterEquipmentTypeOption = {
   defaultKw: number
   calcMethod: string
   calcDuration: number | null
+  operationType: string
 }
 
 export type MasterDataSummary = {
@@ -169,10 +176,26 @@ type RawMasterStoreRow = Omit<
   updatedAt: Date | string
 }
 
+type DecimalValue = { toString(): string } | string | number
+
 type RawMasterEquipmentRow = Omit<
   MasterEquipmentRow,
-  "defaultKw" | "baseKw" | "standbyKw" | "runningKw" | "createdAt"
+  | "defaultKw"
+  | "baseKw"
+  | "standbyKw"
+  | "runningKw"
+  | "createdAt"
+  | "nameplateKw"
+  | "runningPctOfNameplate"
+  | "standbyPctOfNameplate"
+  | "runningTimePct"
+  | "standbyTimePct"
 > & {
+  nameplateKw: DecimalValue | null
+  runningPctOfNameplate: DecimalValue | null
+  standbyPctOfNameplate: DecimalValue | null
+  runningTimePct: DecimalValue | null
+  standbyTimePct: DecimalValue | null
   defaultKw: { toString(): string } | string | number
   baseKw: { toString(): string } | string | number
   standbyKw: { toString(): string } | string | number
@@ -275,6 +298,10 @@ function toNumber(value: unknown) {
   return Number(value)
 }
 
+function toNullableNumber(value: unknown) {
+  return value === null || value === undefined ? null : Number(value)
+}
+
 function serializeStoreRow(row: RawMasterStoreRow): MasterStoreRow {
   return {
     ...row,
@@ -296,6 +323,11 @@ function serializeEquipmentRow(row: RawMasterEquipmentRow): MasterEquipmentRow {
     baseKw: toNumber(row.baseKw),
     standbyKw: toNumber(row.standbyKw),
     runningKw: toNumber(row.runningKw),
+    nameplateKw: toNullableNumber(row.nameplateKw),
+    runningPctOfNameplate: toNullableNumber(row.runningPctOfNameplate),
+    standbyPctOfNameplate: toNullableNumber(row.standbyPctOfNameplate),
+    runningTimePct: toNullableNumber(row.runningTimePct),
+    standbyTimePct: toNullableNumber(row.standbyTimePct),
     createdAt: new Date(row.createdAt).toISOString(),
     calcDuration: row.calcDuration !== null && row.calcDuration !== undefined ? Number(row.calcDuration) : null,
     createdByName: row.createdByName || null,
@@ -756,6 +788,7 @@ export async function getMasterEquipmentTypeOptions(): Promise<
       defaultKw: true,
       calcMethod: true,
       calcDuration: true,
+      operationType: true,
     },
   })
 
@@ -768,6 +801,7 @@ export async function getMasterEquipmentTypeOptions(): Promise<
     defaultKw: Number(row.defaultKw),
     calcMethod: row.calcMethod,
     calcDuration: row.calcDuration,
+    operationType: row.operationType,
   }))
 }
 
@@ -824,6 +858,12 @@ export async function getMasterEquipmentRows({
         eb.created_at AS "createdAt",
         et.calc_method AS "calcMethod",
         et.calc_duration AS "calcDuration",
+        et.operation_type AS "operationType",
+        eb.nameplate_kw AS "nameplateKw",
+        eb.running_pct_of_nameplate AS "runningPctOfNameplate",
+        eb.standby_pct_of_nameplate AS "standbyPctOfNameplate",
+        eb.running_time_pct AS "runningTimePct",
+        eb.standby_time_pct AS "standbyTimePct",
         u.full_name AS "createdByName",
         u.email AS "createdByEmail"
       ${getEquipmentFromSql()}

@@ -2,11 +2,13 @@
 
 import * as React from "react"
 import {
+  IconAirConditioning,
   IconBulb,
+  IconCashRegister,
   IconCoffee,
   IconCpu,
   IconFridge,
-  IconWind,
+  IconSignRight,
 } from "@tabler/icons-react"
 
 import {
@@ -23,11 +25,13 @@ export const CATEGORY_ICONS: Record<
   DeviceCategory,
   React.ComponentType<{ className?: string }>
 > = {
-  "Sistem Tata Cahaya": IconBulb,
-  "Sistem Tata Udara dan Ventilasi": IconWind,
-  "Sistem Refrigerasi": IconFridge,
-  "Sistem Beanspot": IconCoffee,
-  Lainnya: IconCpu,
+  Refrigeration: IconFridge,
+  Lighting: IconBulb,
+  VAC: IconAirConditioning,
+  POS: IconCashRegister,
+  "Signage & Display": IconSignRight,
+  "Kitchen & Food Processing (Beanspot)": IconCoffee,
+  "Other Equipment": IconCpu,
 }
 
 const SIZES = {

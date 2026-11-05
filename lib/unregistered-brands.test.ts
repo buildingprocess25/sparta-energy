@@ -12,6 +12,8 @@ function row(overrides: Partial<FieldBrandRow>): FieldBrandRow {
     equipmentTypeId: "ac",
     typeName: "Air Conditioner",
     calcMethod: "STANDARD",
+    operationType: "STATIS",
+    cycleSeconds: null,
     brandName: "Panasonc",
     baseKw: 1.07,
     areaTarget: "SALES",
@@ -58,32 +60,48 @@ assert.equal(panasonc.lastSeen, "2026-10-20T00:00:00.000Z")
 // The same name on another type is a separate brand.
 assert.equal(groups[1].equipmentTypeId, "fz")
 
-// STANDARD types copy base kW into running kW, with 5% standby.
-assert.deepEqual(
-  toMasterBrandData({ brandName: "  Gea  Prime ", baseKw: 0.48, areaTarget: "SALES" }, "STANDARD"),
-  { name: "Gea Prime", baseKw: 0.48, runningKw: 0.48, standbyKw: 0.48 * 0.05, areaTarget: "SALES" }
+// Saving to the master follows the type's characteristic (energy formula v2).
+const statis = { operationType: "STATIS", calcMethod: "STANDARD", cycleSeconds: null }
+const statisBrand = toMasterBrandData(
+  { brandName: "  Gea  Prime ", areaTarget: "SALES", profile: { nameplateKw: 0.48 } },
+  statis
 )
+assert.equal(statisBrand.name, "Gea Prime")
+assert.equal(statisBrand.baseKw, 0.48)
+assert.equal(statisBrand.nameplateKw, 0.48)
 
-// Usage-based types must carry a running kW above 0.
+// DINAMIS needs running power and running time; H is computed, not typed.
+const dinamis = { operationType: "DINAMIS", calcMethod: "STANDARD", cycleSeconds: null }
+const fridge = toMasterBrandData(
+  {
+    brandName: "Gea",
+    areaTarget: "SALES",
+    profile: { nameplateKw: 0.9, runningPctOfNameplate: 95, standbyPctOfNameplate: 10, runningTimePct: 20 },
+  },
+  dinamis
+)
+assert.ok(Math.abs(fridge.baseKw - 0.243) < 1e-9)
 assert.throws(
-  () => toMasterBrandData({ brandName: "Krups", baseKw: 1.2, runningKw: 0, areaTarget: "SALES" }, "TRANSACTION"),
+  () => toMasterBrandData({ brandName: "Gea", areaTarget: "SALES", profile: { nameplateKw: 0.9, runningKw: 0 } }, dinamis),
   UnregisteredBrandError
 )
-assert.deepEqual(
-  toMasterBrandData(
-    { brandName: "Krups", baseKw: 1.2, runningKw: 1.5, standbyKw: 0.05, areaTarget: "SALES" },
-    "BATCH"
-  ),
-  { name: "Krups", baseKw: 1.2, runningKw: 1.5, standbyKw: 0.05, areaTarget: "SALES" }
+
+// Usage-based types still need their cycle time on the type.
+assert.throws(
+  () =>
+    toMasterBrandData(
+      { brandName: "Krups", areaTarget: "SALES", profile: { nameplateKw: 1.2, runningKw: 1.2, standbyKw: 0.05, runningTimePct: 20 } },
+      { operationType: "DINAMIS", calcMethod: "TRANSACTION", cycleSeconds: null }
+    ),
+  UnregisteredBrandError
 )
 
 for (const bad of [
-  { brandName: " ", baseKw: 1, areaTarget: "SALES" as const },
-  { brandName: "X", baseKw: 0, areaTarget: "SALES" as const },
-  { brandName: "X", baseKw: Number.NaN, areaTarget: "SALES" as const },
-  { brandName: "X", baseKw: 1, areaTarget: "ROOF" as never },
+  { brandName: " ", areaTarget: "SALES" as const, profile: { nameplateKw: 1 } },
+  { brandName: "X", areaTarget: "SALES" as const, profile: { nameplateKw: 0 } },
+  { brandName: "X", areaTarget: "ROOF" as never, profile: { nameplateKw: 1 } },
 ]) {
-  assert.throws(() => toMasterBrandData(bad, "STANDARD"), UnregisteredBrandError)
+  assert.throws(() => toMasterBrandData(bad, statis), UnregisteredBrandError)
 }
 
 console.log("unregistered-brands tests passed")

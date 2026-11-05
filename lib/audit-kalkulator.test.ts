@@ -191,7 +191,10 @@ const packer = equipment({
 const packerRows = buildAuditItemRows([packer])
 assert.equal(packerRows.length, 1)
 assert.equal(packerRows[0].calcMethod, "TRANSACTION")
-assert.equal(packerRows[0].estimatedDailyKwh, (2 * 1 + 0.1 * 15) * 2)
+// Formula v2: 60 packs is the store total for both machines, so standby is 2 × 16 h − 1 h.
+assert.ok(Math.abs(packerRows[0].estimatedDailyKwh - (2 * 1 + 0.1 * 31)) < 1e-9)
+assert.equal(packerRows[0].formulaVersion, 2)
+assert.equal(packerRows[0].operationType, "DINAMIS")
 
 // Running past store hours only flags TRAINING for a real AC.
 assert.equal(
@@ -199,5 +202,22 @@ assert.equal(
     .recommendationType,
   "REPAIR"
 )
+
+// DINAMIS STANDAR: K comes from the store's open hours passed by calculateAudit.
+const dynamicAc = equipment({
+  name: "Air Conditioner",
+  kw: 1.07,
+  kws: [1.07],
+  runningKws: [1.07],
+  standbyKws: [0.05],
+  operationType: "DINAMIS",
+  startTimes: ["10:00"],
+  endTimes: ["18:00"],
+})
+const dynamicCalc = calculateAudit([dynamicAc], [], store)
+const dynamicRow = dynamicCalc.itemRows[0]
+assert.equal(dynamicRow.storeHours, 16)
+assert.ok(Math.abs(dynamicRow.runningTimePct! - 50) < 1e-9)
+assert.ok(Math.abs(dynamicRow.estimatedDailyKwh - (1.07 * 8 + 0.05 * 8)) < 1e-9)
 
 console.log("audit-kalkulator tests passed")

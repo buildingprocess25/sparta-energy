@@ -230,6 +230,7 @@ export function EquipmentList({
           equipmentMaster={equipmentMaster}
           presetType={form.preset}
           defaultHours={defaultHours}
+          storeHours={defaultHours}
         />
       )}
 

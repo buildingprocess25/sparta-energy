@@ -16,9 +16,9 @@ assert.equal(isUploadThingUrl("https://utfs.io.evil.com/f/abc"), false)
 assert.equal(isUploadThingUrl("not a url"), false)
 assert.equal(isUploadThingUrl(undefined), false)
 
-assert.equal(typeCategoryFor("Sistem Beanspot", "WAREHOUSE"), "BEANSPOT")
-assert.equal(typeCategoryFor("Lainnya", "PARKING"), "PARKIRAN")
-assert.equal(typeCategoryFor("Sistem Refrigerasi", "TERRACE"), "TERAS")
+assert.equal(typeCategoryFor("Kitchen & Food Processing (Beanspot)", "WAREHOUSE"), "BEANSPOT")
+assert.equal(typeCategoryFor("Other Equipment", "PARKING"), "PARKIRAN")
+assert.equal(typeCategoryFor("Refrigeration", "TERRACE"), "TERAS")
 
 function equipment(overrides: Partial<EquipmentState>): EquipmentState {
   return {
@@ -32,7 +32,7 @@ function equipment(overrides: Partial<EquipmentState>): EquipmentState {
     endTimes: ["22:00"],
     selected: true,
     isConfigured: true,
-    customDeviceCategory: "Sistem Beanspot",
+    customDeviceCategory: "Kitchen & Food Processing (Beanspot)",
     customPhotoUrl: "https://utfs.io/f/steamer",
     ...overrides,
   }
@@ -106,7 +106,7 @@ async function run() {
     ["approved", "new-1", "other-audit"]
   )
   const created = tx.rows.find((r) => r.id === "new-1")!
-  assert.equal(created.deviceCategory, "Sistem Beanspot")
+  assert.equal(created.deviceCategory, "Kitchen & Food Processing (Beanspot)")
   assert.equal(created.productPhotoUrl, "https://utfs.io/f/steamer")
   assert.equal(created.baseKw, 1.1)
   assert.equal(created.storeId, "s1")

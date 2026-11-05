@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { calculateItemDailyKwh } from "@/lib/audit-recalculate"
+import { FORMULA_VERSION } from "@/lib/energy-formula"
 import type { ValidationAuditItem } from "@/lib/audit-validation-queries"
 import type { EquipmentMasterItem } from "@/lib/get-equipment-for-area"
 
@@ -48,6 +49,8 @@ type ItemFormDialogProps = {
   equipmentMaster: EquipmentMasterItem[]
   presetType?: EquipmentMasterItem | null
   defaultHours?: number
+  // Store open hours, for K on dynamic equipment added here.
+  storeHours?: number | null
 }
 
 function defaultUsage(calcMethod: string | undefined) {
@@ -71,6 +74,7 @@ export function ItemFormDialog({
   equipmentMaster,
   presetType = null,
   defaultHours,
+  storeHours,
 }: ItemFormDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -112,6 +116,8 @@ export function ItemFormDialog({
     (brand) => brand.name.toLowerCase() === brandName.trim().toLowerCase()
   )
 
+  // Same snapshot rules as the save action (app/actions/audit-validation.ts).
+  const isV2 = !isEdit || item.formulaVersion === FORMULA_VERSION
   const previewKwh = calculateItemDailyKwh({
     qty: toNumber(qty) || 0,
     operationalHours: toNumber(hours) || 0,
@@ -119,7 +125,13 @@ export function ItemFormDialog({
     calcMethod,
     calcDuration,
     usageCount: toNumber(usage) || 0,
-    standbyKw: selectedBrand?.standbyKw,
+    standbyKw: selectedBrand?.standbyKw ?? (isEdit ? item.standbyKw : null),
+    formulaVersion: isV2 ? FORMULA_VERSION : null,
+    operationType: isEdit ? item.operationType : selectedType?.operationType,
+    runningKw: selectedBrand?.runningKw ?? (isEdit ? item.runningKw : null),
+    runningTimePct: selectedBrand?.runningTimePct ?? (isEdit ? item.runningTimePct : null),
+    standbyTimePct: selectedBrand?.standbyTimePct ?? (isEdit ? item.standbyTimePct : null),
+    storeHours: isEdit ? item.storeHours : (storeHours ?? null),
   })
 
   function handleTypeChange(value: string) {

@@ -29,7 +29,14 @@ import {
 } from "@/components/ui/select"
 import { AREA_LABELS, AREA_TARGET_OPTIONS } from "@/lib/area-labels"
 import { normalizeBrandName } from "@/lib/brand-match"
-import { isUsageBasedMethod, type UnregisteredBrand } from "@/lib/unregistered-brands"
+import { type UnregisteredBrand } from "@/lib/unregistered-brands"
+import { EnergyProfileFields } from "@/components/admin/energy-profile-fields"
+import { resolveOperationType } from "@/lib/energy-formula"
+import {
+  profileDraftFromBrand,
+  profileIssueMessage,
+  resolveProfileDraft,
+} from "@/lib/energy-profile-draft"
 
 const dateFormat = new Intl.DateTimeFormat("id-ID", {
   day: "numeric",
@@ -39,10 +46,6 @@ const dateFormat = new Intl.DateTimeFormat("id-ID", {
 
 function formatWatt(kw: number) {
   return `${Math.round(kw * 1000).toLocaleString("id-ID")} W`
-}
-
-function parseKw(value: string) {
-  return Number(value.replace(",", "."))
 }
 
 type AdminUnregisteredBrandsReviewProps = {
@@ -112,12 +115,21 @@ function FieldBrandCard({ item }: { item: UnregisteredBrand }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [confirmingDismiss, setConfirmingDismiss] = useState(false)
-  const usageBased = isUsageBasedMethod(item.calcMethod)
+  const operationType = resolveOperationType(item.operationType, item.calcMethod)
 
   const [brandName, setBrandName] = useState(item.brandName)
-  const [baseKw, setBaseKw] = useState(String(item.kwTypical))
-  const [runningKw, setRunningKw] = useState(String(item.kwTypical))
-  const [standbyKw, setStandbyKw] = useState(String(Math.round(item.kwTypical * 50) / 1000))
+  // The kW typed in the field is taken as the nameplate; DINAMIS starts at 95% / 10%.
+  const [profileDraft, setProfileDraft] = useState(() =>
+    profileDraftFromBrand({
+      nameplateKw: item.kwTypical,
+      baseKw: item.kwTypical,
+      runningKw: 0,
+      standbyKw: 0,
+      runningPctOfNameplate: null,
+      standbyPctOfNameplate: null,
+      runningTimePct: null,
+    })
+  )
   const [areaTarget, setAreaTarget] = useState<AreaTarget>(item.areaTarget)
 
   const spellingChanged =
@@ -125,9 +137,6 @@ function FieldBrandCard({ item }: { item: UnregisteredBrand }) {
     normalizeBrandName(brandName) !== normalizeBrandName(item.brandName)
   const ids = {
     name: `fb-name-${item.key}`,
-    kw: `fb-kw-${item.key}`,
-    running: `fb-running-${item.key}`,
-    standby: `fb-standby-${item.key}`,
     area: `fb-area-${item.key}`,
   }
 
@@ -141,16 +150,24 @@ function FieldBrandCard({ item }: { item: UnregisteredBrand }) {
   }
 
   function save() {
+    const { values, issues } = resolveProfileDraft(
+      profileDraft,
+      operationType,
+      item.calcMethod,
+      item.cycleSeconds
+    )
+    if (issues.length > 0) {
+      toast.error(profileIssueMessage(issues))
+      return
+    }
     startTransition(async () => {
       handleResult(
         await addFieldBrandToMasterAction({
           equipmentTypeId: item.equipmentTypeId,
           fieldBrandName: item.brandName,
           brandName,
-          baseKw: parseKw(baseKw),
-          runningKw: usageBased ? parseKw(runningKw) : null,
-          standbyKw: usageBased ? parseKw(standbyKw) : null,
           areaTarget,
+          profile: values,
         })
       )
     })
@@ -210,16 +227,6 @@ function FieldBrandCard({ item }: { item: UnregisteredBrand }) {
           )}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={ids.kw}>Daya dasar (kW)</Label>
-          <Input
-            id={ids.kw}
-            inputMode="decimal"
-            value={baseKw}
-            onChange={(e) => setBaseKw(e.target.value)}
-            disabled={isPending}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
           <Label htmlFor={ids.area}>Area penempatan</Label>
           <Select
             value={areaTarget}
@@ -238,30 +245,17 @@ function FieldBrandCard({ item }: { item: UnregisteredBrand }) {
             </SelectContent>
           </Select>
         </div>
-        {usageBased && (
-          <>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={ids.running}>Daya saat bekerja (kW)</Label>
-              <Input
-                id={ids.running}
-                inputMode="decimal"
-                value={runningKw}
-                onChange={(e) => setRunningKw(e.target.value)}
-                disabled={isPending}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={ids.standby}>Daya siaga (kW)</Label>
-              <Input
-                id={ids.standby}
-                inputMode="decimal"
-                value={standbyKw}
-                onChange={(e) => setStandbyKw(e.target.value)}
-                disabled={isPending}
-              />
-            </div>
-          </>
-        )}
+        <div className="sm:col-span-2">
+          <EnergyProfileFields
+            idPrefix={`fb-profile-${item.key}`}
+            draft={profileDraft}
+            onChange={setProfileDraft}
+            operationType={operationType}
+            calcMethod={item.calcMethod}
+            cycleSeconds={item.cycleSeconds}
+            disabled={isPending}
+          />
+        </div>
       </div>
 
       {confirmingDismiss ? (

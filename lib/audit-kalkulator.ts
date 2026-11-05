@@ -1,4 +1,13 @@
 import { BOROS_TOLERANCE } from "@/lib/audit-recalculate"
+import {
+  FORMULA_VERSION,
+  computeDailyKwh,
+  isCalcMethod,
+  isUsageMethod,
+  resolveOperationType,
+  type CalcMethod,
+  type OperationType,
+} from "@/lib/energy-formula"
 import { type EquipmentState, type PlnRowState } from "@/store/use-audit-store"
 
 export function getHoursBetween(start: string, end: string): number {
@@ -28,6 +37,7 @@ export function isAirConditioner(name: string | null | undefined) {
 export type CalcMethodInfo = {
   calcMethod?: string | null
   calcDuration?: number | null
+  operationType?: string | null
 }
 
 export type AuditItemRow = {
@@ -39,80 +49,118 @@ export type AuditItemRow = {
   operationalHours: number
   baseKw: number
   calcMethod: string
+  // Q or R as a store total (formula v2).
   usageCount: number | null
   estimatedDailyKwh: number
+  // Profile snapshot stored with the row, so validation recomputes the same number.
+  operationType: OperationType
+  runningKw: number
+  standbyKw: number
+  runningTimePct: number | null
+  standbyTimePct: number | null
+  cycleSeconds: number | null
+  storeHours: number | null
+  formulaVersion: number
+  overloaded: boolean
 }
 
-function isUsageBased(method: string) {
-  return method === "TRANSACTION" || method === "BATCH"
+function unitRow(
+  eq: EquipmentState,
+  unitIndex: number,
+  qty: number,
+  hours: number,
+  calcMethod: CalcMethod,
+  operationType: OperationType,
+  cycleSeconds: number | null,
+  usageCount: number | null,
+  storeHours: number | null
+): AuditItemRow {
+  const baseKw = eq.kws?.[unitIndex] ?? eq.kws?.[0] ?? eq.kw ?? 0
+  const profile = {
+    operationType,
+    calcMethod,
+    baseKw,
+    runningKw: eq.runningKws?.[unitIndex] ?? eq.runningKws?.[0] ?? null,
+    standbyKw: eq.standbyKws?.[unitIndex] ?? eq.standbyKws?.[0] ?? null,
+    runningTimePct: eq.runningTimePcts?.[unitIndex] ?? eq.runningTimePcts?.[0] ?? null,
+    standbyTimePct: eq.standbyTimePcts?.[unitIndex] ?? eq.standbyTimePcts?.[0] ?? null,
+    cycleSeconds,
+  }
+  const result = computeDailyKwh(profile, { qty, hours, storeHours, usageCount })
+  return {
+    equipment: eq,
+    unitIndex,
+    isAC: isAirConditioner(eq.name),
+    qty,
+    operationalHours: hours,
+    baseKw,
+    calcMethod,
+    usageCount,
+    estimatedDailyKwh: result.dailyKwh,
+    operationType,
+    runningKw: result.runningKw,
+    standbyKw: result.standbyKw,
+    runningTimePct: result.runningPct ?? profile.runningTimePct,
+    standbyTimePct: result.standbyPct ?? profile.standbyTimePct,
+    cycleSeconds,
+    storeHours,
+    formulaVersion: FORMULA_VERSION,
+    overloaded: result.overloaded,
+  }
 }
 
-// The rows stored as audit_items. Totals are summed from these rows so the
-// submitted standard always equals what validation recalculates from the items.
+// The rows stored as audit_items, all through lib/energy-formula.ts. Totals are
+// summed from these rows so the submitted standard always equals what
+// validation recalculates from the items.
 export function buildAuditItemRows(
   equipments: EquipmentState[],
-  resolveMethod?: (eq: EquipmentState) => CalcMethodInfo | undefined
+  resolveMethod?: (eq: EquipmentState) => CalcMethodInfo | undefined,
+  options: { storeHours?: number | null } = {}
 ): AuditItemRow[] {
+  const storeHours = options.storeHours ?? null
   return equipments
     .filter((eq) => eq.selected)
     .flatMap((eq) => {
       const isAC = isAirConditioner(eq.name)
       const resolved = resolveMethod?.(eq)
-      const method = resolved?.calcMethod ?? eq.calcMethod ?? "STANDARD"
-      const duration = resolved?.calcDuration ?? eq.calcDuration ?? 0
+      const rawMethod = resolved?.calcMethod ?? eq.calcMethod ?? "STANDARD"
+      const calcMethod: CalcMethod = isCalcMethod(rawMethod) ? rawMethod : "STANDARD"
+      const operationType = resolveOperationType(
+        resolved?.operationType ?? eq.operationType,
+        calcMethod
+      )
+      const duration = resolved?.calcDuration ?? eq.calcDuration ?? null
 
       // AC units each have their own hours and brand, so they get one row per unit.
       if (isAC && eq.quantity > 1) {
-        return Array.from({ length: eq.quantity }, (_, i) => {
-          const hours = getHoursBetween(
-            eq.startTimes[i] || "08:00",
-            eq.endTimes[i] || "22:00"
+        return Array.from({ length: eq.quantity }, (_, i) =>
+          unitRow(
+            eq,
+            i,
+            1,
+            getHoursBetween(eq.startTimes[i] || "08:00", eq.endTimes[i] || "22:00"),
+            "STANDARD",
+            operationType,
+            null,
+            null,
+            storeHours
           )
-          const baseKw = eq.kws?.[i] ?? eq.kw ?? 0
-          return {
-            equipment: eq,
-            unitIndex: i,
-            isAC,
-            qty: 1,
-            operationalHours: hours,
-            baseKw,
-            calcMethod: "STANDARD",
-            usageCount: null,
-            estimatedDailyKwh: baseKw * hours,
-          }
-        })
+        )
       }
 
-      const hours = getHoursBetween(
-        eq.startTimes[0] || "08:00",
-        eq.endTimes[0] || "22:00"
-      )
-      const baseKw = eq.kws?.[0] ?? eq.kw ?? 0
-      const usageVal = eq.usages?.[0] ?? 0
-
-      // Running/standby kW only apply to usage-based items; STANDARD uses base kW.
-      let estimatedDailyKwh = baseKw * eq.quantity * hours
-      if (isUsageBased(method)) {
-        const hrsRunning = Math.min((usageVal * duration) / 3600, hours)
-        const hrsStandby = Math.max(0, hours - hrsRunning)
-        const runningKw = eq.runningKws?.[0] ?? baseKw
-        const standbyKw = eq.standbyKws?.[0] ?? runningKw * 0.05
-        estimatedDailyKwh =
-          (runningKw * hrsRunning + standbyKw * hrsStandby) * eq.quantity
-      }
-
+      const usageBased = isUsageMethod(calcMethod)
       return [
-        {
-          equipment: eq,
-          unitIndex: 0,
-          isAC,
-          qty: eq.quantity,
-          operationalHours: hours,
-          baseKw,
-          calcMethod: method,
-          usageCount: isUsageBased(method) ? usageVal : null,
-          estimatedDailyKwh,
-        },
+        unitRow(
+          eq,
+          0,
+          eq.quantity,
+          getHoursBetween(eq.startTimes[0] || "08:00", eq.endTimes[0] || "22:00"),
+          calcMethod,
+          operationType,
+          usageBased ? duration : null,
+          usageBased ? (eq.usages?.[0] ?? 0) : null,
+          storeHours
+        ),
       ]
     })
 }
@@ -132,7 +180,9 @@ export function calculateAudit(
   const { is24Hours, openTime, closeTime, areas } = storeIdentity
   const storeOpenHours = is24Hours ? 24 : getHoursBetween(openTime, closeTime)
 
-  const itemRows = buildAuditItemRows(equipments, resolveMethod)
+  const itemRows = buildAuditItemRows(equipments, resolveMethod, {
+    storeHours: storeOpenHours,
+  })
   let equipmentEstimateKwhPerDay = 0
 
   const areaBreakdowns: Record<string, number> = {

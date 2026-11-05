@@ -46,6 +46,12 @@ import type {
 } from "@/lib/admin-master-data-queries"
 
 import { cn } from "@/lib/utils"
+import {
+  CALC_METHOD_LABELS,
+  isCalcMethod,
+  OPERATION_TYPE_LABELS,
+  resolveOperationType,
+} from "@/lib/energy-formula"
 
 const numberFormat = new Intl.NumberFormat("id-ID")
 
@@ -345,7 +351,7 @@ export function AdminMasterEquipmentTable({
               <TableHead className="text-right">
                 <div className="flex items-center justify-end gap-1">
                   <SortableHeader column="baseKw" align="right">
-                    Default kW
+                    Daya base (kW)
                   </SortableHeader>
                   <TooltipProvider>
                     <Tooltip>
@@ -354,7 +360,7 @@ export function AdminMasterEquipmentTable({
                       </TooltipTrigger>
                       <TooltipContent align="end">
                         <p className="max-w-[200px] text-xs font-normal text-left">
-                          Daya listrik standar (dalam kW) saat alat beroperasi penuh (1 kW = 1000 Watt).
+                          Daya base (H). Statis: daya nameplate. Dinamis: running × waktu running + standby × waktu standby.
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -480,7 +486,8 @@ export function AdminMasterEquipmentTable({
                 <TableCell>
                   <div className="flex flex-col gap-0.5">
                     <Badge variant={item.calcMethod === "STANDARD" ? "outline" : "secondary"}>
-                      {item.calcMethod}
+                      {OPERATION_TYPE_LABELS[resolveOperationType(item.operationType, item.calcMethod)]} ·{" "}
+                      {isCalcMethod(item.calcMethod) ? CALC_METHOD_LABELS[item.calcMethod] : item.calcMethod}
                     </Badge>
                     {item.calcMethod !== "STANDARD" && item.calcDuration && (
                       <span className="text-[10px] text-muted-foreground">

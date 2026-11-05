@@ -6,6 +6,8 @@ import type { AreaTarget, AuditCorrectionType, Prisma } from "@prisma/client"
 import { areaLabels, formatKwh } from "@/components/audit-validation/format"
 import { generateRecommendationWithFallback } from "@/lib/ai-recommendation"
 import { getAuditValidator } from "@/lib/audit-validation-access"
+import { getHoursBetween } from "@/lib/audit-kalkulator"
+import { FORMULA_VERSION, resolveOperationType } from "@/lib/energy-formula"
 import {
   averagePlnKwh,
   calculateItemDailyKwh,
@@ -181,6 +183,10 @@ async function getEditableAudit(tx: Prisma.TransactionClient, auditId: string) {
       storeId: true,
       status: true,
       validationStatus: true,
+      is24Hours: true,
+      openTime: true,
+      closeTime: true,
+      store: { select: { is24Hours: true, openTime: true, closeTime: true } },
     },
   })
 
@@ -287,9 +293,32 @@ async function findBrandStandbyKw(
       equipmentTypeId,
       name: { equals: brandName.trim(), mode: "insensitive" },
     },
-    select: { id: true, standbyKw: true },
+    select: {
+      id: true,
+      standbyKw: true,
+      runningKw: true,
+      runningTimePct: true,
+      standbyTimePct: true,
+    },
   })
 }
+
+// Store hours from the audit snapshot, for K on dynamic equipment (formula v2).
+function auditStoreHours(audit: {
+  is24Hours: boolean | null
+  openTime: string | null
+  closeTime: string | null
+  store: { is24Hours: boolean; openTime: string | null; closeTime: string | null }
+}) {
+  const is24Hours = audit.is24Hours ?? audit.store.is24Hours
+  if (is24Hours) return 24
+  const open = audit.openTime ?? audit.store.openTime
+  const close = audit.closeTime ?? audit.store.closeTime
+  return open && close ? getHoursBetween(open, close) : null
+}
+
+const toNullableNumber = (value: { toString(): string } | null | undefined) =>
+  value === null || value === undefined ? null : Number(value)
 
 function refreshPaths(auditId: string) {
   revalidatePath("/dashboard")
@@ -336,7 +365,7 @@ export async function addAuditItem(input: AddAuditItemInput) {
       const type = input.equipmentTypeId
         ? await tx.equipmentType.findUnique({
             where: { id: input.equipmentTypeId },
-            select: { id: true, calcMethod: true, calcDuration: true },
+            select: { id: true, calcMethod: true, calcDuration: true, operationType: true },
           })
         : null
       const brand = await findBrandStandbyKw(
@@ -346,6 +375,18 @@ export async function addAuditItem(input: AddAuditItemInput) {
       )
       const isUsageBased =
         type?.calcMethod === "TRANSACTION" || type?.calcMethod === "BATCH"
+      const calcMethod = type?.calcMethod ?? "STANDARD"
+      const snapshot = {
+        formulaVersion: FORMULA_VERSION,
+        operationType: resolveOperationType(type?.operationType, calcMethod),
+        calcMethod,
+        runningKw: toNullableNumber(brand?.runningKw),
+        standbyKw: toNullableNumber(brand?.standbyKw),
+        runningTimePct: toNullableNumber(brand?.runningTimePct),
+        standbyTimePct: toNullableNumber(brand?.standbyTimePct),
+        cycleSeconds: isUsageBased ? (type?.calcDuration ?? null) : null,
+        storeHours: auditStoreHours(audit),
+      }
 
       await keepOriginalResult(tx, audit.id)
       await tx.auditItem.create({
@@ -360,11 +401,11 @@ export async function addAuditItem(input: AddAuditItemInput) {
           operationalHours: input.operationalHours,
           baseKw: input.baseKw,
           usageCount: isUsageBased ? (input.usageCount ?? 0) : null,
+          ...snapshot,
           estimatedDailyKwh: calculateItemDailyKwh({
             ...input,
-            calcMethod: type?.calcMethod,
-            calcDuration: type?.calcDuration,
-            standbyKw: brand ? Number(brand.standbyKw) : null,
+            ...snapshot,
+            calcDuration: snapshot.cycleSeconds,
           }),
         },
       })
@@ -404,7 +445,16 @@ export async function updateAuditItem(input: UpdateAuditItemInput) {
           operationalHours: true,
           baseKw: true,
           equipmentTypeId: true,
-          equipmentType: { select: { calcMethod: true, calcDuration: true } },
+          formulaVersion: true,
+          operationType: true,
+          calcMethod: true,
+          runningKw: true,
+          standbyKw: true,
+          runningTimePct: true,
+          standbyTimePct: true,
+          cycleSeconds: true,
+          storeHours: true,
+          equipmentType: { select: { calcMethod: true, calcDuration: true, operationType: true } },
         },
       })
       if (!item) throw new ValidationError("Alat tidak ditemukan.")
@@ -417,9 +467,28 @@ export async function updateAuditItem(input: UpdateAuditItemInput) {
           item.equipmentTypeId,
           input.brandName
         )
-        const calcMethod = item.equipmentType?.calcMethod
+        const calcMethod = item.calcMethod ?? item.equipmentType?.calcMethod
         const isUsageBased =
           calcMethod === "TRANSACTION" || calcMethod === "BATCH"
+        // v2 rows keep their snapshot; a newly chosen master brand brings its own profile.
+        const snapshot =
+          item.formulaVersion === FORMULA_VERSION
+            ? {
+                formulaVersion: item.formulaVersion,
+                operationType: item.operationType,
+                calcMethod,
+                runningKw: brand ? toNullableNumber(brand.runningKw) : toNullableNumber(item.runningKw),
+                standbyKw: brand ? toNullableNumber(brand.standbyKw) : toNullableNumber(item.standbyKw),
+                runningTimePct: brand
+                  ? toNullableNumber(brand.runningTimePct)
+                  : toNullableNumber(item.runningTimePct),
+                standbyTimePct: brand
+                  ? toNullableNumber(brand.standbyTimePct)
+                  : toNullableNumber(item.standbyTimePct),
+                cycleSeconds: item.cycleSeconds ?? item.equipmentType?.calcDuration ?? null,
+                storeHours: toNullableNumber(item.storeHours),
+              }
+            : null
         const before = {
           qty: item.qty,
           operationalHours: Number(item.operationalHours),
@@ -443,12 +512,17 @@ export async function updateAuditItem(input: UpdateAuditItemInput) {
             operationalHours: input.operationalHours,
             baseKw: input.baseKw,
             usageCount: isUsageBased ? (input.usageCount ?? 0) : null,
-            estimatedDailyKwh: calculateItemDailyKwh({
-              ...input,
-              calcMethod,
-              calcDuration: item.equipmentType?.calcDuration,
-              standbyKw: brand ? Number(brand.standbyKw) : null,
-            }),
+            ...(snapshot ?? {}),
+            estimatedDailyKwh: calculateItemDailyKwh(
+              snapshot
+                ? { ...input, ...snapshot, calcDuration: snapshot.cycleSeconds }
+                : {
+                    ...input,
+                    calcMethod,
+                    calcDuration: item.equipmentType?.calcDuration,
+                    standbyKw: brand ? Number(brand.standbyKw) : null,
+                  }
+            ),
           },
         })
         await recordCorrections(tx, audit.id, validatorId, [

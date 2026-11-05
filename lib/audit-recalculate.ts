@@ -1,3 +1,10 @@
+import {
+  FORMULA_VERSION,
+  computeDailyKwh,
+  isCalcMethod,
+  resolveOperationType,
+} from "@/lib/energy-formula"
+
 export const DAYS_PER_MONTH = 30
 // Boros when actual PLN exceeds the standard by more than 5%.
 export const BOROS_TOLERANCE = 1.05
@@ -11,10 +18,43 @@ export type ItemKwhInput = {
   calcDuration?: number | null
   usageCount?: number | null
   standbyKw?: number | null
+  // Formula v2 snapshot (audit_items); absent on rows saved before v2.
+  formulaVersion?: number | null
+  operationType?: string | null
+  runningKw?: number | null
+  runningTimePct?: number | null
+  standbyTimePct?: number | null
+  storeHours?: number | null
 }
 
-// Mirrors the per-unit formula in calculateAudit() so edited items match submitted ones.
+// v2 rows go through lib/energy-formula.ts with their snapshot, the same call as
+// submit; rows saved before v2 keep the formula they were stored with.
 export function calculateItemDailyKwh(item: ItemKwhInput): number {
+  if (item.formulaVersion === FORMULA_VERSION) {
+    const calcMethod = isCalcMethod(item.calcMethod) ? item.calcMethod : "STANDARD"
+    return computeDailyKwh(
+      {
+        operationType: resolveOperationType(item.operationType, calcMethod),
+        calcMethod,
+        baseKw: item.baseKw,
+        runningKw: item.runningKw,
+        standbyKw: item.standbyKw,
+        runningTimePct: item.runningTimePct,
+        standbyTimePct: item.standbyTimePct,
+        cycleSeconds: item.calcDuration,
+      },
+      {
+        qty: item.qty,
+        hours: item.operationalHours,
+        storeHours: item.storeHours,
+        usageCount: item.usageCount,
+      }
+    ).dailyKwh
+  }
+  return calculateLegacyItemDailyKwh(item)
+}
+
+function calculateLegacyItemDailyKwh(item: ItemKwhInput): number {
   const qty = Math.max(0, item.qty)
   const hours = Math.max(0, item.operationalHours)
   const kw = Math.max(0, item.baseKw)

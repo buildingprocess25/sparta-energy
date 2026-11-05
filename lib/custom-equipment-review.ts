@@ -2,6 +2,12 @@ import type { AreaTarget } from "@prisma/client"
 
 import { typeCategoryFor } from "@/lib/custom-equipment"
 import { isDeviceCategory } from "@/lib/equipment-categories"
+import { isCalcMethod, isOperationType, resolveOperationType } from "@/lib/energy-formula"
+import {
+  normalizeBrandProfile,
+  profileIssueMessage,
+  type BrandProfileInput,
+} from "@/lib/energy-profile-draft"
 import { prisma } from "@/lib/prisma"
 
 // Pending submissions from completed calculations that still use the equipment.
@@ -29,6 +35,9 @@ export async function getPendingCustomEquipment() {
       brandName: true,
       notes: true,
       productPhotoUrl: true,
+      operationType: true,
+      calcMethod: true,
+      cycleSeconds: true,
       createdAt: true,
       store: { select: { code: true, name: true, branch: true } },
       submittedBy: { select: { fullName: true, email: true } },
@@ -50,6 +59,9 @@ export async function getPendingCustomEquipment() {
     baseKw: Number(row.baseKw),
     brandName: row.brandName,
     notes: row.notes,
+    operationType: resolveOperationType(row.operationType, row.calcMethod),
+    calcMethod: row.calcMethod,
+    cycleSeconds: row.cycleSeconds,
     productPhotoUrl: row.productPhotoUrl,
     createdAt: row.createdAt.toISOString(),
     storeLabel: `${row.store.code} ${row.store.name}`,
@@ -72,8 +84,12 @@ export type ApproveCustomEquipmentInput = {
   name: string
   deviceCategory: string
   areaTarget: AreaTarget
-  baseKw: number
   brandName: string
+  // Used when a new type is created; an existing type keeps its own.
+  operationType: string
+  calcMethod: string
+  cycleSeconds: number | null
+  profile: BrandProfileInput
 }
 
 export class CustomEquipmentReviewError extends Error {}
@@ -89,8 +105,10 @@ export async function approveCustomEquipment(
   if (!isDeviceCategory(input.deviceCategory)) {
     throw new CustomEquipmentReviewError("Pilih kategori jenis yang tersedia.")
   }
-  if (!(input.baseKw >= 0)) {
-    throw new CustomEquipmentReviewError("Daya harus berupa angka 0 atau lebih.")
+  if (input.equipmentTypeId === "new") {
+    if (!isOperationType(input.operationType) || !isCalcMethod(input.calcMethod)) {
+      throw new CustomEquipmentReviewError("Pilih karakteristik dan metode kalkulasi.")
+    }
   }
 
   return prisma.$transaction(async (tx) => {
@@ -114,22 +132,48 @@ export async function approveCustomEquipment(
       }
     }
 
-    const equipmentTypeId =
+    const existingType =
       input.equipmentTypeId === "new"
-        ? (
-            await tx.equipmentType.create({
-              data: {
-                name,
-                category: typeCategoryFor(input.deviceCategory, input.areaTarget),
-                deviceCategory: input.deviceCategory,
-                defaultKw: input.baseKw,
-                calcMethod: "STANDARD",
-                createdById: reviewerId,
-              },
-              select: { id: true },
-            })
-          ).id
-        : input.equipmentTypeId
+        ? null
+        : await tx.equipmentType.findUnique({
+            where: { id: input.equipmentTypeId },
+            select: { id: true, operationType: true, calcMethod: true, calcDuration: true },
+          })
+    if (input.equipmentTypeId !== "new" && !existingType) {
+      throw new CustomEquipmentReviewError("Tipe tujuan sudah tidak ada di master.")
+    }
+    const typeContext = existingType
+      ? { operationType: existingType.operationType, calcMethod: existingType.calcMethod, cycleSeconds: existingType.calcDuration }
+      : {
+          operationType: input.operationType,
+          calcMethod: input.operationType === "STATIS" ? "STANDARD" : input.calcMethod,
+          cycleSeconds: input.calcMethod === "STANDARD" ? null : input.cycleSeconds,
+        }
+    const { values: profile, issues } = normalizeBrandProfile(
+      input.profile,
+      typeContext.operationType,
+      typeContext.calcMethod,
+      typeContext.cycleSeconds
+    )
+    if (issues.length > 0) throw new CustomEquipmentReviewError(profileIssueMessage(issues))
+
+    const equipmentTypeId = existingType
+      ? existingType.id
+      : (
+          await tx.equipmentType.create({
+            data: {
+              name,
+              category: typeCategoryFor(input.deviceCategory, input.areaTarget),
+              deviceCategory: input.deviceCategory,
+              defaultKw: profile.baseKw,
+              calcMethod: typeContext.calcMethod,
+              calcDuration: typeContext.cycleSeconds,
+              operationType: typeContext.operationType,
+              createdById: reviewerId,
+            },
+            select: { id: true },
+          })
+        ).id
 
     const existingBrand = await tx.equipmentBrand.findFirst({
       where: {
@@ -152,7 +196,7 @@ export async function approveCustomEquipment(
             equipmentTypeId,
             name: brandName,
             areaTarget: input.areaTarget,
-            baseKw: input.baseKw,
+            ...profile,
             productPhotoUrl: submission.productPhotoUrl,
             createdById: reviewerId,
           },

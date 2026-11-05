@@ -7,6 +7,8 @@ export type EquipmentBrandItem = {
   productPhotoUrl?: string | null
   runningKw: number
   standbyKw: number
+  runningTimePct: number | null
+  standbyTimePct: number | null
 }
 
 export type EquipmentMasterItem = {
@@ -18,6 +20,7 @@ export type EquipmentMasterItem = {
   brands: EquipmentBrandItem[]
   calcMethod: string
   calcDuration: number | null
+  operationType: string
 }
 
 export async function getAllEquipmentMaster(): Promise<EquipmentMasterItem[]> {
@@ -38,6 +41,7 @@ export async function getAllEquipmentMaster(): Promise<EquipmentMasterItem[]> {
     defaultKw: Number(row.defaultKw),
     calcMethod: row.calcMethod,
     calcDuration: row.calcDuration,
+    operationType: row.operationType,
     brands: row.brands.map((b) => ({
       id: b.id,
       name: b.name,
@@ -45,6 +49,8 @@ export async function getAllEquipmentMaster(): Promise<EquipmentMasterItem[]> {
       productPhotoUrl: b.productPhotoUrl,
       runningKw: Number(b.runningKw),
       standbyKw: Number(b.standbyKw),
+      runningTimePct: b.runningTimePct === null ? null : Number(b.runningTimePct),
+      standbyTimePct: b.standbyTimePct === null ? null : Number(b.standbyTimePct),
     })),
   }))
 }

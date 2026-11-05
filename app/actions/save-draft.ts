@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { syncCustomEquipmentSubmissions } from "@/lib/custom-equipment"
 import { getServerErrorMessage } from "@/lib/error-handling"
-import { getHoursBetween, isAirConditioner } from "@/lib/audit-kalkulator"
+import { buildAuditItemRows, getHoursBetween, isAirConditioner } from "@/lib/audit-kalkulator"
 import { readDraftTechnical, toAuditTechnical } from "@/lib/audit-technical"
 import type { EquipmentState, PlnRowState, StoreType } from "@/store/use-audit-store"
 import type { AreaTarget } from "@prisma/client"
@@ -125,9 +125,8 @@ export async function saveAuditDraft(input: SaveDraftInput) {
         where: { auditId },
       })
 
-      // Fetch all equipment types to map name -> id, calcMethod, calcDuration
       const eqTypes = await prisma.equipmentType.findMany({
-        select: { id: true, name: true, calcMethod: true, calcDuration: true },
+        select: { id: true, name: true, calcMethod: true, calcDuration: true, operationType: true },
       })
       const eqTypeMap = new Map(eqTypes.map((t) => [t.name.toLowerCase().trim(), t]))
 
@@ -142,70 +141,47 @@ export async function saveAuditDraft(input: SaveDraftInput) {
         toAreaTarget,
       })
       if (selectedEquipments.length > 0) {
-        const itemsToCreate = []
-        for (const eq of selectedEquipments) {
-          const typeInfo = eqTypeMap.get(eq.name.toLowerCase().trim())
-          const eqTypeId = typeInfo?.id ?? null
-          const method = typeInfo?.calcMethod ?? eq.calcMethod ?? "STANDARD"
-          const duration = typeInfo?.calcDuration ?? eq.calcDuration ?? 0
-
-          const isAC = isAirConditioner(eq.name)
-
-          if (isAC && eq.quantity > 1) {
-            for (let i = 0; i < eq.quantity; i++) {
-              const start = eq.startTimes?.[i] || "08:00"
-              const end = eq.endTimes?.[i] || "22:00"
-              const hours = getSingleDuration(start, end)
-              const bKw = eq.kws?.[i] ?? eq.kw ?? 0
-
-              itemsToCreate.push({
-                auditId,
-                equipmentTypeId: eqTypeId,
-                areaTarget: toAreaTarget(eq.areaName),
-                customName: eq.name,
-                notes: eq.notes?.trim() || null,
-                brandName: eq.brandNames?.[i] ?? eq.brandName ?? "",
-                equipmentBrandId: eq.brandIds?.[i] ?? eq.brandId ?? null,
-                qty: 1,
-                operationalHours: hours,
-                baseKw: bKw,
-                estimatedDailyKwh: bKw * hours,
-                customEquipmentId: customEquipmentIds.get(eq.id) ?? null,
-              })
-            }
-          } else {
-            const start = eq.startTimes?.[0] || "08:00"
-            const end = eq.endTimes?.[0] || "22:00"
-            const hours = getSingleDuration(start, end)
-            const bKw = eq.kws?.[0] ?? eq.kw ?? 0
-            const usageVal = eq.usages?.[0] ?? 0
-
-            let estDailyKwh = bKw * eq.quantity * hours
-            if (method === "TRANSACTION" || method === "BATCH") {
-              const hrsRunning = Math.min((usageVal * duration) / 3600, hours)
-              const hrsStandby = Math.max(0, hours - hrsRunning)
-              const runningKwVal = eq.runningKws?.[0] ?? bKw
-              const standbyKwVal = eq.standbyKws?.[0] ?? (runningKwVal * 0.05)
-              estDailyKwh = ((runningKwVal * hrsRunning) + (standbyKwVal * hrsStandby)) * eq.quantity
-            }
-
-            itemsToCreate.push({
-              auditId,
-              equipmentTypeId: eqTypeId,
-              areaTarget: toAreaTarget(eq.areaName),
-              customName: eq.name,
-              notes: eq.notes?.trim() || null,
-              brandName: eq.brandNames?.[0] ?? eq.brandName ?? "",
-              equipmentBrandId: eq.brandIds?.[0] ?? eq.brandId ?? null,
-              qty: eq.quantity,
-              operationalHours: hours,
-              baseKw: bKw,
-              estimatedDailyKwh: estDailyKwh,
-              usageCount: (method === "TRANSACTION" || method === "BATCH") ? usageVal : null,
-              customEquipmentId: customEquipmentIds.get(eq.id) ?? null,
-            })
+        // Same rows as submit (buildAuditItemRows), so a draft reopens with the same kWh.
+        const storeHours =
+          input.is24Hours === undefined
+            ? null
+            : input.is24Hours
+              ? 24
+              : input.openTime && input.closeTime
+                ? getSingleDuration(input.openTime, input.closeTime)
+                : null
+        const rows = buildAuditItemRows(
+          selectedEquipments,
+          (eq) => eqTypeMap.get(eq.name.toLowerCase().trim()),
+          { storeHours }
+        )
+        const itemsToCreate = rows.map((row) => {
+          const eq = row.equipment
+          return {
+            auditId,
+            equipmentTypeId: eqTypeMap.get(eq.name.toLowerCase().trim())?.id ?? null,
+            areaTarget: toAreaTarget(eq.areaName),
+            customName: eq.name,
+            notes: eq.notes?.trim() || null,
+            brandName: eq.brandNames?.[row.unitIndex] ?? eq.brandName ?? "",
+            equipmentBrandId: eq.brandIds?.[row.unitIndex] ?? eq.brandId ?? null,
+            qty: row.qty,
+            operationalHours: row.operationalHours,
+            baseKw: row.baseKw,
+            estimatedDailyKwh: row.estimatedDailyKwh,
+            usageCount: row.usageCount,
+            formulaVersion: row.formulaVersion,
+            operationType: row.operationType,
+            calcMethod: row.calcMethod,
+            runningKw: row.runningKw,
+            standbyKw: row.standbyKw,
+            runningTimePct: row.runningTimePct,
+            standbyTimePct: row.standbyTimePct,
+            cycleSeconds: row.cycleSeconds,
+            storeHours: row.storeHours,
+            customEquipmentId: customEquipmentIds.get(eq.id) ?? null,
           }
-        }
+        })
 
         if (itemsToCreate.length > 0) {
           await prisma.auditItem.createMany({
@@ -270,7 +246,7 @@ export async function getAuditDraft(auditId: string) {
             equipmentType: true,
             equipmentBrand: true,
             customEquipment: {
-              select: { deviceCategory: true, productPhotoUrl: true },
+              select: { deviceCategory: true, productPhotoUrl: true, operationType: true },
             },
           },
         },
@@ -298,6 +274,9 @@ export async function getAuditDraft(auditId: string) {
 
     const technical = readDraftTechnical(audit, audit.store)
     const storeOpenTime = technical.openTime
+
+    const toPct = (value: unknown) =>
+      value === null || value === undefined ? null : Number(value)
 
     const formatTime = (hours: number) => {
       // 24 hours detection: only when the equipment itself operates ~24 hours
@@ -367,6 +346,8 @@ export async function getAuditDraft(auditId: string) {
       const usagesArr: number[] = []
       const runningKwsArr: number[] = []
       const standbyKwsArr: number[] = []
+      const runningTimePctsArr: (number | null)[] = []
+      const standbyTimePctsArr: (number | null)[] = []
 
       items.forEach((item) => {
         const t = formatTime(Number(item.operationalHours))
@@ -378,6 +359,8 @@ export async function getAuditDraft(auditId: string) {
         usagesArr.push(0)
         runningKwsArr.push(Number(item.equipmentBrand?.runningKw ?? item.baseKw))
         standbyKwsArr.push(Number(item.equipmentBrand?.standbyKw ?? Number(item.baseKw) * 0.05))
+        runningTimePctsArr.push(toPct(item.equipmentBrand?.runningTimePct))
+        standbyTimePctsArr.push(toPct(item.equipmentBrand?.standbyTimePct))
       })
 
       equipments.push({
@@ -396,11 +379,14 @@ export async function getAuditDraft(auditId: string) {
         endTimes,
         selected: true,
         isConfigured: true,
-        calcMethod: first.equipmentType?.calcMethod ?? "STANDARD",
-        calcDuration: first.equipmentType?.calcDuration ?? 0,
+        calcMethod: first.calcMethod ?? first.equipmentType?.calcMethod ?? "STANDARD",
+        calcDuration: first.cycleSeconds ?? first.equipmentType?.calcDuration ?? 0,
         usages: usagesArr,
         runningKws: runningKwsArr,
         standbyKws: standbyKwsArr,
+        operationType: first.operationType ?? first.equipmentType?.operationType,
+        runningTimePcts: runningTimePctsArr,
+        standbyTimePcts: standbyTimePctsArr,
         customDeviceCategory: first.customEquipment?.deviceCategory,
         customPhotoUrl: first.customEquipment?.productPhotoUrl,
       })
@@ -422,7 +408,14 @@ export async function getAuditDraft(auditId: string) {
       const brandNames = Array(quantity).fill(item.brandName || "")
       const kws = Array(quantity).fill(Number(item.baseKw))
 
-      const usageVal = item.usageCount ?? (item.equipmentType?.calcMethod === "TRANSACTION" ? 50 : item.equipmentType?.calcMethod === "BATCH" ? 6 : 0)
+      // Drafts before formula v2 stored the count per unit; v2 uses the store total.
+      const storedUsage =
+        item.usageCount === null
+          ? null
+          : item.formulaVersion === null
+            ? item.usageCount * quantity
+            : item.usageCount
+      const usageVal = storedUsage ?? (item.equipmentType?.calcMethod === "TRANSACTION" ? 50 : item.equipmentType?.calcMethod === "BATCH" ? 6 : 0)
       const usagesArr = Array(quantity).fill(usageVal)
       const runningKwsArr = Array(quantity).fill(Number(item.equipmentBrand?.runningKw ?? item.baseKw))
       const standbyKwsArr = Array(quantity).fill(Number(item.equipmentBrand?.standbyKw ?? Number(item.baseKw) * 0.05))
@@ -443,11 +436,14 @@ export async function getAuditDraft(auditId: string) {
         endTimes,
         selected: true,
         isConfigured: true,
-        calcMethod: item.equipmentType?.calcMethod ?? "STANDARD",
-        calcDuration: item.equipmentType?.calcDuration ?? 0,
+        calcMethod: item.calcMethod ?? item.equipmentType?.calcMethod ?? "STANDARD",
+        calcDuration: item.cycleSeconds ?? item.equipmentType?.calcDuration ?? 0,
         usages: usagesArr,
         runningKws: runningKwsArr,
         standbyKws: standbyKwsArr,
+        operationType: item.operationType ?? item.equipmentType?.operationType ?? item.customEquipment?.operationType,
+        runningTimePcts: Array(quantity).fill(toPct(item.equipmentBrand?.runningTimePct)),
+        standbyTimePcts: Array(quantity).fill(toPct(item.equipmentBrand?.standbyTimePct)),
         customDeviceCategory: item.customEquipment?.deviceCategory,
         customPhotoUrl: item.customEquipment?.productPhotoUrl,
       })

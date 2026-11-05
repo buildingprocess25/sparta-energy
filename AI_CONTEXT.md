@@ -194,10 +194,12 @@ Bagian ini melengkapi isi di atas sesuai perilaku kode saat ini. Jika ada perbed
 ### Kalkulasi Aktual (`lib/audit-kalkulator.ts` → `calculateAudit()`)
 
 - Estimasi Bulanan = Estimasi Harian × **30** (angka tetap, bukan jumlah hari operasional).
-- Metode hitung per equipment (`calcMethod`):
-  - `STANDARD`: kW × jam operasional.
-  - `TRANSACTION` / `BATCH`: jam running = (usage × durasi) / 3600, dibatasi jam operasional; sisa jam dihitung sebagai standby (default 5% dari kW running).
-- kW yang dipakai: `STANDARD` memakai base kW brand (`kws`), bukan running kW. Running/standby kW hanya untuk `TRANSACTION` / `BATCH`. `calcMethod` diambil dari master tipe equipment saat submit.
+- Rumus v2 (sejak 4 Nov 2026, spesifikasi di `docs/energy_calculator_formula_v2.md`), satu-satunya implementasi di `lib/energy-formula.ts`:
+  - STATIS + STANDAR: kW nameplate × jam × jumlah (sama dengan rumus lama).
+  - DINAMIS + STANDAR: H × jam nyala × jumlah, dengan H = running × K + standby × L dari master per merek. Hanya alat tanpa K di master (alat kustom belum direview) yang menghitung K = jam mesin bekerja ÷ jam buka toko.
+  - DINAMIS + TRANSAKSI/BATCH: running × waktu kerja + standby × (jam nyala × jumlah − waktu kerja). Jumlah transaksi/batch = **total toko**. Form dan submit menolak waktu kerja yang melebihi jam nyala.
+- Karakteristik (`operation_type`) dan metode (`calc_method`) diambil dari master tipe saat submit. Setiap baris audit menyimpan snapshot profil (`formula_version` = 2) untuk hitung ulang di validasi; baris sebelum v2 tetap memakai rumus lama.
+- Dampak ke audit lama hanya dilihat lewat Laporan > Pembanding Rumus Baru, tidak menimpa data.
 - Standar kalkulasi dijumlah dari baris `audit_items` yang dibangun `buildAuditItemRows()`, fungsi yang sama yang menyimpan baris itu. Jadi standar saat anak toko submit selalu sama dengan jumlah alat dan dengan hasil hitung ulang di halaman validasi. Kalkulasi lama yang tersimpan sebelum perbaikan ini (30 Okt 2026) dihitung ulang lewat `scripts/backfill-audit-baseline.ts`.
 - Jam 00:00–23:59 dihitung **24 jam** di form, draf, dan submit (`getHoursBetween()`).
 - Merek yang diketik anak toko dan belum ada di master **tidak** ditambahkan ke master saat submit (sejak 4 Nov 2026). Nama dan kW-nya hanya tersimpan di baris audit itu. Admin meninjaunya di Master Data → Equipment → "Merek dari Lapangan" (`lib/unregistered-brands-review.ts`): simpan ke master, atau abaikan (tabel `unregistered_brand_dismissals`). Pencocokan nama merek memakai `normalizeBrandName()` di `lib/brand-match.ts`.

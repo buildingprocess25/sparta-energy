@@ -164,7 +164,7 @@ ${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name} = ${row.estima
     // ── 4. Run calculation ──────────────────────────────────────────────────────
     // calcMethod comes from the equipment master, for both the total and the stored rows.
     const eqTypes = await prisma.equipmentType.findMany({
-      select: { id: true, name: true, calcMethod: true, calcDuration: true },
+      select: { id: true, name: true, calcMethod: true, calcDuration: true, operationType: true },
     })
     const eqTypeMap = new Map(eqTypes.map((t) => [t.name.toLowerCase().trim(), t]))
 
@@ -185,6 +185,19 @@ ${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name} = ${row.estima
       },
       (eq) => eqTypeMap.get(eq.name.toLowerCase().trim())
     )
+
+    // Same rule as the field form: work hours cannot exceed the hours the units are on.
+    const overloaded = calc.itemRows.find((row) => row.overloaded)
+    if (overloaded) {
+      return {
+        error: {
+          type: "validation",
+          message: `Waktu kerja ${overloaded.equipment.name} melebihi jam nyalanya. Cek jumlah ${
+            overloaded.calcMethod === "BATCH" ? "batch" : "transaksi"
+          } atau jam nyala.`,
+        },
+      }
+    }
 
     const gapPercent = calculateGapPercent(
       calc.avgActualPlnKwhPerMonth,
@@ -331,6 +344,15 @@ ${calc.itemRows.map((row) => `- ${row.qty}x ${row.equipment.name} = ${row.estima
                 baseKw: row.baseKw,
                 estimatedDailyKwh: row.estimatedDailyKwh,
                 usageCount: row.usageCount,
+                formulaVersion: row.formulaVersion,
+                operationType: row.operationType,
+                calcMethod: row.calcMethod,
+                runningKw: row.runningKw,
+                standbyKw: row.standbyKw,
+                runningTimePct: row.runningTimePct,
+                standbyTimePct: row.standbyTimePct,
+                cycleSeconds: row.cycleSeconds,
+                storeHours: row.storeHours,
                 customEquipmentId: customEquipmentIds.get(eq.id) ?? null,
               }
             }),

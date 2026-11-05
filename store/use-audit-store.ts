@@ -24,6 +24,11 @@ export interface EquipmentState {
   usages?: number[]
   runningKws?: number[]
   standbyKws?: number[]
+  // Energy formula v2: from the master type, or chosen on a custom equipment.
+  operationType?: string
+  // Master K/L per brand; used only when the store hours are unknown.
+  runningTimePcts?: (number | null)[]
+  standbyTimePcts?: (number | null)[]
   // Only on equipment added through Tambah Alat Kustom; sent to admin for review.
   customDeviceCategory?: string
   customPhotoUrl?: string

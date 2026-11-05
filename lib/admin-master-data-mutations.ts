@@ -2,6 +2,8 @@ import { Prisma } from "@prisma/client"
 import { UTApi } from "uploadthing/server"
 
 import { DEVICE_CATEGORIES, isDeviceCategory } from "@/lib/equipment-categories"
+import { isCalcMethod, isOperationType } from "@/lib/energy-formula"
+import { normalizeBrandProfile, profileIssueMessage } from "@/lib/energy-profile-draft"
 import { prisma } from "@/lib/prisma"
 
 const utapi = new UTApi()
@@ -106,10 +108,17 @@ function getEquipmentTypePayload(data: Record<string, unknown>) {
     ? requirePositiveInteger(data, "calcDuration")
     : null
 
+  const operationType = getString(data, "operationType") || "STATIS"
+
   if (!name) throw new Error("Nama equipment wajib diisi")
   if (!category) throw new Error("Kategori wajib diisi")
   if (!isDeviceCategory(deviceCategory)) {
     throw new Error(`Kategori jenis harus salah satu dari: ${DEVICE_CATEGORIES.join(", ")}`)
+  }
+  if (!isOperationType(operationType)) throw new Error("Karakteristik harus Statis atau Dinamis")
+  if (!isCalcMethod(calcMethod)) throw new Error("Metode kalkulasi tidak dikenal")
+  if (operationType === "STATIS" && calcMethod !== "STANDARD") {
+    throw new Error("Alat statis hanya bisa memakai metode Standar")
   }
 
   return {
@@ -119,8 +128,41 @@ function getEquipmentTypePayload(data: Record<string, unknown>) {
     storeType: getOptionalString(data, "storeType"),
     defaultKw: requireNonNegativeNumber(data, "defaultKw"),
     calcMethod,
-    calcDuration,
+    calcDuration: calcMethod === "STANDARD" ? null : calcDuration,
+    operationType,
   }
+}
+
+type TypeProfileContext = {
+  operationType: string
+  calcMethod: string
+  calcDuration: number | null
+}
+
+function optionalNumber(data: Record<string, unknown>, key: string) {
+  const value = data[key]
+  if (value === null || value === undefined || value === "") return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : Number.NaN
+}
+
+// The brand's power follows the type's characteristic; H is recomputed here.
+function getBrandProfile(data: Record<string, unknown>, type: TypeProfileContext) {
+  const { values, issues } = normalizeBrandProfile(
+    {
+      nameplateKw: getNumber(data, "nameplateKw"),
+      runningKw: optionalNumber(data, "runningKw"),
+      standbyKw: optionalNumber(data, "standbyKw"),
+      runningPctOfNameplate: optionalNumber(data, "runningPctOfNameplate"),
+      standbyPctOfNameplate: optionalNumber(data, "standbyPctOfNameplate"),
+      runningTimePct: optionalNumber(data, "runningTimePct"),
+    },
+    type.operationType,
+    type.calcMethod,
+    type.calcDuration
+  )
+  if (issues.length > 0) throw new Error(profileIssueMessage(issues))
+  return values
 }
 
 function getEquipmentBrandPayload(data: Record<string, unknown>) {
@@ -133,9 +175,6 @@ function getEquipmentBrandPayload(data: Record<string, unknown>) {
   return {
     name,
     areaTarget: areaTarget as "PARKING" | "TERRACE" | "SALES" | "WAREHOUSE",
-    baseKw: requireNonNegativeNumber(data, "baseKw"),
-    standbyKw: requireNonNegativeNumber(data, "standbyKw"),
-    runningKw: requireNonNegativeNumber(data, "runningKw"),
     productPhotoUrl: getOptionalString(data, "productPhotoUrl"),
     nameplatePhotoUrl: getOptionalString(data, "nameplatePhotoUrl"),
   }
@@ -209,17 +248,20 @@ export async function createMasterEquipment(
 
     if (equipmentTypeId === "new") {
       const type = getEquipmentTypePayload(data)
+      const profile = getBrandProfile(data, type)
 
       await prisma.$transaction(async (tx) => {
         const createdType = await tx.equipmentType.create({
           data: {
             ...type,
+            defaultKw: profile.baseKw,
             createdById: createdById || undefined,
           },
         })
         await tx.equipmentBrand.create({
           data: {
             ...brand,
+            ...profile,
             equipmentTypeId: createdType.id,
             createdById: createdById || undefined,
           },
@@ -227,9 +269,15 @@ export async function createMasterEquipment(
       })
     } else {
       if (!equipmentTypeId) throw new Error("Tipe equipment wajib dipilih")
+      const existingType = await prisma.equipmentType.findUnique({
+        where: { id: equipmentTypeId },
+        select: { operationType: true, calcMethod: true, calcDuration: true },
+      })
+      if (!existingType) throw new Error("Tipe equipment tidak ada")
       await prisma.equipmentBrand.create({
         data: {
           ...brand,
+          ...getBrandProfile(data, existingType),
           equipmentTypeId,
           createdById: createdById || undefined,
         },
@@ -249,6 +297,7 @@ export async function updateMasterEquipment(
   try {
     const type = getEquipmentTypePayload(data)
     const brand = getEquipmentBrandPayload(data)
+    const profile = getBrandProfile(data, type)
 
     const existingBrand = await prisma.equipmentBrand.findUnique({
       where: { id },
@@ -269,7 +318,7 @@ export async function updateMasterEquipment(
       }),
       prisma.equipmentBrand.update({
         where: { id },
-        data: brand,
+        data: { ...brand, ...profile },
       }),
     ])
 

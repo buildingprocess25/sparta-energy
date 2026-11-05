@@ -23,6 +23,16 @@ import {
   getHoursBetween,
   isAirConditioner,
 } from "@/lib/audit-kalkulator"
+import {
+  CALC_METHOD_LABELS,
+  DEFAULT_RUNNING_PCT_OF_NAMEPLATE,
+  DEFAULT_STANDBY_PCT_OF_NAMEPLATE,
+  OPERATION_TYPE_LABELS,
+  kwFromNameplatePct,
+  usageOverloadMessage,
+  type CalcMethod,
+  type OperationType,
+} from "@/lib/energy-formula"
 import { pickBrandPhoto } from "@/lib/equipment-photo"
 import { DEVICE_CATEGORIES, isDeviceCategory } from "@/lib/equipment-categories"
 import { EquipmentThumbnail } from "@/components/audit/equipment-thumbnail"
@@ -47,7 +57,7 @@ import {
 import { AuditStepSkeleton } from "@/components/audit/step-skeleton"
 import { BrandCombobox } from "@/components/audit/brand-combobox"
 import { Switch } from "@/components/ui/switch"
-import { useAuditStore } from "@/store/use-audit-store"
+import { useAuditStore, type EquipmentState } from "@/store/use-audit-store"
 import { TimeRangeCards } from "@/components/audit/time-range-cards"
 import { Header } from "@/components/header"
 import { Label } from "@/components/ui/label"
@@ -76,6 +86,9 @@ type EquipmentItem = {
   standbyKws?: number[]
   calcMethod?: string
   calcDuration?: number
+  operationType?: string
+  runningTimePcts?: (number | null)[]
+  standbyTimePcts?: (number | null)[]
   notes?: string
   customDeviceCategory?: string
   customPhotoUrl?: string
@@ -97,6 +110,7 @@ type Step2DetailProps = {
     defaultKw: number
     calcMethod?: string
     calcDuration?: number | null
+    operationType?: string
     brands: Array<{
       id: string
       name: string
@@ -104,6 +118,8 @@ type Step2DetailProps = {
       productPhotoUrl?: string | null
       runningKw?: number
       standbyKw?: number
+      runningTimePct?: number | null
+      standbyTimePct?: number | null
     }>
   }>
 }
@@ -111,6 +127,42 @@ type Step2DetailProps = {
 const getSingleDuration = (start: string, end: string) => {
   if (!start || !end) return 14
   return getHoursBetween(start, end)
+}
+
+function defaultUsage(calcMethod?: string) {
+  return calcMethod === "TRANSACTION" ? 50 : calcMethod === "BATCH" ? 6 : 0
+}
+
+// The store shape every kWh number is computed from (lib/audit-kalkulator.ts).
+function toEquipmentState(i: EquipmentItem, areaName: string): EquipmentState {
+  const qty = i.quantity || 1
+  return {
+    id: i.uid ?? i.name,
+    areaName,
+    name: i.name,
+    brandId: i.brandId,
+    brandName: i.brandName,
+    brandIds: i.brandIds,
+    brandNames: i.brandNames,
+    kw: i.kw ?? (parseFloat(i.detail.replace(/[^\d.]/g, "")) || 0),
+    kws: i.kws,
+    quantity: qty,
+    startTimes: i.startTimes || Array(qty).fill("08:00"),
+    endTimes: i.endTimes || Array(qty).fill("22:00"),
+    selected: !!i.selected,
+    isConfigured: !!i.isConfigured,
+    calcMethod: i.calcMethod,
+    calcDuration: i.calcDuration,
+    operationType: i.operationType,
+    usages: i.usages || Array(qty).fill(defaultUsage(i.calcMethod)),
+    runningKws: i.runningKws || Array(qty).fill(i.kw ?? 0),
+    standbyKws: i.standbyKws || Array(qty).fill((i.kw ?? 0) * 0.05),
+    runningTimePcts: i.runningTimePcts,
+    standbyTimePcts: i.standbyTimePcts,
+    notes: i.notes,
+    customDeviceCategory: i.customDeviceCategory,
+    customPhotoUrl: i.customPhotoUrl,
+  }
 }
 
 /** Format kW untuk tampilan UI: max 3 desimal, tanpa trailing zero */
@@ -306,6 +358,7 @@ export function AuditStep2Detail({
       quantity: 1,
       calcMethod: m.calcMethod,
       calcDuration: m.calcDuration || 0,
+      operationType: m.operationType,
       usages: [m.calcMethod === "TRANSACTION" ? 50 : m.calcMethod === "BATCH" ? 6 : 0],
     }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -343,6 +396,9 @@ export function AuditStep2Detail({
         usages: e.usages,
         runningKws: e.runningKws,
         standbyKws: e.standbyKws,
+        operationType: e.operationType,
+        runningTimePcts: e.runningTimePcts,
+        standbyTimePcts: e.standbyTimePcts,
         notes: e.notes,
         customDeviceCategory: e.customDeviceCategory,
         customPhotoUrl: e.customPhotoUrl,
@@ -366,30 +422,7 @@ export function AuditStep2Detail({
   React.useEffect(() => {
     syncEqs(
       areaName,
-      items.map((i) => ({
-        id: i.uid ?? i.name,
-        areaName,
-        name: i.name,
-        brandId: i.brandId,
-        brandName: i.brandName,
-        brandIds: i.brandIds,
-        brandNames: i.brandNames,
-        kw: i.kw ?? (parseFloat(i.detail.replace(/[^\d.]/g, "")) || 0),
-        kws: i.kws,
-        quantity: i.quantity || 1,
-        startTimes: i.startTimes || Array(i.quantity || 1).fill("08:00"),
-        endTimes: i.endTimes || Array(i.quantity || 1).fill("22:00"),
-        selected: !!i.selected,
-        isConfigured: !!i.isConfigured,
-        calcMethod: i.calcMethod,
-        calcDuration: i.calcDuration,
-        usages: i.usages || Array(i.quantity || 1).fill(i.calcMethod === "TRANSACTION" ? 50 : i.calcMethod === "BATCH" ? 6 : 0),
-        runningKws: i.runningKws || Array(i.quantity || 1).fill(i.kw ?? 0),
-        standbyKws: i.standbyKws || Array(i.quantity || 1).fill((i.kw ?? 0) * 0.05),
-        notes: i.notes,
-        customDeviceCategory: i.customDeviceCategory,
-        customPhotoUrl: i.customPhotoUrl,
-      }))
+      items.map((i) => toEquipmentState(i, areaName))
     )
   }, [items, areaName, syncEqs])
 
@@ -421,6 +454,10 @@ export function AuditStep2Detail({
   const [customBrand, setCustomBrand] = React.useState("")
   const [customNotes, setCustomNotes] = React.useState("")
   const [customCategory, setCustomCategory] = React.useState("")
+  const [customOperationType, setCustomOperationType] = React.useState<OperationType>("STATIS")
+  const [customCalcMethod, setCustomCalcMethod] = React.useState<CalcMethod>("STANDARD")
+  // Seconds per transaction or minutes per batch, as in the admin master form.
+  const [customCycle, setCustomCycle] = React.useState("")
   const [customPhotoUrl, setCustomPhotoUrl] = React.useState("")
   const [isUploadingCustomPhoto, setIsUploadingCustomPhoto] = React.useState(false)
   // Uploaded custom photos not yet added to the calculation, keyed by URL.
@@ -455,6 +492,9 @@ export function AuditStep2Detail({
     setCustomBrand("")
     setCustomNotes("")
     setCustomCategory("")
+    setCustomOperationType("STATIS")
+    setCustomCalcMethod("STANDARD")
+    setCustomCycle("")
     setCustomPhotoUrl("")
   }, [])
 
@@ -468,11 +508,18 @@ export function AuditStep2Detail({
     }
   }, [isAddOpen, resetCustomForm, discardUnusedCustomPhotos])
 
+  const customMethod: CalcMethod = customOperationType === "STATIS" ? "STANDARD" : customCalcMethod
+  const customCycleSeconds =
+    customMethod === "STANDARD"
+      ? null
+      : (parseFloat(customCycle.replace(",", ".")) || 0) * (customMethod === "BATCH" ? 60 : 1)
+
   const isCustomFormComplete =
     Boolean(customName.trim()) &&
     (parseFloat(customWatt) || 0) > 0 &&
     isDeviceCategory(customCategory) &&
-    Boolean(customPhotoUrl)
+    Boolean(customPhotoUrl) &&
+    (customCycleSeconds === null || customCycleSeconds > 0)
 
   const handleCreateCustomEquipment = React.useCallback(() => {
     const wattVal = parseFloat(customWatt) || 0
@@ -480,8 +527,16 @@ export function AuditStep2Detail({
       toast.error("Isi nama, kategori jenis, daya (Watt), dan foto produk dulu.")
       return
     }
+    if (customCycleSeconds !== null && !(customCycleSeconds > 0)) {
+      toast.error(customMethod === "TRANSACTION" ? "Isi waktu per transaksi dulu." : "Isi waktu per batch dulu.")
+      return
+    }
 
     const kwVal = wattVal / 1000
+    // A dynamic field item starts from the revision sheet split until an admin checks it.
+    const dynamic = customOperationType === "DINAMIS"
+    const runningKw = dynamic ? kwFromNameplatePct(kwVal, DEFAULT_RUNNING_PCT_OF_NAMEPLATE) : kwVal
+    const standbyKw = dynamic ? kwFromNameplatePct(kwVal, DEFAULT_STANDBY_PCT_OF_NAMEPLATE) : kwVal * 0.05
     const uid = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     const defaultStart = storeIs24Hours ? "00:00" : storeOpenTime
     const defaultEnd = storeIs24Hours ? "23:59" : storeCloseTime
@@ -500,11 +555,12 @@ export function AuditStep2Detail({
       endTimes: [defaultEnd],
       selected: true,
       isConfigured: true,
-      calcMethod: "STANDARD",
-      calcDuration: 0,
-      usages: [0],
-      runningKws: [kwVal],
-      standbyKws: [kwVal * 0.05],
+      calcMethod: customMethod,
+      calcDuration: customCycleSeconds ?? 0,
+      operationType: customOperationType,
+      usages: [defaultUsage(customMethod)],
+      runningKws: [runningKw],
+      standbyKws: [standbyKw],
       notes: customNotes.trim() || undefined,
       customDeviceCategory: customCategory,
       customPhotoUrl,
@@ -525,8 +581,9 @@ export function AuditStep2Detail({
       setStartTimes([defaultStart])
       setEndTimes([defaultEnd])
       setBrandNames([customBrand.trim()])
-      setRunningKws([kwVal])
-      setStandbyKws([kwVal * 0.05])
+      setRunningKws([runningKw])
+      setStandbyKws([standbyKw])
+      setUsages([defaultUsage(customMethod)])
       setNotes(customNotes.trim())
       setIsConfigOpen(true)
     }, 150)
@@ -537,6 +594,9 @@ export function AuditStep2Detail({
     customNotes,
     customCategory,
     customPhotoUrl,
+    customOperationType,
+    customMethod,
+    customCycleSeconds,
     resetCustomForm,
     storeIs24Hours,
     storeOpenTime,
@@ -584,88 +644,74 @@ export function AuditStep2Detail({
   const isAC = isAirConditioner(activeEquipment.name)
   const timesToRender = isAC ? quantity : 1
 
-  const calcEqDailyKwh = (eq: EquipmentItem) => {
-    const isEqAC = isAirConditioner(eq.name)
-    const qty = eq.quantity || 1
-    const method = eq.calcMethod || "STANDARD"
-    const duration = eq.calcDuration || 0
-    let sumKwh = 0
+  const storeHours = storeIs24Hours ? 24 : getSingleDuration(storeOpenTime, storeCloseTime)
 
-    if (isEqAC) {
-      for (let i = 0; i < qty; i++) {
-        const unitKw = eq.kws?.[i] ?? eq.kw ?? 0
-        const start = eq.startTimes?.[i] || "08:00"
-        const end = eq.endTimes?.[i] || "22:00"
-        sumKwh += unitKw * getSingleDuration(start, end)
-      }
-    } else {
-      const start = eq.startTimes?.[0] || "08:00"
-      const end = eq.endTimes?.[0] || "22:00"
-      const hrs = getSingleDuration(start, end)
-      const baseKw = eq.kws?.[0] ?? eq.kw ?? 0
+  const calcEqDailyKwh = (eq: EquipmentItem) =>
+    buildAuditItemRows([{ ...toEquipmentState(eq, areaName), selected: true }], undefined, {
+      storeHours,
+    }).reduce((sum, row) => sum + row.estimatedDailyKwh, 0)
 
-      // Same as buildAuditItemRows(): running/standby kW only for usage-based items.
-      if (method === "TRANSACTION" || method === "BATCH") {
-        const kwRunning = eq.runningKws?.[0] ?? baseKw
-        const kwStandby = eq.standbyKws?.[0] ?? kwRunning * 0.05
-        const usageVal = eq.usages?.[0] ?? 0
-        const hrsRunning = Math.min((usageVal * duration) / 3600, hrs)
-        const hrsStandby = Math.max(0, hrs - hrsRunning)
-        sumKwh += (kwRunning * hrsRunning + kwStandby * hrsStandby) * qty
-      } else {
-        sumKwh += baseKw * hrs * qty
-      }
+  // The drawer's unsaved values, counted with the same rows as submit.
+  const findBrand = (name: string | undefined) =>
+    activeMaster?.brands?.find((b) => b.name.toLowerCase() === (name ?? "").toLowerCase().trim())
+  const fallbackKw =
+    activeEquipment.kw ?? parseFloat(activeEquipment.detail?.replace(/[^\d.]/g, "") || "0")
+  const drawerUnits = Array.from({ length: quantity }, (_, i) => {
+    const brand = findBrand(brandNames[i])
+    return {
+      kw: brand ? brand.baseKw : fallbackKw,
+      runningKw: brand ? (brand.runningKw ?? brand.baseKw) : (runningKws[i] ?? fallbackKw),
+      standbyKw: brand ? (brand.standbyKw ?? brand.baseKw * 0.05) : (standbyKws[i] ?? fallbackKw * 0.05),
+      runningTimePct: brand?.runningTimePct ?? activeEquipment.runningTimePcts?.[i] ?? null,
+      standbyTimePct: brand?.standbyTimePct ?? activeEquipment.standbyTimePcts?.[i] ?? null,
     }
-    return sumKwh
-  }
-
-  // Calculate Active KWH for the drawer
-  let activeKwh = 0
-  let activeHrsSum = 0 // Just for display fallback if needed
-  if (isAC) {
-    for (let i = 0; i < quantity; i++) {
-      const bName = brandNames[i]
-      const matchedBrand = activeMaster?.brands?.find(
-        (b) => b.name.toLowerCase() === bName?.toLowerCase()?.trim()
-      )
-      const unitKw = matchedBrand
-        ? matchedBrand.baseKw
-        : (activeEquipment.kw ??
-          parseFloat(activeEquipment.detail?.replace(/[^\d.]/g, "") || "0"))
-      const duration = getSingleDuration(startTimes[i], endTimes[i])
-      activeKwh += unitKw * duration
-      activeHrsSum += duration
-    }
-  } else {
-    const bName = brandNames[0]
-    const matchedBrand = activeMaster?.brands?.find(
-      (b) => b.name.toLowerCase() === bName?.toLowerCase()?.trim()
-    )
-    const unitKw = matchedBrand
-      ? matchedBrand.baseKw
-      : (activeEquipment.kw ??
-        parseFloat(activeEquipment.detail?.replace(/[^\d.]/g, "") || "0"))
-    const duration = getSingleDuration(startTimes[0], endTimes[0])
-
-    const method = activeEquipment.calcMethod || "STANDARD"
-    const cycleDuration = activeEquipment.calcDuration || 0
-    const usageVal = usages[0] ?? 0
-
-    const kwRunning = matchedBrand ? (matchedBrand.runningKw ?? unitKw) : (runningKws[0] ?? unitKw)
-    const kwStandby = matchedBrand ? (matchedBrand.standbyKw ?? unitKw * 0.05) : (standbyKws[0] ?? unitKw * 0.05)
-
-    if (method === "TRANSACTION" || method === "BATCH") {
-      const hrsRunning = Math.min((usageVal * cycleDuration) / 3600, duration)
-      const hrsStandby = Math.max(0, duration - hrsRunning)
-      activeKwh += ((kwRunning * hrsRunning) + (kwStandby * hrsStandby)) * quantity
-    } else {
-      activeKwh += unitKw * duration * quantity
-    }
-    activeHrsSum = duration * quantity
-  }
-  const activeKwDisplay =
-    activeEquipment.kw ??
-    parseFloat(activeEquipment.detail?.replace(/[^\d.]/g, "") || "0") // For simple display
+  })
+  const drawerRows = buildAuditItemRows(
+    [
+      {
+        id: "drawer",
+        areaName,
+        name: activeEquipment.name,
+        kw: drawerUnits[0]?.kw ?? fallbackKw,
+        kws: drawerUnits.map((unit) => unit.kw),
+        quantity,
+        startTimes,
+        endTimes,
+        selected: true,
+        isConfigured: true,
+        calcMethod: activeEquipment.calcMethod,
+        calcDuration: activeEquipment.calcDuration,
+        operationType: activeMaster?.operationType ?? activeEquipment.operationType,
+        usages,
+        runningKws: drawerUnits.map((unit) => unit.runningKw),
+        standbyKws: drawerUnits.map((unit) => unit.standbyKw),
+        runningTimePcts: drawerUnits.map((unit) => unit.runningTimePct),
+        standbyTimePcts: drawerUnits.map((unit) => unit.standbyTimePct),
+      },
+    ],
+    undefined,
+    { storeHours }
+  )
+  const activeKwh = drawerRows.reduce((sum, row) => sum + row.estimatedDailyKwh, 0)
+  const activeHrsSum = drawerRows.reduce((sum, row) => sum + row.operationalHours * row.qty, 0)
+  const drawerRow = drawerRows[0]
+  const isDynamicDrawer = drawerRow?.operationType === "DINAMIS"
+  const drawerOverload = drawerRows.some((row) => row.overloaded)
+  const drawerOverloadMessage =
+    drawerRow && drawerOverload
+      ? usageOverloadMessage(
+          {
+            operationType: drawerRow.operationType,
+            calcMethod: drawerRow.calcMethod as CalcMethod,
+            baseKw: drawerRow.baseKw,
+            runningKw: drawerRow.runningKw,
+            standbyKw: drawerRow.standbyKw,
+            cycleSeconds: drawerRow.cycleSeconds,
+          },
+          { qty: drawerRow.qty, hours: drawerRow.operationalHours, usageCount: drawerRow.usageCount }
+        )
+      : null
+  const activeKwDisplay = fallbackKw // For simple display
 
   const totalAreaDailyKwh = items
     .filter((i) => i.selected)
@@ -906,7 +952,7 @@ export function AuditStep2Detail({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="custom-eq-watt" className="text-xs font-semibold">
-                      Daya Listrik (Watt) *
+                      Daya nameplate (Watt) *
                     </Label>
                     {(parseFloat(customWatt) || 0) > 0 && (
                       <span className="text-xs font-semibold text-primary">
@@ -927,6 +973,69 @@ export function AuditStep2Detail({
                     Lihat angka Watt pada nameplate/stiker alat (misal: 350 W, 800 W).
                   </p>
                 </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="custom-eq-operation" className="text-xs font-semibold">
+                      Karakteristik *
+                    </Label>
+                    <Select
+                      value={customOperationType}
+                      onValueChange={(value) => setCustomOperationType(value as OperationType)}
+                    >
+                      <SelectTrigger id="custom-eq-operation" className="h-10 w-full text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="STATIS">{OPERATION_TYPE_LABELS.STATIS} (daya tetap, contoh lampu)</SelectItem>
+                        <SelectItem value="DINAMIS">{OPERATION_TYPE_LABELS.DINAMIS} (ada running dan standby)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="custom-eq-method" className="text-xs font-semibold">
+                      Metode *
+                    </Label>
+                    <Select
+                      value={customMethod}
+                      onValueChange={(value) => setCustomCalcMethod(value as CalcMethod)}
+                      disabled={customOperationType === "STATIS"}
+                    >
+                      <SelectTrigger id="custom-eq-method" className="h-10 w-full text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="STANDARD">{CALC_METHOD_LABELS.STANDARD} (daya × jam)</SelectItem>
+                        <SelectItem value="TRANSACTION">{CALC_METHOD_LABELS.TRANSACTION} (per cup atau porsi)</SelectItem>
+                        <SelectItem value="BATCH">{CALC_METHOD_LABELS.BATCH} (per sesi masak)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {customMethod !== "STANDARD" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="custom-eq-cycle" className="text-xs font-semibold">
+                      {customMethod === "TRANSACTION" ? "Waktu per transaksi (detik) *" : "Waktu per batch (menit) *"}
+                    </Label>
+                    <Input
+                      id="custom-eq-cycle"
+                      inputMode="decimal"
+                      placeholder={customMethod === "TRANSACTION" ? "Contoh: 60" : "Contoh: 15"}
+                      value={customCycle}
+                      onChange={(e) => setCustomCycle(e.target.value)}
+                      className="h-10 text-xs"
+                    />
+                  </div>
+                )}
+
+                {customOperationType === "DINAMIS" && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Daya running dan standby dihitung {DEFAULT_RUNNING_PCT_OF_NAMEPLATE}% dan{" "}
+                    {DEFAULT_STANDBY_PCT_OF_NAMEPLATE}% dari nameplate. Admin bisa membetulkannya saat
+                    mengecek alat ini.
+                  </p>
+                )}
 
                 <div className="space-y-1.5">
                   <Label htmlFor="custom-eq-brand" className="text-xs font-semibold">
@@ -1445,14 +1554,21 @@ export function AuditStep2Detail({
                         </span>
                       </p>
                     </div>
+                    {isDynamicDrawer && activeEquipment.calcMethod === "STANDARD" && (
+                      <p className="px-1 text-xs text-muted-foreground">
+                        {drawerUnits[idx]?.runningTimePct != null
+                          ? "Isi jam alat menyala. Persentase running dan standby memakai data master alat ini."
+                          : "Alat ini belum punya persentase running di master. Isi jam mesin benar-benar bekerja; sisa jam toko buka dihitung sebagai standby."}
+                      </p>
+                    )}
 
                     {/* Input untuk TRANSACTION / BATCH */}
                     {activeEquipment.calcMethod && activeEquipment.calcMethod !== "STANDARD" && (
                       <div className="space-y-2 rounded-xl border border-input bg-muted/20 p-3 mt-4">
                         <Label htmlFor={`eq-usage-${idx}`} className="text-xs font-bold text-foreground">
                           {activeEquipment.calcMethod === "TRANSACTION"
-                            ? "Estimasi Penjualan (Cup/Hari)"
-                            : "Frekuensi Penggunaan (Kali/Hari)"}
+                            ? "Jumlah transaksi per hari (total toko)"
+                            : "Jumlah batch per hari (total toko)"}
                         </Label>
                         <Input
                           id={`eq-usage-${idx}`}
@@ -1474,8 +1590,8 @@ export function AuditStep2Detail({
                           <IconInfoCircle className="size-3.5 shrink-0 text-primary mt-0.5" />
                           <span>
                             {activeEquipment.calcMethod === "TRANSACTION"
-                              ? `Durasi pemakaian alat terhitung otomatis selama ${activeEquipment.calcDuration ?? 0} detik setiap kali transaksi cup.`
-                              : `Durasi pemakaian alat terhitung otomatis selama ${Math.round((activeEquipment.calcDuration ?? 0) / 60)} menit setiap kali proses batch baking.`}
+                              ? `Isi total cup atau porsi satu toko, walau mesinnya lebih dari satu. Tiap transaksi dihitung ${activeEquipment.calcDuration ?? 0} detik kerja.`
+                              : `Isi total batch satu toko, walau alatnya lebih dari satu. Tiap batch dihitung ${Math.round((activeEquipment.calcDuration ?? 0) / 60)} menit kerja.`}
                           </span>
                         </div>
                       </div>
@@ -1513,11 +1629,13 @@ export function AuditStep2Detail({
                       </span>
                     </div>
                     <span className="mt-0.5 text-xs text-muted-foreground">
-                      {isAC
-                        ? `${formatKw(activeKwDisplay)} kW (base) × ${activeHrsSum.toFixed(1).replace(/\.0$/, "")} Jam Total`
-                        : activeEquipment.calcMethod === "TRANSACTION" || activeEquipment.calcMethod === "BATCH"
-                          ? `Running: ${formatKw(usages[0] ? (runningKws[0] ?? activeKwDisplay) : activeKwDisplay)} kW, Standby: ${formatKw(standbyKws[0] ?? activeKwDisplay * 0.05)} kW`
-                          : `${formatKw(activeKwDisplay)} kW (base) × ${quantity} Unit × ${getSingleDuration(startTimes[0], endTimes[0]).toFixed(1).replace(/\.0$/, "")} Jam`}
+                      {activeEquipment.calcMethod === "TRANSACTION" || activeEquipment.calcMethod === "BATCH"
+                        ? `Running ${formatKw(drawerRow?.runningKw ?? activeKwDisplay)} kW, standby ${formatKw(drawerRow?.standbyKw ?? 0)} kW`
+                        : isDynamicDrawer && drawerRow?.runningTimePct != null
+                          ? `Running ${formatKw(drawerRow.runningKw)} kW (${Math.round(drawerRow.runningTimePct)}%), standby ${formatKw(drawerRow.standbyKw)} kW`
+                          : isAC
+                            ? `${formatKw(activeKwDisplay)} kW (base) × ${activeHrsSum.toFixed(1).replace(/\.0$/, "")} Jam Total`
+                            : `${formatKw(activeKwDisplay)} kW (base) × ${quantity} Unit × ${getSingleDuration(startTimes[0], endTimes[0]).toFixed(1).replace(/\.0$/, "")} Jam`}
                     </span>
                   </div>
                 </div>
@@ -1533,6 +1651,11 @@ export function AuditStep2Detail({
             </div>
           </div>
 
+          {drawerOverloadMessage && (
+            <p role="alert" className="px-4 pt-3 text-sm font-medium text-destructive">
+              {drawerOverloadMessage}
+            </p>
+          )}
           <DrawerFooter className="flex shrink-0 flex-row items-center gap-2 border-t border-border/40 bg-background px-4 pt-4 pb-8">
             <DrawerClose asChild>
               <Button variant="outline" className="h-11 flex-1">
@@ -1542,6 +1665,7 @@ export function AuditStep2Detail({
             <DrawerClose asChild>
               <Button
                 className="h-11 flex-2"
+                disabled={drawerOverload}
                 onClick={() => {
                   setItems((prev) =>
                     prev.map((eq) => {
@@ -1604,6 +1728,9 @@ export function AuditStep2Detail({
                         usages,
                         runningKws: finalRunningKws,
                         standbyKws: finalStandbyKws,
+                        operationType: activeMaster?.operationType ?? eq.operationType,
+                        runningTimePcts: drawerUnits.map((unit) => unit.runningTimePct),
+                        standbyTimePcts: drawerUnits.map((unit) => unit.standbyTimePct),
                         notes: notes.trim() || undefined,
                       }
                     })

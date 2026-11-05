@@ -32,6 +32,23 @@ import type { MasterEquipmentTypeOption } from "@/lib/admin-master-data-queries"
 import { AREA_LABELS, AREA_TARGET_OPTIONS } from "@/lib/area-labels"
 import type { PendingCustomEquipment } from "@/lib/custom-equipment-review"
 import { DEVICE_CATEGORIES } from "@/lib/equipment-categories"
+import { EnergyProfileFields } from "@/components/admin/energy-profile-fields"
+import {
+  CALC_METHOD_LABELS,
+  CALC_METHODS,
+  OPERATION_TYPE_LABELS,
+  OPERATION_TYPES,
+  isUsageMethod,
+  resolveOperationType,
+  type CalcMethod,
+  type OperationType,
+} from "@/lib/energy-formula"
+import {
+  parseDecimal,
+  profileDraftFromBrand,
+  profileIssueMessage,
+  resolveProfileDraft,
+} from "@/lib/energy-profile-draft"
 
 const dateFormat = new Intl.DateTimeFormat("id-ID", {
   day: "numeric",
@@ -122,16 +139,54 @@ function ReviewCard({
   const [name, setName] = useState(item.name)
   const [deviceCategory, setDeviceCategory] = useState(item.deviceCategory)
   const [areaTarget, setAreaTarget] = useState<AreaTarget>(item.areaTarget)
-  const [baseKw, setBaseKw] = useState(String(item.baseKw))
   const [brandName, setBrandName] = useState(item.brandName || "Umum")
+  const [newOperationType, setNewOperationType] = useState<OperationType>(item.operationType)
+  const [newCalcMethod, setNewCalcMethod] = useState<CalcMethod>(
+    (CALC_METHODS as readonly string[]).includes(item.calcMethod) ? (item.calcMethod as CalcMethod) : "STANDARD"
+  )
+  // Seconds per transaction, minutes per batch, as in the master form.
+  const [newCycle, setNewCycle] = useState(
+    item.cycleSeconds ? String(item.calcMethod === "BATCH" ? item.cycleSeconds / 60 : item.cycleSeconds) : ""
+  )
+  // The field form's power is the nameplate.
+  const [profileDraft, setProfileDraft] = useState(() =>
+    profileDraftFromBrand({
+      nameplateKw: item.baseKw,
+      baseKw: item.baseKw,
+      runningKw: 0,
+      standbyKw: 0,
+      runningPctOfNameplate: null,
+      standbyPctOfNameplate: null,
+      runningTimePct: null,
+    })
+  )
 
   const isNewType = targetTypeId === "new"
+  const targetType = equipmentTypeOptions.find((type) => type.id === targetTypeId)
+  const operationType: OperationType = isNewType
+    ? newOperationType
+    : resolveOperationType(targetType?.operationType, targetType?.calcMethod)
+  const calcMethod = isNewType
+    ? newOperationType === "STATIS"
+      ? "STANDARD"
+      : newCalcMethod
+    : (targetType?.calcMethod ?? "STANDARD")
+  const newCycleValue = parseDecimal(newCycle)
+  const cycleSeconds = isNewType
+    ? isUsageMethod(calcMethod) && Number.isFinite(newCycleValue)
+      ? calcMethod === "BATCH"
+        ? newCycleValue * 60
+        : newCycleValue
+      : null
+    : (targetType?.calcDuration ?? null)
   const ids = {
     target: `cer-target-${item.id}`,
     name: `cer-name-${item.id}`,
     category: `cer-category-${item.id}`,
     area: `cer-area-${item.id}`,
-    kw: `cer-kw-${item.id}`,
+    operation: `cer-operation-${item.id}`,
+    method: `cer-method-${item.id}`,
+    cycle: `cer-cycle-${item.id}`,
     brand: `cer-brand-${item.id}`,
   }
 
@@ -145,6 +200,11 @@ function ReviewCard({
   }
 
   function approve() {
+    const { values, issues } = resolveProfileDraft(profileDraft, operationType, calcMethod, cycleSeconds)
+    if (issues.length > 0) {
+      toast.error(profileIssueMessage(issues))
+      return
+    }
     startTransition(async () => {
       handleResult(
         await approveCustomEquipmentAction({
@@ -153,8 +213,11 @@ function ReviewCard({
           name,
           deviceCategory,
           areaTarget,
-          baseKw: Number(baseKw.replace(",", ".")),
           brandName,
+          operationType,
+          calcMethod,
+          cycleSeconds,
+          profile: values,
         })
       )
     })
@@ -183,7 +246,8 @@ function ReviewCard({
           </p>
           <p className="text-muted-foreground">
             {item.deviceCategory} · {AREA_LABELS[item.areaTarget]} ·{" "}
-            {Math.round(item.baseKw * 1000)} W
+            {Math.round(item.baseKw * 1000)} W · {OPERATION_TYPE_LABELS[item.operationType]}{" "}
+            {CALC_METHOD_LABELS[item.calcMethod as CalcMethod] ?? item.calcMethod}
           </p>
           <p className="text-xs text-muted-foreground">
             {item.storeLabel} ({item.branch}) · {item.submittedBy} ·{" "}
@@ -256,13 +320,71 @@ function ReviewCard({
             disabled={isPending}
           />
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={ids.kw}>Base kW</Label>
-          <Input
-            id={ids.kw}
-            inputMode="decimal"
-            value={baseKw}
-            onChange={(e) => setBaseKw(e.target.value)}
+        {isNewType && (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={ids.operation}>Karakteristik</Label>
+              <Select
+                value={newOperationType}
+                onValueChange={(value) => setNewOperationType(value as OperationType)}
+                disabled={isPending}
+              >
+                <SelectTrigger id={ids.operation} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OPERATION_TYPES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {OPERATION_TYPE_LABELS[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={ids.method}>Metode kalkulasi</Label>
+              <Select
+                value={calcMethod}
+                onValueChange={(value) => setNewCalcMethod(value as CalcMethod)}
+                disabled={isPending || newOperationType === "STATIS"}
+              >
+                <SelectTrigger id={ids.method} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CALC_METHODS.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {CALC_METHOD_LABELS[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {isUsageMethod(calcMethod) && (
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <Label htmlFor={ids.cycle}>
+                  {calcMethod === "TRANSACTION" ? "Waktu per transaksi (detik)" : "Waktu per batch (menit)"}
+                </Label>
+                <Input
+                  id={ids.cycle}
+                  inputMode="decimal"
+                  value={newCycle}
+                  onChange={(e) => setNewCycle(e.target.value)}
+                  disabled={isPending}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="sm:col-span-2">
+          <EnergyProfileFields
+            idPrefix={`cer-profile-${item.id}`}
+            draft={profileDraft}
+            onChange={setProfileDraft}
+            operationType={operationType}
+            calcMethod={calcMethod}
+            cycleSeconds={cycleSeconds}
             disabled={isPending}
           />
         </div>

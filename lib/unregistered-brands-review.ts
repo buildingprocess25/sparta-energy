@@ -26,7 +26,9 @@ export async function getUnregisteredBrands() {
         brandName: true,
         baseKw: true,
         areaTarget: true,
-        equipmentType: { select: { id: true, name: true, calcMethod: true } },
+        equipmentType: {
+          select: { id: true, name: true, calcMethod: true, operationType: true, calcDuration: true },
+        },
         audit: {
           select: {
             id: true,
@@ -55,6 +57,8 @@ export async function getUnregisteredBrands() {
         equipmentTypeId: type.id,
         typeName: type.name,
         calcMethod: type.calcMethod,
+        operationType: type.operationType,
+        cycleSeconds: type.calcDuration,
         brandName: item.brandName,
         baseKw: Number(item.baseKw),
         areaTarget: item.areaTarget,
@@ -93,11 +97,11 @@ export async function addFieldBrandToMaster(input: AddFieldBrandInput, reviewerI
   return prisma.$transaction(async (tx) => {
     const type = await tx.equipmentType.findUnique({
       where: { id: input.equipmentTypeId },
-      select: { id: true, name: true, calcMethod: true },
+      select: { id: true, name: true, calcMethod: true, operationType: true, calcDuration: true },
     })
     if (!type) throw new UnregisteredBrandError("Tipe alat ini sudah tidak ada di master.")
 
-    const data = toMasterBrandData(input, type.calcMethod)
+    const data = toMasterBrandData(input, { ...type, cycleSeconds: type.calcDuration })
     const existing = await tx.equipmentBrand.findMany({
       where: { equipmentTypeId: type.id },
       select: { name: true },

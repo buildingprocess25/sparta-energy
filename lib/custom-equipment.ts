@@ -1,6 +1,7 @@
 import type { AreaTarget, Prisma } from "@prisma/client"
 
-import { isDeviceCategory } from "@/lib/equipment-categories"
+import { BEANSPOT_DEVICE_CATEGORY, isDeviceCategory } from "@/lib/equipment-categories"
+import { isCalcMethod, isUsageMethod, resolveOperationType } from "@/lib/energy-formula"
 import type { EquipmentState } from "@/store/use-audit-store"
 
 // Photos must come from our UploadThing app, not an arbitrary URL from the client.
@@ -27,7 +28,7 @@ const AREA_TYPE_CATEGORY: Record<AreaTarget, string> = {
 // equipment_types.category drives which step-2 area lists a type; Beanspot types
 // are listed for Beanspot stores wherever they sit.
 export function typeCategoryFor(deviceCategory: string, areaTarget: AreaTarget) {
-  return deviceCategory === "Sistem Beanspot" ? "BEANSPOT" : AREA_TYPE_CATEGORY[areaTarget]
+  return deviceCategory === BEANSPOT_DEVICE_CATEGORY ? "BEANSPOT" : AREA_TYPE_CATEGORY[areaTarget]
 }
 
 function normalizeName(name: string) {
@@ -94,6 +95,9 @@ export async function syncCustomEquipmentSubmissions(
         brandName: eq.brandNames?.[0]?.trim() || eq.brandName?.trim() || "",
         notes: eq.notes?.trim() || null,
         productPhotoUrl: eq.customPhotoUrl!,
+        operationType: resolveOperationType(eq.operationType, eq.calcMethod),
+        calcMethod: isCalcMethod(eq.calcMethod) ? eq.calcMethod : "STANDARD",
+        cycleSeconds: isUsageMethod(eq.calcMethod) ? (eq.calcDuration ?? null) : null,
       },
       select: { id: true },
     })

@@ -107,8 +107,10 @@ model EquipmentType {
   storeType      String?          @map("store_type")
   calcMethod     String           @default("STANDARD") @map("calc_method")
   calcDuration   Int?             @map("calc_duration")
+  // Energy formula v2: STATIS (H = nameplate) or DINAMIS (H = I×K + J×L).
+  operationType  String           @default("STATIS") @map("operation_type")
   createdAt      DateTime         @default(now()) @map("created_at")
-  
+
   brands      EquipmentBrand[]
   auditItems  AuditItem[]
   customEquipment CustomEquipmentSubmission[]
@@ -141,6 +143,12 @@ model EquipmentBrand {
   baseKw          Decimal       @map("base_kw") // Diisi dengan defaultKw dari EquipmentType saat dibuat
   standbyKw       Decimal       @default(0) @map("standby_kw")
   runningKw       Decimal       @default(0) @map("running_kw")
+  // Energy formula v2 profile; base_kw holds H computed from these for DINAMIS.
+  nameplateKw           Decimal? @map("nameplate_kw")
+  runningPctOfNameplate Decimal? @map("running_pct_of_nameplate")
+  standbyPctOfNameplate Decimal? @map("standby_pct_of_nameplate")
+  runningTimePct        Decimal? @map("running_time_pct")
+  standbyTimePct        Decimal? @map("standby_time_pct")
   areaTarget      AreaTarget    @default(SALES) @map("area_target")
   productPhotoUrl   String?       @map("product_photo_url")
   nameplatePhotoUrl String?       @map("nameplate_photo_url")
@@ -215,7 +223,18 @@ model AuditItem {
   estimatedDailyKwh Decimal         @map("estimated_daily_kwh")
   usageCount        Int?            @map("usage_count")
   notes             String?         @map("notes")
-  
+  // Profile snapshot taken at submit (formula v2), so validation recomputes the
+  // same number. Null formulaVersion: saved before v2, usageCount was per unit.
+  formulaVersion    Int?            @map("formula_version")
+  operationType     String?         @map("operation_type")
+  calcMethod        String?         @map("calc_method")
+  runningKw         Decimal?        @map("running_kw")
+  standbyKw         Decimal?        @map("standby_kw")
+  runningTimePct    Decimal?        @map("running_time_pct")
+  standbyTimePct    Decimal?        @map("standby_time_pct")
+  cycleSeconds      Int?            @map("cycle_seconds")
+  storeHours        Decimal?        @map("store_hours")
+
   audit             Audit           @relation(fields: [auditId], references: [id])
   equipmentType     EquipmentType?  @relation(fields: [equipmentTypeId], references: [id])
   equipmentBrand    EquipmentBrand? @relation(fields: [equipmentBrandId], references: [id])
@@ -239,6 +258,10 @@ model CustomEquipmentSubmission {
   brandName        String                @default("") @map("brand_name")
   notes            String?
   productPhotoUrl  String                @map("product_photo_url")
+  // How the field form counted it; the admin can change both on approval.
+  operationType    String                @default("STATIS") @map("operation_type")
+  calcMethod       String                @default("STANDARD") @map("calc_method")
+  cycleSeconds     Int?                  @map("cycle_seconds")
   status           CustomEquipmentStatus @default(PENDING)
   reviewedById     String?               @map("reviewed_by_id") @db.Uuid
   reviewedAt       DateTime?             @map("reviewed_at")

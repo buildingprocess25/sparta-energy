@@ -1,13 +1,26 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { IconLoader2, IconPhoto, IconUpload, IconX, IconInfoCircle } from "@tabler/icons-react"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { IconLoader2, IconPhoto, IconUpload, IconX } from "@tabler/icons-react"
 import { toast } from "sonner"
 import { cn, slugify } from "@/lib/utils"
 import { uploadFiles } from "@/lib/uploadthing"
 import { compressImage } from "@/lib/image-compression"
 import { DEVICE_CATEGORIES, isDeviceCategory } from "@/lib/equipment-categories"
+import {
+  CALC_METHOD_LABELS,
+  OPERATION_TYPE_LABELS,
+  resolveOperationType,
+  type CalcMethod,
+  type OperationType,
+} from "@/lib/energy-formula"
+import {
+  emptyProfileDraft,
+  profileDraftFromBrand,
+  profileIssueMessage,
+  resolveProfileDraft,
+} from "@/lib/energy-profile-draft"
+import { EnergyProfileFields } from "@/components/admin/energy-profile-fields"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -18,7 +31,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -124,16 +145,27 @@ export function AdminMasterEquipmentDialog({
   const [category, setCategory] = useState("")
   const [deviceCategory, setDeviceCategory] = useState("")
   const [storeType, setStoreType] = useState("all") // "all" maps to null in DB
-  const [defaultKw, setDefaultKw] = useState<number | "">("")
-  const [calcMethod, setCalcMethod] = useState("STANDARD")
+  const [calcMethod, setCalcMethod] = useState<CalcMethod>("STANDARD")
   const [calcDuration, setCalcDuration] = useState<number | "">("")
+  const [operationType, setOperationType] = useState<OperationType>("STATIS")
 
   const [brandName, setBrandName] = useState("")
   const [area, setArea] = useState<"SALES" | "PARKING" | "TERRACE" | "WAREHOUSE">("SALES")
-  const [baseKw, setBaseKw] = useState<number | "">("")
-  const [standbyKw, setStandbyKw] = useState<number | "">(0)
-  const [runningKw, setRunningKw] = useState<number | "">(0)
+  const [profileDraft, setProfileDraft] = useState(emptyProfileDraft)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Statis equipment only has the standard formula (revision sheet V/X table).
+  const changeOperationType = (value: OperationType) => {
+    setOperationType(value)
+    if (value === "STATIS") setCalcMethod("STANDARD")
+  }
+
+  const cycleSeconds =
+    calcMethod === "STANDARD" || calcDuration === ""
+      ? null
+      : calcMethod === "BATCH"
+        ? Number(calcDuration) * 60
+        : Number(calcDuration)
 
   const isCreateMode = !equipment
   const isNewTypeSelected = equipmentTypeId === "new"
@@ -168,19 +200,17 @@ export function AdminMasterEquipmentDialog({
       setDeviceCategory(isDeviceCategory(equipment.deviceCategory) ? equipment.deviceCategory : "")
 
       setStoreType(equipment.storeType || "all")
-      setDefaultKw(equipment.defaultKw)
-      setCalcMethod(equipment.calcMethod || "STANDARD")
+      setCalcMethod((equipment.calcMethod || "STANDARD") as CalcMethod)
       setCalcDuration(
         equipment.calcMethod === "BATCH" && equipment.calcDuration
           ? equipment.calcDuration / 60
           : equipment.calcDuration ?? ""
       )
+      setOperationType(resolveOperationType(equipment.operationType, equipment.calcMethod))
 
       setBrandName(equipment.brandName)
       setArea(equipment.area)
-      setBaseKw(equipment.baseKw)
-      setStandbyKw(equipment.standbyKw)
-      setRunningKw(equipment.runningKw)
+      setProfileDraft(profileDraftFromBrand(equipment))
       setProductPhotoUrl(equipment.productPhotoUrl || "")
       setNameplatePhotoUrl(equipment.nameplatePhotoUrl || "")
     } else {
@@ -190,15 +220,13 @@ export function AdminMasterEquipmentDialog({
       setCategory("")
       setDeviceCategory("")
       setStoreType("all")
-      setDefaultKw("")
       setCalcMethod("STANDARD")
       setCalcDuration("")
+      setOperationType("STATIS")
 
       setBrandName("")
       setArea("SALES")
-      setBaseKw("")
-      setStandbyKw(0)
-      setRunningKw(0)
+      setProfileDraft(emptyProfileDraft())
       setProductPhotoUrl("")
       setNameplatePhotoUrl("")
     }
@@ -212,8 +240,6 @@ export function AdminMasterEquipmentDialog({
     setEquipmentName("")
     setCategory("")
     setStoreType("all")
-    setDefaultKw("")
-    setBaseKw("")
   }
 
   // Watch for equipment type selection in Create mode
@@ -231,15 +257,13 @@ export function AdminMasterEquipmentDialog({
         )
 
         setStoreType(selectedType.storeType || "all")
-        setDefaultKw(selectedType.defaultKw)
-        setCalcMethod(selectedType.calcMethod || "STANDARD")
+        setCalcMethod((selectedType.calcMethod || "STANDARD") as CalcMethod)
         setCalcDuration(
           selectedType.calcMethod === "BATCH" && selectedType.calcDuration
             ? selectedType.calcDuration / 60
             : selectedType.calcDuration ?? ""
         )
-        // Auto-fill baseKw with defaultKw of type for convenience
-        setBaseKw(selectedType.defaultKw)
+        setOperationType(resolveOperationType(selectedType.operationType, selectedType.calcMethod))
         // Auto-select brand area target based on category
         setArea(getAreaFromCategory(selectedType.category))
       }
@@ -247,10 +271,9 @@ export function AdminMasterEquipmentDialog({
       setEquipmentName("")
       setCategory("")
       setStoreType("all")
-      setDefaultKw("")
-      setBaseKw("")
       setCalcMethod("STANDARD")
       setCalcDuration("")
+      setOperationType("STATIS")
     }
   }
 
@@ -273,16 +296,9 @@ export function AdminMasterEquipmentDialog({
       return
     }
 
-    if (baseKw === "" || isNaN(Number(baseKw)) || Number(baseKw) < 0) {
-      toast.error("Base kW harus berupa angka 0 atau lebih")
-      return
-    }
-    if (standbyKw !== "" && (isNaN(Number(standbyKw)) || Number(standbyKw) < 0)) {
-      toast.error("Standby kW harus berupa angka 0 atau lebih")
-      return
-    }
-    if (runningKw !== "" && (isNaN(Number(runningKw)) || Number(runningKw) < 0)) {
-      toast.error("Running kW harus berupa angka 0 atau lebih")
+    const profile = resolveProfileDraft(profileDraft, operationType, calcMethod, cycleSeconds)
+    if (profile.issues.length > 0) {
+      toast.error(profileIssueMessage(profile.issues))
       return
     }
 
@@ -314,9 +330,7 @@ export function AdminMasterEquipmentDialog({
         equipmentTypeId,
         brandName: cleanBrandName,
         area,
-        baseKw: Number(baseKw),
-        standbyKw: standbyKw === "" ? 0 : Number(standbyKw),
-        runningKw: runningKw === "" ? 0 : Number(runningKw),
+        ...profile.values,
         productPhotoUrl: productPhotoUrl || null,
         nameplatePhotoUrl: nameplatePhotoUrl || null,
       }
@@ -326,15 +340,10 @@ export function AdminMasterEquipmentDialog({
         payload.category = cleanCategory
         payload.deviceCategory = cleanDeviceCategory
         payload.storeType = storeType === "all" ? null : storeType
-        payload.defaultKw = Number(baseKw) // Opsi A: defaultKw disamakan dengan baseKw
+        payload.defaultKw = profile.values.baseKw // Opsi A: defaultKw disamakan dengan baseKw
         payload.calcMethod = calcMethod
-        payload.calcDuration = calcMethod === "STANDARD"
-          ? null
-          : calcDuration === ""
-            ? null
-            : calcMethod === "BATCH"
-              ? Number(calcDuration) * 60
-              : Number(calcDuration)
+        payload.operationType = operationType
+        payload.calcDuration = cycleSeconds
       }
 
       const url = isCreateMode
@@ -377,153 +386,101 @@ export function AdminMasterEquipmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md overflow-y-auto max-h-[90vh]">
-        <form onSubmit={handleSubmit}>
+      <DialogContent className="max-h-[90svh] overflow-x-hidden overflow-y-auto sm:max-w-lg">
+        <form onSubmit={handleSubmit} className="flex min-w-0 flex-col gap-6">
           <DialogHeader>
-            <DialogTitle>
-              {isCreateMode ? "Tambah Equipment" : "Ubah Equipment"}
-            </DialogTitle>
+            <DialogTitle>{isCreateMode ? "Tambah Equipment" : "Ubah Equipment"}</DialogTitle>
             <DialogDescription>
               {isCreateMode
-                ? "Masukkan detail tipe dan merek equipment baru."
-                : "Ubah data merek dan kategori untuk equipment."}
+                ? "Pilih tipe alat, lalu isi merek dan profil dayanya."
+                : "Ubah data tipe, merek, dan profil daya equipment ini."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {/* ── SECTION 1: Equipment Type ── */}
-            {isCreateMode ? (
-              <div className="space-y-4">
-                {/* Kategori Jenis Select */}
-                <div className="space-y-2">
-                  <Label htmlFor="eq-device-category-top">Kategori Jenis *</Label>
-                  <Select
-                    value={deviceCategory}
-                    onValueChange={handleDeviceCategoryChange}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger id="eq-device-category-top">
-                      <SelectValue placeholder="Pilih kategori jenis..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DEVICE_CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+          <FieldGroup className="gap-6">
+            <FieldSet>
+              <FieldLegend>Tipe alat</FieldLegend>
+              <FieldGroup className="gap-4">
+                {isCreateMode && (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor="eq-device-category-top">Kategori *</FieldLabel>
+                      <Select
+                        value={deviceCategory}
+                        onValueChange={handleDeviceCategoryChange}
+                        disabled={isSubmitting}
+                      >
+                        <SelectTrigger id="eq-device-category-top" className="w-full">
+                          <SelectValue placeholder="Pilih kategori" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DEVICE_CATEGORIES.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
 
-                {/* Tipe Equipment Select */}
-                <div className="space-y-2">
-                  <Label htmlFor="eq-type-select">Pilih Tipe Equipment *</Label>
-                  <Select
-                    value={equipmentTypeId}
-                    onValueChange={handleTypeChange}
-                    disabled={isSubmitting || !deviceCategory}
-                  >
-                    <SelectTrigger id="eq-type-select">
-                      <SelectValue placeholder={deviceCategory ? "Pilih tipe..." : "Pilih kategori jenis dahulu"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="new" className="font-semibold text-primary">
-                        + Buat Tipe Baru...
-                      </SelectItem>
-                      {filteredTypeOptions.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-muted-foreground">
-                    Pilih tipe yang sudah ada, atau pilih <strong className="text-primary font-semibold">&quot;+ Buat Tipe Baru...&quot;</strong> jika ingin membuat tipe dengan metode kalkulasi baru.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-lg border bg-muted/30 p-3 text-xs">
-                <span className="font-medium text-muted-foreground">ID Tipe:</span>{" "}
-                <code className="font-mono">{equipmentTypeId}</code>
-              </div>
-            )}
+                    <Field>
+                      <FieldLabel htmlFor="eq-type-select">Tipe equipment *</FieldLabel>
+                      <Select
+                        value={equipmentTypeId}
+                        onValueChange={handleTypeChange}
+                        disabled={isSubmitting || !deviceCategory}
+                      >
+                        <SelectTrigger id="eq-type-select" className="w-full">
+                          <SelectValue
+                            placeholder={deviceCategory ? "Pilih tipe" : "Pilih kategori dulu"}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="new">Buat tipe baru</SelectItem>
+                          {filteredTypeOptions.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FieldDescription>
+                        Pilih tipe yang ada untuk menambah merek, atau buat tipe baru kalau
+                        karakteristik dan metodenya berbeda.
+                      </FieldDescription>
+                    </Field>
+                  </>
+                )}
 
-            {/* Preview Metode Kalkulasi & Info Tipe saat memilih tipe yang sudah ada di mode Tambah */}
-            {isCreateMode && equipmentTypeId && !isNewTypeSelected && (
-              <div className="rounded-lg border border-border/80 bg-muted/30 p-3 space-y-2 text-xs">
-                <div className="flex items-center justify-between pb-1.5 border-b border-border/50">
-                  <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                    <IconInfoCircle className="size-3.5 text-primary shrink-0" />
-                    <span>Metode Kalkulasi: <strong>{equipmentName}</strong></span>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                    {calcMethod}
-                  </span>
-                </div>
-
-                <div className="space-y-1 text-muted-foreground">
-                  <div className="flex justify-between">
-                    <span>Rumus Perhitungan:</span>
-                    <span className="font-medium text-foreground">
-                      {calcMethod === "STANDARD" && "Power (kW) × Jam Operasional"}
-                      {calcMethod === "TRANSACTION" && `Transaksi × ${calcDuration || 0} detik/cup`}
-                      {calcMethod === "BATCH" && `Batch × ${calcDuration || 0} menit/baking`}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Area Penempatan:</span>
-                    <span className="font-medium text-foreground">
-                      {category === "SALES"
-                        ? "Area Belanja"
-                        : category === "PARKIRAN"
-                        ? "Parkiran"
-                        : category === "TERAS"
-                        ? "Teras"
-                        : category === "GUDANG"
-                        ? "Gudang, Toilet & Selasar"
-                        : category === "BEANSPOT"
-                        ? "Beanspot"
-                        : category || "-"}
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-[10.5px] text-muted-foreground/80 pt-1 border-t border-border/40 leading-relaxed">
-                  * Metode kalkulasi ini otomatis terikat pada tipe <strong>{equipmentName}</strong>. Untuk mengubah metode kalkulasi tipe ini, gunakan tombol <em>Ubah</em> pada tabel master data.
-                </p>
-              </div>
-            )}
-
-            {/* Fields for Equipment Type (Shown if editing OR if creating new type) */}
-            {(isNewTypeSelected || !isCreateMode) && (
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-3">
-                <div className="text-xs font-semibold text-primary/80 uppercase tracking-wider">
-                  Detail Tipe Equipment
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="eq-name">Nama Tipe Equipment *</Label>
-                  <Input
-                    id="eq-name"
-                    placeholder="Contoh: Air Conditioner"
-                    value={equipmentName}
-                    onChange={(e) => setEquipmentName(e.target.value)}
-                    disabled={isSubmitting}
-                    required
-                  />
-                </div>
+                {isCreateMode && equipmentTypeId && !isNewTypeSelected && (
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-xl bg-muted px-4 py-3 text-sm">
+                    <dt className="text-foreground/90">Karakteristik</dt>
+                    <dd className="font-medium">{OPERATION_TYPE_LABELS[operationType]}</dd>
+                    <dt className="text-foreground/90">Metode</dt>
+                    <dd className="font-medium">
+                      {CALC_METHOD_LABELS[calcMethod]}
+                      {calcMethod !== "STANDARD" &&
+                        `, ${calcDuration || 0} ${calcMethod === "TRANSACTION" ? "detik per transaksi" : "menit per batch"}`}
+                    </dd>
+                    <dt className="text-foreground/90">Area</dt>
+                    <dd className="font-medium">{AREA_CATEGORY_LABELS[category] ?? (category || "-")}</dd>
+                    <dd className="col-span-2 pt-1 text-xs text-foreground/90">
+                      Karakteristik dan metode ikut tipe {equipmentName}. Ubah lewat tombol Ubah di
+                      tabel kalau perlu.
+                    </dd>
+                  </dl>
+                )}
 
                 {!isCreateMode && (
-                  <div className="space-y-2">
-                    <Label htmlFor="eq-device-category">Kategori Jenis *</Label>
+                  <Field>
+                    <FieldLabel htmlFor="eq-device-category">Kategori *</FieldLabel>
                     <Select
                       value={deviceCategory}
                       onValueChange={setDeviceCategory}
                       disabled={isSubmitting}
                     >
-                      <SelectTrigger id="eq-device-category">
-                        <SelectValue placeholder="Pilih kategori jenis..." />
+                      <SelectTrigger id="eq-device-category" className="w-full">
+                        <SelectValue placeholder="Pilih kategori" />
                       </SelectTrigger>
                       <SelectContent>
                         {DEVICE_CATEGORIES.map((c) => (
@@ -533,360 +490,280 @@ export function AdminMasterEquipmentDialog({
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
+                  </Field>
                 )}
 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor="eq-category">Area Penempatan *</Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
-                          <IconInfoCircle className="h-3.5 w-3.5" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="max-w-[220px] text-xs font-normal">
-                            Klasifikasi menu pencarian untuk memudahkan auditor saat melakukan pendataan di lapangan.
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Select
-                    value={category}
-                    onValueChange={handleCategoryChange}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger id="eq-category">
-                      <SelectValue placeholder="Pilih area penempatan..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="SALES">Area Belanja</SelectItem>
-                      <SelectItem value="PARKIRAN">Parkiran</SelectItem>
-                      <SelectItem value="TERAS">Teras</SelectItem>
-                      <SelectItem value="GUDANG">Gudang, Toilet & Selasar</SelectItem>
-                      <SelectItem value="BEANSPOT">Beanspot</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {(isNewTypeSelected || !isCreateMode) && (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor="eq-name">Nama tipe equipment *</FieldLabel>
+                      <Input
+                        id="eq-name"
+                        placeholder="Contoh: Air Conditioner"
+                        value={equipmentName}
+                        onChange={(e) => setEquipmentName(e.target.value)}
+                        disabled={isSubmitting}
+                        required
+                      />
+                    </Field>
 
-                <div className="space-y-2">
-                  <Label htmlFor="eq-store-type">Khusus Tipe Toko</Label>
-                  <Select
-                    value={storeType}
-                    onValueChange={setStoreType}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger id="eq-store-type">
-                      <SelectValue placeholder="Semua tipe toko..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Semua tipe toko</SelectItem>
-                      {storeTypes.map((st) => (
-                        <SelectItem key={st} value={st}>
-                          {st}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor="eq-calc-method">Metode Kalkulasi *</Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
-                          <IconInfoCircle className="h-3.5 w-3.5" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="max-w-[220px] text-xs font-normal">
-                            Rumus yang digunakan untuk menghitung konsumsi listrik harian (Standard, Transaksi, atau Batch).
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Select
-                    value={calcMethod}
-                    onValueChange={setCalcMethod}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger id="eq-calc-method">
-                      <SelectValue placeholder="Pilih metode kalkulasi..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="STANDARD">STANDARD (Power × Hours)</SelectItem>
-                      <SelectItem value="TRANSACTION">TRANSACTION (Per Cup/Portion)</SelectItem>
-                      <SelectItem value="BATCH">BATCH (Per Baking Session)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {calcMethod !== "STANDARD" && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-1.5">
-                      <Label htmlFor="eq-calc-duration">
-                        Durasi ({calcMethod === "TRANSACTION" ? "Detik/Transaksi" : "Menit/Batch"}) *
-                      </Label>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
-                            <IconInfoCircle className="h-3.5 w-3.5" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="max-w-[220px] text-xs font-normal">
-                              Durasi waktu aktif alat untuk setiap satu kali transaksi atau siklus memasak (batch).
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field>
+                        <FieldLabel htmlFor="eq-category">Area penempatan *</FieldLabel>
+                        <Select
+                          value={category}
+                          onValueChange={handleCategoryChange}
+                          disabled={isSubmitting}
+                        >
+                          <SelectTrigger id="eq-category" className="w-full">
+                            <SelectValue placeholder="Pilih area" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(AREA_CATEGORY_LABELS).map(([value, label]) => (
+                              <SelectItem key={value} value={value}>
+                                {label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FieldDescription>Daftar area tempat alat ini muncul di form toko.</FieldDescription>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="eq-store-type">Khusus tipe toko</FieldLabel>
+                        <Select value={storeType} onValueChange={setStoreType} disabled={isSubmitting}>
+                          <SelectTrigger id="eq-store-type" className="w-full">
+                            <SelectValue placeholder="Semua tipe toko" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Semua tipe toko</SelectItem>
+                            {storeTypes.map((st) => (
+                              <SelectItem key={st} value={st}>
+                                {st}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
                     </div>
-                    <Input
-                      id="eq-calc-duration"
-                      type="number"
-                      min="1"
-                      placeholder={calcMethod === "TRANSACTION" ? "Contoh: 60" : "Contoh: 15"}
-                      value={calcDuration}
-                      onChange={(e) => setCalcDuration(e.target.value === "" ? "" : Number(e.target.value))}
-                      disabled={isSubmitting}
-                      required
-                    />
-                  </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field>
+                        <FieldLabel htmlFor="eq-operation-type">Karakteristik *</FieldLabel>
+                        <Select
+                          value={operationType}
+                          onValueChange={(value) => changeOperationType(value as OperationType)}
+                          disabled={isSubmitting}
+                        >
+                          <SelectTrigger id="eq-operation-type" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="STATIS">Statis</SelectItem>
+                            <SelectItem value="DINAMIS">Dinamis</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FieldDescription>
+                          {operationType === "STATIS"
+                            ? "Daya tetap, contoh lampu. Selalu metode Standar."
+                            : "Ada daya running dan standby, contoh kompresor."}
+                        </FieldDescription>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="eq-calc-method">Metode *</FieldLabel>
+                        <Select
+                          value={calcMethod}
+                          onValueChange={(value) => setCalcMethod(value as CalcMethod)}
+                          disabled={isSubmitting || operationType === "STATIS"}
+                        >
+                          <SelectTrigger id="eq-calc-method" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="STANDARD">Standar</SelectItem>
+                            <SelectItem value="TRANSACTION">Transaksi</SelectItem>
+                            <SelectItem value="BATCH">Batch</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                    </div>
+
+                    {calcMethod !== "STANDARD" && (
+                      <Field>
+                        <FieldLabel htmlFor="eq-calc-duration">
+                          {calcMethod === "TRANSACTION" ? "Waktu per transaksi (detik) *" : "Waktu per batch (menit) *"}
+                        </FieldLabel>
+                        <Input
+                          id="eq-calc-duration"
+                          type="number"
+                          min="1"
+                          placeholder={calcMethod === "TRANSACTION" ? "Contoh: 60" : "Contoh: 15"}
+                          value={calcDuration}
+                          onChange={(e) =>
+                            setCalcDuration(e.target.value === "" ? "" : Number(e.target.value))
+                          }
+                          disabled={isSubmitting}
+                          required
+                        />
+                        <FieldDescription>
+                          Lama alat bekerja untuk satu {calcMethod === "TRANSACTION" ? "transaksi" : "batch"}.
+                        </FieldDescription>
+                      </Field>
+                    )}
+                  </>
                 )}
-              </div>
-            )}
+              </FieldGroup>
+            </FieldSet>
 
-            {/* ── SECTION 2: Brand Details ── */}
-            <div className="border-t pt-3 space-y-3">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Detail Merek Equipment
-              </div>
+            <FieldSeparator />
 
-              <div className="space-y-2">
-                <Label htmlFor="eq-brand-name">Nama Merek *</Label>
-                <Input
-                  id="eq-brand-name"
-                  placeholder="Contoh: Daikin Thailand 1 PK"
-                  value={brandName}
-                  onChange={(e) => setBrandName(e.target.value)}
+            <FieldSet>
+              <FieldLegend>Merek dan profil daya</FieldLegend>
+              <FieldGroup className="gap-4">
+                <Field>
+                  <FieldLabel htmlFor="eq-brand-name">Nama merek *</FieldLabel>
+                  <Input
+                    id="eq-brand-name"
+                    placeholder="Contoh: Daikin Thailand 1 PK"
+                    value={brandName}
+                    onChange={(e) => setBrandName(e.target.value)}
+                    disabled={isSubmitting}
+                    required
+                  />
+                </Field>
+                <EnergyProfileFields
+                  idPrefix="eq-profile"
+                  draft={profileDraft}
+                  onChange={setProfileDraft}
+                  operationType={operationType}
+                  calcMethod={calcMethod}
+                  cycleSeconds={cycleSeconds}
                   disabled={isSubmitting}
-                  required
+                />
+              </FieldGroup>
+            </FieldSet>
+
+            <FieldSeparator />
+
+            <FieldSet>
+              <FieldLegend>Foto referensi</FieldLegend>
+              <FieldDescription>
+                Foto produk dan nameplate membantu anak toko mengenali alat di lapangan.
+              </FieldDescription>
+              <div className="grid grid-cols-2 gap-4">
+                <PhotoSlot
+                  id="product-photo-upload"
+                  label="Foto produk"
+                  url={productPhotoUrl}
+                  uploading={isUploading}
+                  disabled={isSubmitting}
+                  onFile={onProductFileChange}
+                  onRemove={handleProductPhotoRemove}
+                />
+                <PhotoSlot
+                  id="nameplate-photo-upload"
+                  label="Foto nameplate"
+                  url={nameplatePhotoUrl}
+                  uploading={isUploadingNameplate}
+                  disabled={isSubmitting}
+                  onFile={onNameplateFileChange}
+                  onRemove={handleNameplatePhotoRemove}
                 />
               </div>
+            </FieldSet>
+          </FieldGroup>
 
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Label htmlFor="eq-base-kw">Base kW *</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
-                        <IconInfoCircle className="h-3.5 w-3.5" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-[220px] text-xs font-normal">
-                          Daya listrik standar (dalam kW) saat alat beroperasi penuh (1 kW = 1000 Watt).
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <Input
-                  id="eq-base-kw"
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="Contoh: 1.05"
-                  value={baseKw}
-                  onChange={(e) =>
-                    setBaseKw(e.target.value === "" ? "" : Number(e.target.value))
-                  }
-                  disabled={isSubmitting}
-                  required
-                />
-              </div>              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor="eq-standby-kw">Standby kW</Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
-                          <IconInfoCircle className="h-3.5 w-3.5" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="max-w-[220px] text-xs font-normal">
-                            Daya siaga (dalam kW) ketika alat terhubung listrik namun sedang standby / tidak aktif penuh.
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Input
-                    id="eq-standby-kw"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={standbyKw}
-                    onChange={(e) =>
-                      setStandbyKw(
-                        e.target.value === "" ? "" : Number(e.target.value)
-                      )
-                    }
-                    disabled={isSubmitting}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor="eq-running-kw">Running kW</Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger type="button" className="text-muted-foreground hover:text-primary">
-                          <IconInfoCircle className="h-3.5 w-3.5" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="max-w-[220px] text-xs font-normal">
-                            Daya aktif (dalam kW) saat alat sedang beroperasi dalam siklus transaksi/batch (opsional).
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Input
-                    id="eq-running-kw"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={runningKw}
-                    onChange={(e) =>
-                      setRunningKw(
-                        e.target.value === "" ? "" : Number(e.target.value)
-                      )
-                    }
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* ── SECTION 3: Dokumentasi (UploadThing) ── */}
-            <div className="border-t pt-3 space-y-3">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Dokumentasi & Referensi
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Unggah foto produk dan foto name plate untuk referensi saat pendataan di lapangan.
-              </p>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* Foto Produk */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="product-photo-upload" className="text-muted-foreground text-[11px] font-medium">Foto Produk</Label>
-                  {productPhotoUrl ? (
-                    <div className="relative group border rounded-lg overflow-hidden min-h-[5.5rem] flex items-center justify-center bg-muted/20">
-                      <img src={productPhotoUrl} alt="Foto Produk" className="absolute inset-0 size-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={handleProductPhotoRemove}
-                        className="absolute top-1 right-1 size-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/90 shadow-sm"
-                        title="Hapus foto"
-                      >
-                        <IconX className="size-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className={cn(
-                      "flex flex-col items-center justify-center border border-dashed border-muted-foreground/30 rounded-lg p-3 bg-muted/5 min-h-[5.5rem] transition-colors",
-                      isUploading ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted/10 hover:border-primary/40"
-                    )}>
-                      {isUploading ? (
-                        <>
-                          <IconLoader2 className="size-5 text-primary animate-spin mb-1" />
-                          <span className="text-[10px] font-semibold text-muted-foreground text-center">Mengunggah...</span>
-                        </>
-                      ) : (
-                        <>
-                          <IconPhoto className="size-5 text-muted-foreground/50 mb-1" />
-                          <span className="text-[10px] font-semibold text-muted-foreground text-center">Pilih Foto Produk</span>
-                          <span className="text-[9px] text-muted-foreground/60 mt-0.5">Maks. 4MB</span>
-                          <input
-                            id="product-photo-upload"
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={onProductFileChange}
-                            disabled={isUploading || isSubmitting}
-                          />
-                        </>
-                      )}
-                    </label>
-                  )}
-                </div>
-
-                {/* Foto Name Plate */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="nameplate-photo-upload" className="text-muted-foreground text-[11px] font-medium">Foto Name Plate</Label>
-                  {nameplatePhotoUrl ? (
-                    <div className="relative group border rounded-lg overflow-hidden min-h-[5.5rem] flex items-center justify-center bg-muted/20">
-                      <img src={nameplatePhotoUrl} alt="Foto Name Plate" className="absolute inset-0 size-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={handleNameplatePhotoRemove}
-                        className="absolute top-1 right-1 size-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/90 shadow-sm"
-                        title="Hapus foto"
-                      >
-                        <IconX className="size-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className={cn(
-                      "flex flex-col items-center justify-center border border-dashed border-muted-foreground/30 rounded-lg p-3 bg-muted/5 min-h-[5.5rem] transition-colors",
-                      isUploadingNameplate ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted/10 hover:border-primary/40"
-                    )}>
-                      {isUploadingNameplate ? (
-                        <>
-                          <IconLoader2 className="size-5 text-primary animate-spin mb-1" />
-                          <span className="text-[10px] font-semibold text-muted-foreground text-center">Mengunggah...</span>
-                        </>
-                      ) : (
-                        <>
-                          <IconUpload className="size-5 text-muted-foreground/50 mb-1" />
-                          <span className="text-[10px] font-semibold text-muted-foreground text-center">Pilih Foto Plate</span>
-                          <span className="text-[9px] text-muted-foreground/60 mt-0.5">Maks. 4MB</span>
-                          <input
-                            id="nameplate-photo-upload"
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={onNameplateFileChange}
-                            disabled={isUploadingNameplate || isSubmitting}
-                          />
-                        </>
-                      )}
-                    </label>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="mt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
-            >
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Batal
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && (
-                <IconLoader2 className="mr-2 size-4 animate-spin" />
-              )}
+              {isSubmitting && <IconLoader2 data-icon="inline-start" className="animate-spin" />}
               {isCreateMode ? "Tambah Equipment" : "Simpan Perubahan"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+const AREA_CATEGORY_LABELS: Record<string, string> = {
+  SALES: "Area Belanja",
+  PARKIRAN: "Parkiran",
+  TERAS: "Teras",
+  GUDANG: "Gudang, Toilet & Selasar",
+  BEANSPOT: "Beanspot",
+}
+
+function PhotoSlot({
+  id,
+  label,
+  url,
+  uploading,
+  disabled,
+  onFile,
+  onRemove,
+}: {
+  id: string
+  label: string
+  url: string
+  uploading: boolean
+  disabled: boolean
+  onFile: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onRemove: (e: React.MouseEvent) => void
+}) {
+  return (
+    <Field>
+      <FieldLabel htmlFor={url ? undefined : id}>{label}</FieldLabel>
+      {url ? (
+        <div className="relative aspect-[4/3] overflow-hidden rounded-xl border bg-muted">
+          <img src={url} alt={label} className="size-full object-cover" />
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon-lg"
+            className="absolute top-2 right-2"
+            onClick={onRemove}
+            disabled={disabled}
+            aria-label={`Hapus ${label.toLowerCase()}`}
+          >
+            <IconX />
+          </Button>
+        </div>
+      ) : (
+        <label
+          htmlFor={id}
+          className={cn(
+            "flex aspect-[4/3] flex-col items-center justify-center gap-1 rounded-xl border border-dashed text-center text-sm transition-colors focus-within:ring-[3px] focus-within:ring-ring/50",
+            uploading || disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-primary/50 hover:bg-muted/50"
+          )}
+        >
+          {uploading ? (
+            <>
+              <IconLoader2 className="size-5 animate-spin text-primary" aria-hidden="true" />
+              <span>Mengunggah...</span>
+            </>
+          ) : (
+            <>
+              {id === "product-photo-upload" ? (
+                <IconPhoto className="size-5 text-foreground/70" aria-hidden="true" />
+              ) : (
+                <IconUpload className="size-5 text-foreground/70" aria-hidden="true" />
+              )}
+              <span className="font-medium">Pilih foto</span>
+              <span className="text-xs text-foreground/80">Maks. 4 MB</span>
+            </>
+          )}
+          <input
+            id={id}
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={onFile}
+            disabled={uploading || disabled}
+          />
+        </label>
+      )}
+    </Field>
   )
 }

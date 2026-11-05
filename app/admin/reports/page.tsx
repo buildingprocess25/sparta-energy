@@ -1,4 +1,5 @@
 import {
+  IconArrowsDiff,
   IconBuildingBank,
   IconBuildingStore,
   IconClipboardList,
@@ -11,6 +12,7 @@ import { AdminMasterStoreExportFilter } from "@/components/admin/admin-master-st
 import { AdminReportActions } from "@/components/admin/admin-report-actions"
 import { AdminReportFilters } from "@/components/admin/admin-report-filters"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardAction,
@@ -141,6 +143,14 @@ function getPreviewHref(
   return `/admin/reports/preview?${getReportParams(report, filters, master)}`
 }
 
+function getComparisonHref(branch: string, changedOnly: boolean) {
+  const params = new URLSearchParams()
+  if (branch !== "all") params.set("branch", branch)
+  if (changedOnly) params.set("changed", "1")
+  const query = params.toString()
+  return `/admin/reports/formula-comparison${query ? `?${query}` : ""}`
+}
+
 function describeList(items: string[], all: string, unit: string) {
   if (items.length === 0) return all
   if (items.length <= 3) return items.join(", ")
@@ -249,6 +259,34 @@ export default async function AdminReportsPage({
                 </Card>
               )
             })}
+
+            <Card size="sm" className="overflow-hidden xl:col-span-2">
+              <CardHeader>
+                <div className="flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground ring-1 ring-border">
+                  <IconArrowsDiff className="size-5" />
+                </div>
+                <CardTitle>Pembanding Rumus Baru</CardTitle>
+                <CardDescription>
+                  Standar setiap toko dengan rumus lama dan rumus kalkulator v2, dari audit
+                  selesai terakhir. Hanya membaca, tidak ada audit yang diubah.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-center justify-between gap-4 border-t pt-4">
+                <span className="min-w-0 flex-1 basis-48 text-xs text-muted-foreground">
+                  {filters.branch === "all" ? "Semua cabang" : `Cabang ${filters.branch}`}. Profil
+                  alat diambil dari master saat diunduh, jadi hasilnya ikut berubah setiap kali
+                  profil master dilengkapi.
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button asChild variant="outline">
+                    <a href={getComparisonHref(filters.branch, true)}>Unduh yang berubah status</a>
+                  </Button>
+                  <Button asChild>
+                    <a href={getComparisonHref(filters.branch, false)}>Unduh semua toko</a>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>

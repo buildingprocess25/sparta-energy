@@ -1,11 +1,19 @@
 import type { AreaTarget } from "@prisma/client"
 
 import { normalizeBrandName, type MasterBrandRef } from "@/lib/brand-match"
+import { resolveOperationType } from "@/lib/energy-formula"
+import {
+  normalizeBrandProfile,
+  profileIssueMessage,
+  type BrandProfileInput,
+} from "@/lib/energy-profile-draft"
 
 export type FieldBrandRow = {
   equipmentTypeId: string
   typeName: string
   calcMethod: string
+  operationType: string
+  cycleSeconds: number | null
   brandName: string
   baseKw: number
   areaTarget: AreaTarget
@@ -25,6 +33,8 @@ export type UnregisteredBrand = {
   equipmentTypeId: string
   typeName: string
   calcMethod: string
+  operationType: string
+  cycleSeconds: number | null
   brandName: string
   kwTypical: number
   kwMin: number
@@ -47,53 +57,32 @@ export function isUsageBasedMethod(calcMethod: string) {
 
 export class UnregisteredBrandError extends Error {}
 
-export type BrandToMasterInput = {
-  brandName: string
-  baseKw: number
-  runningKw?: number | null
-  standbyKw?: number | null
-  areaTarget: AreaTarget
-}
-
 const AREA_TARGETS: AreaTarget[] = ["SALES", "PARKING", "TERRACE", "WAREHOUSE"]
 
-// Usage-based types need a real running kW: a 0 here is what made coffee
-// machines and ovens count as 0 kWh. STANDARD types only use base kW.
-export function toMasterBrandData(input: BrandToMasterInput, calcMethod: string) {
+export type BrandToMasterInput = {
+  brandName: string
+  areaTarget: AreaTarget
+  profile: BrandProfileInput
+}
+
+// Same profile rules as the master form (lib/energy-profile-draft.ts).
+export function toMasterBrandData(
+  input: BrandToMasterInput,
+  type: { operationType: string; calcMethod: string; cycleSeconds: number | null }
+) {
   const brandName = input.brandName.trim().replace(/\s+/g, " ")
   if (!brandName) throw new UnregisteredBrandError("Nama merek wajib diisi.")
-  if (!(Number.isFinite(input.baseKw) && input.baseKw > 0)) {
-    throw new UnregisteredBrandError("Daya dasar harus lebih dari 0 kW.")
-  }
   if (!AREA_TARGETS.includes(input.areaTarget)) {
     throw new UnregisteredBrandError("Pilih area penempatan yang tersedia.")
   }
-
-  if (!isUsageBasedMethod(calcMethod)) {
-    return {
-      name: brandName,
-      baseKw: input.baseKw,
-      runningKw: input.baseKw,
-      standbyKw: input.baseKw * 0.05,
-      areaTarget: input.areaTarget,
-    }
-  }
-
-  const runningKw = input.runningKw ?? 0
-  const standbyKw = input.standbyKw ?? 0
-  if (!(Number.isFinite(runningKw) && runningKw > 0)) {
-    throw new UnregisteredBrandError("Daya saat bekerja harus lebih dari 0 kW untuk alat ini.")
-  }
-  if (!(Number.isFinite(standbyKw) && standbyKw >= 0)) {
-    throw new UnregisteredBrandError("Daya siaga harus berupa angka 0 atau lebih.")
-  }
-  return {
-    name: brandName,
-    baseKw: input.baseKw,
-    runningKw,
-    standbyKw,
-    areaTarget: input.areaTarget,
-  }
+  const { values, issues } = normalizeBrandProfile(
+    input.profile,
+    resolveOperationType(type.operationType, type.calcMethod),
+    type.calcMethod,
+    type.cycleSeconds
+  )
+  if (issues.length > 0) throw new UnregisteredBrandError(profileIssueMessage(issues))
+  return { name: brandName, areaTarget: input.areaTarget, ...values }
 }
 
 function mostFrequent<T>(values: T[]): T {
@@ -143,6 +132,8 @@ export function groupUnregisteredBrands(
         equipmentTypeId: group[0].equipmentTypeId,
         typeName: group[0].typeName,
         calcMethod: group[0].calcMethod,
+        operationType: group[0].operationType,
+        cycleSeconds: group[0].cycleSeconds,
         brandName: mostFrequent(group.map((row) => row.brandName.trim().replace(/\s+/g, " "))),
         kwTypical: mostFrequent(kws),
         kwMin: Math.min(...kws),
